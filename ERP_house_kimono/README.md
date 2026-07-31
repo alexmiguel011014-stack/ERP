@@ -61,7 +61,7 @@ ERP_HK/
 ### 1. Clonar o repositório
 
 ```powershell
-git clone https://github.com/alexmiguel011014-stack/ERP_HK.git
+git clone https://github.com/alexmiguel011014-stack/JiuJitsu-ERP.git
 cd ERP_HK
 ```
 
