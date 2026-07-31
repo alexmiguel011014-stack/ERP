@@ -227,4 +227,50 @@ module.exports = {
   finalizarVenda,
   setDBPath,
   getDBPath,
+  getDashboardStats,
 };
+
+async function getDashboardStats() {
+  const conn = getConexao();
+  const get = (sql, params = []) =>
+    new Promise((resolve, reject) => {
+      conn.get(sql, params, (erro, linha) => {
+        if (erro) return reject(erro);
+        resolve(linha);
+      });
+    });
+  const all = (sql, params = []) =>
+    new Promise((resolve, reject) => {
+      conn.all(sql, params, (erro, linhas) => {
+        if (erro) return reject(erro);
+        resolve(linhas);
+      });
+    });
+
+  const hoje = new Date().toISOString().slice(0, 10);
+
+  const totalVendas = await get(
+    "SELECT COUNT(*) AS total FROM Vendas WHERE DATE(data_venda) = ?",
+    [hoje]
+  );
+
+  const somaTotal = await get(
+    "SELECT COALESCE(SUM(total), 0) AS soma FROM Vendas WHERE DATE(data_venda) = ?",
+    [hoje]
+  );
+
+  const totalProdutos = await get(
+    "SELECT COUNT(*) AS total FROM Produtos"
+  );
+
+  const estoqueBaixo = await all(
+    "SELECT COUNT(*) AS total FROM Variacoes WHERE quantidade_estoque > 0 AND quantidade_estoque <= 5"
+  );
+
+  return {
+    vendasHoje: totalVendas.total,
+    faturamentoHoje: somaTotal.soma,
+    totalProdutos: totalProdutos.total,
+    estoqueBaixo: estoqueBaixo[0].total,
+  };
+}

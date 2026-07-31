@@ -14,14 +14,17 @@
         font-family: "Segoe UI", Arial, sans-serif;
         background-color: #0f0f1a;
         color: #e0e0e0;
-        height: 100vh;
+        min-height: 100vh;
         display: flex;
         justify-content: center;
-        align-items: center;
+        align-items: flex-start;
+        padding: 30px 10px;
       }
       .container {
         text-align: center;
         padding: 40px;
+        width: 100%;
+        max-width: 960px;
       }
       h1 {
         color: #e94560;
@@ -30,7 +33,38 @@
       }
       .subtitle {
         color: #666;
-        margin-bottom: 30px;
+        margin-bottom: 20px;
+      }
+      .stats {
+        display: flex;
+        gap: 15px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-bottom: 25px;
+      }
+      .stat-card {
+        background-color: #1a1a2e;
+        border: 1px solid #333;
+        border-radius: 8px;
+        padding: 15px 25px;
+        min-width: 140px;
+      }
+      .stat-card.alert {
+        border-color: #ffaa00;
+      }
+      .stat-value {
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: #4cff4c;
+      }
+      .stat-card.alert .stat-value {
+        color: #ffaa00;
+      }
+      .stat-label {
+        font-size: 0.75rem;
+        color: #888;
+        text-transform: uppercase;
+        margin-top: 4px;
       }
       .cards {
         display: flex;
@@ -75,6 +109,26 @@
     <div class="container">
       <h1>JiuJitsu ERP</h1>
       <p class="subtitle">Selecione um modulo para continuar</p>
+
+      <div class="stats" id="statsContainer">
+        <div class="stat-card">
+          <div class="stat-value" id="statVendas">--</div>
+          <div class="stat-label">Vendas Hoje</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statFaturamento">--</div>
+          <div class="stat-label">Faturamento Hoje</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statProdutos">--</div>
+          <div class="stat-label">Produtos Cadastrados</div>
+        </div>
+        <div class="stat-card alert" id="statEstoqueBaixo">
+          <div class="stat-value" id="statEstoque">--</div>
+          <div class="stat-label">Estoque Baixo</div>
+        </div>
+      </div>
+
       <div class="cards">
         <div class="card">
           <a href="pdv.html">
@@ -92,5 +146,17 @@
         </div>
       </div>
     </div>
+    <script>
+      if (window.api && window.api.dashboardStats) {
+        window.api.dashboardStats().then(function (stats) {
+          document.getElementById("statVendas").textContent = stats.vendasHoje || 0;
+          document.getElementById("statFaturamento").textContent = "R$ " + (stats.faturamentoHoje || 0).toFixed(2);
+          document.getElementById("statProdutos").textContent = stats.totalProdutos || 0;
+          document.getElementById("statEstoque").textContent = stats.estoqueBaixo || 0;
+        }).catch(function () {});
+      }
+    </script>
+  </body>
+<script src="../js/navbar.js"></script>
   </body>
 </html>

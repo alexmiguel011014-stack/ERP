@@ -5,4 +5,5 @@ contextBridge.exposeInMainWorld("api", {
   salvarProduto: (dados) => ipcRenderer.invoke("salvar-produto", dados),
   buscarSKU: (sku) => ipcRenderer.invoke("buscar-sku", sku),
   finalizarVenda: (dados) => ipcRenderer.invoke("finalizar-venda", dados),
+  dashboardStats: () => ipcRenderer.invoke("dashboard-stats"),
 });
