@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ERP Jiu-Jitsu - Inicializando</title>
+    <title>JiuJitsu ERP</title>
     <style>
       * {
         margin: 0;
@@ -11,34 +11,86 @@
         box-sizing: border-box;
       }
       body {
-        font-family: Arial, sans-serif;
-        background-color: #1a1a2e;
+        font-family: "Segoe UI", Arial, sans-serif;
+        background-color: #0f0f1a;
         color: #e0e0e0;
+        height: 100vh;
         display: flex;
         justify-content: center;
         align-items: center;
-        height: 100vh;
-        text-align: center;
       }
       .container {
+        text-align: center;
         padding: 40px;
-        border: 2px solid #e94560;
-        border-radius: 12px;
-        background-color: #16213e;
       }
       h1 {
         color: #e94560;
-        margin-bottom: 12px;
+        font-size: 2rem;
+        margin-bottom: 8px;
       }
-      p {
-        color: #a0a0b0;
+      .subtitle {
+        color: #666;
+        margin-bottom: 30px;
+      }
+      .cards {
+        display: flex;
+        gap: 20px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .card {
+        background-color: #1a1a2e;
+        border: 1px solid #333;
+        border-radius: 10px;
+        padding: 30px 40px;
+        cursor: pointer;
+        transition: border-color 0.2s, transform 0.2s;
+        width: 220px;
+        text-align: center;
+      }
+      .card:hover {
+        border-color: #e94560;
+        transform: translateY(-4px);
+      }
+      .card-icon {
+        font-size: 2.5rem;
+        margin-bottom: 10px;
+      }
+      .card h3 {
+        color: #e94560;
+        margin-bottom: 8px;
+      }
+      .card p {
+        color: #888;
+        font-size: 0.85rem;
+      }
+      .card a {
+        text-decoration: none;
+        color: inherit;
+        display: block;
       }
     </style>
   </head>
   <body>
     <div class="container">
-      <h1>ERP Jiu-Jitsu</h1>
-      <p>A janela do Electron est&aacute; renderizando corretamente.</p>
+      <h1>JiuJitsu ERP</h1>
+      <p class="subtitle">Selecione um modulo para continuar</p>
+      <div class="cards">
+        <div class="card">
+          <a href="pdv.html">
+            <div class="card-icon">💰</div>
+            <h3>Frente de Caixa</h3>
+            <p>PDV — Leitor de SKU, carrinho e finalizacao de venda</p>
+          </a>
+        </div>
+        <div class="card">
+          <a href="cadastro.html">
+            <div class="card-icon">📦</div>
+            <h3>Cadastro</h3>
+            <p>Produtos e variacoes (tamanho, cor, SKU, estoque)</p>
+          </a>
+        </div>
+      </div>
     </div>
   </body>
 </html>
