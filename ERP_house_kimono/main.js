@@ -1,6 +1,6 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
-const { iniciarBanco, salvarProduto } = require('./database');
+const { iniciarBanco, salvarProduto, buscarSKU, finalizarVenda } = require('./database');
 
 function criarJanelaPrincipal() {
   const janela = new BrowserWindow({
@@ -46,6 +46,24 @@ ipcMain.handle('buscar-produtos', async () => {
 ipcMain.handle('salvar-produto', async (event, dados) => {
   try {
     const resultado = await salvarProduto(dados, dados.variacoes);
+    return resultado;
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('buscar-sku', async (event, sku) => {
+  try {
+    const resultado = await buscarSKU(sku);
+    return resultado;
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('finalizar-venda', async (event, dados) => {
+  try {
+    const resultado = await finalizarVenda(dados);
     return resultado;
   } catch (erro) {
     throw erro.message;

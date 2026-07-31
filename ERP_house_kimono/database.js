@@ -147,10 +147,73 @@ async function salvarProduto(produto, variacoes) {
     throw erro;
   }
 }
+async function buscarSKU(sku) {
+  const conn = getConexao();
+
+  const get = (sql, params = []) =>
+    new Promise((resolve, reject) => {
+      conn.get(sql, params, (erro, linha) => {
+        if (erro) return reject(erro);
+        resolve(linha);
+      });
+    });
+
+  const row = await get(
+    `SELECT v.id AS variacao_id, p.nome, v.tamanho, v.cor, v.preco, v.quantidade_estoque, v.sku
+     FROM Variacoes v
+     JOIN Produtos p ON p.id = v.produto_id
+     WHERE v.sku = ?`,
+    [sku]
+  );
+
+  return row || null;
+}
+
+async function finalizarVenda(dados) {
+  const conn = getConexao();
+
+  const run = (sql, params = []) =>
+    new Promise((resolve, reject) => {
+      conn.run(sql, params, function (erro) {
+        if (erro) return reject(erro);
+        resolve(this);
+      });
+    });
+
+  await run("BEGIN TRANSACTION");
+
+  try {
+    const result = await run(
+      "INSERT INTO Vendas (cliente_id, total, forma_pagamento, data_venda) VALUES (?, ?, ?, ?)",
+      [null, dados.total, dados.forma_pagamento, new Date().toISOString()]
+    );
+    const vendaId = result.lastID;
+
+    for (const item of dados.itens) {
+      await run(
+        "INSERT INTO ItensVenda (venda_id, variacao_id, quantidade, preco_unitario) VALUES (?, ?, ?, ?)",
+        [vendaId, item.variacao_id, item.quantidade, item.preco_unitario]
+      );
+
+      await run(
+        "UPDATE Variacoes SET quantidade_estoque = quantidade_estoque - ? WHERE id = ?",
+        [item.quantidade, item.variacao_id]
+      );
+    }
+
+    await run("COMMIT");
+    return { success: true, vendaId };
+  } catch (erro) {
+    await run("ROLLBACK");
+    throw erro;
+  }
+}
 
 module.exports = {
   db: getConexao,
   iniciarBanco,
   getConexao,
   salvarProduto,
+  buscarSKU,
+  finalizarVenda,
 };

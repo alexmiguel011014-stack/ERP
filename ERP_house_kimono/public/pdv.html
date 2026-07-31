@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ERP Jiu-Jitsu - Frente de Caixa</title>
+    <link rel="stylesheet" href="pdv.css" />
+  </head>
+  <body>
+    <div class="pdv-container">
+      <header class="pdv-header">
+        <h1>Frente de Caixa</h1>
+        <span class="pdv-date" id="pdvDate"></span>
+      </header>
+
+      <div class="pdv-main">
+        <div class="pdv-left">
+          <div class="scan-area">
+            <label for="skuInput">Código de Barras / SKU</label>
+            <input
+              type="text"
+              id="skuInput"
+              placeholder="Escaneie ou digite o SKU e pressione Enter"
+              autofocus
+            />
+          </div>
+
+          <div class="cart-area">
+            <h2>Carrinho</h2>
+            <table id="carrinhoTable">
+              <thead>
+                <tr>
+                  <th>Produto</th>
+                  <th>Tamanho</th>
+                  <th>Cor</th>
+                  <th>Qtd</th>
+                  <th>Unitário (R$)</th>
+                  <th>Subtotal (R$)</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="carrinhoBody"></tbody>
+              <tfoot>
+                <tr id="carrinhoVazio">
+                  <td colspan="7">Nenhum item no carrinho.</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <div class="pdv-right">
+          <div class="resumo">
+            <h2>Resumo da Venda</h2>
+
+            <div class="forma-pagamento">
+              <label>Forma de Pagamento</label>
+              <select id="formaPagamento">
+                <option value="">Selecione</option>
+                <option value="PIX">PIX</option>
+                <option value="Cartão">Cartão</option>
+                <option value="Dinheiro">Dinheiro</option>
+              </select>
+            </div>
+
+            <div class="total-area">
+              <span class="total-label">VALOR TOTAL</span>
+              <span class="total-value" id="totalValue">R$ 0,00</span>
+            </div>
+
+            <button id="btnFinalizar" class="btn-finalizar" disabled>
+              Finalizar Venda
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="mensagemPDV" class="mensagem-pdv"></div>
+    </div>
+
+    <script src="../js/pdv.js"></script>
+  </body>
+</html>
