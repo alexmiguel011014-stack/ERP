@@ -35,9 +35,9 @@ Stack visual: Tatame Clean (paleta clara: #F8FAFC, #FFFFFF, #1E293B, #2563EB, #1
 
 ## Estado da Sessão Atual
 
-Últimas implementações: Batch 1 UX improvements + Batch 2 (navbar, dashboard) + Batch 3 (Clientes, Histórico, Backup) + Tatame Clean visual redesign + Gerador de .exe + GitHub Release v1.0.0
-Push para GitHub: **em dia** (branch `main`, último commit `3f471df`)
-Release: **v1.0.0** publicada em https://github.com/alexmiguel011014-stack/ERP_HK/releases/tag/v1.0.0 com `JiuJitsu ERP Setup 1.0.0.exe` (80MB)
+Últimas implementações: Batch 1 UX improvements + Batch 2 (navbar, dashboard) + Batch 3 (Clientes, Histórico, Backup) + Tatame Clean visual redesign + Gerador de .exe + GitHub Release v1.0.0 + Aba de atualizações automáticas com electron-updater
+Push para GitHub: **em dia** (branch `main`, último commit `d2c5ef7`)
+Release: **v1.0.0** publicada em https://github.com/alexmiguel011014-stack/JiuJitsu-ERP/releases/tag/v1.0.0 com `JiuJitsu ERP Setup 1.0.0.exe` (80MB)
 Próxima tarefa sugerida: **Testar o instalador** gerado em `dist/JiuJitsu ERP Setup 1.0.0.exe` e substituir o ícone placeholder por um ícone `.ico` real
 
 ## Estrutura do Projeto (Git Root)
