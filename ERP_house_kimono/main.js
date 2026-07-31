@@ -1,6 +1,22 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
-const { iniciarBanco, salvarProduto, buscarSKU, finalizarVenda, setDBPath, getDBPath, getDashboardStats } = require('./database');
+const {
+  iniciarBanco,
+  salvarProduto,
+  buscarSKU,
+  finalizarVenda,
+  setDBPath,
+  getDBPath,
+  getDashboardStats,
+  getClientes,
+  salvarCliente,
+  removerCliente,
+  buscarCliente,
+  getVendas,
+  getVendasHoje,
+  exportBackup,
+  importBackup,
+} = require('./database');
 
 function criarJanelaPrincipal() {
   const janela = new BrowserWindow({
@@ -81,6 +97,70 @@ ipcMain.handle('dashboard-stats', async () => {
   try {
     const stats = await getDashboardStats();
     return stats;
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('get-clientes', async () => {
+  try {
+    return await getClientes();
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('salvar-cliente', async (event, dados) => {
+  try {
+    return await salvarCliente(dados);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('remover-cliente', async (event, id) => {
+  try {
+    return await removerCliente(id);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('buscar-cliente', async (event, filtro) => {
+  try {
+    return await buscarCliente(filtro);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('get-vendas', async (event, filtroData) => {
+  try {
+    return await getVendas(filtroData || null);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('get-vendas-hoje', async () => {
+  try {
+    return await getVendasHoje();
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('export-backup', async () => {
+  try {
+    return exportBackup();
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('import-backup', async (event, caminho) => {
+  try {
+    return await importBackup(caminho);
   } catch (erro) {
     throw erro.message;
   }

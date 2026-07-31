@@ -9,6 +9,8 @@
     '<a href="index.html" class="' + (currentPage === "index.html" ? "active" : "") + '">Dashboard</a>' +
     '<a href="pdv.html" class="' + (currentPage === "pdv.html" ? "active" : "") + '">Frente de Caixa</a>' +
     '<a href="cadastro.html" class="' + (currentPage === "cadastro.html" ? "active" : "") + '">Cadastro</a>' +
+    '<a href="clientes.html" class="' + (currentPage === "clientes.html" ? "active" : "") + '">Clientes</a>' +
+    '<a href="vendas.html" class="' + (currentPage === "vendas.html" ? "active" : "") + '">Historico</a>' +
     "</div>";
 
   var container = document.querySelector(".container") || document.body;

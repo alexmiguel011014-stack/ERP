@@ -1,0 +1,176 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Segoe UI", Arial, sans-serif;
+  background-color: #0f0f1a;
+  color: #e0e0e0;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 30px 10px;
+}
+
+.container {
+  width: 100%;
+  max-width: 800px;
+  background-color: #1a1a2e;
+  border: 1px solid #e94560;
+  border-radius: 10px;
+  padding: 30px;
+}
+
+h1 {
+  color: #e94560;
+  margin-bottom: 20px;
+  font-size: 1.6rem;
+  text-align: center;
+}
+
+.filters {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+}
+
+.filters label {
+  font-size: 0.85rem;
+  color: #a0a0b0;
+}
+
+.filters input[type="date"] {
+  padding: 6px 10px;
+  border: 1px solid #333;
+  border-radius: 4px;
+  background-color: #16213e;
+  color: #e0e0e0;
+  font-size: 0.9rem;
+}
+
+.btn {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+.btn-small {
+  padding: 4px 10px;
+  font-size: 0.75rem;
+}
+
+.btn-primary {
+  background-color: #e94560;
+  color: #fff;
+}
+
+.btn-secondary {
+  background-color: #333;
+  color: #e0e0e0;
+  border: 1px solid #555;
+}
+
+.stats-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+}
+
+.stat-card {
+  background-color: #16213e;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 10px 18px;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 1.3rem;
+  font-weight: bold;
+  color: #4cff4c;
+}
+
+.stat-label {
+  font-size: 0.7rem;
+  color: #888;
+  text-transform: uppercase;
+}
+
+.lista {
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.venda-item {
+  padding: 12px;
+  border-bottom: 1px solid #333;
+  cursor: default;
+}
+
+.venda-item:hover {
+  background-color: #16213e;
+}
+
+.venda-top {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.venda-id {
+  font-weight: bold;
+  color: #e94560;
+  font-size: 0.85rem;
+}
+
+.venda-total {
+  font-weight: bold;
+  color: #4cff4c;
+  font-size: 0.95rem;
+}
+
+.venda-bottom {
+  display: flex;
+  gap: 15px;
+  font-size: 0.75rem;
+  color: #888;
+  flex-wrap: wrap;
+}
+
+.empty-state {
+  text-align: center;
+  color: #666;
+  padding: 20px;
+}
+
+.mensagem {
+  margin-top: 15px;
+  padding: 10px;
+  border-radius: 5px;
+  text-align: center;
+  font-weight: bold;
+  display: none;
+}
+
+.mensagem.sucesso {
+  display: block;
+  background-color: #1a3a1a;
+  color: #4cff4c;
+  border: 1px solid #4cff4c;
+}
+
+.mensagem.error {
+  display: block;
+  background-color: #3a1a1a;
+  color: #ff4c4c;
+  border: 1px solid #ff4c4c;
+}

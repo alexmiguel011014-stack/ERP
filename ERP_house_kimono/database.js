@@ -228,7 +228,154 @@ module.exports = {
   setDBPath,
   getDBPath,
   getDashboardStats,
+  getClientes,
+  salvarCliente,
+  removerCliente,
+  buscarCliente,
+  getVendas,
+  getVendasHoje,
+  exportBackup,
+  importBackup,
 };
+
+function getClientes() {
+  const conn = getConexao();
+  return new Promise((resolver, rejeitar) => {
+    conn.all("SELECT * FROM Clientes ORDER BY nome", [], (erro, linhas) => {
+      if (erro) return rejeitar(erro.message);
+      resolver(linhas);
+    });
+  });
+}
+
+async function salvarCliente(dados) {
+  const run = (sql, params = []) =>
+    new Promise((resolve, reject) => {
+      const conn = getConexao();
+      conn.run(sql, params, function (erro) {
+        if (erro) return reject(erro);
+        resolve(this);
+      });
+    });
+
+  await run("BEGIN TRANSACTION");
+  try {
+    const result = await run(
+      "INSERT INTO Clientes (nome, telefone, academia, faixa) VALUES (?, ?, ?, ?)",
+      [dados.nome, dados.telefone || null, dados.academia || null, dados.faixa || null]
+    );
+    await run("COMMIT");
+    return { success: true, clienteId: result.lastID };
+  } catch (erro) {
+    await run("ROLLBACK");
+    throw erro;
+  }
+}
+
+async function removerCliente(id) {
+  const run = (sql, params = []) =>
+    new Promise((resolve, reject) => {
+      const conn = getConexao();
+      conn.run(sql, params, function (erro) {
+        if (erro) return reject(erro);
+        resolve(this);
+      });
+    });
+
+  await run("BEGIN TRANSACTION");
+  try {
+    await run("DELETE FROM Clientes WHERE id = ?", [id]);
+    await run("COMMIT");
+    return { success: true };
+  } catch (erro) {
+    await run("ROLLBACK");
+    throw erro;
+  }
+}
+
+async function buscarCliente(filtro) {
+  const conn = getConexao();
+  return new Promise((resolver, rejeitar) => {
+    const sql = "SELECT * FROM Clientes WHERE nome LIKE ? OR telefone LIKE ?";
+    const param = "%" + filtro + "%";
+    conn.all(sql, [param, param], (erro, linhas) => {
+      if (erro) return rejeitar(erro.message);
+      resolver(linhas);
+    });
+  });
+}
+
+async function getVendas(filtroData) {
+  const conn = getConexao();
+  return new Promise((resolver, rejeitar) => {
+    let sql = "SELECT v.id, v.total, v.forma_pagamento, v.data_venda, c.nome AS cliente_nome FROM Vendas v LEFT JOIN Clientes c ON c.id = v.cliente_id";
+    const params = [];
+
+    if (filtroData) {
+      sql += " WHERE DATE(v.data_venda) = ?";
+      params.push(filtroData);
+    }
+
+    sql += " ORDER BY v.data_venda DESC LIMIT 100";
+
+    conn.all(sql, params, (erro, linhas) => {
+      if (erro) return rejeitar(erro.message);
+      resolver(linhas);
+    });
+  });
+}
+
+async function getVendasHoje() {
+  const conn = getConexao();
+  const hoje = new Date().toISOString().slice(0, 10);
+  return new Promise((resolver, rejeitar) => {
+    conn.all(
+      "SELECT v.id, v.total, v.forma_pagamento, c.nome AS cliente_nome FROM Vendas v LEFT JOIN Clientes c ON c.id = v.cliente_id WHERE DATE(v.data_venda) = ? ORDER BY v.data_venda DESC",
+      [hoje],
+      (erro, linhas) => {
+        if (erro) return rejeitar(erro.message);
+        resolver(linhas);
+      }
+    );
+  });
+}
+
+function exportBackup() {
+  const fs = require("fs");
+  const origem = DB_PATH;
+  const destino = path.join(__dirname, "data", "backup_" + Date.now() + ".sqlite");
+
+  if (!fs.existsSync(path.join(__dirname, "data"))) {
+    fs.mkdirSync(path.join(__dirname, "data"), { recursive: true });
+  }
+
+  fs.copyFileSync(origem, destino);
+  return destino;
+}
+
+async function importBackup(caminhoArquivo) {
+  const fs = require("fs");
+  const conn = getConexao();
+
+  return new Promise((resolver, rejeitar) => {
+    fs.readFile(caminhoArquivo, (erroLeitura, dados) => {
+      if (erroLeitura) return rejeitar(erroLeitura.message);
+
+      const tmpPath = DB_PATH + ".tmp";
+      fs.writeFileSync(tmpPath, dados);
+
+      conn.close((errClose) => {
+        if (errClose) return rejeitar(errClose.message);
+
+        db = null;
+        fs.copyFileSync(tmpPath, DB_PATH);
+        fs.unlinkSync(tmpPath);
+
+        resolver({ success: true, message: "Backup restaurado com sucesso." });
+      });
+    });
+  });
+}
 
 async function getDashboardStats() {
   const conn = getConexao();

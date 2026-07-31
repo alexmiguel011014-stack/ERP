@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>JiuJitsu ERP - Historico de Vendas</title>
+    <link rel="stylesheet" href="vendas.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>Historico de Vendas</h1>
+
+      <div class="filters">
+        <label for="filterDate">Filtrar por data:</label>
+        <input type="date" id="filterDate" />
+        <button id="btnFilter" class="btn btn-small">Filtrar</button>
+        <button id="btnClear" class="btn btn-small btn-secondary">Limpar</button>
+      </div>
+
+      <div id="statsVendas" class="stats-bar"></div>
+
+      <div id="listaVendas" class="lista"></div>
+
+      <div id="mensagem" class="mensagem"></div>
+    </div>
+
+    <script src="../js/navbar.js"></script>
+    <script src="../js/vendas.js"></script>
+  </body>
+</html>
