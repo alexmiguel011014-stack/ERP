@@ -13,7 +13,7 @@ function criarJanelaPrincipal() {
     },
   });
 
-  janela.loadFile('index.html');
+  janela.loadFile('public/index.html');
 }
 
 app.whenReady().then(async () => {
