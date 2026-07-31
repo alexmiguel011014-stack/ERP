@@ -14,68 +14,94 @@ de IA pode ler este arquivo para entender imediatamente o contexto do projeto.
 
 ERP desktop offline para uma loja de artigos de Jiu-Jitsu, empacotado como
 .exe. Stack: Electron.js + Node.js + SQLite + HTML/CSS/JS puro.
+Stack visual: Tatame Clean (paleta clara: #F8FAFC, #FFFFFF, #1E293B, #2563EB, #16A34A, #E2E8F0).
 
 ## O que já foi feito
 
 1. Setup base do Electron com boas práticas de segurança
 2. Banco de dados SQLite com 5 tabelas e foreign keys
-3. Módulo de cadastro de produtos com grade de variações
-4. Módulo PDV (Frente de Caixa) com leitor de SKU, carrinho e finalização
-5. Configuração do electron-builder para gerar .exe (NSIS)
+3. Módulo de cadastro de produtos com grade de variações e SKU automático
+4. Módulo PDV (Frente de Caixa) com leitor de SKU, carrinho com qty +/-, finalização com transação atômica e baixa de estoque
+5. Configuração do electron-builder para gerar .exe (NSIS) com atalhos de desktop
 6. Fix de caminho do SQLite para produção (app.getPath('userData'))
-7. Toda a documentação (README.md, ROADMAP.md, este arquivo)
+7. Cadastro de Clientes com CRUD completo
+8. Histórico de Vendas com filtro por data
+9. Backup/Restore do banco de dados (exportar e importar .sqlite)
+10. Dashboard na página inicial com estatísticas em tempo real (vendas hoje, faturamento, produtos, estoque baixo)
+11. Navbar persistente em todas as páginas
+12. Melhoria visual completa com paleta Tatame Clean
+13. Toda a documentação (README.md, ROADMAP.md, CHECKLIST.md, DEVELOPMENT.md, este arquivo)
 
 ## Estado da Sessão Atual
 
-Último módulo implementado: **PDV (Frente de Caixa) + Configuração de Build**
-Push para GitHub: **realizado** (branch `main`, último commit `c0baaea`)
-Próxima tarefa sugerida: **Gerar o .exe final** executando `npm run build`
+Últimas implementações: Batch 1 UX improvements + Batch 2 (navbar, dashboard) + Batch 3 (Clientes, Histórico, Backup) + Tatame Clean visual redesign
+Push para GitHub: **em dia** (branch `main`, último commit `1b5739c`)
+Próxima tarefa sugerida: **Gerar o .exe final** executando `npm run build` (necessário colocar ícone `.ico` real em `build/icon.ico`)
 
-## Estrutura do Projeto
+## Estrutura do Projeto (Git Root)
 
 ```
-ERP_house_kimono/
+ERP_HK/                          ← Raiz do repositório git
 ├── .gitignore
 ├── package.json
-├── main.js              -- Processo principal Electron
-├── preload.js           -- Ponte IPC (contextBridge)
-├── database.js          -- SQLite + funções CRUD + transações
-├── public/
-│   ├── index.html       -- Tela inicial de teste
-│   ├── pdv.html         -- Frente de Caixa
-│   ├── cadastro.html    -- Cadastro de produto
+├── package-lock.json
+├── main.js                        -- Processo principal Electron
+├── preload.js                     -- Ponte IPC (contextBridge)
+├── database.js                    -- SQLite + CRUD + transações
+├── ERP_JiuJitsu_Launcher.bat      -- Lançador rápido para Área de Trabalho (dev)
+├── CHECKLIST.md                   -- Lista de melhorias implementadas e pendentes
+├── README.md                      -- Documentação principal
+├── ROADMAP.md                     -- Mapa de progresso e próximos passos
+├── DEVELOPMENT.md                 -- Guia de build e notas técnicas
+├── AGENTS.md                      -- Este arquivo
+│
+├── build/                         -- Ícone do .exe e assets de empacotamento
+│   ├── icon.ico                   ← Substituir por ícone real .ico
+│   └── README.md
+│
+├── data/                          -- Criado automaticamente em dev pelo DB
+│   └── erp_jiujitsu.sqlite        ← Banco de dados (dev mode)
+│
+├── public/                        -- Arquivos estáticos do frontend
+│   ├── index.html                 -- Dashboard inicial com estatísticas
+│   ├── pdv.html                   -- Frente de Caixa (PDV)
+│   ├── cadastro.html              -- Cadastro de produtos
+│   ├── clientes.html              -- Cadastro de clientes
+│   ├── vendas.html                -- Histórico de vendas
 │   ├── pdv.css
-│   └── cadastro.css
-├── js/
-│   ├── pdv.js           -- Lógica do PDV
-│   └── cadastro.js      -- Lógica do cadastro
-├── node_modules/
-├── erp_jiujitsu.sqlite  -- Criado na primeira execução
-├── README.md
-├── ROADMAP.md
-├── DEVELOPMENT.md
-└── AGENTS.md
+│   ├── cadastro.css
+│   ├── clientes.css
+│   └── vendas.css
+│
+├── js/                            -- Scripts frontend
+│   ├── pdv.js
+│   ├── cadastro.js
+│   ├── clientes.js
+│   ├── vendas.js
+│   └── navbar.js                  -- Navbar dinâmico (injetado em todas as páginas)
+│
+└── node_modules/                  -- Dependências (não commitar)
 ```
 
 ## Comandos Essenciais
 
 ```powershell
 npm install           # Instalar dependências
-npm start             # Rodar o Electron
+npm start             # Rodar o Electron (dev)
+npm run build         # Gerar .exe instalador (requer icon.ico real)
 ```
 
 ## Push para GitHub
 
 Repositório remoto: `https://github.com/alexmiguel011014-stack/ERP_HK.git`
 Branch: `main`
-Push via HTTPS (SSH pode precisar de configuração local).
+Push via HTTPS (SSH não configurado nesta máquina).
 
 ## Próximos Passos Prioritários
 
-1. Cadastro de Clientes (tela + integration com Vendas)
-2. Histórico de Vendas com filtros
-3. Relatórios básicos (total vendido, produtos mais vendidos, estoque baixo)
-4. Exportar para .exe (electron-builder)
+1. Gerar .exe final com electron-builder (precisa de `build/icon.ico` real)
+2. Melhorar o checkout de estoque (validar rollback se estoque insuficiente no UPDATE)
+3. Melhorias finais de UI/UX (tema claro, feedback de validação mais granular)
 
 ## Decisões Arquiteturais
 
@@ -84,10 +110,16 @@ Push via HTTPS (SSH pode precisar de configuração local).
 - `contextBridge` expõe apenas métodos específicos, nunca objetos Node.js brutos
 - SQLite com `PRAGMA foreign_keys = ON` para integridade referencial
 - Transações explícitas (BEGIN/COMMIT/ROLLBACK) para operações críticas
+- SQLite path dinâmico: `app.getPath('userData')` em produção, `./data/` em dev
+- DB em desenvolvimento fica em `./data/erp_jiujitsu.sqlite` (não na raiz)
+- Navbar injetada dinamicamente via `js/navbar.js` em todas as páginas
+- Paleta Tatame Clean aplicada em todas as telas (cores: #F8FAFC, #FFFFFF, #1E293B, #2563EB, #16A34A, #E2E8F0)
 
 ## Dicas para Continuidade
 
 - Sempre consulte `ROADMAP.md` para ver o que está no topo da prioridade
-- O `database.js` contém `runAsync`, `getAsync` e funções async para operações com banco
-- O `preload.js` acumula os métodos expostos ao renderer — adicione novos lá junto com o handler correspondente em `main.js`
+- O `database.js` contém todas as funções CRUD para todas as tabelas
+- O `preload.js` acumula todos os métodos expostos ao renderer — adicione novos lá junto com o handler correspondente em `main.js`
+- O `CHECKLIST.md` lista todas as melhorias (feitas e pendentes)
 - Arquivos estáticos ficam em `public/`, scripts frontend em `js/`
+- Cada nova funcionalidade exige atualizar: database.js + main.js + preload.js + arquivos frontend

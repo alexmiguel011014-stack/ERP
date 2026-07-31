@@ -121,20 +121,11 @@ O `main.js` detecta automaticamente se o app está empacotado (`app.isPackaged`)
 
 1. Rode o app normalmente: `npm start`
 2. Abra o DevTools na janela do Electron (Ctrl+Shift+I)
-3. No console do DevTools, digite:
-   ```javascript
-   fetch('x://core', { method: 'GET' })
-   ```
-   Não — nesse caso, faça o teste real no frontend:
-   - Abra a tela de cadastro
-   - Cadastre um produto com uma variação
-   - Verifique se o arquivo `./data/erp_jiujitsu.sqlite` foi criado na pasta do projeto
-   - Abra o arquivo com um visualizador SQLite (como DB Browser for SQLite) e confirme se a tabela Produtos tem os dados
-
-4. Para testar o caminho de produção sem instalar:
-   - Abra o PowerShell
-   - Rode: `node -e "const {app}=require('electron'); console.log(app.getPath('userData'))"`
-   - Confirme que o caminho retornado é o esperado (%APPDATA%/JiuJitsu ERP)
+3. No console do DevTools, teste as funções disponíveis:
+   - Digite `window.api.dashboardStats()` e veja as estatísticas em tempo real
+   - Digite `window.api.buscarSKU('TESTE-001')` para buscar um SKU
+4. Para testar o cadastro: abra `public/cadastro.html`, cadastre um produto
+5. Verifique se o arquivo `./data/erp_jiujitsu.sqlite` foi criado na pasta do projeto
 
 ### 7. Checklist antes do build final
 

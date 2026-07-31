@@ -1,6 +1,6 @@
 # ROADMAP — ERP Jiu-Jitsu (House Kimono)
 
-## Estado Atual (v0.2)
+## Estado Atual (v0.3 — Funcional)
 
 ### ✅ Concluído
 
@@ -8,90 +8,109 @@
    - Processo principal com boas práticas de segurança
    - Janela 1280×720, contextIsolation, nodeIntegration desabilitado
    - Estrutura de pastas organizada (`public/`, `js/`)
+   - Lançador `ERP_JiuJitsu_Launcher.bat` na raiz
 
 2. **Banco de dados SQLite**
    - Arquivo `erp_jiujitsu.sqlite` criado automaticamente
    - 5 tabelas: Produtos, Variações, Clientes, Vendas, ItensVenda
    - Foreign Keys com ON DELETE CASCADE / RESTRICT
    - `PRAGMA foreign_keys = ON` habilitado
+   - Caminho dinâmico: `app.getPath('userData')` em produção, `./data/` em dev
 
 3. **Módulo de Cadastro de Produtos**
    - Tela `public/cadastro.html` com grade dinâmica de variações
-   - Geração automática de SKU
-   - Transação SQLite (produto + variações juntas)
+   - Geração automática de SKU (nome + cor + tamanho)
+   - Validação inline de preço e estoque
+   - Transação SQLite para garantir consistência (produto + variações)
+   - Loading state no botão salvar
 
 4. **Módulo PDV (Frente de Caixa)**
-   - Tela `public/pdv.html` com leitor de SKU (Enter)
-   - Carrinho com adicionar, remover e recálculo de total
+   - Tela `public/pdv.html` com leitor de SKU focado + Enter
+   - Carrinho com qty +/- (incrementar/decrementar)
    - Seleção de forma de pagamento (PIX, Cartão, Dinheiro)
-   - Finalização com transação atômica e baixa de estoque
+   - Confirmação antes de finalizar
+   - Finalização com transação atômica (venda + itens + baixa de estoque)
+   - Mensagens de feedback (sucesso/erro/info)
+   - Alerta visual de estoque baixo (amarelo)
+   - Loading state no botão finalizar
 
-5. **Documentação**
-   - `README.md` — guia completo do projeto
-   - `ROADMAP.md` — este arquivo
-   - `AGENTS.md` — contexto para futuras sessões de IA
+5. **Módulo de Cadastro de Clientes**
+   - Tela `public/clientes.html` com formulário completo
+   - CRUD: cadastrar, listar e remover clientes
+   - Campos: nome, telefone, academia, faixa
+
+6. **Módulo de Histórico de Vendas**
+   - Tela `public/vendas.html` com lista das últimas 100 vendas
+   - Filtro por data
+   - Exibe total, forma de pagamento e nome do cliente
+
+7. **Backup / Restore**
+   - `exportBackup` — copia o SQLite para `data/backup_TIMESTAMP.sqlite`
+   - `importBackup` — substitui o banco atual por um arquivo .sqlite
+   - IPC handlers e funções prontas
+
+8. **Dashboard Inicial**
+   - `public/index.html` com cards de acesso rápido
+   - Estatísticas em tempo real via IPC (vendas hoje, faturamento, produtos, estoque baixo)
+
+9. **Navegação**
+   - Navbar persistente em todas as páginas (Dashboard | PDV | Cadastro | Clientes | Histórico)
+   - Highlight da página ativa
+
+10. **Tatame Clean — Paleta Visual**
+    - Fundo: `#F8FAFC` (cinza gelo)
+    - Cards/Painéis: `#FFFFFF` (branco)
+    - Texto: `#1E293B` (cinza-grafite)
+    - Destaque: `#2563EB` (azul royal)
+    - Sucesso: `#16A34A` (verde)
+    - Bordas: `#E2E8F0` (cinza sutil)
+    - Mensagens: verde (sucesso) / vermelho (erro) / azul (info)
+
+11. **Documentação**
+    - `README.md` — guia completo do projeto
+    - `ROADMAP.md` — este arquivo
+    - `AGENTS.md` — contexto para futuras sessões de IA
+    - `DEVELOPMENT.md` — guia de build e notas técnicas
+    - `CHECKLIST.md` — lista de melhorias (feitas e pendentes)
+
+12. **Empacotamento Configurado**
+    - `electron-builder` instalado como devDependency
+    - `package.json` com bloco `build` completo (NSIS, appId, atalhos)
+    - Pasta `build/` para ícone `.ico` (placeholder vazio)
 
 ---
 
-## 🔜 Próximos Passos (v0.3)
+## Próximos Passos
 
-### ✅ Empacotamento Configurado
+### Prioridade Alta
 
-5. **Configuração do electron-builder**
-   - `package.json` com bloco `build` configurado (NSIS, appId, atalhos)
-   - Pasta `build/` para ícone (preencher com `icon.ico`)
-   - Fix de caminho do SQLite para produção (`app.getPath('userData')`)
-   - Script de lançamento `ERP_JiuJitsu_Launcher.bat` para a Área de Trabalho
-
-### Pendente: Gerar o .exe final
-   - Tela de cadastro com nome, telefone, academia e faixa
-   - Busca de clientes por nome ou telefone
-   - Vincular cliente à venda finalizada
-
-2. **Listagem de Vendas (Histórico)**
-   - Tela que lista todas as vendas com filtros (data, cliente, forma de pagamento)
-   - Detalhe de cada venda mostrando itens comprados
-
-3. **Relatórios Básicos**
-   - Total vendido por período
-   - Produtos mais vendidos
-   - Estoque atual (alertas de produto com estoque baixo)
-
-4. **Exportar para .exe**
-   - Usar `electron-builder` ou `electron-packager`
-   - Configurar `package.json` para build
-   - Gerar o instalador .exe para Windows
+1. **Gerar o .exe final**
+   - Colocar ícone `.ico` real em `build/icon.ico`
+   - Executar `npm run build`
+   - Testar o instalador gerado em `dist/`
 
 ### Prioridade Média
 
-5. **Busca de Clientes no PDV**
-   - Adicionar campo de busca de clientes na tela de PDV antes de finalizar
-   - Vincular `cliente_id` à venda
+2. **Melhorar checkout de estoque**
+   - Validar rollback se estoque insuficiente no UPDATE
+   - Adicionar transação mais robusta com verificação prévia
 
-6. **Edição e Exclusão de Produtos**
-   - Botão para editar produto e variações existentes
-   - Botão para desativar/excluir produtos
+3. **Exportar e importar backup na UI**
+   - Adicionar botões na interface para exportar/importar .sqlite manually
 
-7. **Controle de Usuários**
-   - Login básico (tela de autenticação)
-   - Diferenciar permissões (caixa vs. gerente)
+4. **Melhorias finas de UI/UX**
+   - Ícones vetoriais (substituir emoji)
+   - Sistema de tipografia mais refinado
+   - Animações sutis
 
 ### Prioridade Baixa
 
-8. **Backup Automático**
-   - Rotina de cópia do arquivo SQLite para backup periódico
+5. **Tela de configurações da loja**
+   - Nome da loja, endereço, CNPJ, logo
 
-9. **Tema Claro/Escuro**
-   - Toggle para alternar entre temas
+6. **Relatórios visuais**
+   - Gráficos de vendas por período
+   - Ranking de produtos mais vendidos
 
-10. **Notificações do Sistema**
-    - Alerts de estoque baixo
-    - Confirmações de ações críticas
-
----
-
-## Estado da Sessão Atual
-
-- Último módulo implementado: **PDV (Frente de Caixa)**
-- Push para GitHub: **realizado** (branch `main`, commit `62c9df1`)
-- Próxima tarefa sugerida: **Cadastro de Clientes** ou **Histórico de Vendas**
+7. **Impressão de recibo**
+   - Integrar com impressora térmica via IPC
