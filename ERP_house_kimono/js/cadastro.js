@@ -1,23 +1,25 @@
 (function () {
-  const form = document.getElementById("formProduto");
-  const nomeInput = document.getElementById("nome");
-  const categoriaInput = document.getElementById("categoria");
-  const tbody = document.getElementById("linhasVariacoes");
-  const btnAdd = document.getElementById("btnAddLinha");
-  const btnLimpar = document.getElementById("btnLimpar");
-  const avisoGrade = document.getElementById("avisoGrade");
-  const mensagem = document.getElementById("mensagem");
+  var form = document.getElementById("formProduto");
+  var nomeInput = document.getElementById("nome");
+  var categoriaInput = document.getElementById("categoria");
+  var tbody = document.getElementById("linhasVariacoes");
+  var btnAdd = document.getElementById("btnAddLinha");
+  var btnLimpar = document.getElementById("btnLimpar");
+  var avisoGrade = document.getElementById("avisoGrade");
+  var mensagem = document.getElementById("mensagem");
+  var btnSalvar = form.querySelector('button[type="submit"]');
 
-  let contadorLinhas = 0;
+  var contadorLinhas = 0;
+  var salvando = false;
 
   function gerarSKU(nomeProduto, cor, tamanho) {
-    const palavras = nomeProduto.trim().split(/\s+/).filter(Boolean);
-    const prefixoNome = palavras
+    var palavras = nomeProduto.trim().split(/\s+/).filter(Boolean);
+    var prefixoNome = palavras
       .map(function (p) {
         return p.substring(0, 4).toUpperCase().replace(/[^A-Z0-9]/g, "");
       })
       .join("-");
-    const prefixoCor = cor.trim().substring(0, 4).toUpperCase().replace(/[^A-Z0-9]/g, "");
+    var prefixoCor = cor.trim().substring(0, 4).toUpperCase().replace(/[^A-Z0-9]/g, "");
     return prefixoNome + "-" + prefixoCor + "-" + tamanho.toUpperCase().trim();
   }
 
@@ -58,6 +60,7 @@
     inputEstoque.name = "estoque";
     inputEstoque.placeholder = "0";
     inputEstoque.min = "0";
+    inputEstoque.step = "1";
     inputEstoque.required = true;
     inputEstoque.value = "0";
     tdEstoque.appendChild(inputEstoque);
@@ -67,6 +70,18 @@
     spanSKU.className = "sku-display";
     spanSKU.textContent = "---";
     tdSKU.appendChild(spanSKU);
+
+    var tdErroPreco = document.createElement("td");
+    tdErroPreco.className = "campo-erro";
+    tdErroPreco.style.color = "#ff4c4c";
+    tdErroPreco.style.fontSize = "0.7rem";
+    tdErroPreco.textContent = "";
+
+    var tdErroEstoque = document.createElement("td");
+    tdErroEstoque.className = "campo-erro";
+    tdErroEstoque.style.color = "#ff4c4c";
+    tdErroEstoque.style.fontSize = "0.7rem";
+    tdErroEstoque.textContent = "";
 
     var tdRemover = document.createElement("td");
     var btnRemover = document.createElement("button");
@@ -84,6 +99,8 @@
     tr.appendChild(tdPreco);
     tr.appendChild(tdEstoque);
     tr.appendChild(tdSKU);
+    tr.appendChild(tdErroPreco);
+    tr.appendChild(tdErroEstoque);
     tr.appendChild(tdRemover);
 
     function atualizarSKU() {
@@ -95,10 +112,36 @@
       } else {
         spanSKU.textContent = "---";
       }
+      tdErroPreco.textContent = "";
+      tdErroEstoque.textContent = "";
+    }
+
+    function validarLinha() {
+      var preco = parseFloat(inputPreco.value);
+      var estoque = parseInt(inputEstoque.value, 10);
+      var temErro = false;
+
+      if (inputPreco.value !== "" && (isNaN(preco) || preco < 0)) {
+        tdErroPreco.textContent = "Pre\u00e7o inv\u00e1lido";
+        temErro = true;
+      } else {
+        tdErroPreco.textContent = "";
+      }
+
+      if (inputEstoque.value !== "" && (isNaN(estoque) || estoque < 0 || !Number.isInteger(estoque))) {
+        tdErroEstoque.textContent = "Estoque inv\u00e1lido";
+        temErro = true;
+      } else {
+        tdErroEstoque.textContent = "";
+      }
+
+      return !temErro;
     }
 
     inputTamanho.addEventListener("input", atualizarSKU);
     inputCor.addEventListener("input", atualizarSKU);
+    inputPreco.addEventListener("input", validarLinha);
+    inputEstoque.addEventListener("input", validarLinha);
 
     tbody.appendChild(tr);
     atualizarAviso();
@@ -122,21 +165,25 @@
     mensagem.className = "mensagem";
     mensagem.style.display = "none";
 
+    if (salvando) return;
+
     var nomeProduto = nomeInput.value.trim();
     var categoria = categoriaInput.value.trim();
     var linhas = tbody.querySelectorAll("tr");
 
     if (!nomeProduto) {
-      mostrarMensagem("Nome do produto e obrigatorio.", "error");
+      mostrarMensagem("Nome do produto e obrigatorio.", "erro");
       return;
     }
 
     if (linhas.length === 0) {
-      mostrarMensagem("Adicione pelo menos uma variacao.", "error");
+      mostrarMensagem("Adicione pelo menos uma variacao.", "erro");
       return;
     }
 
     var variacoes = [];
+    var temErro = false;
+
     for (var i = 0; i < linhas.length; i++) {
       var inputs = linhas[i].querySelectorAll("input");
       var tamanho = inputs[0].value.trim();
@@ -144,9 +191,13 @@
       var preco = parseFloat(inputs[2].value);
       var estoque = parseInt(inputs[3].value, 10);
 
-      if (!tamanho || !cor || isNaN(preco) || isNaN(estoque)) {
-        mostrarMensagem("Preencha todos os campos da variacao corretamente.", "error");
-        return;
+      if (!tamanho || !cor || isNaN(preco) || preco < 0 || isNaN(estoque) || estoque < 0 || !Number.isInteger(estoque)) {
+        mostrarMensagem(
+          "Corrija os erros na variacao " + (i + 1) + " antes de salvar.",
+          "erro"
+        );
+        temErro = true;
+        break;
       }
 
       var sku = gerarSKU(nomeProduto, cor, tamanho);
@@ -160,27 +211,46 @@
       });
     }
 
+    if (temErro) return;
+
     var dados = {
       nome: nomeProduto,
       categoria: categoria || null,
       variacoes: variacoes,
     };
 
+    salvando = true;
+    btnSalvar.disabled = true;
+    btnSalvar.textContent = "Salvando...";
+
     if (window.api && window.api.salvarProduto) {
       window.api
         .salvarProduto(dados)
         .then(function (resultado) {
-          mostrarMensagem("Produto salvo com sucesso! ID: " + resultado.produtoId, "success");
+          mostrarMensagem(
+            "Produto salvo com sucesso! ID: " + resultado.produtoId,
+            "sucesso"
+          );
           form.reset();
           tbody.innerHTML = "";
           contadorLinhas = 0;
           atualizarAviso();
+          btnSalvar.disabled = false;
+          btnSalvar.textContent = "Salvar Produto";
+          salvando = false;
+          nomeInput.focus();
         })
         .catch(function (err) {
-          mostrarMensagem("Erro ao salvar: " + err, "error");
+          mostrarMensagem("Erro ao salvar: " + err, "erro");
+          btnSalvar.disabled = false;
+          btnSalvar.textContent = "Salvar Produto";
+          salvando = false;
         });
     } else {
-      mostrarMensagem("API nao disponivel. Verifique o preload.", "error");
+      mostrarMensagem("API nao disponivel. Verifique o preload.", "erro");
+      btnSalvar.disabled = false;
+      btnSalvar.textContent = "Salvar Produto";
+      salvando = false;
     }
   });
 

@@ -8,6 +8,11 @@
   </head>
   <body>
     <div class="pdv-container">
+      <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="spinner"></div>
+        <p>Carregando...</p>
+      </div>
+
       <header class="pdv-header">
         <h1>Frente de Caixa</h1>
         <span class="pdv-date" id="pdvDate"></span>
@@ -16,13 +21,14 @@
       <div class="pdv-main">
         <div class="pdv-left">
           <div class="scan-area">
-            <label for="skuInput">Código de Barras / SKU</label>
+            <label for="skuInput">Codigo de Barras / SKU</label>
             <input
               type="text"
               id="skuInput"
               placeholder="Escaneie ou digite o SKU e pressione Enter"
               autofocus
             />
+            <span class="scan-hint">Enter = buscar | Esc = limpar carrinho | F2 = cadastro</span>
           </div>
 
           <div class="cart-area">
@@ -34,7 +40,7 @@
                   <th>Tamanho</th>
                   <th>Cor</th>
                   <th>Qtd</th>
-                  <th>Unitário (R$)</th>
+                  <th>Unitario (R$)</th>
                   <th>Subtotal (R$)</th>
                   <th></th>
                 </tr>
@@ -58,7 +64,7 @@
               <select id="formaPagamento">
                 <option value="">Selecione</option>
                 <option value="PIX">PIX</option>
-                <option value="Cartão">Cartão</option>
+                <option value="Cartao">Cartao</option>
                 <option value="Dinheiro">Dinheiro</option>
               </select>
             </div>
