@@ -94,7 +94,7 @@ npm run build         # Gerar .exe instalador (requer icon.ico real)
 
 ## Push para GitHub
 
-Repositório remoto: `https://github.com/alexmiguel011014-stack/ERP_HK.git`
+Repositório remoto: `https://github.com/alexmiguel011014-stack/JiuJitsu-ERP.git`
 Branch: `main`
 Push via HTTPS (SSH não configurado nesta máquina).
 
