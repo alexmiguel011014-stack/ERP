@@ -57,7 +57,11 @@
       .catch(function (err) {
         setButtonState("btnCheck", false);
         setStatus("Erro ao verificar");
-        showMessage("error", "Erro ao verificar atualizacoes: " + err);
+        var friendlyMsg = "Erro ao verificar atualizacoes. Verifique sua conexao com a internet.";
+        if (err && err.indexOf && err.indexOf("latest.yml") !== -1) {
+          friendlyMsg = "Nenhuma atualizacao encontrada ou servidor de atualizacoes indisponivel.";
+        }
+        showMessage("error", friendlyMsg);
       });
   };
 
@@ -80,7 +84,11 @@
         setButtonState("btnDownload", false);
         setButtonState("btnCheck", false);
         setStatus("Erro no download");
-        showMessage("error", "Erro ao baixar atualizacao: " + err);
+        var friendlyMsg = "Erro ao baixar atualizacao. Verifique sua conexao com a internet.";
+        if (err && err.indexOf && err.indexOf("latest.yml") !== -1) {
+          friendlyMsg = "Arquivo de atualizacao nao encontrado. Tente novamente mais tarde.";
+        }
+        showMessage("error", friendlyMsg);
       });
   };
 
