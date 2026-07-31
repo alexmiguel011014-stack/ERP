@@ -51,6 +51,11 @@
 - [ ] Taxa de juros para parcelamento de cartão
 - [ ] Configuração de impressora térmica
 
+### Atualizações
+- [x] Sistema de atualização automática via GitHub Releases
+- [x] Página de atualizações com progresso de download
+- [x] Verificação automática de versão no início do app
+
 ### Vendas Avançadas
 - [ ] Pagamento parcelado no cartão
 - [ ] Método de desconto (valor ou percentual)

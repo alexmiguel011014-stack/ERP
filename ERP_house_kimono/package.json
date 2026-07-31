@@ -19,6 +19,12 @@
       "output": "dist",
       "buildResources": "build"
     },
+    "publish": {
+      "provider": "github",
+      "owner": "alexmiguel011014-stack",
+      "repo": "JiuJitsu-ERP",
+      "vPrefixedTagName": true
+    },
     "files": [
       "main.js",
       "preload.js",
@@ -34,7 +40,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "build/icon.ico"
@@ -51,5 +59,8 @@
     "electron": "^33.2.1",
     "electron-builder": "^26.15.3",
     "sqlite3": "^6.0.1"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

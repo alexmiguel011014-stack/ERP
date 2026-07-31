@@ -127,10 +127,17 @@ Abre uma janela Electron 1280×720 com o dashboard inicial. O banco de dados é 
 
 ### 8. Navegação
 - Navbar persistente em todas as páginas
-- Links: Dashboard | PDV | Cadastro | Clientes | Histórico
+- Links: Dashboard | PDV | Cadastro | Clientes | Histórico | Atualizações
 - Página ativa destacada
 
-### 9. Tatame Clean — Paleta Visual
+### 9. Atualizações Automáticas
+- Tela: `public/atualizacao.html` + `js/atualizacao.js`
+- Verifica GitHub Releases para novas versões
+- Download progressivo com barra de progresso
+- Instalação automática ao reiniciar o app
+- Integração com `electron-updater` + GitHub Releases
+
+### 10. Tatame Clean — Paleta Visual
 
 | Função | Cor | Hex |
 |---|---|---|
@@ -160,6 +167,10 @@ Abre uma janela Electron 1280×720 com o dashboard inicial. O banco de dados é 
 | `get-vendas-hoje` | — | Array de vendas do dia |
 | `export-backup` | — | Caminho do backup |
 | `import-backup` | caminho (string) | `{ success, message }` |
+| `check-for-updates` | — | `{ updateAvailable, updateInfo }` |
+| `download-update` | — | `{ success }` |
+| `quit-and-install` | — | — |
+| `get-app-version` | — | `{ version: string }` |
 
 ## Banco de Dados
 

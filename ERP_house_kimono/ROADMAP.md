@@ -92,6 +92,16 @@
 
 ## Próximos Passos
 
+13. **Atualizações Automáticas**
+    - `electron-updater` integrado com GitHub Releases
+    - Página de atualizações dedicada (`public/atualizacao.html`)
+    - Verificação de versão, download progressivo, instalação ao reiniciar
+    - Navbar atualizada com link "Atualizações"
+
+---
+
+## Próximos Passos
+
 ### Prioridade Alta
 
 1. **Testar o instalador**

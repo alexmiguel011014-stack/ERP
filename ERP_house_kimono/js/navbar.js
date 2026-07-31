@@ -11,6 +11,7 @@
     '<a href="cadastro.html" class="' + (currentPage === "cadastro.html" ? "active" : "") + '">Cadastro</a>' +
     '<a href="clientes.html" class="' + (currentPage === "clientes.html" ? "active" : "") + '">Clientes</a>' +
     '<a href="vendas.html" class="' + (currentPage === "vendas.html" ? "active" : "") + '">Historico</a>' +
+    '<a href="atualizacao.html" class="' + (currentPage === "atualizacao.html" ? "active" : "") + '">Atualizacoes</a>' +
     "</div>";
 
   var container = document.querySelector(".container") || document.body;

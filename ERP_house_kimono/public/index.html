@@ -148,6 +148,31 @@
         color: inherit;
         display: block;
       }
+      .panel {
+        background-color: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 10px;
+        padding: 16px 24px;
+      }
+      .version-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+      }
+      .version-badge.current {
+        background-color: #F0FDF4;
+        color: #16A34A;
+      }
+      .version-badge.latest {
+        background-color: #EFF6FF;
+        color: #2563EB;
+      }
+      .version-badge.outdated {
+        background-color: #FEF2F2;
+        color: #DC2626;
+      }
     </style>
   </head>
   <body>
@@ -189,6 +214,17 @@
             <p>Produtos e variacoes (tamanho, cor, SKU, estoque)</p>
           </a>
         </div>
+        <div class="card">
+          <a href="atualizacao.html">
+            <div class="card-icon">🔄</div>
+            <h3>Atualizacoes</h3>
+            <p>Verificar e instalar atualizacoes do sistema</p>
+          </a>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:24px; text-align:center;">
+        <span class="version-badge current" id="appVersion">v--</span>
       </div>
     </div>
     <script src="../js/navbar.js"></script>

@@ -31,6 +31,7 @@ Stack visual: Tatame Clean (paleta clara: #F8FAFC, #FFFFFF, #1E293B, #2563EB, #1
 11. Navbar persistente em todas as páginas
 12. Melhoria visual completa com paleta Tatame Clean
 13. Toda a documentação (README.md, ROADMAP.md, CHECKLIST.md, DEVELOPMENT.md, este arquivo)
+14. Sistema de atualização automática com electron-updater + GitHub Releases
 
 ## Estado da Sessão Atual
 
