@@ -1,0 +1,17 @@
+{
+  "name": "erp_house_kimono",
+  "version": "1.0.0",
+  "description": "ERP local (offline) para loja de artigos de jiu-jitsu",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "sqlite3": "^6.0.1"
+  }
+}
