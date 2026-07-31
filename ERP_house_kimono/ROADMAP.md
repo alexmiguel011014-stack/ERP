@@ -80,14 +80,23 @@
 
 ---
 
+### ✅ Concluído (v0.4 — Build .exe)
+
+13. **Empacotamento .exe**
+    - `build/icon.ico` gerado (placeholder gradiente azul 256x256)
+    - `npm run build` executado com sucesso
+    - Instalador NSIS gerado: `dist/JiuJitsu ERP Setup 1.0.0.exe` (80MB)
+    - Atalhos de desktop e Menu Iniciar configurados
+
+---
+
 ## Próximos Passos
 
 ### Prioridade Alta
 
-1. **Gerar o .exe final**
-   - Colocar ícone `.ico` real em `build/icon.ico`
-   - Executar `npm run build`
-   - Testar o instalador gerado em `dist/`
+1. **Testar o instalador**
+   - Instalar o `.exe` gerado em uma máquina limpa
+   - Verificar se o app abre corretamente e o banco de dados funciona em `%APPDATA%/JiuJitsu ERP/`
 
 ### Prioridade Média
 

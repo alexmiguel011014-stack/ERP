@@ -62,6 +62,7 @@
 - [ ] Atualização automática do app (verificar GitHub Releases)
 
 ## 🔴 Bugs/Problemas Conhecidos
+- [ ] Sem ícone `.ico` real (placeholder gerado automaticamente)
 - [ ] index.html ainda é a página de fallback — deve redirecionar ou ser dashboard
 - [ ] Sem impressão de recibo
 - [ ] Sem imagens nos produtos

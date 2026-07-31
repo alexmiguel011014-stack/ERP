@@ -211,6 +211,8 @@ npm run build
 
 O instalador NSIS será gerado na pasta `dist/` e criará automaticamente ícone na Área de Trabalho e no Menu Iniciar.
 
+**Instalador atual:** `dist/JiuJitsu ERP Setup 1.0.0.exe` (80MB)
+
 ## Licença
 
 ISC

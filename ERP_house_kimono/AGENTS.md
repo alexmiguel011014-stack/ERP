@@ -34,9 +34,9 @@ Stack visual: Tatame Clean (paleta clara: #F8FAFC, #FFFFFF, #1E293B, #2563EB, #1
 
 ## Estado da Sessão Atual
 
-Últimas implementações: Batch 1 UX improvements + Batch 2 (navbar, dashboard) + Batch 3 (Clientes, Histórico, Backup) + Tatame Clean visual redesign
+Últimas implementações: Batch 1 UX improvements + Batch 2 (navbar, dashboard) + Batch 3 (Clientes, Histórico, Backup) + Tatame Clean visual redesign + Gerador de .exe
 Push para GitHub: **em dia** (branch `main`, último commit `1b5739c`)
-Próxima tarefa sugerida: **Gerar o .exe final** executando `npm run build` (necessário colocar ícone `.ico` real em `build/icon.ico`)
+Próxima tarefa sugerida: **Testar o instalador** gerado em `dist/JiuJitsu ERP Setup 1.0.0.exe` e substituir o ícone placeholder por um ícone `.ico` real
 
 ## Estrutura do Projeto (Git Root)
 
