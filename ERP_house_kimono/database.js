@@ -1,7 +1,12 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const { app } = require('electron');
 
-const DB_PATH = path.join(__dirname, 'erp_jiujitsu.sqlite');
+let DB_PATH = path.join(__dirname, 'erp_jiujitsu.sqlite');
+
+function setDBPath(basePath) {
+  DB_PATH = path.join(basePath, 'erp_jiujitsu.sqlite');
+}
 
 let db = null;
 
@@ -12,7 +17,7 @@ function getConexao() {
         console.error('Erro ao conectar ao banco de dados:', erro.message);
       } else {
         db.run('PRAGMA foreign_keys = ON');
-        console.log('Banco de dados SQLite conectado com sucesso.');
+        console.log('Banco de dados SQLite conectado em:', DB_PATH);
       }
     });
   }
@@ -209,6 +214,10 @@ async function finalizarVenda(dados) {
   }
 }
 
+function getDBPath() {
+  return DB_PATH;
+}
+
 module.exports = {
   db: getConexao,
   iniciarBanco,
@@ -216,4 +225,6 @@ module.exports = {
   salvarProduto,
   buscarSKU,
   finalizarVenda,
+  setDBPath,
+  getDBPath,
 };

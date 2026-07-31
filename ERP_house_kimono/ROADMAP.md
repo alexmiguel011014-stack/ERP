@@ -35,9 +35,15 @@
 
 ## 🔜 Próximos Passos (v0.3)
 
-### Prioridade Alta
+### ✅ Empacotamento Configurado
 
-1. **Cadastro de Clientes**
+5. **Configuração do electron-builder**
+   - `package.json` com bloco `build` configurado (NSIS, appId, atalhos)
+   - Pasta `build/` para ícone (preencher com `icon.ico`)
+   - Fix de caminho do SQLite para produção (`app.getPath('userData')`)
+   - Script de lançamento `ERP_JiuJitsu_Launcher.bat` para a Área de Trabalho
+
+### Pendente: Gerar o .exe final
    - Tela de cadastro com nome, telefone, academia e faixa
    - Busca de clientes por nome ou telefone
    - Vincular cliente à venda finalizada

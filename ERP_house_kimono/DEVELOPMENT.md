@@ -66,40 +66,113 @@ Tipos aceitos:
 - Sempre usar `contextIsolation: true` + `contextBridge`
 - Validar todos os dados vindos do renderer no processo principal
 
-## Build para .exe
+## Build para .exe (Produção)
 
-Para empacotar o projeto como executável Windows:
+### 1. Pré-requisitos
+
+Instale o electron-builder:
 
 ```powershell
 npm install --save-dev electron-builder
 ```
 
-Configurar `scripts.build` no `package.json`:
+Crie um ícone `.ico` (256x256px recomendado) e salve em `build/icon.ico`.
 
-```json
-"scripts": {
-  "start": "electron .",
-  "build": "electron-builder"
-}
+### 2. Configuração do empacotamento
+
+O `build` configurado no `package.json` inclui:
+
+- **App ID:** `com.erpjiujitsu.housekimono`
+- **Nome do app:** JiuJitsu ERP
+- **Instalador:** NSIS (Windows)
+- **Atalhos:** cria automaticamente ícone na Área de Trabalho e no Menu Iniciar
+
+### 3. Comandos de build
+
+```powershell
+# Testar o build localmente
+npm run build
+
+# Ou usar diretamente
+npm run dist
 ```
 
-Configurar `build` no `package.json`:
+### 4. Onde encontrar o .exe
 
-```json
-"build": {
-  "appId": "com.ERP_HOUSE_KIMONO.erp_jiujitsu",
-  "productName": "ERP Jiu-Jitsu",
-  "directories": { "output": "dist" },
-  "files": [
-    "main.js",
-    "preload.js",
-    "database.js",
-    "public/**/*",
-    "js/**/*",
-    "package.json"
-  ],
-  "win": {
-    "target": "nsis"
-  }
-}
+O instalador gerado fica em:
 ```
+dist/JiuJitsu ERP Setup 1.0.0.exe
+```
+
+### 5. Caminho do Banco de Dados em Produção
+
+**Problema comum:** Em produção, o app é instalado em `C:\Program Files\...`, e o Windows bloqueia escrita nessa pasta. Sem a correção, o SQLite falharia ao criar/gravar o banco.
+
+**Solução implementada:** `database.js` agora usa `app.getPath('userData')` quando empacotado.
+
+| Ambiente | Caminho do banco |
+|---|---|
+| Desenvolvimento (`npm start`) | `./data/erp_jiujitsu.sqlite` |
+| Produção (instalado) | `%APPDATA%/JiuJitsu ERP/erp_jiujitsu.sqlite` |
+
+O `main.js` detecta automaticamente se o app está empacotado (`app.isPackaged`) e define o caminho correto.
+
+### 6. Como testar a rota do banco antes do build final
+
+1. Rode o app normalmente: `npm start`
+2. Abra o DevTools na janela do Electron (Ctrl+Shift+I)
+3. No console do DevTools, digite:
+   ```javascript
+   fetch('x://core', { method: 'GET' })
+   ```
+   Não — nesse caso, faça o teste real no frontend:
+   - Abra a tela de cadastro
+   - Cadastre um produto com uma variação
+   - Verifique se o arquivo `./data/erp_jiujitsu.sqlite` foi criado na pasta do projeto
+   - Abra o arquivo com um visualizador SQLite (como DB Browser for SQLite) e confirme se a tabela Produtos tem os dados
+
+4. Para testar o caminho de produção sem instalar:
+   - Abra o PowerShell
+   - Rode: `node -e "const {app}=require('electron'); console.log(app.getPath('userData'))"`
+   - Confirme que o caminho retornado é o esperado (%APPDATA%/JiuJitsu ERP)
+
+### 7. Checklist antes do build final
+
+- [ ] Ícone `.ico` real colocado em `build/icon.ico`
+- [ ] App testado completamente em `npm start`
+- [ ] Todas as telas funcionando (cadastro, PDV)
+- [ ] Banco de dados criando/atualizando corretamente
+- [ ] `node_modules/`, `dist/` e `data/` estão no `.gitignore`
+
+## Estrutura de Código
+
+### Main Process (`main.js`)
+
+- Cria a janela Electron
+- Carrega `public/index.html` por padrão
+- Registra handlers IPC com `ipcMain.handle()`
+- Configura o caminho do banco de dados via `setDBPath()` antes de inicializar
+
+### Preload Script (`preload.js`)
+
+- Roda em contexto isolado entre main e renderer
+- Expõe APIs via `contextBridge.exposeInMainWorld('api', {...})`
+- Cada nova funcionalidade exige um novo método aqui
+
+### Renderer (Frontend)
+
+- HTML puro em `public/`
+- CSS em `public/*.css`
+- JS em `js/*.js`
+- Comunicação com o backend via `window.api.NOME_METODO()`
+
+### Database (`database.js`)
+
+- Conexão única (`getConexao()`) com SQLite
+- `iniciarBanco()` — cria tabelas com `IF NOT EXISTS`
+- `runAsync()` e `getAsync()` — wrappers Promise para sqlite3
+- `setDBPath(basePath)` — define o caminho do banco (chamar antes de `iniciarBanco()`)
+- `getDBPath()` — retorna o caminho atual do banco
+- Funções CRUD e transações para operações críticas
+
+## Padrões de Commits

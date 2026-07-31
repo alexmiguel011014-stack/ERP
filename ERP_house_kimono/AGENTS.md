@@ -21,7 +21,15 @@ ERP desktop offline para uma loja de artigos de Jiu-Jitsu, empacotado como
 2. Banco de dados SQLite com 5 tabelas e foreign keys
 3. Módulo de cadastro de produtos com grade de variações
 4. Módulo PDV (Frente de Caixa) com leitor de SKU, carrinho e finalização
-5. Toda a documentação (README.md, ROADMAP.md, este arquivo)
+5. Configuração do electron-builder para gerar .exe (NSIS)
+6. Fix de caminho do SQLite para produção (app.getPath('userData'))
+7. Toda a documentação (README.md, ROADMAP.md, este arquivo)
+
+## Estado da Sessão Atual
+
+Último módulo implementado: **PDV (Frente de Caixa) + Configuração de Build**
+Push para GitHub: **realizado** (branch `main`, último commit `c0baaea`)
+Próxima tarefa sugerida: **Gerar o .exe final** executando `npm run build`
 
 ## Estrutura do Projeto
 

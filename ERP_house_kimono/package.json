@@ -4,14 +4,52 @@
   "description": "ERP local (offline) para loja de artigos de jiu-jitsu",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build": "electron-builder build --win",
+    "dist": "electron-builder"
   },
   "keywords": [],
-  "author": "",
+  "author": "Alex Miguel",
   "license": "ISC",
   "type": "commonjs",
+  "build": {
+    "appId": "com.erpjiujitsu.housekimono",
+    "productName": "JiuJitsu ERP",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "database.js",
+      "public/**/*",
+      "js/**/*",
+      "package.json",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README",
+      "!**/node_modules/.bin",
+      "!**/node_modules/**/*.map"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "JiuJitsu ERP"
+    }
+  },
   "devDependencies": {
     "electron": "^33.2.1",
+    "electron-builder": "^26.15.3",
     "sqlite3": "^6.0.1"
   }
 }

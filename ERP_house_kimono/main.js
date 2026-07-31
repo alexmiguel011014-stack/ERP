@@ -1,6 +1,6 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
-const { iniciarBanco, salvarProduto, buscarSKU, finalizarVenda } = require('./database');
+const { iniciarBanco, salvarProduto, buscarSKU, finalizarVenda, setDBPath, getDBPath } = require('./database');
 
 function criarJanelaPrincipal() {
   const janela = new BrowserWindow({
@@ -17,9 +17,16 @@ function criarJanelaPrincipal() {
 }
 
 app.whenReady().then(async () => {
+  if (app.isPackaged) {
+    const userData = app.getPath('userData');
+    setDBPath(userData);
+  } else {
+    setDBPath(path.join(__dirname, 'data'));
+  }
+
   try {
     await iniciarBanco();
-    console.log('Banco de dados inicializado com sucesso.');
+    console.log('Banco de dados inicializado em:', getDBPath());
   } catch (erro) {
     console.error('Erro ao inicializar o banco de dados:', erro.message);
   }

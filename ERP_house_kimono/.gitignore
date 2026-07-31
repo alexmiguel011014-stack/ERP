@@ -1,4 +1,7 @@
 node_modules/
-erp_jiujitsu.sqlite
+dist/
+data/
+*.sqlite
+*.sqlite3
 *.log
 .DS_Store

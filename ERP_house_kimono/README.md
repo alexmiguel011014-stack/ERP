@@ -121,6 +121,40 @@ Arquivo: `erp_jiujitsu.sqlite` (criado automaticamente na primeira execução)
 - `contextBridge` expõe apenas métodos específicos (nunca objetos brutos do Node.js)
 - Todas as consultas ao banco passam pelo processo principal (IPC)
 
+## Lanceiro na Área de Trabalho (Dev)
+
+Para abrir o ERP rapidamente sem abrir o terminal:
+
+1. Copie o arquivo `ERP_JiuJitsu_Launcher.bat` da raiz do projeto
+2. Cole na sua Área de Trabalho
+3. Clique duas vezes para abrir o app
+
+No Windows 11, pode ser necessário desbloquear o arquivo clicando com o botão direito → **Propriedades** → marcar **Desbloquear**.
+
+## Empacotamento para .exe (Produção)
+
+Veja `DEVELOPMENT.md` para o guia completo de build.
+
+### Passo rápido
+
+```powershell
+npm install electron-builder --save-dev
+npm run build
+```
+
+### Onde encontrar o .exe
+
+O instalador será gerado na pasta `dist/` após o build. O NSIS instalador criará automaticamente:
+- Ícone na Área de Trabalho
+- Entrada no Menu Iniciar
+- Atalho para desinstalar
+
+### Banco de Dados em Produção
+
+Em produção (app instalado), o SQLite grava em `%APPDATA%/JiuJitsu ERP/erp_jiujitsu.sqlite`.
+Isso garante que o banco **não seja apagado** ao atualizar ou reinstalar o app.
+Durante o desenvolvimento, o banco fica em `./data/erp_jiujitsu.sqlite`.
+
 ## Próximos Passos
 
 Veja `ROADMAP.md` para o plano de desenvolvimento detalhado.
