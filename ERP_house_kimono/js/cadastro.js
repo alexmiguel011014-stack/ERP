@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   var form = document.getElementById("formProduto");
   var nomeInput = document.getElementById("nome");
   var categoriaInput = document.getElementById("categoria");
@@ -172,12 +172,12 @@
     var linhas = tbody.querySelectorAll("tr");
 
     if (!nomeProduto) {
-      mostrarMensagem("Nome do produto e obrigatorio.", "erro");
+      mostrarMensagem("Nome do produto e obrigatório.", "erro");
       return;
     }
 
     if (linhas.length === 0) {
-      mostrarMensagem("Adicione pelo menos uma variacao.", "erro");
+      mostrarMensagem("Adicione pelo menos uma variação.", "erro");
       return;
     }
 
@@ -193,7 +193,7 @@
 
       if (!tamanho || !cor || isNaN(preco) || preco < 0 || isNaN(estoque) || estoque < 0 || !Number.isInteger(estoque)) {
         mostrarMensagem(
-          "Corrija os erros na variacao " + (i + 1) + " antes de salvar.",
+          "Corrija os erros na variação " + (i + 1) + " antes de salvar.",
           "erro"
         );
         temErro = true;
@@ -247,7 +247,7 @@
           salvando = false;
         });
     } else {
-      mostrarMensagem("API nao disponivel. Verifique o preload.", "erro");
+      mostrarMensagem("API não disponível. Verifique o preload.", "erro");
       btnSalvar.disabled = false;
       btnSalvar.textContent = "Salvar Produto";
       salvando = false;

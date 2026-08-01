@@ -3,6 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="../js/head.js"></script>
+    <script src="../js/auth.js"></script>
     <title>JiuJitsu ERP</title>
     <style>
       * {
@@ -54,7 +56,8 @@
         color: #FFFFFF;
       }
       .container {
-        max-width: 960px;
+        max-width: 1200px;
+        width: 100%;
         margin: 32px auto;
         padding: 0 24px;
       }
@@ -108,19 +111,17 @@
         margin-top: 4px;
       }
       .cards {
-        display: flex;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
         gap: 16px;
-        justify-content: center;
-        flex-wrap: wrap;
       }
       .card {
         background-color: #FFFFFF;
         border: 1px solid #E2E8F0;
         border-radius: 10px;
-        padding: 28px 36px;
+        padding: 28px 24px;
         cursor: pointer;
         transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
-        width: 220px;
         text-align: center;
       }
       .card:hover {
@@ -129,8 +130,23 @@
         transform: translateY(-2px);
       }
       .card-icon {
-        font-size: 2.5rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 48px;
+        height: 48px;
+        padding: 0 12px;
+        border-radius: 10px;
+        background-color: #EFF6FF;
+        color: #2563EB;
+        font-size: 0.85rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
         margin-bottom: 10px;
+      }
+      html.dark-theme .card-icon {
+        background-color: #0F172A;
+        color: #3B82F6;
       }
       .card h3 {
         color: #1E293B;
@@ -173,12 +189,67 @@
         background-color: #FEF2F2;
         color: #DC2626;
       }
+
+      /* Dark Theme */
+      html.dark-theme {
+        background-color: #0F172A;
+      }
+      html.dark-theme body {
+        background-color: #0F172A;
+        color: #E2E8F0;
+      }
+      html.dark-theme h1 {
+        color: #F1F5F9;
+      }
+      html.dark-theme .subtitle {
+        color: #64748B;
+      }
+      html.dark-theme .stats .stat-card,
+      html.dark-theme .panel {
+        background-color: #1E293B;
+        border-color: #334159;
+      }
+      html.dark-theme .stat-value {
+        color: #3B82F6;
+      }
+      html.dark-theme .stat-card.alert {
+        border-color: #42271B;
+      }
+      html.dark-theme .stat-card.alert .stat-value {
+        color: #FBBF24;
+      }
+      html.dark-theme .stat-label {
+        color: #64748B;
+      }
+      html.dark-theme .card {
+        background-color: #1E293B;
+        border-color: #334159;
+        color: #E2E8F0;
+      }
+      html.dark-theme .card p {
+        color: #94A3B8;
+      }
+      html.dark-theme .card h3 {
+        color: #F1F5F9;
+      }
+      html.dark-theme .version-badge.current {
+        background-color: #064E35;
+        color: #6EE7B7;
+      }
+      html.dark-theme .version-badge.latest {
+        background-color: #0F172A;
+        color: #60A5FA;
+      }
+      html.dark-theme .version-badge.outdated {
+        background-color: #450A0A;
+        color: #FCA5A5;
+      }
     </style>
   </head>
   <body>
     <div class="container">
       <h1>JiuJitsu ERP</h1>
-      <p class="subtitle">Bem-vindo ao sistema de gestao</p>
+      <p class="subtitle">Bem-vindo ao sistema de gestão</p>
 
       <div class="stats" id="statsContainer">
         <div class="stat-card">
@@ -202,24 +273,57 @@
       <div class="cards">
         <div class="card">
           <a href="pdv.html">
-            <div class="card-icon">💰</div>
+            <div class="card-icon">PDV</div>
             <h3>Frente de Caixa</h3>
-            <p>PDV — Leitor de SKU, carrinho e finalizacao de venda</p>
+            <p>Leitor de SKU, carrinho e finalização de venda</p>
           </a>
         </div>
         <div class="card">
           <a href="cadastro.html">
-            <div class="card-icon">📦</div>
+            <div class="card-icon">PROD</div>
             <h3>Cadastro</h3>
-            <p>Produtos e variacoes (tamanho, cor, SKU, estoque)</p>
+            <p>Produtos e variações (tamanho, cor, SKU, estoque)</p>
+          </a>
+        </div>
+        <div class="card">
+          <a href="clientes.html">
+            <div class="card-icon">CLI</div>
+            <h3>Clientes</h3>
+            <p>Cadastro e gerenciamento de clientes</p>
+          </a>
+        </div>
+        <div class="card">
+          <a href="vendas.html">
+            <div class="card-icon">HIST</div>
+            <h3>Histórico</h3>
+            <p>Histórico de vendas e relatórios</p>
+          </a>
+        </div>
+        <div class="card">
+          <a href="estoquenegativo.html">
+            <div class="card-icon">EST</div>
+            <h3>Estoque Negativo</h3>
+            <p>Relatório de produtos com estoque negativo</p>
           </a>
         </div>
         <div class="card">
           <a href="atualizacao.html">
-            <div class="card-icon">🔄</div>
-            <h3>Atualizacoes</h3>
-            <p>Verificar e instalar atualizacoes do sistema</p>
+            <div class="card-icon">UPD</div>
+            <h3>Atualizações</h3>
+            <p>Verificar e instalar atualizações do sistema</p>
           </a>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:24px;">
+        <div style="display:flex; justify-content: space-between; align-items: center;">
+          <div>
+            <strong style="color:#64748B; font-size:0.8rem;">Backup</strong>
+            <div style="color:#94A3B8; font-size:0.75rem; margin-top:2px;">Backup automático diário ativado</div>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button onclick="exportarBackup()" class="btn-backup" style="padding:6px 14px; background:#2563EB; color:#fff; border:none; border-radius:6px; font-size:0.8rem; font-weight:600; cursor:pointer;">Exportar Manual</button>
+          </div>
         </div>
       </div>
 
@@ -243,6 +347,30 @@
               stats.estoqueBaixo || 0;
           })
           .catch(function () {});
+      }
+
+      if (window.api && window.api.getAppVersion) {
+        window.api
+          .getAppVersion()
+          .then(function (ver) {
+            document.getElementById("appVersion").textContent = ver;
+          })
+          .catch(function () {});
+      }
+
+      function exportarBackup() {
+        if (!window.api || !window.api.backupAutomatico) {
+          alert("API indisponível.");
+          return;
+        }
+        window.api
+          .backupAutomatico()
+          .then(function (result) {
+            alert("Backup exportado com sucesso!");
+          })
+          .catch(function (err) {
+            alert("Erro no backup: " + err);
+          });
       }
     </script>
   </body>

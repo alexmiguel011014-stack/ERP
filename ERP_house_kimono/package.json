@@ -21,7 +21,7 @@
     },
     "asar": true,
     "asarUnpack": [
-      "**/node_modules/sqlite3/**/*"
+      "**/node_modules/@journeyapps/sqlcipher/**/*"
     ],
     "publish": {
       "provider": "github",
@@ -33,6 +33,7 @@
       "main.js",
       "preload.js",
       "database.js",
+      "ERP_JiuJitsu_Launcher.vbs",
       "public/**/*",
       "js/**/*",
       "package.json",
@@ -64,7 +65,7 @@
     "electron-builder": "^26.15.3"
   },
   "dependencies": {
-    "electron-updater": "^6.8.9",
-    "sqlite3": "^6.0.1"
+    "@journeyapps/sqlcipher": "^5.3.1",
+    "electron-updater": "^6.8.9"
   }
 }

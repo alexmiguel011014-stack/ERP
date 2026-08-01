@@ -1,0 +1,32 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "node",
+      "args": ["./servers/src/filesystem/dist/index.js", "."]
+    },
+    "memory": {
+      "command": "node",
+      "args": ["./servers/src/memory/dist/index.js"]
+    },
+    "sequentialthinking": {
+      "command": "node",
+      "args": ["./servers/src/sequentialthinking/dist/index.js"]
+    },
+    "everything": {
+      "command": "node",
+      "args": ["./servers/src/everything/dist/index.js"]
+    },
+    "time": {
+      "command": "./servers/src/time/.venv/Scripts/python.exe",
+      "args": ["-m", "mcp_server_time"]
+    },
+    "git": {
+      "command": "./servers/src/git/.venv/Scripts/python.exe",
+      "args": ["-m", "mcp_server_git"]
+    },
+    "fetch": {
+      "command": "./servers/src/fetch/.venv/Scripts/python.exe",
+      "args": ["-m", "mcp_server_fetch"]
+    }
+  }
+}

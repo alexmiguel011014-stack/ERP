@@ -3,6 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="../js/head.js"></script>
+    <script src="../js/auth.js"></script>
     <title>ERP Jiu-Jitsu - Frente de Caixa</title>
     <link rel="stylesheet" href="pdv.css" />
   </head>
@@ -21,7 +23,7 @@
       <div class="pdv-main">
         <div class="pdv-left">
           <div class="scan-area">
-            <label for="skuInput">Codigo de Barras / SKU</label>
+            <label for="skuInput">Código de Barras / SKU</label>
             <input
               type="text"
               id="skuInput"
@@ -40,7 +42,7 @@
                   <th>Tamanho</th>
                   <th>Cor</th>
                   <th>Qtd</th>
-                  <th>Unitario (R$)</th>
+                  <th>Unitário (R$)</th>
                   <th>Subtotal (R$)</th>
                   <th></th>
                 </tr>
@@ -64,7 +66,7 @@
               <select id="formaPagamento">
                 <option value="">Selecione</option>
                 <option value="PIX">PIX</option>
-                <option value="Cartao">Cartao</option>
+                <option value="Cartão">Cartão</option>
                 <option value="Dinheiro">Dinheiro</option>
               </select>
             </div>
@@ -74,15 +76,43 @@
               <span class="total-value" id="totalValue">R$ 0,00</span>
             </div>
 
-            <button id="btnFinalizar" class="btn-finalizar" disabled>
-              Finalizar Venda
-            </button>
+            <div class="acoes-venda">
+              <button id="btnCancelarVenda" class="btn-cancelar" type="button">
+                Cancelar Venda
+              </button>
+              <button id="btnFinalizar" class="btn-finalizar" disabled>
+                Finalizar Venda
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       <div id="mensagemPDV" class="mensagem-pdv"></div>
     </div>
+
+    <div id="receiptOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; z-index: 10001;">
+      <div id="receiptContent" style="background: #FFFFFF; border-radius: 8px; padding: 24px; max-width: 320px; width: 90%; font-family: 'Courier New', monospace; font-size: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+        <div id="receiptHTML"></div>
+        <div style="display: flex; gap: 10px; margin-top: 16px;">
+          <button onclick="imprimirRecibo()" style="flex: 1; padding: 8px; background: #2563EB; color: #fff; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Imprimir</button>
+          <button onclick="fecharRecibo()" style="flex: 1; padding: 8px; background: #64748B; color: #fff; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Fechar</button>
+        </div>
+      </div>
+    </div>
+
+    <style>
+      @media print {
+        body * { visibility: hidden; }
+        #receiptContent, #receiptContent * { visibility: visible; }
+        #receiptContent { position: absolute; left: 0; top: 0; width: auto; max-width: none; border: none; box-shadow: none; border-radius: 0; }
+        #receiptOverlay { background: transparent; position: static; display: block; }
+        #receiptOverlay { padding: 0; }
+      }
+      @media print {
+        .dark-theme body { background: #FFFFFF !important; }
+      }
+    </style>
 
     <script src="../js/navbar.js"></script>
     <script src="../js/pdv.js"></script>

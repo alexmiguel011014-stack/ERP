@@ -55,7 +55,8 @@ body {
 }
 
 .container {
-  max-width: 700px;
+  max-width: 1000px;
+  width: calc(100% - 48px);
   margin: 24px auto;
   background-color: #FFFFFF;
   border: 1px solid #E2E8F0;

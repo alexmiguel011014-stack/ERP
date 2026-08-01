@@ -1,7 +1,27 @@
+# Node
 node_modules/
 dist/
+
+# Dados locais (dev)
 data/
 *.sqlite
 *.sqlite3
 *.log
+
+# Repos de referencia (baixados pelo bootstrap)
+external/
+
+# Grafo de conhecimento
+graphify-out/
+
+# Mapa XML do RepoMix
+repomix-output.xml
+
+# Python
+.venv/
+venv/
+__pycache__/
+
+# SO
 .DS_Store
+Thumbs.db

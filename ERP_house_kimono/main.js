@@ -15,8 +15,11 @@ const {
   buscarCliente,
   getVendas,
   getVendasHoje,
+  getItensVenda,
+  getEstoqueNegativo,
   exportBackup,
   importBackup,
+  backupAutomatico,
 } = require('./database');
 
 autoUpdater.autoDownload = false;
@@ -50,8 +53,11 @@ autoUpdater.on('update-downloaded', (info) => {
 
 function criarJanelaPrincipal() {
   const janela = new BrowserWindow({
-    width: 1280,
-    height: 720,
+    width: 1440,
+    height: 900,
+    minWidth: 1024,
+    minHeight: 640,
+    show: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -60,6 +66,8 @@ function criarJanelaPrincipal() {
   });
 
   mainWindow = janela;
+  janela.maximize();
+  janela.show();
   janela.loadFile('public/index.html');
 }
 
@@ -71,20 +79,7 @@ app.whenReady().then(async () => {
     setDBPath(path.join(__dirname, 'data'));
   }
 
-  try {
-    await iniciarBanco();
-    console.log('Banco de dados inicializado em:', getDBPath());
-  } catch (erro) {
-    console.error('Erro ao inicializar o banco de dados:', erro.message);
-  }
-
   criarJanelaPrincipal();
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      criarJanelaPrincipal();
-    }
-  });
 });
 
 ipcMain.handle('buscar-produtos', async () => {
@@ -181,6 +176,31 @@ ipcMain.handle('get-vendas-hoje', async () => {
   }
 });
 
+ipcMain.handle('get-itens-venda', async (event, vendaId) => {
+  try {
+    return await getItensVenda(vendaId);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('get-estoque-negativo', async () => {
+  try {
+    return await getEstoqueNegativo();
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('backup-automatico', async () => {
+  try {
+    const result = backupAutomatico();
+    return { success: true, caminho: result };
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
 ipcMain.handle('export-backup', async () => {
   try {
     return exportBackup();
@@ -221,6 +241,39 @@ ipcMain.handle('quit-and-install', async () => {
 
 ipcMain.handle('get-app-version', async () => {
   return app.getVersion();
+});
+
+var intervaloBackup = null;
+
+function iniciarBackupAutomatico() {
+  if (intervaloBackup) clearInterval(intervaloBackup);
+  intervaloBackup = setInterval(function () {
+    try {
+      backupAutomatico();
+    } catch (e) {
+      console.error("Erro no backup automatico:", e.message);
+    }
+  }, 24 * 60 * 60 * 1000);
+}
+
+ipcMain.handle('unlock-db', async (event, senha) => {
+  try {
+    const { desbloquearBanco } = require('./database');
+    const resultado = await desbloquearBanco(senha);
+    iniciarBackupAutomatico();
+    return resultado;
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('change-db-key', async (event, novaSenha) => {
+  try {
+    const { trocarChave } = require('./database');
+    return await trocarChave(novaSenha);
+  } catch (erro) {
+    throw erro.message;
+  }
 });
 
 app.on('window-all-closed', () => {

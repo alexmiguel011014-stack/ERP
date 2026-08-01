@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   var currentVersion = "--";
   var latestVersion = "--";
   var updateAvailable = false;
@@ -39,27 +39,27 @@
         setButtonState("btnCheck", false);
         if (result && result.updateAvailable) {
           updateAvailable = true;
-          latestVersion = result.updateInfo && result.updateInfo.version ? result.updateInfo.version : "disponivel";
+          latestVersion = result.updateInfo && result.updateInfo.version ? result.updateInfo.version : "disponível";
           document.getElementById("latestVersion").textContent = latestVersion;
           document.getElementById("latestVersion").className = "info-value outdated";
-          setStatus("Nova versao disponivel!");
+          setStatus("Nova versão disponível!");
           setButtonState("btnDownload", false);
-          showMessage("warning", "Nova versao " + latestVersion + " disponivel para download.");
+          showMessage("warning", "Nova versão " + latestVersion + " disponível para download.");
         } else {
           latestVersion = currentVersion;
           document.getElementById("latestVersion").textContent = currentVersion;
           document.getElementById("latestVersion").className = "info-value";
-          setStatus("Voce esta na versao mais recente.");
+          setStatus("Você está na versão mais recente.");
           setButtonState("btnDownload", true);
-          showMessage("success", "Seu app ja esta atualizado.");
+          showMessage("success", "Seu app já está atualizado.");
         }
       })
       .catch(function (err) {
         setButtonState("btnCheck", false);
         setStatus("Erro ao verificar");
-        var friendlyMsg = "Erro ao verificar atualizacoes. Verifique sua conexao com a internet.";
+        var friendlyMsg = "Erro ao verificar atualizações. Verifique sua conexão com a internet.";
         if (err && err.indexOf && err.indexOf("latest.yml") !== -1) {
-          friendlyMsg = "Nenhuma atualizacao encontrada ou servidor de atualizacoes indisponivel.";
+          friendlyMsg = "Nenhuma atualização encontrada ou servidor de atualizações indisponível.";
         }
         showMessage("error", friendlyMsg);
       });
@@ -68,15 +68,15 @@
   window.downloadUpdate = function () {
     setButtonState("btnDownload", true);
     setButtonState("btnCheck", true);
-    setStatus("Baixando atualizacao...");
+    setStatus("Baixando atualização...");
     document.getElementById("downloadPanel").style.display = "block";
     document.getElementById("downloadVersion").textContent = latestVersion;
 
     window.api
       .downloadUpdate()
       .then(function () {
-        setStatus("Download concluido!");
-        showMessage("success", "Atualizacao baixada com sucesso. Clique em Reiniciar e Instalar.");
+        setStatus("Download concluído!");
+        showMessage("success", "atualização baixada com sucesso. Clique em Reiniciar e Instalar.");
         setButtonState("btnRestart", false);
         updateDownloaded = true;
       })
@@ -84,9 +84,9 @@
         setButtonState("btnDownload", false);
         setButtonState("btnCheck", false);
         setStatus("Erro no download");
-        var friendlyMsg = "Erro ao baixar atualizacao. Verifique sua conexao com a internet.";
+        var friendlyMsg = "Erro ao baixar atualização. Verifique sua conexão com a internet.";
         if (err && err.indexOf && err.indexOf("latest.yml") !== -1) {
-          friendlyMsg = "Arquivo de atualizacao nao encontrado. Tente novamente mais tarde.";
+          friendlyMsg = "Arquivo de atualização nao encontrado. Tente novamente mais tarde.";
         }
         showMessage("error", friendlyMsg);
       });
@@ -94,8 +94,8 @@
 
   window.quitAndInstall = function () {
     setButtonState("btnRestart", true);
-    setStatus("Instalando atualizacao...");
-    showMessage("info", "Reiniciando o aplicativo para instalar a atualizacao...");
+    setStatus("Instalando atualização...");
+    showMessage("info", "Reiniciando o aplicativo para instalar a atualização...");
     window.api.quitAndInstall();
   };
 
@@ -108,23 +108,23 @@
       document.getElementById("progressFill").style.width = (data.progress || 0) + "%";
       document.getElementById("downloadProgress").textContent = (data.progress || 0) + "%";
     } else if (data.status === "downloaded") {
-      setStatus("Download concluido!");
+      setStatus("Download concluído!");
       updateDownloaded = true;
       setButtonState("btnRestart", false);
-      showMessage("success", "Atualizacao baixada. Clique em Reiniciar e Instalar.");
+      showMessage("success", "atualização baixada. Clique em Reiniciar e Instalar.");
     } else if (data.status === "available") {
       latestVersion = data.version;
       updateAvailable = true;
       document.getElementById("latestVersion").textContent = data.version;
       document.getElementById("latestVersion").className = "info-value outdated";
-      setStatus("Nova versao disponivel!");
+      setStatus("Nova versão disponível!");
       setButtonState("btnDownload", false);
     } else if (data.status === "not-available") {
       latestVersion = currentVersion;
       document.getElementById("latestVersion").textContent = currentVersion;
       document.getElementById("latestVersion").className = "info-value";
-      setStatus("Voce esta na versao mais recente.");
-      showMessage("success", "Seu app ja esta atualizado.");
+      setStatus("Você está na versão mais recente.");
+      showMessage("success", "Seu app já está atualizado.");
     } else if (data.status === "error") {
       setStatus("Erro");
       showMessage("error", "Erro: " + (data.message || "Erro desconhecido"));

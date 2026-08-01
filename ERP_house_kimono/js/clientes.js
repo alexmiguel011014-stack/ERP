@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   var form = document.getElementById("formCliente");
   var listaClientes = document.getElementById("listaClientes");
   var mensagem = document.getElementById("mensagem");
@@ -19,7 +19,7 @@
     var faixa = document.getElementById("faixa").value;
 
     if (!nome) {
-      mostrarMensagem("Nome e obrigatorio.", "erro");
+      mostrarMensagem("Nome e obrigatório.", "erro");
       return;
     }
 
@@ -66,13 +66,13 @@
   });
 
   function carregarClientes() {
-    if (!window.api || !window.api.buscarClientes) {
+    if (!window.api || !window.api.getClientes) {
       listaClientes.innerHTML = '<div class="empty-state">API indisponvel.</div>';
       return;
     }
 
     window.api
-      .buscarClientes()
+      .getClientes()
       .then(function (clientes) {
         listaClientes.innerHTML = "";
 
@@ -122,7 +122,7 @@
   }
 
   function removerCliente(id, nome) {
-    if (!confirm("Remover o cliente \"" + nome + "\"? Esta acao nao pode ser desfeita.")) {
+    if (!confirm("Remover o cliente \"" + nome + "\"? Esta ação não pode ser desfeita.")) {
       return;
     }
 

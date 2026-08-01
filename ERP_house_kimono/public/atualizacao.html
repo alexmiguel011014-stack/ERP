@@ -1,9 +1,11 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Atualizacoes - JiuJitsu ERP</title>
+    <script src="../js/head.js"></script>
+    <script src="../js/auth.js"></script>
+    <title>Atualizações - JiuJitsu ERP</title>
     <style>
       * {
         margin: 0;
@@ -54,7 +56,8 @@
         color: #FFFFFF;
       }
       .container {
-        max-width: 720px;
+        max-width: 960px;
+        width: 100%;
         margin: 32px auto;
         padding: 0 24px;
       }
@@ -190,19 +193,19 @@
       }
     </style>
   </head>
-  <body>
-    <div class="container">
-      <h1>Atualizacoes</h1>
-      <p class="subtitle">Verifique e instale atualizacoes do JiuJitsu ERP</p>
+    <body>
+      <div class="container">
+        <h1>Atualizações</h1>
+      <p class="subtitle">Verifique e instale atualizações do JiuJitsu ERP</p>
 
       <div class="panel">
-        <h2>Status da Versao</h2>
+        <h2>Status da Versão</h2>
         <div class="info-row">
-          <span class="info-label">Versao Atual</span>
+          <span class="info-label">Versão Atual</span>
           <span class="info-value current" id="currentVersion">--</span>
         </div>
         <div class="info-row">
-          <span class="info-label">Ultima Versao Disponivel</span>
+          <span class="info-label">Última Versão Disponível</span>
           <span class="info-value" id="latestVersion">--</span>
         </div>
         <div class="info-row">
@@ -212,9 +215,9 @@
       </div>
 
       <div class="panel" id="downloadPanel" style="display:none;">
-        <h2>Download da Atualizacao</h2>
+        <h2>Download da Atualização</h2>
         <div class="info-row">
-          <span class="info-label">Versao</span>
+          <span class="info-label">Versão</span>
           <span class="info-value" id="downloadVersion">--</span>
         </div>
         <div class="progress-bar" id="progressBar">
@@ -230,10 +233,10 @@
 
       <div class="actions">
         <button class="btn btn-primary" id="btnCheck" onclick="checkForUpdates()">
-          Verificar Atualizacoes
+          Verificar Atualizações
         </button>
         <button class="btn btn-success" id="btnDownload" onclick="downloadUpdate()" disabled>
-          Baixar Atualizacao
+          Baixar Atualização
         </button>
         <button class="btn btn-warning" id="btnRestart" onclick="quitAndInstall()" disabled>
           Reiniciar e Instalar
