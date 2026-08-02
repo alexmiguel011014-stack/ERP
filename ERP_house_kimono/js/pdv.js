@@ -449,7 +449,7 @@
 
     var html = "";
     html += "<div style='text-align: center; margin-bottom: 10px; font-size: 14px; font-weight: bold;'>";
-    html += "JiuJitsu ERP";
+    html += "Alga ERP";
     html += "</div>";
     html += "<div style='text-align: center; font-size: 10px; color: #666; margin-bottom: 10px;'>";
     html += "Cnpj: -- | Frente de Caixa";

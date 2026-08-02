@@ -159,7 +159,7 @@
   }
 
   nav.innerHTML =
-    '<div class="navbar-brand">JiuJitsu ERP</div>' +
+    '<div class="navbar-brand">Alga ERP</div>' +
     '<div class="navbar-links">' + linksHTML + logoutBtn + "</div>";
 
   document.body.insertBefore(nav, document.body.firstChild);

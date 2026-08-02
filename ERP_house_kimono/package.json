@@ -1,7 +1,7 @@
 {
   "name": "erp_house_kimono",
-  "version": "1.0.0",
-  "description": "ERP local (offline) para loja de artigos de jiu-jitsu",
+  "version": "1.0.1",
+  "description": "ERP local (offline) da Alga",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -14,7 +14,7 @@
   "type": "commonjs",
   "build": {
     "appId": "com.erpjiujitsu.housekimono",
-    "productName": "JiuJitsu ERP",
+    "productName": "Alga ERP",
     "directories": {
       "output": "dist",
       "buildResources": "build"
@@ -53,11 +53,12 @@
       "icon": "build/icon.ico"
     },
     "nsis": {
+      "artifactName": "Alga-ERP-Setup-${version}.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "JiuJitsu ERP"
+      "shortcutName": "Alga ERP"
     }
   },
   "devDependencies": {
