@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="../js/head.js"></script>
+    <script src="../js/auth.js"></script>
+    <title>Alga ERP - Precificação</title>
+    <link rel="stylesheet" href="precificacao.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>Precificação</h1>
+      <p class="subtitle">Gerencie margens e preços de venda</p>
+
+      <!-- Configuração global -->
+      <div class="global-config">
+        <div class="config-item">
+          <label for="globalMargin">Margem de Lucro Padrão (%)</label>
+          <div class="config-input-row">
+            <input type="number" id="globalMargin" min="0" max="999" step="0.1" value="40" />
+            <button type="button" id="btnSaveGlobal" class="btn btn-primary btn-sm">Salvar Margem Global</button>
+          </div>
+          <span class="config-hint">Aplicada automaticamente a novos produtos e aos que usam margem global.</span>
+        </div>
+      </div>
+
+      <!-- Filtros -->
+      <div class="filter-bar">
+        <input type="text" id="searchInput" class="search-input" placeholder="Buscar por código (#0001) ou nome..." />
+        <select id="filterCategoria" class="filter-select">
+          <option value="">Todas as categorias</option>
+        </select>
+      </div>
+
+      <!-- Mass update bar -->
+      <div class="mass-bar" id="massBar" style="display:none;">
+        <span id="massCount">0 itens selecionados</span>
+        <div class="mass-input-row">
+          <input type="number" id="massMargin" min="0" max="999" step="0.1" placeholder="Margem %" />
+          <button type="button" id="btnMassApply" class="btn btn-primary btn-sm">Aplicar aos selecionados</button>
+        </div>
+      </div>
+
+      <!-- Tabela de produtos -->
+      <div class="table-responsive">
+        <table id="tabelaPrecificacao">
+          <thead>
+            <tr>
+              <th style="width:36px;"><input type="checkbox" id="selectAll" title="Selecionar todos" /></th>
+              <th>Código</th>
+              <th>Produto</th>
+              <th>Categoria</th>
+              <th>Preço de Custo (R$)</th>
+              <th>Impostos / Extras (R$)</th>
+              <th>Margem (%)</th>
+              <th>Preço de Venda (R$)</th>
+              <th>Lucro (R$)</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="corpoPrecificacao"></tbody>
+        </table>
+      </div>
+
+      <div id="avisoPrecificacao" class="aviso"></div>
+      <div id="mensagem" class="mensagem"></div>
+    </div>
+
+    <script src="../js/navbar.js"></script>
+    <script src="../js/store.js"></script>
+    <script src="../js/precificacao.js"></script>
+  </body>
+</html>

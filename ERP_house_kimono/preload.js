@@ -5,6 +5,9 @@ contextBridge.exposeInMainWorld("api", {
   changeDBKey: (novaSenha) => ipcRenderer.invoke("change-db-key", novaSenha),
   buscarProdutos: () => ipcRenderer.invoke("buscar-produtos"),
   listarProdutosDetalhados: () => ipcRenderer.invoke("listar-produtos-detalhados"),
+  proximoCodigoProduto: () => ipcRenderer.invoke("proximo-codigo-produto"),
+  proximoCodigoCategoria: () => ipcRenderer.invoke("proximo-codigo-categoria"),
+  proximoCodigoCliente: () => ipcRenderer.invoke("proximo-codigo-cliente"),
   salvarProduto: (dados) => ipcRenderer.invoke("salvar-produto", dados),
   atualizarProduto: (id, dados) => ipcRenderer.invoke("atualizar-produto", id, dados),
   removerProduto: (id) => ipcRenderer.invoke("remover-produto", id),
@@ -13,6 +16,7 @@ contextBridge.exposeInMainWorld("api", {
   dashboardStats: () => ipcRenderer.invoke("dashboard-stats"),
   getClientes: () => ipcRenderer.invoke("get-clientes"),
   salvarCliente: (dados) => ipcRenderer.invoke("salvar-cliente", dados),
+  atualizarCliente: (id, dados) => ipcRenderer.invoke("atualizar-cliente", id, dados),
   removerCliente: (id) => ipcRenderer.invoke("remover-cliente", id),
   buscarCliente: (filtro) => ipcRenderer.invoke("buscar-cliente", filtro),
   getVendas: (filtro) => ipcRenderer.invoke("get-vendas", filtro),
@@ -20,6 +24,16 @@ contextBridge.exposeInMainWorld("api", {
   getItensVenda: (vendaId) => ipcRenderer.invoke("get-itens-venda", vendaId),
   getEstoqueNegativo: () => ipcRenderer.invoke("get-estoque-negativo"),
   getCategorias: () => ipcRenderer.invoke("get-categorias"),
+  categoriasWithUsage: () => ipcRenderer.invoke("categorias-with-usage"),
+  removerCategoria: (id) => ipcRenderer.invoke("remover-categoria", id),
+  getPricingData: () => ipcRenderer.invoke("get-pricing-data"),
+  getGlobalMargin: () => ipcRenderer.invoke("get-global-margin"),
+  saveGlobalMargin: (valor) => ipcRenderer.invoke("save-global-margin", valor),
+  saveProductMargin: (produtoId, margem) => ipcRenderer.invoke("save-product-margin", produtoId, margem),
+  saveProductPrice: (produtoId, precoVenda) => ipcRenderer.invoke("save-product-price", produtoId, precoVenda),
+  saveProductCost: (produtoId, custo) => ipcRenderer.invoke("save-product-cost", produtoId, custo),
+  saveProductTaxes: (produtoId, valor) => ipcRenderer.invoke("save-product-taxes", produtoId, valor),
+  massUpdateMargem: (produtoIds, margem) => ipcRenderer.invoke("mass-update-margem", produtoIds, margem),
   salvarCategoria: (nome, categoriaPaiId) => ipcRenderer.invoke("salvar-categoria", nome, categoriaPaiId),
   salvarCategoriaComSubcategorias: (dados) => ipcRenderer.invoke("salvar-categoria-com-subcategorias", dados),
   exportBackup: () => ipcRenderer.invoke("export-backup"),
@@ -33,4 +47,8 @@ contextBridge.exposeInMainWorld("api", {
 
 ipcRenderer.on("update-status", (event, data) => {
   window.dispatchEvent(new CustomEvent("update-status", { detail: data }));
+});
+
+ipcRenderer.on("categorias-changed", () => {
+  window.dispatchEvent(new CustomEvent("categorias-changed"));
 });

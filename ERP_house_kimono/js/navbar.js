@@ -24,28 +24,62 @@
 
   var style = document.createElement("style");
   style.textContent =
-    ".navbar { position: sticky; top: 0; z-index: 1000; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; width: 100%; padding: 12px 24px; background-color: #FFFFFF; border-bottom: 1px solid #E2E8F0; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }\n" +
-    ".navbar-brand { color: #2563EB; font-weight: 700; font-size: 1.05rem; white-space: nowrap; }\n" +
-    ".navbar-links { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }\n" +
-    ".navbar-links a { color: #475569; text-decoration: none; padding: 10px 18px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; background-color: #F8FAFC; border: 1px solid #E2E8F0; transition: background-color 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s; }\n" +
-    ".navbar-links a:hover { background-color: #EFF6FF; color: #1E293B; border-color: #BFDBFE; box-shadow: 0 2px 6px rgba(37,99,235,0.12); }\n" +
+    "/* === Navbar === */\n" +
+    ".navbar { position: sticky; top: 0; z-index: 1000; display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 20px; background-color: #FFFFFF; border-bottom: 1px solid #E2E8F0; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }\n" +
+    ".hamburger { background: none; border: none; cursor: pointer; padding: 6px; border-radius: 6px; display: flex; flex-direction: column; gap: 4px; transition: background 0.15s; }\n" +
+    ".hamburger:hover { background: #F1F5F9; }\n" +
+    ".hamburger span { display: block; width: 20px; height: 2px; background: #475569; border-radius: 1px; transition: background 0.15s; }\n" +
+    ".navbar-brand { color: #2563EB; font-weight: 700; font-size: 1rem; white-space: nowrap; margin-right: auto; }\n" +
+    ".navbar-links { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }\n" +
+    ".navbar-links a { color: #475569; text-decoration: none; padding: 8px 14px; border-radius: 7px; font-size: 0.82rem; font-weight: 600; background-color: #F8FAFC; border: 1px solid #E2E8F0; transition: background-color 0.15s, color 0.15s, border-color 0.15s; }\n" +
+    ".navbar-links a:hover { background-color: #EFF6FF; color: #1E293B; border-color: #BFDBFE; }\n" +
     ".navbar-links a.active { background-color: #2563EB; color: #FFFFFF; border-color: #2563EB; }\n" +
-    ".theme-toggle { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 6px; background-color: #F1F5F9; color: #64748B; border: 1px solid #E2E8F0; cursor: pointer; transition: all 0.15s; font-size: 0.85rem; }\n" +
-    ".theme-toggle:hover { background-color: #2563EB; color: #FFFFFF; border-color: #2563EB; }\n" +
-    ".theme-toggle.active { background-color: #1E293B; color: #FFFFFF; }\n" +
-    ".btn-voltar-menu { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; margin: 12px 0; color: #64748B; text-decoration: none; font-size: 0.85rem; font-weight: 500; border-radius: 6px; border: 1px solid #E2E8F0; background-color: #FFFFFF; transition: all 0.15s; }\n" +
-    ".btn-voltar-menu:hover { color: #2563EB; background-color: #EFF6FF; border-color: #BFDBFE; }\n" +
-    ".loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(248,250,252,0.9); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; gap: 12px; }\n" +
-    ".spinner { width: 32px; height: 32px; border: 3px solid #E2E8F0; border-top: 3px solid #2563EB; border-radius: 50%; animation: spin 0.7s linear infinite; }\n" +
-    "@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }\n" +
-    "/* Dark Theme */\n" +
+    ".theme-toggle { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 6px; background: #F1F5F9; color: #64748B; border: 1px solid #E2E8F0; cursor: pointer; font-size: 0.85rem; transition: all 0.15s; }\n" +
+    ".theme-toggle:hover { background: #2563EB; color: #FFF; border-color: #2563EB; }\n" +
+    "/* === Sidebar === */\n" +
+    ".sidebar-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.45); z-index: 1999; display: none; }\n" +
+    ".sidebar-backdrop.open { display: block; }\n" +
+    ".sidebar { position: fixed; top: 0; left: -280px; width: 260px; height: 100%; z-index: 2000; background: #FFFFFF; border-right: 1px solid #E2E8F0; box-shadow: 2px 0 16px rgba(0,0,0,0.08); transition: left 0.25s ease; display: flex; flex-direction: column; overflow-y: auto; }\n" +
+    ".sidebar.open { left: 0; }\n" +
+    ".sidebar-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 18px 12px; border-bottom: 1px solid #E2E8F0; }\n" +
+    ".sidebar-brand { font-weight: 700; font-size: 1.05rem; color: #2563EB; }\n" +
+    ".sidebar-close { background: none; border: none; font-size: 1.3rem; color: #94A3B8; cursor: pointer; padding: 2px 6px; border-radius: 4px; line-height: 1; }\n" +
+    ".sidebar-close:hover { color: #DC2626; background: #FEE2E2; }\n" +
+    ".sidebar-section { padding: 6px 0; border-bottom: 1px solid #F1F5F9; }\n" +
+    ".sidebar-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 18px; border: none; background: none; color: #1E293B; font-size: 0.85rem; font-weight: 500; cursor: pointer; text-align: left; text-decoration: none; transition: background 0.12s; }\n" +
+    ".sidebar-item:hover { background: #F1F5F9; }\n" +
+    ".sidebar-item svg, .sidebar-icon { width: 18px; height: 18px; flex-shrink: 0; color: #64748B; }\n" +
+    ".sidebar-item .item-label { flex: 1; }\n" +
+    ".sidebar-item.disabled { color: #94A3B8; cursor: default; }\n" +
+    ".sidebar-item.disabled:hover { background: none; }\n" +
+    ".sidebar-divider { height: 1px; background: #E2E8F0; margin: 4px 0; }\n" +
+    ".sidebar-item.danger { color: #DC2626; }\n" +
+    ".sidebar-item.danger:hover { background: #FEE2E2; }\n" +
+    "/* === Dark theme overrides === */\n" +
     ".dark-theme { background-color: #0F172A; color: #E2E8F0; }\n" +
     ".dark-theme body { background-color: #0F172A; color: #E2E8F0; }\n" +
     ".dark-theme .navbar { background-color: #1E293B; border-bottom-color: #334159; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }\n" +
+    ".dark-theme .hamburger:hover { background: #334159; }\n" +
+    ".dark-theme .hamburger span { background: #CBD5E1; }\n" +
     ".dark-theme .navbar-brand { color: #3B82F6; }\n" +
     ".dark-theme .navbar-links a { color: #94A3B8; background-color: #0F172A; border-color: #334159; }\n" +
-    ".dark-theme .navbar-links a:hover { background-color: #334159; color: #F1F5F9; border-color: #3B82F6; box-shadow: 0 2px 6px rgba(59,130,246,0.2); }\n" +
+    ".dark-theme .navbar-links a:hover { background-color: #334159; color: #F1F5F9; border-color: #3B82F6; }\n" +
     ".dark-theme .navbar-links a.active { background-color: #3B82F6; color: #FFFFFF; border-color: #3B82F6; }\n" +
+    ".dark-theme .theme-toggle { background: #334159; color: #94A3B8; border-color: #334159; }\n" +
+    ".dark-theme .theme-toggle:hover { background: #3B82F6; color: #FFF; border-color: #3B82F6; }\n" +
+    ".dark-theme .sidebar { background: #1E293B; border-right-color: #334159; }\n" +
+    ".dark-theme .sidebar-backdrop { background: rgba(15,23,42,0.65); }\n" +
+    ".dark-theme .sidebar-header { border-bottom-color: #334159; }\n" +
+    ".dark-theme .sidebar-brand { color: #3B82F6; }\n" +
+    ".dark-theme .sidebar-close { color: #64748B; }\n" +
+    ".dark-theme .sidebar-close:hover { color: #FCA5A5; background: #450A0A; }\n" +
+    ".dark-theme .sidebar-section { border-bottom-color: #1E293B; }\n" +
+    ".dark-theme .sidebar-item { color: #E2E8F0; }\n" +
+    ".dark-theme .sidebar-item:hover { background: #0F172A; }\n" +
+    ".dark-theme .sidebar-divider { background: #334159; }\n" +
+    ".dark-theme .sidebar-item.danger { color: #FCA5A5; }\n" +
+    ".dark-theme .sidebar-item.danger:hover { background: #450A0A; }\n" +
+    ".dark-theme .sidebar-item.disabled { color: #475569; }\n" +
     ".dark-theme .container { background-color: #1E293B; border-color: #334159; color: #E2E8F0; }\n" +
     ".dark-theme h1, .dark-theme h2 { color: #F1F5F9; }\n" +
     ".dark-theme .subtitle { color: #64748B; }\n" +
@@ -103,8 +137,6 @@
     ".dark-theme .scan-area input { background-color: #0F172A; border-color: #334159; color: #F1F5F9; }\n" +
     ".dark-theme .scan-hint { color: #475569; }\n" +
     ".dark-theme .cart-area h2, .dark-theme .resumo h2 { color: #E2E8F0; }\n" +
-    ".dark-theme .forma-pagamento label { color: #94A3B8; }\n" +
-    ".dark-theme .forma-pagamento select { background-color: #0F172A; border-color: #334159; color: #F1F5F9; }\n" +
     ".dark-theme .total-area { background-color: #0F172A; border-color: #334159; }\n" +
     ".dark-theme .total-label { color: #94A3B8; }\n" +
     ".dark-theme .total-value { color: #4ADE80; }\n" +
@@ -116,27 +148,56 @@
     ".dark-theme #carrinhoTable tr:hover td { background-color: #0F172A; }\n" +
     ".dark-theme .mensagem-pdv.sucesso { background-color: #064E35; color: #6EE7B7; border-color: #10B981; }\n" +
     ".dark-theme .mensagem-pdv.erro { background-color: #450A0A; color: #FCA5A5; border-color: #EF4444; }\n" +
-    ".dark-theme .mensagem-pdv.info { background-color: #0F172A; color: #CBD5E1; border-color: #334159; }\n" +
     ".dark-theme .venda-total { color: #4ADE80; }\n" +
     ".dark-theme .filters label { color: #94A3B8; }\n" +
     ".dark-theme .filters input[type='date'] { background-color: #0F172A; border-color: #334159; color: #F1F5F9; }\n" +
     ".dark-theme #modalDetalhes { background: rgba(15,23,42,0.6) !important; }\n" +
     ".dark-theme #modalDetalhesContent { background-color: #1E293B !important; color: #E2E8F0 !important; }\n" +
     ".dark-theme #modalSenha { background: rgba(15,23,42,0.6) !important; }\n" +
-    ".dark-theme .panel h2 { color: #E2E8F0; }\n" +
     ".dark-theme .btn-success { background-color: #16A34A; opacity: 0.9; }\n" +
     ".dark-theme .btn-success:hover { opacity: 1; }\n" +
-    ".dark-theme .btn-warning { background-color: #F59E0B; color: #1E293B; }\n" +
     ".dark-theme .stat-card:hover { box-shadow: 0 4px 12px rgba(59,130,246,0.15); }\n" +
-    ".nav-logout { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; margin-left: 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 500; color: #64748B; text-decoration: none; border: 1px solid #E2E8F0; background-color: transparent; cursor: pointer; transition: all 0.15s; }\n" +
-    ".nav-logout:hover { background-color: #FEE2E2; color: #DC2626; border-color: #DC2626; }\n" +
-    ".dark-theme .nav-logout { color: #94A3B8; border-color: #334159; }\n" +
-    ".dark-theme .nav-logout:hover { background-color: #450A0A; color: #FCA5A5; border-color: #EF4444; }\n" +
     ".dark-theme .venda-item { border-bottom-color: #1E293B; }\n" +
     ".dark-theme .venda-item:hover { background-color: #0F172A; }\n" +
     ".dark-theme .stats-bar .stat-card { background-color: #0F172A; border-color: #334159; }\n";
   document.head.appendChild(style);
 
+  /* ---------- Sidebar + overlay DOM ---------- */
+  var backdrop = document.createElement("div");
+  backdrop.className = "sidebar-backdrop";
+  document.body.appendChild(backdrop);
+
+  var sidebar = document.createElement("aside");
+  sidebar.className = "sidebar";
+
+  sidebar.innerHTML =
+    '<div class="sidebar-header">' +
+    '<span class="sidebar-brand">Alga ERP</span>' +
+    '<button class="sidebar-close" title="Fechar">&times;</button>' +
+    '</div>' +
+    '<a href="clientes.html" class="sidebar-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="item-label">Clientes</span></a>' +
+    '<a href="precificacao.html" class="sidebar-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span class="item-label">Precificação</span></a>' +
+    '<a href="atualizacao.html" class="sidebar-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg><span class="item-label">Atualizações</span></a>' +
+    '<button class="sidebar-item danger" id="sidebarLogout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><span class="item-label">Sair</span></button>';
+
+  document.body.appendChild(sidebar);
+
+  function abrirSidebar() {
+    sidebar.classList.add("open");
+    backdrop.classList.add("open");
+  }
+
+  function fecharSidebar() {
+    sidebar.classList.remove("open");
+    backdrop.classList.remove("open");
+  }
+
+  backdrop.addEventListener("click", fecharSidebar);
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && sidebar.classList.contains("open")) fecharSidebar();
+  });
+
+  /* ---------- Navbar ---------- */
   var nav = document.createElement("nav");
   nav.className = "navbar";
 
@@ -146,38 +207,42 @@
   var linksHTML =
     '<a href="index.html" class="' + (currentPage === "index.html" ? "active" : "") + '">Dashboard</a>' +
     '<a href="pdv.html" class="' + (currentPage === "pdv.html" ? "active" : "") + '">Frente de Caixa</a>' +
-    '<a href="cadastro.html" class="' + (currentPage === "cadastro.html" ? "active" : "") + '">Cadastro</a>' +
-    '<a href="categorias.html" class="' + (currentPage === "categorias.html" ? "active" : "") + '">Categorias</a>' +
-    '<a href="clientes.html" class="' + (currentPage === "clientes.html" ? "active" : "") + '">Clientes</a>' +
+    '<a href="cadastro.html" class="' + (currentPage === "cadastro.html" ? "active" : "") + '">Cadastro dos Produtos</a>' +
     '<a href="vendas.html" class="' + (currentPage === "vendas.html" ? "active" : "") + '">Histórico</a>' +
     '<a href="estoquenegativo.html" class="' + (currentPage === "estoquenegativo.html" ? "active" : "") + '">Estoque Negativo</a>' +
-    '<a href="atualizacao.html" class="' + (currentPage === "atualizacao.html" ? "active" : "") + '">Atualizações</a>' +
     '<button type="button" id="themeToggle" class="theme-toggle" title="Alternar tema escuro">' + themeIcon + "</button>";
 
-  var logoutBtn = "";
-  if (currentPage !== "login.html") {
-    logoutBtn = '<button type="button" id="navLogout" class="nav-logout" title="Sair">&#8617; Sair</button>';
-  }
-
   nav.innerHTML =
+    '<button class="hamburger" id="hamburgerBtn" title="Menu"><span></span><span></span><span></span></button>' +
     '<div class="navbar-brand">Alga ERP</div>' +
-    '<div class="navbar-links">' + linksHTML + logoutBtn + "</div>";
+    '<div class="navbar-links">' + linksHTML + "</div>";
 
   document.body.insertBefore(nav, document.body.firstChild);
 
+  /* ---------- Eventos ---------- */
+  document.getElementById("hamburgerBtn").addEventListener("click", abrirSidebar);
+
+  var sidebarClose = sidebar.querySelector(".sidebar-close");
+  if (sidebarClose) sidebarClose.addEventListener("click", fecharSidebar);
+
   var toggle = document.getElementById("themeToggle");
+  function atualizarIconeTema() {
+    var nowDark = document.documentElement.classList.contains("dark-theme");
+    if (toggle) toggle.innerHTML = nowDark ? "&#9728;" : "&#9790;";
+  }
+
   if (toggle) {
     toggle.addEventListener("click", function () {
       var temaAtual = localStorage.getItem("tema") || "light";
       aplicarTema(temaAtual === "dark" ? "light" : "dark");
-      var nowDark = document.documentElement.classList.contains("dark-theme");
-      toggle.innerHTML = nowDark ? "&#9728;" : "&#9790;";
+      atualizarIconeTema();
     });
   }
 
-  var logoutBtnEl = document.getElementById("navLogout");
-  if (logoutBtnEl) {
-    logoutBtnEl.addEventListener("click", function () {
+  var logoutBtn = document.getElementById("sidebarLogout");
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", function () {
+      fecharSidebar();
       if (window.erpLogout) {
         window.erpLogout();
       } else {

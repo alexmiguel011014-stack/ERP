@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const {
@@ -7,6 +7,9 @@ const {
   atualizarProduto,
   removerProduto,
   listProdutosDetalhados,
+  getProximoCodigoProduto,
+  getProximoCodigoCategoria,
+  getProximoCodigoCliente,
   buscarSKU,
   finalizarVenda,
   setDBPath,
@@ -14,6 +17,7 @@ const {
   getDashboardStats,
   getClientes,
   salvarCliente,
+  atualizarCliente,
   removerCliente,
   buscarCliente,
   getVendas,
@@ -21,6 +25,16 @@ const {
   getItensVenda,
   getEstoqueNegativo,
   getCategorias,
+  getListCategoriasWithUsage,
+  removerCategoria,
+  getPricingData,
+  getGlobalMargin,
+  saveGlobalMargin,
+  saveProductMargin,
+  saveProductPrice,
+  saveProductCost,
+  saveProductTaxes,
+  massUpdateMargem,
   salvarCategoria,
   salvarCategoriaComSubcategorias,
   exportBackup,
@@ -78,6 +92,8 @@ function criarJanelaPrincipal() {
 }
 
 app.whenReady().then(async () => {
+  Menu.setApplicationMenu(null);
+
   if (app.isPackaged) {
     const userData = app.getPath('userData');
     setDBPath(userData);
@@ -110,6 +126,30 @@ ipcMain.handle('salvar-produto', async (event, dados) => {
 ipcMain.handle('listar-produtos-detalhados', async () => {
   try {
     return await listProdutosDetalhados();
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('proximo-codigo-produto', async () => {
+  try {
+    return await getProximoCodigoProduto();
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('proximo-codigo-categoria', async () => {
+  try {
+    return await getProximoCodigoCategoria();
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('proximo-codigo-cliente', async () => {
+  try {
+    return await getProximoCodigoCliente();
   } catch (erro) {
     throw erro.message;
   }
@@ -182,6 +222,14 @@ ipcMain.handle('remover-cliente', async (event, id) => {
   }
 });
 
+ipcMain.handle('atualizar-cliente', async (event, id, dados) => {
+  try {
+    return await atualizarCliente(id, dados);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
 ipcMain.handle('buscar-cliente', async (event, filtro) => {
   try {
     return await buscarCliente(filtro);
@@ -230,9 +278,93 @@ ipcMain.handle('get-categorias', async () => {
   }
 });
 
+ipcMain.handle('categorias-with-usage', async () => {
+  try {
+    return await getListCategoriasWithUsage();
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('remover-categoria', async (event, id) => {
+  try {
+    const resultado = await removerCategoria(id);
+    if (mainWindow) mainWindow.webContents.send('categorias-changed');
+    return resultado;
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('get-pricing-data', async () => {
+  try {
+    return await getPricingData();
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('get-global-margin', async () => {
+  try {
+    return await getGlobalMargin();
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('save-global-margin', async (event, valor) => {
+  try {
+    return await saveGlobalMargin(valor);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('save-product-margin', async (event, produtoId, margem) => {
+  try {
+    return await saveProductMargin(produtoId, margem);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('save-product-price', async (event, produtoId, precoVenda) => {
+  try {
+    return await saveProductPrice(produtoId, precoVenda);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('save-product-cost', async (event, produtoId, precoCusto) => {
+  try {
+    return await saveProductCost(produtoId, precoCusto);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('save-product-taxes', async (event, produtoId, valor) => {
+  try {
+    return await saveProductTaxes(produtoId, valor);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('mass-update-margem', async (event, produtoIds, margem) => {
+  try {
+    return await massUpdateMargem(produtoIds, margem);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
 ipcMain.handle('salvar-categoria', async (event, nome, categoriaPaiId) => {
   try {
-    return await salvarCategoria(nome, categoriaPaiId);
+    const resultado = await salvarCategoria(nome, categoriaPaiId);
+    if (mainWindow) mainWindow.webContents.send('categorias-changed');
+    return resultado;
   } catch (erro) {
     throw erro.message;
   }
@@ -240,7 +372,9 @@ ipcMain.handle('salvar-categoria', async (event, nome, categoriaPaiId) => {
 
 ipcMain.handle('salvar-categoria-com-subcategorias', async (event, dados) => {
   try {
-    return await salvarCategoriaComSubcategorias(dados);
+    const resultado = await salvarCategoriaComSubcategorias(dados);
+    if (mainWindow) mainWindow.webContents.send('categorias-changed');
+    return resultado;
   } catch (erro) {
     throw erro.message;
   }

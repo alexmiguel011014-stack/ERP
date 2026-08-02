@@ -5,50 +5,68 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="../js/head.js"></script>
     <script src="../js/auth.js"></script>
-    <title>Alga ERP - Categorias</title>
+    <title>Alga ERP - Lista de Categorias</title>
     <link rel="stylesheet" href="categorias.css" />
   </head>
   <body>
     <div class="container">
-      <h1>Categorias</h1>
+      <h1>Lista de Categorias</h1>
+      <p class="subtitle">Gerencie grupos e atributos (tamanhos, cores, etc.)</p>
 
-      <form id="formCategoria">
-        <div class="form-group" id="grupoNome">
-          <label for="nomeCategoria">Nome da Categoria</label>
-          <input type="text" id="nomeCategoria" name="nome" placeholder="Ex: Kimonos" required />
-        </div>
+      <div class="section-block">
+        <h2>Nova Categoria / Atributo</h2>
 
-        <div class="form-group">
-          <label for="categoriaPai">Categoria Principal</label>
-          <select id="categoriaPai" name="categoria_pai">
-            <option value="">Nenhuma (criar categoria principal)</option>
-          </select>
-          <div class="aviso" id="avisoSub">
-            Selecione uma categoria principal para adicionar subcategorias a ela (máx. 2 níveis).
+        <form id="formCategoria">
+          <div class="form-group" id="grupoNome">
+            <label for="nomeCategoria">Nome</label>
+            <input type="text" id="nomeCategoria" name="nome" placeholder="Ex: Tamanhos, Cores, A1, Azul..." required />
           </div>
+
+          <div class="form-group">
+            <label for="categoriaPai">Agrupar em</label>
+            <select id="categoriaPai" name="categoria_pai">
+              <option value="">Categoria principal (cria novo grupo)</option>
+            </select>
+            <div class="aviso" id="avisoSub">
+              Selecione um grupo para adicionar atributos a ele (máx. 2 níveis).
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="btnSalvar">Salvar</button>
+            <button type="reset" class="btn btn-secondary" id="btnLimpar">Limpar</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="section-block">
+        <div class="grade-header">
+          <h2>Categorias Cadastradas</h2>
+          <input type="text" id="buscaCategoria" class="busca-categoria" placeholder="Buscar por nome..." />
         </div>
 
-        <div class="form-group">
-          <label>Subcategorias</label>
-          <div id="listaSubcategorias" class="lista-subcategorias"></div>
-          <button type="button" id="btnAddSubcategoria" class="btn btn-add">+ Adicionar subcategoria</button>
+        <div class="table-responsive">
+          <table id="tabelaCategorias">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Nome</th>
+                <th>Tipo</th>
+                <th>Uso (produtos)</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="corpoCategorias"></tbody>
+          </table>
         </div>
 
-        <div class="form-actions">
-          <button type="submit" class="btn btn-primary">Salvar Categoria</button>
-          <button type="reset" class="btn btn-secondary" id="btnLimpar">Limpar</button>
-        </div>
-      </form>
-
-      <hr />
-
-      <h2>Hierarquia de Categorias</h2>
-      <div id="listaCategorias" class="lista"></div>
-
-      <div id="mensagem" class="mensagem"></div>
+        <div id="avisoCategorias" class="aviso"></div>
+        <div id="mensagem" class="mensagem"></div>
+      </div>
     </div>
 
     <script src="../js/navbar.js"></script>
+    <script src="../js/store.js"></script>
     <script src="../js/categorias.js"></script>
   </body>
 </html>

@@ -16,48 +16,33 @@
         <input type="hidden" id="produtoEditandoId" value="" />
 
         <div class="form-group">
+          <label for="codigoProduto">Código do Produto</label>
+          <input type="text" id="codigoProduto" name="codigoProduto" readonly placeholder="Será gerado ao salvar" />
+        </div>
+
+        <div class="form-group">
           <label for="nome">Nome do Produto</label>
           <input type="text" id="nome" name="nome" placeholder="Ex: Quimono Trançado" required />
         </div>
 
         <div class="form-group">
-          <label for="categoria">Categoria</label>
-          <div class="categoria-row">
-            <select id="categoria" name="categoria">
-              <option value="">Selecione a categoria</option>
-            </select>
-            <button type="button" id="btnNovaCategoria" class="btn btn-small">+ Nova</button>
-          </div>
-          <div id="painelNovaCategoria" class="nova-categoria-panel" hidden>
-            <label for="nomeNovaCategoria">Nome da nova categoria</label>
-            <div class="nova-categoria-row">
-              <input type="text" id="nomeNovaCategoria" placeholder="Ex: Kimonos" />
-              <button type="button" id="btnSalvarNovaCategoria" class="btn btn-small">Salvar</button>
-              <button type="button" id="btnCancelarNovaCategoria" class="btn btn-small">Cancelar</button>
+          <label>Categorias / Atributos</label>
+          <div class="cat-select-wrapper">
+            <button type="button" id="btnCatDropdown" class="cat-dropdown-btn">
+              <span id="catDropdownLabel">Selecionar categorias</span>
+              <span class="cat-dropdown-arrow">&#9662;</span>
+            </button>
+            <div id="catPopover" class="cat-popover" hidden>
+              <div class="cat-popover-search">
+                <input type="text" id="catSearch" class="cat-search-input" placeholder="Buscar por código ou nome..." />
+              </div>
+              <div class="cat-popover-list" id="catPopoverList"></div>
+              <div class="cat-popover-footer">
+                <button type="button" id="btnAddCategoria" class="btn btn-small btn-add-cat">+ Adicionar Categoria</button>
+              </div>
             </div>
           </div>
-        </div>
-
-        <div class="form-group">
-          <label for="subcategoria">Subcategoria</label>
-          <div class="categoria-row">
-            <select id="subcategoria" name="subcategoria" disabled>
-              <option value="">Selecione a subcategoria</option>
-            </select>
-            <button type="button" id="btnNovaSubcategoria" class="btn btn-small">+ Nova</button>
-          </div>
-          <div id="painelNovaSubcategoria" class="nova-categoria-panel" hidden>
-            <label for="nomeNovaSubcategoria">Nome da nova subcategoria</label>
-            <div class="nova-categoria-row">
-              <input type="text" id="nomeNovaSubcategoria" placeholder="Ex: Com palete" />
-              <button type="button" id="btnSalvarNovaSubcategoria" class="btn btn-small">Salvar</button>
-              <button type="button" id="btnCancelarNovaSubcategoria" class="btn btn-small">Cancelar</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="info-comercial">
-          Dados comerciais (preço de custo, preço de venda e estoque) serão gerenciados em uma aba futura.
+          <div id="catChips" class="cat-chips"></div>
         </div>
 
         <div class="form-actions">
@@ -66,23 +51,35 @@
           <button type="button" class="btn btn-secondary" id="btnCancelarEdicao" style="display: none;">Cancelar Edição</button>
         </div>
 
+        <div class="form-actions form-actions-secondary">
+          <button type="button" class="btn btn-lista" id="btnListaProdutos">Lista de Produtos</button>
+          <button type="button" class="btn btn-lista btn-lista-cat" id="btnListaCategorias">Lista de Categorias</button>
+        </div>
+
         <div id="mensagem" class="mensagem"></div>
       </form>
+    </div>
 
-      <hr />
-
-      <div class="produtos-section">
-        <div class="grade-header">
-          <h2>Produtos Cadastrados</h2>
-          <input type="text" id="buscaProduto" class="busca-produto" placeholder="Buscar por nome ou categoria..." />
+    <!-- Modal: Lista de Produtos -->
+    <div id="modalLista" class="modal-overlay" hidden>
+      <div class="modal-box">
+        <div class="modal-header">
+          <h2>Lista de Produtos</h2>
+          <div class="modal-tools">
+            <input type="text" id="buscaProduto" class="busca-produto" placeholder="Buscar por nome ou categoria..." />
+            <button type="button" id="btnFecharModal" class="btn btn-small" title="Fechar">Fechar</button>
+          </div>
         </div>
 
         <div class="table-responsive">
           <table id="tabelaProdutos">
             <thead>
               <tr>
+                <th>Código</th>
                 <th>Produto</th>
-                <th>Categoria</th>
+                <th>Categorias / Atributos</th>
+                <th class="th-futuro">Preço de Custo</th>
+                <th class="th-futuro">Outros Dados</th>
                 <th>Ações</th>
               </tr>
             </thead>
@@ -91,11 +88,47 @@
         </div>
 
         <div id="avisoProdutos" class="aviso"></div>
-        <div id="mensagemProdutos" class="mensagem"></div>
+        <div class="modal-footer">
+          <span class="placeholder-note">
+            As colunas <strong>Preço de Custo</strong> e <strong>Outros Dados</strong> são espaços reservados
+            para implementação futura.
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Adicionar Categoria -->
+    <div id="modalAddCat" class="modal-overlay" hidden>
+      <div class="modal-box modal-small">
+        <div class="modal-header">
+          <h2 id="addCatModalTitle">Nova Categoria</h2>
+          <button type="button" id="btnFecharModalCat" class="btn btn-small">Fechar</button>
+        </div>
+        <div class="modal-body" style="padding: 16px 20px;">
+          <div class="form-group">
+            <label>Código</label>
+            <input type="text" id="addCatCodigo" readonly />
+          </div>
+          <div class="form-group">
+            <label for="addCatNome">Nome</label>
+            <input type="text" id="addCatNome" placeholder="Ex: Tamanhos, A1, Azul..." required />
+          </div>
+          <div class="form-group">
+            <label for="addCatPai">Agrupar em (opcional)</label>
+            <select id="addCatPai">
+              <option value="">Nenhum (criar grupo principal)</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-actions" style="display:flex;justify-content:flex-end;gap:8px;padding:0 20px 16px;">
+          <button type="button" class="btn btn-primary" id="btnSalvarAddCat">Salvar</button>
+          <button type="button" class="btn btn-secondary" id="btnCancelarAddCat">Cancelar</button>
+        </div>
       </div>
     </div>
 
     <script src="../js/navbar.js"></script>
+    <script src="../js/store.js"></script>
     <script src="../js/cadastro.js"></script>
   </body>
 </html>

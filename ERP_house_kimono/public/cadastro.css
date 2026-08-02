@@ -507,3 +507,428 @@ td input:focus {
     align-self: flex-start;
   }
 }
+
+/* ---- Código do produto (somente leitura) ---- */
+.form-group input[readonly] {
+  background-color: #F8FAFC;
+  color: #2563EB;
+  font-weight: 600;
+  cursor: default;
+}
+
+.form-group input[readonly]:focus {
+  border-color: #E2E8F0;
+  box-shadow: none;
+}
+
+/* ---- Dropdown de seleção de categorias ---- */
+.cat-select-wrapper { position: relative; }
+
+.cat-dropdown-btn {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  background-color: #FFFFFF;
+  color: #1E293B;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.cat-dropdown-btn:hover { border-color: #2563EB; }
+
+.cat-dropdown-btn:focus,
+.cat-dropdown-btn.open {
+  border-color: #2563EB;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.cat-dropdown-arrow { font-size: 0.7rem; color: #94A3B8; transition: transform 0.2s; }
+.cat-dropdown-btn.open .cat-dropdown-arrow { transform: rotate(180deg); }
+
+/* Popover */
+.cat-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 500;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.12);
+  max-height: 360px;
+  display: flex;
+  flex-direction: column;
+}
+
+.cat-popover[hidden] { display: none; }
+
+.cat-popover-search {
+  padding: 10px 12px;
+  border-bottom: 1px solid #F1F5F9;
+  flex-shrink: 0;
+}
+
+.cat-search-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #E2E8F0;
+  border-radius: 7px;
+  font-size: 0.82rem;
+  outline: none;
+  background: #F8FAFC;
+  transition: border-color 0.15s;
+}
+
+.cat-search-input:focus { border-color: #2563EB; background: #FFF; }
+
+.cat-popover-list {
+  overflow-y: auto;
+  max-height: 240px;
+  padding: 6px 0;
+  flex: 1;
+}
+
+.cat-popover-footer {
+  padding: 8px 12px;
+  border-top: 1px solid #F1F5F9;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.cat-popover-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 0.84rem;
+  transition: background 0.1s;
+  user-select: none;
+}
+
+.cat-popover-item:hover { background: #F1F5F9; }
+
+.cat-popover-item input[type="checkbox"] {
+  width: 16px; height: 16px; accent-color: #2563EB; cursor: pointer; flex-shrink: 0;
+}
+
+.cat-popover-code {
+  font-family: "Consolas", "Courier New", monospace;
+  font-weight: 700;
+  font-size: 0.75rem;
+  color: #2563EB;
+  min-width: 52px;
+}
+
+.cat-popover-nome { flex: 1; color: #1E293B; }
+.cat-popover-nome small { display: block; color: #94A3B8; font-size: 0.7rem; }
+
+.cat-popover-empty {
+  text-align: center;
+  padding: 24px 16px;
+  color: #94A3B8;
+  font-size: 0.82rem;
+}
+
+/* Chips (categorias selecionadas) */
+.cat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.cat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #1D4ED8;
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
+  border-radius: 999px;
+}
+
+.cat-chip-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 2px;
+  color: #94A3B8;
+  transition: color 0.12s;
+}
+
+.cat-chip-remove:hover { color: #DC2626; }
+
+/* Modal small */
+.modal-small { max-width: 480px; }
+
+.btn-add-cat { padding: 5px 14px; font-size: 0.75rem; }
+
+/* ---- Ação secundária: Lista de Produtos ---- */
+.form-actions-secondary {
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.btn-lista {
+  background-color: #1E293B;
+  color: #FFFFFF;
+  padding: 10px 24px;
+  font-size: 0.9rem;
+}
+
+.btn-lista:hover {
+  background-color: #334159;
+}
+
+.btn-lista-cat {
+  background-color: #2563EB;
+  color: #FFFFFF;
+}
+
+.btn-lista-cat:hover {
+  background-color: #1D4ED8;
+}
+
+/* ---- Modal Lista de Produtos ---- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(15, 23, 42, 0.55);
+  padding: 24px;
+}
+
+.modal-overlay[hidden] {
+  display: none;
+}
+
+.modal-box {
+  width: 100%;
+  max-width: 1000px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background-color: #FFFFFF;
+  border-radius: 12px;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+}
+
+.modal-header {
+  position: sticky;
+  top: 0;
+  background-color: #FFFFFF;
+  border-bottom: 1px solid #E2E8F0;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  z-index: 2;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.modal-tools {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.modal-box .table-responsive {
+  padding: 0 20px;
+}
+
+.modal-footer {
+  padding: 12px 20px 18px;
+}
+
+.placeholder-note {
+  font-size: 0.75rem;
+  color: #94A3B8;
+  font-style: italic;
+}
+
+/* ---- Tags de categorias na lista ---- */
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #1D4ED8;
+  background-color: #EFF6FF;
+  border: 1px solid #BFDBFE;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.tag-empty {
+  color: #94A3B8;
+  font-size: 0.78rem;
+}
+
+.prod-codigo {
+  font-family: "Consolas", "Courier New", monospace;
+  font-weight: 700;
+  color: #2563EB;
+  white-space: nowrap;
+}
+
+/* ---- Colunas de placeholders futuros ---- */
+.th-futuro,
+.td-futuro {
+  width: 120px;
+}
+
+.placeholder-cell {
+  color: #CBD5E1;
+  font-size: 0.8rem;
+}
+
+/* ---- Dark theme adicionais ---- */
+.dark-theme .form-group input[readonly] {
+  background-color: #0F172A;
+  color: #60A5FA;
+  border-color: #334159;
+}
+
+.dark-theme .cat-dropdown-btn {
+  background-color: #0F172A;
+  border-color: #334159;
+  color: #F1F5F9;
+}
+
+.dark-theme .cat-dropdown-btn:hover { border-color: #3B82F6; }
+
+.dark-theme .cat-popover {
+  background-color: #1E293B;
+  border-color: #334159;
+}
+
+.dark-theme .cat-popover-search { border-bottom-color: #1E293B; }
+
+.dark-theme .cat-search-input {
+  background: #0F172A;
+  border-color: #334159;
+  color: #F1F5F9;
+}
+
+.dark-theme .cat-search-input:focus { background: #0F172A; border-color: #3B82F6; }
+
+.dark-theme .cat-popover-item:hover { background: #0F172A; }
+
+.dark-theme .cat-popover-code { color: #60A5FA; }
+
+.dark-theme .cat-popover-nome { color: #E2E8F0; }
+
+.dark-theme .cat-popover-nome small { color: #64748B; }
+
+.dark-theme .cat-popover-footer { border-top-color: #1E293B; }
+
+.dark-theme .cat-chip {
+  color: #93C5FD;
+  background: #172554;
+  border-color: #1D4ED8;
+}
+
+.dark-theme .cat-chip-remove { color: #64748B; }
+
+.dark-theme .cat-chip-remove:hover { color: #FCA5A5; }
+
+.dark-theme .cat-popover-empty { color: #64748B; }
+
+.dark-theme .btn-lista {
+  background-color: #3B82F6;
+  color: #FFFFFF;
+}
+
+.dark-theme .btn-lista:hover {
+  background-color: #2563EB;
+}
+
+.dark-theme .btn-lista-cat {
+  background-color: #1E293B;
+  color: #F1F5F9;
+  border: 1px solid #334159;
+}
+
+.dark-theme .btn-lista-cat:hover {
+  background-color: #334159;
+}
+
+.dark-theme .modal-overlay {
+  background-color: rgba(15, 23, 42, 0.7);
+}
+
+.dark-theme .modal-box {
+  background-color: #1E293B;
+  border-color: #334159;
+  color: #E2E8F0;
+}
+
+.dark-theme .modal-header {
+  background-color: #1E293B;
+  border-bottom-color: #334159;
+}
+
+.dark-theme .tag {
+  color: #93C5FD;
+  background-color: #172554;
+  border-color: #1D4ED8;
+}
+
+.dark-theme .prod-codigo {
+  color: #60A5FA;
+}
+
+.dark-theme .placeholder-cell {
+  color: #475569;
+}
+
+@media (max-width: 640px) {
+  .modal-tools {
+    width: 100%;
+  }
+
+  .busca-produto {
+    flex: 1;
+  }
+
+  .cat-popover {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-height: 55vh;
+    border-radius: 12px 12px 0 0;
+  }
+}

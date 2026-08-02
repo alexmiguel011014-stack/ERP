@@ -260,6 +260,43 @@ async function iniciarBanco() {
     )
   `);
 
+  // Tabela de junção: um produto pode ter várias categorias/atributos
+  // (tamanhos A1/A2/A3, cores Azul/Branco, etc.) selecionados em checklist.
+  await runOn(conexao, `
+    CREATE TABLE IF NOT EXISTS ProdutoCategorias (
+      produto_id INTEGER NOT NULL,
+      categoria_id INTEGER NOT NULL,
+      PRIMARY KEY (produto_id, categoria_id),
+      FOREIGN KEY (produto_id) REFERENCES Produtos(id) ON DELETE CASCADE,
+      FOREIGN KEY (categoria_id) REFERENCES Categorias(id) ON DELETE CASCADE
+    )
+  `);
+
+  await runOn(conexao, `
+    CREATE TABLE IF NOT EXISTS Configuracao (
+      chave TEXT PRIMARY KEY,
+      valor TEXT NOT NULL
+    )
+  `);
+
+  await runOn(conexao, `
+    CREATE TABLE IF NOT EXISTS Precificacao (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      produto_id INTEGER NOT NULL UNIQUE,
+      preco_custo REAL NOT NULL DEFAULT 0,
+      impostos_extras REAL NOT NULL DEFAULT 0,
+      margem_percentual REAL,
+      preco_venda REAL NOT NULL DEFAULT 0,
+      status TEXT DEFAULT 'pendente',
+      FOREIGN KEY (produto_id) REFERENCES Produtos(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Margem padrão global inicial (se não existir)
+  await runOn(conexao,
+    "INSERT OR IGNORE INTO Configuracao (chave, valor) VALUES ('margem_padrao', '40')"
+  );
+
   // Migração de bancos existentes (cria as colunas novas se ausentes).
   await migrarColunas(conexao, 'Produtos', {
     categoria_id: 'categoria_id INTEGER REFERENCES Categorias(id) ON DELETE SET NULL',
@@ -268,6 +305,10 @@ async function iniciarBanco() {
   await migrarColunas(conexao, 'Variacoes', {
     preco_custo: 'preco_custo REAL NOT NULL DEFAULT 0',
     atributos: 'atributos TEXT',
+  });
+  await migrarColunas(conexao, 'Clientes', {
+    cpf_cnpj: 'cpf_cnpj TEXT',
+    email: 'email TEXT',
   });
 }
 
@@ -335,6 +376,49 @@ async function salvarProduto(produto, variacoes) {
       [produto.nome, produto.categoria || null, produto.categoria_id || null, produto.subcategoria_id || null]
     );
     const produtoId = result.lastID;
+
+    // Associa as categorias/atributos selecionados no checklist (múltipla seleção).
+    // Cria a tabela de junção se o banco foi aberto por uma versão antiga do app
+    // (migração defensive - normalmente criada em iniciarBanco).
+    await run(
+      `CREATE TABLE IF NOT EXISTS ProdutoCategorias (
+        produto_id INTEGER NOT NULL,
+        categoria_id INTEGER NOT NULL,
+        PRIMARY KEY (produto_id, categoria_id),
+        FOREIGN KEY (produto_id) REFERENCES Produtos(id) ON DELETE CASCADE,
+        FOREIGN KEY (categoria_id) REFERENCES Categorias(id) ON DELETE CASCADE
+      )`
+    );
+    const categoriasSelecionadas = Array.isArray(produto.categoriasSelecionadas)
+      ? produto.categoriasSelecionadas
+          .map((id) => Number(id))
+          .filter((id) => Number.isInteger(id) && id > 0)
+      : [];
+    for (const catId of categoriasSelecionadas) {
+      await run(
+        'INSERT OR IGNORE INTO ProdutoCategorias (produto_id, categoria_id) VALUES (?, ?)',
+        [produtoId, catId]
+      );
+    }
+
+    // Sincronização automática: insere produto na tabela de precificação
+    // com status 'pendente' (preço de custo e venda vêm das variações).
+    await run(
+      `CREATE TABLE IF NOT EXISTS Precificacao (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        produto_id INTEGER NOT NULL UNIQUE,
+        preco_custo REAL NOT NULL DEFAULT 0,
+        impostos_extras REAL NOT NULL DEFAULT 0,
+        margem_percentual REAL,
+        preco_venda REAL NOT NULL DEFAULT 0,
+        status TEXT DEFAULT 'pendente',
+        FOREIGN KEY (produto_id) REFERENCES Produtos(id) ON DELETE CASCADE
+      )`
+    );
+    await run(
+      'INSERT OR IGNORE INTO Precificacao (produto_id, preco_custo, impostos_extras, preco_venda, status) VALUES (?, 0, 0, 0, ?)',
+      [produtoId, 'pendente']
+    );
 
     for (const v of variacoes) {
       const atributos = Array.isArray(v.atributos) ? v.atributos : [];
@@ -433,6 +517,15 @@ async function listProdutosDetalhados() {
      ORDER BY v.id`
   );
 
+  const catsProd = await all(
+    `SELECT pc.produto_id, c.id AS categoria_id, c.nome AS categoria_nome,
+            c.categoria_pai_id, p.nome AS categoria_pai_nome
+     FROM ProdutoCategorias pc
+     JOIN Categorias c ON c.id = pc.categoria_id
+     LEFT JOIN Categorias p ON p.id = c.categoria_pai_id
+     ORDER BY c.nome COLLATE NOCASE`
+  );
+
   return produtos.map((p) => ({
     id: p.id,
     nome: p.nome,
@@ -441,6 +534,14 @@ async function listProdutosDetalhados() {
     subcategoria_nome: p.subcategoria_nome,
     categoria_id: p.categoria_id,
     subcategoria_id: p.subcategoria_id,
+    categorias_selecionadas: catsProd
+      .filter((c) => c.produto_id === p.id)
+      .map((c) => ({
+        id: c.categoria_id,
+        nome: c.categoria_nome,
+        categoria_pai_id: c.categoria_pai_id,
+        categoria_pai_nome: c.categoria_pai_nome,
+      })),
     variacoes: variacoes
       .filter((v) => v.produto_id === p.id)
       .map((v) => ({
@@ -454,6 +555,47 @@ async function listProdutosDetalhados() {
         atributos: v.atributos,
       })),
   }));
+}
+
+async function getProximoCodigoProduto() {
+  const conn = getConexao();
+  const get = (sql, params = []) =>
+    new Promise((resolve, reject) => {
+      conn.get(sql, params, (erro, linha) => {
+        if (erro) return reject(erro);
+        resolve(linha);
+      });
+    });
+  const row = await get('SELECT COALESCE(MAX(id), 0) + 1 AS proximo FROM Produtos');
+  return row ? row.proximo : 1;
+}
+
+async function getProximoCodigoCategoria() {
+  const conn = getConexao();
+  const get = (sql, params = []) =>
+    new Promise((resolve, reject) => {
+      conn.get(sql, params, (erro, linha) => {
+        if (erro) return reject(erro);
+        resolve(linha);
+      });
+    });
+  const row = await get('SELECT COALESCE(MAX(id), 0) + 1 AS proximo FROM Categorias');
+  const n = row ? row.proximo : 1;
+  return 'C' + String(n).padStart(4, '0');
+}
+
+async function getProximoCodigoCliente() {
+  const conn = getConexao();
+  const get = (sql, params = []) =>
+    new Promise((resolve, reject) => {
+      conn.get(sql, params, (erro, linha) => {
+        if (erro) return reject(erro);
+        resolve(linha);
+      });
+    });
+  const row = await get('SELECT COALESCE(MAX(id), 0) + 1 AS proximo FROM Clientes');
+  const n = row ? row.proximo : 1;
+  return '#CLI' + String(n).padStart(4, '0');
 }
 
 async function atualizarProduto(id, produto, variacoes) {
@@ -493,6 +635,30 @@ async function atualizarProduto(id, produto, variacoes) {
       if (!sub || sub.categoria_pai_id !== produto.categoria_id) {
         throw new Error('A subcategoria selecionada não pertence à categoria escolhida.');
       }
+    }
+
+    // Substitui as associações de categorias/atributos (checklist de múltipla seleção).
+    // Cria a tabela de junção se o banco foi aberto por uma versão antiga do app.
+    await run(
+      `CREATE TABLE IF NOT EXISTS ProdutoCategorias (
+        produto_id INTEGER NOT NULL,
+        categoria_id INTEGER NOT NULL,
+        PRIMARY KEY (produto_id, categoria_id),
+        FOREIGN KEY (produto_id) REFERENCES Produtos(id) ON DELETE CASCADE,
+        FOREIGN KEY (categoria_id) REFERENCES Categorias(id) ON DELETE CASCADE
+      )`
+    );
+    const categoriasSelecionadas = Array.isArray(produto.categoriasSelecionadas)
+      ? produto.categoriasSelecionadas
+          .map((id) => Number(id))
+          .filter((id) => Number.isInteger(id) && id > 0)
+      : [];
+    await run('DELETE FROM ProdutoCategorias WHERE produto_id = ?', [id]);
+    for (const catId of categoriasSelecionadas) {
+      await run(
+        'INSERT OR IGNORE INTO ProdutoCategorias (produto_id, categoria_id) VALUES (?, ?)',
+        [id, catId]
+      );
     }
 
     if (variacoesLista.length === 0) {
@@ -600,6 +766,234 @@ async function removerProduto(id) {
   }
 }
 
+async function getListCategoriasWithUsage() {
+  // Garante a tabela de junção mesmo em bancos abertos antes da migração
+  // (p.ex. app em execução antes da atualização que introduziu o checklist).
+  await runAsync(
+    `CREATE TABLE IF NOT EXISTS ProdutoCategorias (
+      produto_id INTEGER NOT NULL,
+      categoria_id INTEGER NOT NULL,
+      PRIMARY KEY (produto_id, categoria_id),
+      FOREIGN KEY (produto_id) REFERENCES Produtos(id) ON DELETE CASCADE,
+      FOREIGN KEY (categoria_id) REFERENCES Categorias(id) ON DELETE CASCADE
+    )`
+  );
+
+  const linhas = await allAsync(
+    `SELECT c.id, c.nome, c.categoria_pai_id,
+            p.nome AS categoria_pai_nome,
+            (SELECT COUNT(*) FROM ProdutoCategorias pc WHERE pc.categoria_id = c.id) AS uso_checklist,
+            (SELECT COUNT(*) FROM Produtos pr WHERE pr.categoria_id = c.id OR pr.subcategoria_id = c.id) AS uso_legado
+     FROM Categorias c
+     LEFT JOIN Categorias p ON p.id = c.categoria_pai_id
+     ORDER BY (CASE WHEN c.categoria_pai_id IS NULL THEN 0 ELSE 1 END), c.nome COLLATE NOCASE`
+  );
+
+  return linhas.map((l) => ({
+    id: l.id,
+    codigo: 'C' + String(l.id).padStart(4, '0'),
+    nome: l.nome,
+    categoria_pai_id: l.categoria_pai_id,
+    categoria_pai_nome: l.categoria_pai_nome,
+    tipo: l.categoria_pai_id ? 'subcategoria' : 'categoria',
+    uso_count: Number(l.uso_checklist || 0) + Number(l.uso_legado || 0),
+  }));
+}
+
+async function removerCategoria(id) {
+  const conn = getConexao();
+
+  const run = (sql, params = []) =>
+    new Promise((resolve, reject) => {
+      conn.run(sql, params, function (erro) {
+        if (erro) return reject(erro);
+        resolve(this);
+      });
+    });
+
+  const get = (sql, params = []) =>
+    new Promise((resolve, reject) => {
+      conn.get(sql, params, (erro, linha) => {
+        if (erro) return reject(erro);
+        resolve(linha);
+      });
+    });
+
+  await run('BEGIN TRANSACTION');
+  try {
+    const alvo = await get('SELECT id, categoria_pai_id FROM Categorias WHERE id = ?', [id]);
+    if (!alvo) throw new Error('Categoria não encontrada.');
+
+    // Subcategorias: bloqueia se houver vinculações em algum nível.
+    const temSub = await get('SELECT id FROM Categorias WHERE categoria_pai_id = ? LIMIT 1', [id]);
+    if (temSub) {
+      throw new Error('Exclua as subcategorias vinculadas antes de remover esta categoria.');
+    }
+
+    const vinculadoChecklist = await get(
+      'SELECT COUNT(*) AS n FROM ProdutoCategorias WHERE categoria_id = ?',
+      [id]
+    );
+    const vinculadoLegado = await get(
+      'SELECT COUNT(*) AS n FROM Produtos WHERE categoria_id = ? OR subcategoria_id = ?',
+      [id, id]
+    );
+    if ((vinculadoChecklist && vinculadoChecklist.n > 0) || (vinculadoLegado && vinculadoLegado.n > 0)) {
+      throw new Error('Categoria vinculada a produtos. Remova as vinculações antes de excluí-la.');
+    }
+
+    await run('DELETE FROM Categorias WHERE id = ?', [id]);
+    await run('COMMIT');
+    return { success: true };
+  } catch (erro) {
+    await run('ROLLBACK');
+    throw erro;
+  }
+}
+
+/* ============ Precificação ============ */
+
+async function getGlobalMargin() {
+  const row = await getAsync(
+    "SELECT valor FROM Configuracao WHERE chave = 'margem_padrao'"
+  );
+  return row ? parseFloat(row.valor) || 40 : 40;
+}
+
+async function saveGlobalMargin(valor) {
+  await runAsync(
+    "INSERT OR REPLACE INTO Configuracao (chave, valor) VALUES ('margem_padrao', ?)",
+    [String(valor)]
+  );
+  return { success: true };
+}
+
+async function getPricingData() {
+  const conn = getConexao();
+  const all = (sql, params = []) =>
+    new Promise((resolve, reject) => {
+      conn.all(sql, params, (erro, linhas) => {
+        if (erro) return reject(erro);
+        resolve(linhas);
+      });
+    });
+
+  // Cria produtos faltantes na Precificacao (sync automático)
+  await runAsync(
+    `INSERT OR IGNORE INTO Precificacao (produto_id, preco_custo, impostos_extras, preco_venda, status)
+     SELECT p.id, COALESCE(v.preco_custo, 0), 0, COALESCE(v.preco, 0), 'pendente'
+     FROM Produtos p
+     LEFT JOIN (SELECT produto_id, MIN(preco_custo) AS preco_custo, MIN(preco) AS preco
+                FROM Variacoes GROUP BY produto_id) v ON v.produto_id = p.id
+     WHERE p.id NOT IN (SELECT produto_id FROM Precificacao)`
+  );
+
+  const rows = await all(
+    `SELECT pr.id, pr.produto_id, p.nome AS produto_nome, p.categoria_id,
+            pr.preco_custo, pr.impostos_extras, pr.margem_percentual,
+            pr.preco_venda, pr.status,
+            COALESCE(v.preco_custo, 0) AS custo_variacao,
+            COALESCE(v.preco, 0) AS preco_variacao,
+            v.sku AS sku_primeiro,
+            (SELECT GROUP_CONCAT(n, ', ') FROM (
+              SELECT DISTINCT c.nome AS n FROM ProdutoCategorias pc
+              JOIN Categorias c ON c.id = pc.categoria_id
+              WHERE pc.produto_id = p.id
+              UNION
+              SELECT c.nome AS n FROM Categorias c
+              WHERE c.id = p.categoria_id OR c.id = p.subcategoria_id
+            )) AS categorias
+     FROM Precificacao pr
+     JOIN Produtos p ON p.id = pr.produto_id
+     LEFT JOIN (SELECT produto_id, MIN(id) AS first_id FROM Variacoes GROUP BY produto_id) vf
+              ON vf.produto_id = p.id
+     LEFT JOIN Variacoes v ON v.id = vf.first_id
+     ORDER BY p.nome COLLATE NOCASE`
+  );
+
+  return rows.map((r) => ({
+    id: r.id,
+    produto_id: r.produto_id,
+    produto_nome: r.produto_nome,
+    preco_custo: Number(r.preco_custo || 0),
+    impostos_extras: Number(r.impostos_extras || 0),
+    margem_percentual: r.margem_percentual !== null ? Number(r.margem_percentual) : null,
+    preco_venda: Number(r.preco_venda || 0),
+    status: r.status || 'pendente',
+    custo_variacao: Number(r.custo_variacao || 0),
+    preco_variacao: Number(r.preco_variacao || 0),
+    sku_primeiro: r.sku_primeiro || null,
+    categorias: r.categorias || null,
+  }));
+}
+
+async function saveProductMargin(produtoId, margem) {
+  const margemVal = margem !== null && margem !== '' ? Number(margem) : null;
+  if (margemVal !== null && (!Number.isFinite(margemVal) || margemVal < 0)) {
+    throw new Error('Margem inválida.');
+  }
+  await runAsync(
+    'UPDATE Precificacao SET margem_percentual = ?, status = ? WHERE produto_id = ?',
+    [margemVal, margemVal !== null ? 'definido' : 'pendente', produtoId]
+  );
+  return { success: true };
+}
+
+async function saveProductPrice(produtoId, precoVenda) {
+  const preco = Number(precoVenda);
+  if (!Number.isFinite(preco) || preco < 0) throw new Error('Preço inválido.');
+  await runAsync(
+    'UPDATE Precificacao SET preco_venda = ?, status = ? WHERE produto_id = ?',
+    [preco, 'definido', produtoId]
+  );
+  return { success: true };
+}
+
+async function saveProductCost(produtoId, precoCusto) {
+  const custo = Number(precoCusto);
+  if (!Number.isFinite(custo) || custo < 0) throw new Error('Custo inválido.');
+  await runAsync(
+    'UPDATE Precificacao SET preco_custo = ? WHERE produto_id = ?',
+    [custo, produtoId]
+  );
+  return { success: true };
+}
+
+async function saveProductTaxes(produtoId, valor) {
+  const v = Number(valor);
+  if (!Number.isFinite(v) || v < 0) throw new Error('Valor inválido.');
+  await runAsync(
+    'UPDATE Precificacao SET impostos_extras = ? WHERE produto_id = ?',
+    [v, produtoId]
+  );
+  return { success: true };
+}
+
+async function massUpdateMargem(produtoIds, margem) {
+  const conn = getConexao();
+  const run = (sql, params = []) =>
+    new Promise((resolve, reject) => {
+      conn.run(sql, params, function (erro) {
+        if (erro) return reject(erro);
+        resolve(this);
+      });
+    });
+  await run('BEGIN TRANSACTION');
+  try {
+    for (const pid of produtoIds) {
+      await run(
+        'UPDATE Precificacao SET margem_percentual = ?, status = ? WHERE produto_id = ?',
+        [margem, 'definido', pid]
+      );
+    }
+    await run('COMMIT');
+    return { success: true, count: produtoIds.length };
+  } catch (erro) {
+    await run('ROLLBACK');
+    throw erro;
+  }
+}
+
 async function finalizarVenda(dados) {
   const conn = getConexao();
 
@@ -655,13 +1049,17 @@ module.exports = {
   atualizarProduto,
   removerProduto,
   listProdutosDetalhados,
+  getProximoCodigoProduto,
+  getProximoCodigoCategoria,
   buscarSKU,
   finalizarVenda,
   setDBPath,
   getDBPath,
+  getProximoCodigoCliente,
   getDashboardStats,
   getClientes,
   salvarCliente,
+  atualizarCliente,
   removerCliente,
   buscarCliente,
   getVendas,
@@ -669,6 +1067,16 @@ module.exports = {
   getItensVenda,
   getEstoqueNegativo,
   getCategorias,
+  getListCategoriasWithUsage,
+  removerCategoria,
+  getPricingData,
+  getGlobalMargin,
+  saveGlobalMargin,
+  saveProductMargin,
+  saveProductPrice,
+  saveProductCost,
+  saveProductTaxes,
+  massUpdateMargem,
   salvarCategoria,
   salvarCategoriaComSubcategorias,
   exportBackup,
@@ -699,11 +1107,35 @@ async function salvarCliente(dados) {
   await run("BEGIN TRANSACTION");
   try {
     const result = await run(
-      "INSERT INTO Clientes (nome, telefone, academia, faixa) VALUES (?, ?, ?, ?)",
-      [dados.nome, dados.telefone || null, dados.academia || null, dados.faixa || null]
+      "INSERT INTO Clientes (nome, cpf_cnpj, telefone, email, academia, faixa) VALUES (?, ?, ?, ?, ?, ?)",
+      [dados.nome, dados.cpf_cnpj || null, dados.telefone || null, dados.email || null, dados.academia || null, dados.faixa || null]
     );
     await run("COMMIT");
     return { success: true, clienteId: result.lastID };
+  } catch (erro) {
+    await run("ROLLBACK");
+    throw erro;
+  }
+}
+
+async function atualizarCliente(id, dados) {
+  const run = (sql, params = []) =>
+    new Promise((resolve, reject) => {
+      const conn = getConexao();
+      conn.run(sql, params, function (erro) {
+        if (erro) return reject(erro);
+        resolve(this);
+      });
+    });
+
+  await run("BEGIN TRANSACTION");
+  try {
+    await run(
+      "UPDATE Clientes SET nome=?, cpf_cnpj=?, telefone=?, email=?, academia=?, faixa=? WHERE id=?",
+      [dados.nome, dados.cpf_cnpj || null, dados.telefone || null, dados.email || null, dados.academia || null, dados.faixa || null, id]
+    );
+    await run("COMMIT");
+    return { success: true };
   } catch (erro) {
     await run("ROLLBACK");
     throw erro;
