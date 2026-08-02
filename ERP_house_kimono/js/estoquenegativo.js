@@ -45,8 +45,7 @@
           bottom.className = "venda-bottom";
           bottom.innerHTML =
             '<span style="color: #94A3B8;">SKU: ' + (item.sku || "---") + "</span>" +
-            '<span style="color: #94A3B8;">Tamanho: ' + (item.tamanho || "---") + "</span>" +
-            '<span style="color: #94A3B8;">Cor: ' + (item.cor || "---") + "</span>" +
+            '<span style="color: #94A3B8;">Detalhes: ' + formatarAtributos(item.atributos, item.tamanho, item.cor) + "</span>" +
             '<span style="color: #DC2626; font-weight: 600;">Estoque: ' + item.quantidade_estoque + " unidades</span>";
 
           info.appendChild(top);

@@ -76,7 +76,7 @@ ERP_house_kimono/
 ## Banco de Dados
 
 - Arquivo: `erp_jiujitsu.sqlite` (criptografado com SQLCipher). Dev: `./data/` | Produção: `%APPDATA%/JiuJitsu ERP/`.
-- 5 tabelas: `Produtos`, `Variacoes` (sku UNIQUE), `Clientes`, `Vendas`, `ItensVenda`.
+- 6 tabelas: `Categorias` (2 níveis), `Produtos`, `Variacoes` (sku UNIQUE, atributos JSON e preço de custo), `Clientes`, `Vendas`, `ItensVenda`.
 - `PRAGMA foreign_keys = ON`; FKs com `ON DELETE CASCADE/RESTRICT`.
 - **Criptografia**: ao fazer login, a senha do app deriva a chave (SHA-256) que destrava o banco via SQLCipher. Banco em texto plano é migrado automaticamente no primeiro login. Troca de senha usa `PRAGMA rekey`. Backups são cópias criptografadas do arquivo.
 - Backups automáticos diários em `data/backups/` (dev) ou `userData/backups/` (produção).

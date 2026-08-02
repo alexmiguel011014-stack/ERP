@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="../js/head.js"></script>
+    <script src="../js/auth.js"></script>
+    <title>Alga ERP - Categorias</title>
+    <link rel="stylesheet" href="categorias.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>Categorias</h1>
+
+      <form id="formCategoria">
+        <div class="form-group" id="grupoNome">
+          <label for="nomeCategoria">Nome da Categoria</label>
+          <input type="text" id="nomeCategoria" name="nome" placeholder="Ex: Kimonos" required />
+        </div>
+
+        <div class="form-group">
+          <label for="categoriaPai">Categoria Principal</label>
+          <select id="categoriaPai" name="categoria_pai">
+            <option value="">Nenhuma (criar categoria principal)</option>
+          </select>
+          <div class="aviso" id="avisoSub">
+            Selecione uma categoria principal para adicionar subcategorias a ela (máx. 2 níveis).
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Subcategorias</label>
+          <div id="listaSubcategorias" class="lista-subcategorias"></div>
+          <button type="button" id="btnAddSubcategoria" class="btn btn-add">+ Adicionar subcategoria</button>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Salvar Categoria</button>
+          <button type="reset" class="btn btn-secondary" id="btnLimpar">Limpar</button>
+        </div>
+      </form>
+
+      <hr />
+
+      <h2>Hierarquia de Categorias</h2>
+      <div id="listaCategorias" class="lista"></div>
+
+      <div id="mensagem" class="mensagem"></div>
+    </div>
+
+    <script src="../js/navbar.js"></script>
+    <script src="../js/categorias.js"></script>
+  </body>
+</html>

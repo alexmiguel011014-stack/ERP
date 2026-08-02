@@ -4,6 +4,9 @@ const { autoUpdater } = require('electron-updater');
 const {
   iniciarBanco,
   salvarProduto,
+  atualizarProduto,
+  removerProduto,
+  listProdutosDetalhados,
   buscarSKU,
   finalizarVenda,
   setDBPath,
@@ -17,6 +20,9 @@ const {
   getVendasHoje,
   getItensVenda,
   getEstoqueNegativo,
+  getCategorias,
+  salvarCategoria,
+  salvarCategoriaComSubcategorias,
   exportBackup,
   importBackup,
   backupAutomatico,
@@ -96,6 +102,30 @@ ipcMain.handle('salvar-produto', async (event, dados) => {
   try {
     const resultado = await salvarProduto(dados, dados.variacoes);
     return resultado;
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('listar-produtos-detalhados', async () => {
+  try {
+    return await listProdutosDetalhados();
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('atualizar-produto', async (event, id, dados) => {
+  try {
+    return await atualizarProduto(id, dados, dados.variacoes);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('remover-produto', async (event, id) => {
+  try {
+    return await removerProduto(id);
   } catch (erro) {
     throw erro.message;
   }
@@ -187,6 +217,30 @@ ipcMain.handle('get-itens-venda', async (event, vendaId) => {
 ipcMain.handle('get-estoque-negativo', async () => {
   try {
     return await getEstoqueNegativo();
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('get-categorias', async () => {
+  try {
+    return await getCategorias();
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('salvar-categoria', async (event, nome, categoriaPaiId) => {
+  try {
+    return await salvarCategoria(nome, categoriaPaiId);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('salvar-categoria-com-subcategorias', async (event, dados) => {
+  try {
+    return await salvarCategoriaComSubcategorias(dados);
   } catch (erro) {
     throw erro.message;
   }

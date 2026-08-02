@@ -182,6 +182,88 @@ td input:focus {
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
 }
 
+/* Categoria > Subcategoria */
+.categoria-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.categoria-row select {
+  flex: 1;
+}
+
+.categoria-row .btn {
+  white-space: nowrap;
+}
+
+.nova-categoria-panel {
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid #BFDBFE;
+  border-radius: 8px;
+  background-color: #EFF6FF;
+}
+
+.nova-categoria-panel[hidden] {
+  display: none;
+}
+
+.nova-categoria-panel label {
+  display: block;
+  margin-bottom: 6px;
+  color: #1D4ED8;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.nova-categoria-row {
+  display: flex;
+  gap: 8px;
+}
+
+.nova-categoria-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Aviso de dados comerciais (futura aba comercial) */
+.info-comercial {
+  margin-top: 14px;
+  padding: 10px 14px;
+  border: 1px dashed #94A3B8;
+  border-radius: 8px;
+  background-color: #F8FAFC;
+  color: #64748B;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.dark-theme .nova-categoria-panel {
+  border-color: #1D4ED8;
+  background-color: #172554;
+}
+
+.dark-theme .nova-categoria-panel label {
+  color: #BFDBFE;
+}
+
+.dark-theme .info-comercial {
+  border-color: #334159;
+  background-color: #1E293B;
+  color: #94A3B8;
+}
+
+@media (max-width: 640px) {
+  .nova-categoria-row {
+    flex-wrap: wrap;
+  }
+
+  .nova-categoria-row input {
+    flex-basis: 100%;
+  }
+}
+
 /* Buttons */
 .btn {
   padding: 8px 16px;
@@ -281,31 +363,147 @@ td input:focus {
   border: 1px solid #FECACA;
 }
 
-/* SKU display */
-.sku-display {
-  font-family: "Fira Code", "Consolas", monospace;
-  color: #2563EB;
-  font-size: 0.75rem;
-  font-weight: 600;
-  background-color: #EFF6FF;
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-/* Error cells */
-.campo-erro {
-  padding: 2px 4px;
-}
-
 /* List */
-.lista {
-  max-height: 300px;
-  overflow-y: auto;
-}
-
 .empty-state {
   text-align: center;
   color: #94A3B8;
   padding: 20px;
   font-size: 0.85rem;
+}
+
+/* Product list */
+.produtos-section {
+  margin-top: 8px;
+}
+
+.busca-produto {
+  width: 260px;
+  padding: 8px 12px;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  background-color: #FFFFFF;
+  color: #1E293B;
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.busca-produto:focus {
+  border-color: #2563EB;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.table-responsive {
+  overflow-x: auto;
+}
+
+#tabelaProdutos th,
+#tabelaProdutos td {
+  white-space: nowrap;
+}
+
+#tabelaProdutos td {
+  vertical-align: top;
+  font-size: 0.8rem;
+}
+
+.prod-nome {
+  font-weight: 600;
+  color: #1E293B;
+}
+
+.prod-cat {
+  color: #64748B;
+  font-size: 0.75rem;
+}
+
+.btn-editar {
+  background-color: #EFF6FF;
+  color: #2563EB;
+  border: 1px solid #BFDBFE;
+}
+
+.btn-editar:hover {
+  background-color: #2563EB;
+  color: #FFFFFF;
+  border-color: #2563EB;
+}
+
+.btn-excluir {
+  background-color: #FEF2F2;
+  color: #DC2626;
+  border: 1px solid #FECACA;
+  margin-left: 4px;
+}
+
+.btn-excluir:hover {
+  background-color: #DC2626;
+  color: #FFFFFF;
+  border-color: #DC2626;
+}
+
+.acoes-prod {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* Dark theme product list */
+.dark-theme .busca-produto {
+  background-color: #0F172A;
+  border-color: #334159;
+  color: #F1F5F9;
+}
+
+.dark-theme .prod-nome {
+  color: #F1F5F9;
+}
+
+.dark-theme .prod-cat {
+  color: #94A3B8;
+}
+
+.dark-theme .btn-editar {
+  background-color: #0F172A;
+  color: #3B82F6;
+  border-color: #334159;
+}
+
+.dark-theme .btn-editar:hover {
+  background-color: #3B82F6;
+  color: #FFFFFF;
+  border-color: #3B82F6;
+}
+
+.dark-theme .btn-excluir {
+  background-color: #450A0A;
+  color: #FCA5A5;
+  border-color: #7F1D1D;
+}
+
+.dark-theme .btn-excluir:hover {
+  background-color: #EF4444;
+  color: #FFFFFF;
+  border-color: #EF4444;
+}
+
+@media (max-width: 640px) {
+  .produtos-section .grade-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .busca-produto {
+    width: 100%;
+  }
+
+  .categoria-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .categoria-row .btn {
+    align-self: flex-start;
+  }
 }

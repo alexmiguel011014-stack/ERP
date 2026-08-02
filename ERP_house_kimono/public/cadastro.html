@@ -13,6 +13,8 @@
       <h1>Cadastro de Produto</h1>
 
       <form id="formProduto">
+        <input type="hidden" id="produtoEditandoId" value="" />
+
         <div class="form-group">
           <label for="nome">Nome do Produto</label>
           <input type="text" id="nome" name="nome" placeholder="Ex: Quimono Trançado" required />
@@ -20,41 +22,77 @@
 
         <div class="form-group">
           <label for="categoria">Categoria</label>
-          <input type="text" id="categoria" name="categoria" placeholder="Ex: Kimono" />
+          <div class="categoria-row">
+            <select id="categoria" name="categoria">
+              <option value="">Selecione a categoria</option>
+            </select>
+            <button type="button" id="btnNovaCategoria" class="btn btn-small">+ Nova</button>
+          </div>
+          <div id="painelNovaCategoria" class="nova-categoria-panel" hidden>
+            <label for="nomeNovaCategoria">Nome da nova categoria</label>
+            <div class="nova-categoria-row">
+              <input type="text" id="nomeNovaCategoria" placeholder="Ex: Kimonos" />
+              <button type="button" id="btnSalvarNovaCategoria" class="btn btn-small">Salvar</button>
+              <button type="button" id="btnCancelarNovaCategoria" class="btn btn-small">Cancelar</button>
+            </div>
+          </div>
         </div>
 
-        <hr />
-
-        <div class="grade-header">
-          <h2>Grade de Variações</h2>
-          <button type="button" id="btnAddLinha" class="btn btn-small">+ Adicionar Linha</button>
+        <div class="form-group">
+          <label for="subcategoria">Subcategoria</label>
+          <div class="categoria-row">
+            <select id="subcategoria" name="subcategoria" disabled>
+              <option value="">Selecione a subcategoria</option>
+            </select>
+            <button type="button" id="btnNovaSubcategoria" class="btn btn-small">+ Nova</button>
+          </div>
+          <div id="painelNovaSubcategoria" class="nova-categoria-panel" hidden>
+            <label for="nomeNovaSubcategoria">Nome da nova subcategoria</label>
+            <div class="nova-categoria-row">
+              <input type="text" id="nomeNovaSubcategoria" placeholder="Ex: Com palete" />
+              <button type="button" id="btnSalvarNovaSubcategoria" class="btn btn-small">Salvar</button>
+              <button type="button" id="btnCancelarNovaSubcategoria" class="btn btn-small">Cancelar</button>
+            </div>
+          </div>
         </div>
 
-        <table id="tabelaVariacoes">
-          <thead>
-            <tr>
-              <th>Tamanho</th>
-              <th>Cor</th>
-              <th>Preço (R$)</th>
-              <th>Estoque</th>
-              <th>SKU</th>
-              <th colspan="2"></th>
-            </tr>
-          </thead>
-          <tbody id="linhasVariacoes"></tbody>
-        </table>
-
-        <div id="avisoGrade" class="aviso">Adicione pelo menos uma variação.</div>
-
-        <hr />
+        <div class="info-comercial">
+          Dados comerciais (preço de custo, preço de venda e estoque) serão gerenciados em uma aba futura.
+        </div>
 
         <div class="form-actions">
           <button type="submit" class="btn btn-primary">Salvar Produto</button>
           <button type="reset" class="btn btn-secondary" id="btnLimpar">Limpar</button>
+          <button type="button" class="btn btn-secondary" id="btnCancelarEdicao" style="display: none;">Cancelar Edição</button>
         </div>
 
         <div id="mensagem" class="mensagem"></div>
       </form>
+
+      <hr />
+
+      <div class="produtos-section">
+        <div class="grade-header">
+          <h2>Produtos Cadastrados</h2>
+          <input type="text" id="buscaProduto" class="busca-produto" placeholder="Buscar por nome ou categoria..." />
+        </div>
+
+        <div class="table-responsive">
+          <table id="tabelaProdutos">
+            <thead>
+              <tr>
+                <th>Produto</th>
+                <th>Categoria</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="corpoProdutos"></tbody>
+          </table>
+        </div>
+
+        <div id="avisoProdutos" class="aviso"></div>
+        <div id="mensagemProdutos" class="mensagem"></div>
+      </div>
     </div>
 
     <script src="../js/navbar.js"></script>

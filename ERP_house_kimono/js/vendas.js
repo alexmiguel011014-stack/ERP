@@ -143,7 +143,9 @@
         if (itens && itens.length > 0) {
           itens.forEach(function (item) {
             var subtotal = (item.preco_unitario || 0) * (item.quantidade || 1);
-            html += "<tr style='border-bottom:1px solid #F1F5F9;'><td style='padding:6px; color:#1E293B;'>" + (item.produto_nome || "---") + " (" + (item.tamanho || "") + " / " + (item.cor || "") + ")</td><td style='padding:6px; color:#64748B; font-size:0.8rem;'>" + (item.sku || "---") + "</td><td style='padding:6px; text-align:center; color:#1E293B;'>" + (item.quantidade || 1) + "</td><td style='padding:6px; text-align:right; color:#1E293B;'>" + formatarMoeda(item.preco_unitario) + "</td><td style='padding:6px; text-align:right; color:#16A34A; font-weight:600;'>" + formatarMoeda(subtotal) + "</td></tr>";
+            var detalhes = formatarAtributos(item.atributos, item.tamanho, item.cor);
+            var nomeCell = (item.produto_nome || "---") + (detalhes !== "---" ? " (" + detalhes + ")" : "");
+            html += "<tr style='border-bottom:1px solid #F1F5F9;'><td style='padding:6px; color:#1E293B;'>" + nomeCell + "</td><td style='padding:6px; color:#64748B; font-size:0.8rem;'>" + (item.sku || "---") + "</td><td style='padding:6px; text-align:center; color:#1E293B;'>" + (item.quantidade || 1) + "</td><td style='padding:6px; text-align:right; color:#1E293B;'>" + formatarMoeda(item.preco_unitario) + "</td><td style='padding:6px; text-align:right; color:#16A34A; font-weight:600;'>" + formatarMoeda(subtotal) + "</td></tr>";
           });
         } else {
           html += "<tr><td colspan='5' style='padding:12px; text-align:center; color:#94A3B8; font-size:0.85rem;'>Nenhum item encontrado.</td></tr>";

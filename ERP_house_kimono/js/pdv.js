@@ -162,6 +162,7 @@
           carrinho.push({
             variacao_id: produto.id,
             nome: produto.nome,
+            detalhes: formatarAtributos(produto.atributos, produto.tamanho, produto.cor),
             tamanho: produto.tamanho,
             cor: produto.cor,
             preco_unitario: produto.preco,
@@ -205,7 +206,7 @@
       "</div>" +
       "<div>" + produto.nome + "</div>" +
       "<div>SKU: " + produto.sku + "</div>" +
-      "<div>Tamanho: " + produto.tamanho + " | Cor: " + produto.cor + "</div>" +
+      "<div>Detalhes: " + formatarAtributos(produto.atributos, produto.tamanho, produto.cor) + "</div>" +
       "<div>Estoque: " + produto.quantidade_estoque + " unidades</div>";
     document.body.appendChild(alerta);
 
@@ -247,11 +248,9 @@
         tdNome.title = "Estoque baixo: " + item.estoque + " unidades";
       }
 
-      var tdTamanho = document.createElement("td");
-      tdTamanho.textContent = item.tamanho;
-
-      var tdCor = document.createElement("td");
-      tdCor.textContent = item.cor;
+      var tdDetalhes = document.createElement("td");
+      tdDetalhes.textContent =
+        item.detalhes || formatarAtributos(item.atributos, item.tamanho, item.cor);
 
       var tdQtd = document.createElement("td");
       tdQtd.style.textAlign = "center";
@@ -299,8 +298,7 @@
       tdRemover.appendChild(btnRemover);
 
       tr.appendChild(tdNome);
-      tr.appendChild(tdTamanho);
-      tr.appendChild(tdCor);
+      tr.appendChild(tdDetalhes);
       tr.appendChild(tdQtd);
       tr.appendChild(tdPreco);
       tr.appendChild(tdSubtotal);
@@ -461,8 +459,13 @@
 
     dados.itens.forEach(function (item) {
       var subtotal = item.preco_unitario * item.quantidade;
+      var detalhes = item.detalhes || formatarAtributos(item.atributos, item.tamanho, item.cor);
+      var nomeLinha = item.nome;
+      if (detalhes && detalhes !== "---") {
+        nomeLinha += " (" + detalhes + ")";
+      }
       html += "<div style='font-size: 9px; margin-bottom: 2px;'>";
-      html += "<div style='display:inline-block;width:60%;'>" + item.nome + " (" + item.tamanho + "/" + item.cor + ")</div>";
+      html += "<div style='display:inline-block;width:60%;'>" + nomeLinha + "</div>";
       html += "<div style='display:inline-block;width:12%; text-align:right;'>" + item.quantidade + "x</div>";
       html += "<div style='display:inline-block;width:28%; text-align:right;'>" + subtotal.toFixed(2) + "</div>";
       html += "</div>";
