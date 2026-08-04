@@ -159,7 +159,23 @@
       </form>
 
       <div class="config-senha">
-        <a id="btnAlterarSenha" onclick="abrirAlterarSenha()">&#9881; Alterar senha</a>
+        <a id="btnAlterarSenha" onclick="abrirAlterarSenha()" style="margin-right:12px;">&#9881; Alterar senha</a>
+        <a id="btnSenhaVendedor" onclick="abrirVendedorSenha()">&#128274; Senha do vendedor</a>
+      </div>
+    </div>
+
+    <div id="modalVendedor" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; z-index: 10000;">
+      <div style="background: #1E293B; border: 1px solid #334159; border-radius: 12px; padding: 28px 32px; width: 380px; color: #E2E8F0;">
+        <h3 style="color: #F1F5F9; font-size: 1.1rem; margin-bottom: 16px; text-align: center;">Senha do Vendedor (acesso restrito)</h3>
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label for="senhaVendedor" style="color: #94A3B8;">Nova senha do vendedor</label>
+          <input type="password" id="senhaVendedor" style="width: 100%; padding: 10px 14px; font-size: 0.9rem; border: 1px solid #334159; border-radius: 8px; background-color: #0F172A; color: #F1F5F9; outline: none;" placeholder="mínimo 4 caracteres" />
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <button type="button" id="btnConfirmarVendedor" class="btn-entrar" style="flex: 1; background-color: #16A34A;">Salvar</button>
+          <button type="button" id="btnCancelarVendedor" class="btn-entrar" style="flex: 1; background-color: #64748B;">Cancelar</button>
+        </div>
+        <div id="msgVendedor" class="mensagem" style="margin-top:12px;"></div>
       </div>
     </div>
 

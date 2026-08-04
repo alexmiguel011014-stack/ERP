@@ -264,9 +264,17 @@
           <div class="stat-value" id="statProdutos">--</div>
           <div class="stat-label">Produtos</div>
         </div>
-        <div class="stat-card alert" id="statEstoqueBaixo">
+        <div class="stat-card alert" id="statEstoqueBaixo" onclick="window.location.href='entrada.html';" style="cursor:pointer;">
           <div class="stat-value" id="statEstoque">--</div>
           <div class="stat-label">Estoque Baixo</div>
+        </div>
+        <div class="stat-card" onclick="window.location.href='financeiro.html';" style="cursor:pointer;">
+          <div class="stat-value" id="statAReceber" style="color: #16A34A;">--</div>
+          <div class="stat-label">A Receber (vencido/hoje)</div>
+        </div>
+        <div class="stat-card alert" onclick="window.location.href='financeiro.html';" style="cursor:pointer;">
+          <div class="stat-value" id="statAPagar">--</div>
+          <div class="stat-label">A Pagar (vencido/hoje)</div>
         </div>
       </div>
 
@@ -306,6 +314,34 @@
             <p>Relatório de produtos com estoque negativo</p>
           </a>
         </div>
+        <div class="card">
+          <a href="entrada.html">
+            <div class="card-icon">IN</div>
+            <h3>Entrada</h3>
+            <p>Reposição e ajustes de estoque</p>
+          </a>
+        </div>
+        <div class="card">
+          <a href="compras.html">
+            <div class="card-icon">CMP</div>
+            <h3>Compras</h3>
+            <p>Pedidos e recebimento de mercadorias</p>
+          </a>
+        </div>
+        <div class="card">
+          <a href="financeiro.html">
+            <div class="card-icon">FIN</div>
+            <h3>Financeiro</h3>
+            <p>Contas a pagar, receber e fluxo de caixa</p>
+          </a>
+        </div>
+        <div class="card">
+          <a href="relatorios.html">
+            <div class="card-icon">REL</div>
+            <h3>Relatórios</h3>
+            <p>Vendas por período e Curva ABC</p>
+          </a>
+        </div>
       </div>
 
       <div class="panel" style="margin-top:24px;">
@@ -338,6 +374,10 @@
               stats.totalProdutos || 0;
             document.getElementById("statEstoque").textContent =
               stats.estoqueBaixo || 0;
+            document.getElementById("statAReceber").textContent =
+              "R$ " + (stats.aReceberHoje || 0).toFixed(2);
+            document.getElementById("statAPagar").textContent =
+              "R$ " + (stats.aPagarHoje || 0).toFixed(2);
           })
           .catch(function () {});
       }

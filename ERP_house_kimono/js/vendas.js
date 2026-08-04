@@ -1,5 +1,6 @@
 ﻿(function () {
   var filterDate = document.getElementById("filterDate");
+  var filterStatus = document.getElementById("filterStatus");
   var btnFilter = document.getElementById("btnFilter");
   var btnClear = document.getElementById("btnClear");
   var listaVendas = document.getElementById("listaVendas");
@@ -28,7 +29,7 @@
     listaVendas.innerHTML = '<div class="empty-state">Carregando...</div>';
 
     window.api
-      .getVendas(filtro || null)
+      .getVendas(filtro || {})
       .then(function (vendas) {
         vendasCache = vendas || [];
         listaVendas.innerHTML = "";
@@ -51,10 +52,10 @@
         statsVendas.innerHTML =
           '<div class="stat-card"><div class="stat-value">' +
           totalVendas +
-          '</div><div class="stat-label">Vendas</div></div>' +
+          '</div><div class="stat-label">Registros</div></div>' +
           '<div class="stat-card"><div class="stat-value">' +
           formatarMoeda(totalFaturado) +
-          '</div><div class="stat-label">Faturado</div></div>';
+          '</div><div class="stat-label">Total</div></div>';
 
         vendas.forEach(function (v) {
           var div = document.createElement("div");
@@ -69,13 +70,19 @@
           var info = document.createElement("div");
           info.className = "venda-info";
 
+          var ehOrcamento = v.status === "orcamento";
+          var badge = ehOrcamento
+            ? '<span style="background:#FEF9C3; color:#A16207; font-size:0.68rem; font-weight:700; padding:2px 8px; border-radius:999px; margin-left:6px;">ORÇAMENTO</span>'
+            : "";
+
           var top = document.createElement("div");
           top.className = "venda-top";
           top.innerHTML =
             '<span class="venda-id">#' +
             v.id +
+            badge +
             "</span>" +
-            '<span class="venda-total">' +
+            '<span class="venda-total"' + (ehOrcamento ? ' style="color:#D97706;"' : "") + ">" +
             formatarMoeda(v.total) +
             "</span>";
 
@@ -133,6 +140,21 @@
           html += "<div style='display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #E2E8F0;'>";
           html += "<span style='color:#64748B; font-size:0.8rem;'>Cliente</span><span style='color:#1E293B; font-weight:600;'>" + (venda.cliente_nome || "Não informado") + "</span>";
           html += "</div>";
+          if (venda.status === "orcamento") {
+            html += "<div style='display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #E2E8F0;'>";
+            html += "<span style='color:#64748B; font-size:0.8rem;'>Status</span><span style='color:#A16207; font-weight:700;'>ORÇAMENTO (não baixou estoque)</span>";
+            html += "</div>";
+          }
+          if (venda.desconto > 0) {
+            html += "<div style='display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #E2E8F0;'>";
+            html += "<span style='color:#64748B; font-size:0.8rem;'>Desconto</span><span style='color:#DC2626; font-weight:600;'>- " + formatarMoeda(venda.desconto) + "</span>";
+            html += "</div>";
+          }
+          if (venda.observacao) {
+            html += "<div style='display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #E2E8F0;'>";
+            html += "<span style='color:#64748B; font-size:0.8rem;'>Observação</span><span style='color:#1E293B; font-weight:600;'>" + venda.observacao + "</span>";
+            html += "</div>";
+          }
           html += "<div style='display:flex; justify-content:space-between; padding:6px 0 12px; border-bottom:1px solid #E2E8F0;'>";
           html += "<span style='color:#64748B; font-size:0.8rem;'>Total</span><span style='color:#16A34A; font-weight:700; font-size:1rem;'>" + formatarMoeda(venda.total) + "</span>";
           html += "</div>";
@@ -151,13 +173,43 @@
           html += "<tr><td colspan='5' style='padding:12px; text-align:center; color:#94A3B8; font-size:0.85rem;'>Nenhum item encontrado.</td></tr>";
         }
         html += "</tbody></table>";
+        html += '<div style="display:flex; gap:10px;">';
         html += '<button onclick="fecharDetalhes()" style="padding:8px 16px; background:#2563EB; color:#fff; border:none; border-radius:6px; font-size:0.85rem; font-weight:600; cursor:pointer;">Fechar</button>';
+        if (venda && venda.status === "orcamento") {
+          html += '<button id="btnConverterOrcamento" style="padding:8px 16px; background:#16A34A; color:#fff; border:none; border-radius:6px; font-size:0.85rem; font-weight:600; cursor:pointer;">Converter em Venda</button>';
+        }
+        html += "</div>";
         html += "</div>";
 
         var modal = document.getElementById("modalDetalhes");
         var modalContent = document.getElementById("modalDetalhesContent");
         modalContent.innerHTML = html;
         modal.style.display = "flex";
+
+        var btnConverter = document.getElementById("btnConverterOrcamento");
+        if (btnConverter) {
+          btnConverter.addEventListener("click", function () {
+            if (!confirm("Converter o orçamento #" + vendaId + " em venda?\n\nO estoque será baixado agora.")) return;
+            if (!window.api || !window.api.converterOrcamento) {
+              mostrarMensagem("API indisponível.", "erro");
+              return;
+            }
+            btnConverter.disabled = true;
+            btnConverter.textContent = "Convertendo...";
+            window.api
+              .converterOrcamento(vendaId)
+              .then(function () {
+                fecharDetalhes();
+                mostrarMensagem("Orçamento #" + vendaId + " convertido em venda!", "sucesso");
+                carregarVendas(filtroAtual());
+              })
+              .catch(function (err) {
+                mostrarMensagem("Erro ao converter: " + err, "erro");
+                btnConverter.disabled = false;
+                btnConverter.textContent = "Converter em Venda";
+              });
+          });
+        }
       })
       .catch(function (err) {
         mostrarMensagem("Erro ao carregar detalhes: " + err, "erro");
@@ -170,9 +222,9 @@
       return;
     }
 
-    var cabecalho = "ID,Data,Total,Forma de Pagamento,Cliente";
+    var cabecalho = "ID,Data,Total,Desconto,Forma de Pagamento,Status,Cliente";
     var linhas = vendasCache.map(function (v) {
-      return v.id + "," + (v.data_venda || "").replace(/,/g, "") + "," + (v.total || 0).toFixed(2) + "," + (v.forma_pagamento || "") + "," + (v.cliente_nome || "Não informado");
+      return v.id + "," + (v.data_venda || "").replace(/,/g, "") + "," + (v.total || 0).toFixed(2) + "," + (v.desconto || 0).toFixed(2) + "," + (v.forma_pagamento || "") + "," + (v.status === "orcamento" ? "Orçamento" : "Finalizada") + "," + (v.cliente_nome || "Não informado");
     });
 
     var csv = cabecalho + "\n" + linhas.join("\n");
@@ -195,20 +247,33 @@
     if (modal) modal.style.display = "none";
   };
 
+  function filtroAtual() {
+    return {
+      data: filterDate.value || null,
+      status: filterStatus ? filterStatus.value || null : null,
+    };
+  }
+
   if (btnFilter) {
     btnFilter.addEventListener("click", function () {
-      var filtro = filterDate.value;
-      if (!filtro) {
-        mostrarMensagem("Selecione uma data para filtrar.", "erro");
+      if (!filterDate.value && (!filterStatus || !filterStatus.value)) {
+        mostrarMensagem("Selecione uma data ou um status para filtrar.", "erro");
         return;
       }
-      carregarVendas(filtro);
+      carregarVendas(filtroAtual());
+    });
+  }
+
+  if (filterStatus) {
+    filterStatus.addEventListener("change", function () {
+      carregarVendas(filtroAtual());
     });
   }
 
   if (btnClear) {
     btnClear.addEventListener("click", function () {
       filterDate.value = "";
+      if (filterStatus) filterStatus.value = "";
       statsVendas.innerHTML = "";
       carregarVendas();
     });

@@ -1,6 +1,19 @@
 (function () {
   var currentPage = window.location.pathname.split("/").pop() || "index.html";
 
+  var perfil = localStorage.getItem("erp_perfil") || "admin";
+  var isAdmin = perfil === "admin";
+
+  // Páginas permitidas para o perfil vendedor.
+  var paginasVendedor = {
+    "pdv.html": true,
+    "vendas.html": true,
+    "index.html": true,
+    "estoquenegativo.html": true,
+    "clientes.html": true,
+    "entrada.html": true,
+  };
+
   function aplicarTema(tema) {
     if (tema === "dark") {
       document.documentElement.classList.add("dark-theme");
@@ -170,12 +183,22 @@
   var sidebar = document.createElement("aside");
   sidebar.className = "sidebar";
 
+  // Redireciona vendedor das páginas restritas.
+  if (perfil === "vendedor" && !paginasVendedor[currentPage]) {
+    window.location.href = "pdv.html";
+  }
+
   sidebar.innerHTML =
     '<div class="sidebar-header">' +
     '<span class="sidebar-brand">Alga ERP</span>' +
     '<button class="sidebar-close" title="Fechar">&times;</button>' +
     '</div>' +
     '<a href="clientes.html" class="sidebar-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="item-label">Clientes</span></a>' +
+    (isAdmin ? '<a href="fornecedores.html" class="sidebar-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.752 11.168l-2.66-4.29a1 1 0 0 0 0 1.2L14 15l-4 4a1 1 0 0 0 1 1.5l7-7a1 1 0 0 0-.2-1.6z"/></svg><span class="item-label">Fornecedores</span></a>' : "") +
+    (isAdmin ? '<a href="compras.html" class="sidebar-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/></svg><span class="item-label">Compras</span></a>' : "") +
+    (isAdmin ? '<a href="entrada.html" class="sidebar-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M19 12l-7-7-7 7"/></svg><span class="item-label">Entrada de Estoque</span></a>' : "") +
+    (isAdmin ? '<a href="financeiro.html" class="sidebar-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span class="item-label">Financeiro</span></a>' : "") +
+    (isAdmin ? '<a href="relatorios.html" class="sidebar-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5V5a2 2 0 0 1 2-2h8.5a1.5 1.5 0 0 1 1 1v12.5a1.5 1.5 0 0 1-1 1.5H6a2 2 0 0 0-2 2z"/><path d="M9 5V3h6v2M9 9h6v6H9z"/></svg><span class="item-label">Relatórios</span></a>' : "") +
     '<a href="precificacao.html" class="sidebar-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span class="item-label">Precificação</span></a>' +
     '<a href="atualizacao.html" class="sidebar-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg><span class="item-label">Atualizações</span></a>' +
     '<button class="sidebar-item danger" id="sidebarLogout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><span class="item-label">Sair</span></button>';
@@ -203,13 +226,13 @@
 
   var isDark = document.documentElement.classList.contains("dark-theme");
   var themeIcon = isDark ? "&#9728;" : "&#9790;";
-
   var linksHTML =
     '<a href="index.html" class="' + (currentPage === "index.html" ? "active" : "") + '">Dashboard</a>' +
     '<a href="pdv.html" class="' + (currentPage === "pdv.html" ? "active" : "") + '">Frente de Caixa</a>' +
     '<a href="cadastro.html" class="' + (currentPage === "cadastro.html" ? "active" : "") + '">Cadastro dos Produtos</a>' +
     '<a href="vendas.html" class="' + (currentPage === "vendas.html" ? "active" : "") + '">Histórico</a>' +
     '<a href="estoquenegativo.html" class="' + (currentPage === "estoquenegativo.html" ? "active" : "") + '">Estoque Negativo</a>' +
+    (isAdmin ? '<a href="entrada.html" class="' + (currentPage === "entrada.html" ? "active" : "") + '">Entrada</a>' : '') +
     '<button type="button" id="themeToggle" class="theme-toggle" title="Alternar tema escuro">' + themeIcon + "</button>";
 
   nav.innerHTML =

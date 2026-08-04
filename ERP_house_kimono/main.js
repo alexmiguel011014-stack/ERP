@@ -40,6 +40,31 @@ const {
   exportBackup,
   importBackup,
   backupAutomatico,
+  registrarEntradaEstoque,
+  getMovimentacoesEstoque,
+  getEstoqueBaixo,
+  salvarEstoqueMinimo,
+  converterOrcamento,
+  getFornecedores,
+  salvarFornecedor,
+  atualizarFornecedor,
+  removerFornecedor,
+  criarPedidoCompra,
+  getPedidosCompra,
+  getItensPedidoCompra,
+  receberPedidoCompra,
+  cancelarPedidoCompra,
+  getLancamentos,
+  criarLancamento,
+  baixarLancamento,
+  excluirLancamento,
+  getFluxoCaixa,
+  getRelatorioVendas,
+  getCurvaABC,
+  definirSenhaVendedor,
+  removerSenhaVendedor,
+  temSenhaVendedor,
+  desbloquearComPerfil,
 } = require('./database');
 
 autoUpdater.autoDownload = false;
@@ -429,6 +454,222 @@ ipcMain.handle('quit-and-install', async () => {
 
 ipcMain.handle('get-app-version', async () => {
   return app.getVersion();
+});
+
+/* ============ Estoque: entradas ============ */
+
+ipcMain.handle('registrar-entrada-estoque', async (event, dados) => {
+  try {
+    return await registrarEntradaEstoque(dados);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('get-movimentacoes-estoque', async (event, limite) => {
+  try {
+    return await getMovimentacoesEstoque(limite);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('get-estoque-baixo', async () => {
+  try {
+    return await getEstoqueBaixo();
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('salvar-estoque-minimo', async (event, variacaoId, valor) => {
+  try {
+    return await salvarEstoqueMinimo(variacaoId, valor);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+/* ============ Orçamentos ============ */
+
+ipcMain.handle('converter-orcamento', async (event, vendaId) => {
+  try {
+    return await converterOrcamento(vendaId);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+/* ============ Fornecedores ============ */
+
+ipcMain.handle('get-fornecedores', async () => {
+  try {
+    return await getFornecedores();
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('salvar-fornecedor', async (event, dados) => {
+  try {
+    return await salvarFornecedor(dados);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('atualizar-fornecedor', async (event, id, dados) => {
+  try {
+    return await atualizarFornecedor(id, dados);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('remover-fornecedor', async (event, id) => {
+  try {
+    return await removerFornecedor(id);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+/* ============ Compras ============ */
+
+ipcMain.handle('criar-pedido-compra', async (event, dados) => {
+  try {
+    return await criarPedidoCompra(dados);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('get-pedidos-compra', async () => {
+  try {
+    return await getPedidosCompra();
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('get-itens-pedido-compra', async (event, pedidoId) => {
+  try {
+    return await getItensPedidoCompra(pedidoId);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('receber-pedido-compra', async (event, pedidoId) => {
+  try {
+    return await receberPedidoCompra(pedidoId);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('cancelar-pedido-compra', async (event, pedidoId) => {
+  try {
+    return await cancelarPedidoCompra(pedidoId);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+/* ============ Financeiro ============ */
+
+ipcMain.handle('get-lancamentos', async (event, filtro) => {
+  try {
+    return await getLancamentos(filtro || {});
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('criar-lancamento', async (event, dados) => {
+  try {
+    return await criarLancamento(dados);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('baixar-lancamento', async (event, id) => {
+  try {
+    return await baixarLancamento(id);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('excluir-lancamento', async (event, id) => {
+  try {
+    return await excluirLancamento(id);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('get-fluxo-caixa', async (event, dataInicio, dataFim) => {
+  try {
+    return await getFluxoCaixa(dataInicio || null, dataFim || null);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+/* ============ Relatórios ============ */
+
+ipcMain.handle('get-relatorio-vendas', async (event, dataInicio, dataFim) => {
+  try {
+    return await getRelatorioVendas(dataInicio || null, dataFim || null);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('get-curva-abc', async (event, dataInicio, dataFim) => {
+  try {
+    return await getCurvaABC(dataInicio || null, dataFim || null);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+/* ============ Perfis de acesso ============ */
+
+ipcMain.handle('unlock-with-profile', async (event, senha) => {
+  try {
+    const resultado = await desbloquearComPerfil(senha);
+    iniciarBackupAutomatico();
+    return resultado;
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('set-vendedor-key', async (event, senha) => {
+  try {
+    return await definirSenhaVendedor(senha);
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('remove-vendedor-key', async () => {
+  try {
+    return removerSenhaVendedor();
+  } catch (erro) {
+    throw erro.message;
+  }
+});
+
+ipcMain.handle('has-vendedor-key', async () => {
+  try {
+    return temSenhaVendedor();
+  } catch (erro) {
+    throw erro.message;
+  }
 });
 
 var intervaloBackup = null;

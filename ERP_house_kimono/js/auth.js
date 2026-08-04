@@ -11,6 +11,7 @@
     window.erpCheckAuth = function () { return true; };
     window.erpLogout = function () {
       localStorage.removeItem("erp_auth");
+      localStorage.removeItem("erp_perfil");
       window.location.href = "login.html";
     };
     if (window.api && window.api.unlockDB) {

@@ -3,6 +3,7 @@
   var nomeInput = document.getElementById("nome");
   var codigoInput = document.getElementById("codigoCliente");
   var cpfCnpjInput = document.getElementById("cpf_cnpj");
+  var enderecoInput = document.getElementById("endereco");
   var telefoneInput = document.getElementById("telefone");
   var emailInput = document.getElementById("email");
   var academiaInput = document.getElementById("academia");
@@ -201,6 +202,7 @@
     codigoInput.value = fmtCodigoCliente(c.id);
     nomeInput.value = c.nome || "";
     cpfCnpjInput.value = c.cpf_cnpj || "";
+    enderecoInput.value = c.endereco || "";
     telefoneInput.value = c.telefone || "";
     emailInput.value = c.email || "";
     academiaInput.value = c.academia || "";
@@ -237,6 +239,7 @@
     var dados = {
       nome: nome,
       cpf_cnpj: cpfCnpjInput.value.replace(/\D/g, "").slice(0, 14) || null,
+      endereco: enderecoInput.value.trim() || null,
       telefone: telefoneInput.value.trim() || null,
       email: emailInput.value.trim() || null,
       academia: academiaInput.value.trim() || null,

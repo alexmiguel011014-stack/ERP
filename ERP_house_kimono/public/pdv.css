@@ -280,6 +280,52 @@ body {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
+.forma-pagamento {
+  margin-bottom: 12px;
+}
+
+.forma-pagamento input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  background-color: #FFFFFF;
+  color: #1E293B;
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.forma-pagamento input:focus {
+  border-color: #2563EB;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.btn-orcamento {
+  flex: 1;
+  padding: 10px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border: 1px solid #F59E0B;
+  border-radius: 8px;
+  cursor: pointer;
+  background-color: #FFFBEB;
+  color: #B45309;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.btn-orcamento:hover {
+  background-color: #F59E0B;
+  color: #FFFFFF;
+}
+
+.btn-orcamento:disabled {
+  background-color: #F1F5F9;
+  color: #94A3B8;
+  border-color: #E2E8F0;
+  cursor: not-allowed;
+}
+
 /* Total Area */
 .total-area {
   display: flex;

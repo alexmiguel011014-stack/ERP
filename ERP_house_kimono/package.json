@@ -26,7 +26,7 @@
     "publish": {
       "provider": "github",
       "owner": "alexmiguel011014-stack",
-      "repo": "JiuJitsu-ERP",
+      "repo": "ERP",
       "vPrefixedTagName": true
     },
     "files": [

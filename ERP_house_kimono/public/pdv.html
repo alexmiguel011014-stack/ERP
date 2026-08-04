@@ -61,13 +61,31 @@
             <h2>Resumo da Venda</h2>
 
             <div class="forma-pagamento">
+              <label>Cliente</label>
+              <select id="clienteSelect">
+                <option value="">Cliente não informado</option>
+              </select>
+            </div>
+
+            <div class="forma-pagamento">
               <label>Forma de Pagamento</label>
               <select id="formaPagamento">
                 <option value="">Selecione</option>
                 <option value="PIX">PIX</option>
                 <option value="Cartão">Cartão</option>
                 <option value="Dinheiro">Dinheiro</option>
+                <option value="Fiado">Fiado (a receber)</option>
               </select>
+            </div>
+
+            <div class="forma-pagamento">
+              <label>Desconto (R$)</label>
+              <input type="number" id="descontoInput" min="0" step="0.01" value="0" />
+            </div>
+
+            <div class="forma-pagamento">
+              <label>Observação</label>
+              <input type="text" id="observacaoInput" placeholder="opcional" />
             </div>
 
             <div class="total-area">
@@ -78,6 +96,9 @@
             <div class="acoes-venda">
               <button id="btnCancelarVenda" class="btn-cancelar" type="button">
                 Cancelar Venda
+              </button>
+              <button id="btnOrcamento" class="btn-orcamento" type="button" disabled>
+                Orçamento
               </button>
               <button id="btnFinalizar" class="btn-finalizar" disabled>
                 Finalizar Venda

@@ -15,6 +15,11 @@
       <div class="filters">
         <label for="filterDate">Filtrar por data:</label>
         <input type="date" id="filterDate" />
+        <select id="filterStatus" style="padding: 6px 10px; border: 1px solid #E2E8F0; border-radius: 7px; font-size: 0.82rem;">
+          <option value="">Todas</option>
+          <option value="finalizada">Finalizadas</option>
+          <option value="orcamento">Orçamentos</option>
+        </select>
         <button id="btnFilter" class="btn btn-small">Filtrar</button>
         <button id="btnClear" class="btn btn-small btn-secondary">Limpar</button>
         <button id="btnExportCsv" class="btn btn-small" style="margin-left: auto; background-color: #16A34A; color: #FFFFFF;">Exportar CSV</button>

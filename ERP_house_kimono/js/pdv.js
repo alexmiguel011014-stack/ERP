@@ -4,7 +4,11 @@
   var carrinhoVazio = document.getElementById("carrinhoVazio");
   var totalValue = document.getElementById("totalValue");
   var formaPagamento = document.getElementById("formaPagamento");
+  var clienteSelect = document.getElementById("clienteSelect");
+  var descontoInput = document.getElementById("descontoInput");
+  var observacaoInput = document.getElementById("observacaoInput");
   var btnFinalizar = document.getElementById("btnFinalizar");
+  var btnOrcamento = document.getElementById("btnOrcamento");
   var btnCancelar = document.getElementById("btnCancelarVenda");
   var mensagemPDV = document.getElementById("mensagemPDV");
   var loadingOverlay = document.getElementById("loadingOverlay");
@@ -14,6 +18,46 @@
   var buscando = false;
 
   pdvDate.textContent = new Date().toLocaleDateString("pt-BR");
+
+  /* ---------- Clientes ---------- */
+
+  function carregarClientes() {
+    if (!window.api || !window.api.getClientes) return;
+    window.api.getClientes().then(function (rows) {
+      (rows || []).forEach(function (c) {
+        var opt = document.createElement("option");
+        opt.value = c.id;
+        opt.textContent = c.nome;
+        clienteSelect.appendChild(opt);
+      });
+    }).catch(function () {});
+  }
+
+  carregarClientes();
+
+  /* ---------- Totais ---------- */
+
+  function subtotalCarrinho() {
+    return carrinho.reduce(function (acc, item) {
+      return acc + item.preco_unitario * item.quantidade;
+    }, 0);
+  }
+
+  function descontoAtual() {
+    var d = Number(descontoInput.value);
+    if (!Number.isFinite(d) || d < 0) return 0;
+    return d;
+  }
+
+  function totalCarrinho() {
+    return Math.max(0, subtotalCarrinho() - descontoAtual());
+  }
+
+  function atualizarTotal() {
+    totalValue.textContent = "R$ " + totalCarrinho().toFixed(2);
+  }
+
+  descontoInput.addEventListener("input", atualizarTotal);
 
   function salvarCarrinho() {
     try {
@@ -139,7 +183,8 @@
           return;
         }
 
-        if (produto.quantidade_estoque <= 5) {
+        var minimo = Number.isFinite(Number(produto.estoque_minimo)) ? Number(produto.estoque_minimo) : 5;
+        if (produto.quantidade_estoque <= minimo) {
           mostrarAlertaEstoque(produto, "Estoque Baixo");
         }
 
@@ -228,6 +273,7 @@
       carrinhoVazio.style.display = "";
       totalValue.textContent = "R$ 0,00";
       btnFinalizar.disabled = true;
+      btnOrcamento.disabled = true;
       return;
     }
 
@@ -237,7 +283,8 @@
     carrinho.forEach(function (item, index) {
       var subtotal = item.preco_unitario * item.quantidade;
       total += subtotal;
-      var estoqueBaixo = item.estoque !== undefined && item.estoque <= 5;
+      var minimoItem = Number.isFinite(Number(item.estoque_minimo)) ? Number(item.estoque_minimo) : 5;
+      var estoqueBaixo = item.estoque !== undefined && item.estoque <= minimoItem;
 
       var tr = document.createElement("tr");
 
@@ -307,8 +354,9 @@
       carrinhoBody.appendChild(tr);
     });
 
-    totalValue.textContent = "R$ " + total.toFixed(2);
+    atualizarTotal();
     btnFinalizar.disabled = false;
+    btnOrcamento.disabled = false;
   }
 
   function diminuirQtd(index) {
@@ -343,9 +391,25 @@
     renderizarCarrinho();
     skuInput.value = "";
     formaPagamento.value = "";
+    clienteSelect.value = "";
+    descontoInput.value = "0";
+    observacaoInput.value = "";
     skuInput.focus();
     mostrarMensagem("Carrinho limpo.", "info");
   }
+
+  btnOrcamento.addEventListener("click", function () {
+    if (carrinho.length === 0) {
+      mostrarMensagem("Carrinho vazio.", "erro");
+      return;
+    }
+
+    if (!confirm("Salvar como orçamento?\n\nO estoque NÃO será baixado agora. Converta em venda depois, na tela de Histórico.")) {
+      return;
+    }
+
+    registrarVenda("orcamento");
+  });
 
   btnFinalizar.addEventListener("click", function () {
     if (carrinho.length === 0) {
@@ -359,43 +423,53 @@
       return;
     }
 
-    var total = carrinho.reduce(function (acc, item) {
-      return acc + item.preco_unitario * item.quantidade;
-    }, 0);
+    var total = totalCarrinho();
+    var desconto = descontoAtual();
 
     var mensagemConfirmacao =
       "Finalizar venda?\n\n" +
       "Itens: " +
       carrinho.length +
       "\n" +
+      "Subtotal: R$ " +
+      subtotalCarrinho().toFixed(2) +
+      (desconto > 0 ? "\nDesconto: R$ " + desconto.toFixed(2) : "") +
+      "\n" +
       "Total: R$ " +
       total.toFixed(2) +
       "\n" +
       "Pagamento: " +
-      pagamento;
+      pagamento +
+      (pagamento === "Fiado" ? "\n\nAtenção: será gerada uma conta a receber." : "");
 
     if (!confirm(mensagemConfirmacao)) {
       return;
     }
 
-    finalizarVenda(total, pagamento);
+    registrarVenda("finalizada");
   });
 
-  function finalizarVenda(total, pagamento) {
+  function registrarVenda(status) {
     mostrarLoading(true);
     btnFinalizar.disabled = true;
-    btnFinalizar.textContent = "Finalizando...";
+    btnOrcamento.disabled = true;
+    btnFinalizar.textContent = status === "orcamento" ? "Salvando..." : "Finalizando...";
 
     var dados = {
       itens: carrinho,
-      forma_pagamento: pagamento,
-      total: total,
+      forma_pagamento: formaPagamento.value || null,
+      cliente_id: clienteSelect.value ? Number(clienteSelect.value) : null,
+      desconto: descontoAtual(),
+      observacao: observacaoInput.value.trim() || null,
+      total: totalCarrinho(),
+      status: status,
     };
 
     if (!window.api || !window.api.finalizarVenda) {
       mostrarMensagem("API indisponível.", "erro");
       mostrarLoading(false);
       btnFinalizar.disabled = false;
+      btnOrcamento.disabled = false;
       btnFinalizar.textContent = "Finalizar Venda";
       return;
     }
@@ -403,33 +477,45 @@
     window.api
       .finalizarVenda(dados)
       .then(function (resultado) {
-        mostrarMensagem(
-          "Venda finalizada com sucesso! ID: " + resultado.vendaId,
-          "sucesso"
-        );
+        if (status === "orcamento") {
+          mostrarMensagem("Orçamento salvo! ID: " + resultado.vendaId, "sucesso");
+        } else {
+          mostrarMensagem(
+            "Venda finalizada com sucesso! ID: " + resultado.vendaId,
+            "sucesso"
+          );
 
-        var dadosRecibo = {
-          vendaId: resultado.vendaId,
-          itens: carrinho,
-          total: total,
-          forma_pagamento: pagamento,
-          data: new Date().toISOString(),
-        };
-        mostrarRecibo(dadosRecibo);
+          var dadosRecibo = {
+            vendaId: resultado.vendaId,
+            itens: carrinho,
+            subtotal: subtotalCarrinho(),
+            desconto: descontoAtual(),
+            total: totalCarrinho(),
+            forma_pagamento: dados.forma_pagamento,
+            cliente_nome: clienteSelect.value ? clienteSelect.options[clienteSelect.selectedIndex].textContent : null,
+            data: new Date().toISOString(),
+          };
+          mostrarRecibo(dadosRecibo);
+        }
 
         carrinho = [];
         limparCarrinhoPersistente();
         renderizarCarrinho();
         formaPagamento.value = "";
+        clienteSelect.value = "";
+        descontoInput.value = "0";
+        observacaoInput.value = "";
         skuInput.value = "";
         btnFinalizar.disabled = false;
+        btnOrcamento.disabled = false;
         btnFinalizar.textContent = "Finalizar Venda";
         mostrarLoading(false);
         skuInput.focus();
       })
       .catch(function (err) {
-        mostrarMensagem("Erro ao finalizar venda: " + err, "erro");
+        mostrarMensagem("Erro ao " + (status === "orcamento" ? "salvar orçamento" : "finalizar venda") + ": " + err, "erro");
         btnFinalizar.disabled = false;
+        btnOrcamento.disabled = false;
         btnFinalizar.textContent = "Finalizar Venda";
         mostrarLoading(false);
       });
@@ -454,7 +540,10 @@
     html += "</div>";
     html += "<hr style='border: none; border-top: 1px dashed #ccc; margin: 8px 0;'>";
     html += "<div style='font-size: 10px; margin-bottom: 4px;'><span style='display:inline-block;width:50%;'>Venda #" + dados.vendaId + "</span><span style='display:inline-block;width:50%; text-align:right;'>" + dataStr + "</span></div>";
-    html += "<div style='font-size: 10px; margin-bottom: 8px;'><span style='display:inline-block;width:50%;'>Pagamento:</span><span style='display:inline-block;width:50%; text-align:right;'>" + dados.forma_pagamento + "</span></div>";
+    html += "<div style='font-size: 10px; margin-bottom: 4px;'><span style='display:inline-block;width:50%;'>Pagamento:</span><span style='display:inline-block;width:50%; text-align:right;'>" + dados.forma_pagamento + "</span></div>";
+    if (dados.cliente_nome) {
+      html += "<div style='font-size: 10px; margin-bottom: 4px;'><span style='display:inline-block;width:30%;'>Cliente:</span><span style='display:inline-block;width:70%; text-align:right;'>" + dados.cliente_nome + "</span></div>";
+    }
     html += "<hr style='border: none; border-top: 1px dashed #ccc; margin: 8px 0;'>";
 
     dados.itens.forEach(function (item) {
@@ -472,6 +561,10 @@
     });
 
     html += "<hr style='border: none; border-top: 1px dashed #ccc; margin: 8px 0;'>";
+    if (dados.desconto > 0) {
+      html += "<div style='font-size: 10px; text-align: right;'>Subtotal: R$ " + dados.subtotal.toFixed(2) + "</div>";
+      html += "<div style='font-size: 10px; text-align: right;'>Desconto: - R$ " + dados.desconto.toFixed(2) + "</div>";
+    }
     html += "<div style='font-size: 12px; font-weight: bold; text-align: right; margin-bottom: 4px;'>Total: R$ " + dados.total.toFixed(2) + "</div>";
     html += "<div style='text-align: center; font-size: 9px; color: #666; margin-top: 10px;'>Obrigado pela preferencia!</div>";
 
