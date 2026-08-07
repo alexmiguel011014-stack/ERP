@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -29,6 +30,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PontoApp(viewModel: MainViewModel) {
     val navController = rememberNavController()
@@ -37,6 +39,15 @@ fun PontoApp(viewModel: MainViewModel) {
 
     MaterialTheme {
         Scaffold(
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = { Text("Ponto CSH", fontWeight = FontWeight.Bold) },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        titleContentColor = MaterialTheme.colorScheme.primary,
+                    )
+                )
+            },
             bottomBar = {
                 NavigationBar {
                     items.forEach { screen ->

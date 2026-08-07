@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="../core/head.js"></script>
+    <script src="../core/auth.js"></script>
+    <link rel="stylesheet" href="./vendas.css" />
+    <title>Alga ERP - Histórico de Vendas</title>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Histórico de Vendas</h1>
+
+      <div class="filters">
+        <label for="filterDate">Filtrar por data:</label>
+        <input type="date" id="filterDate" />
+        <select id="filterStatus" style="padding: 6px 10px; border: 1px solid #E2E8F0; border-radius: 7px; font-size: 0.82rem;">
+          <option value="">Todas</option>
+          <option value="finalizada">Finalizadas</option>
+          <option value="orcamento">Orçamentos</option>
+        </select>
+        <button id="btnFilter" class="btn btn-small">Filtrar</button>
+        <button id="btnClear" class="btn btn-small btn-secondary">Limpar</button>
+        <button id="btnExportCsv" class="btn btn-small" style="margin-left: auto; background-color: #16A34A; color: #FFFFFF;">Exportar CSV</button>
+      </div>
+
+      <div id="statsVendas" class="stats-bar"></div>
+
+      <div id="listaVendas" class="lista"></div>
+
+      <div id="mensagem" class="mensagem"></div>
+    </div>
+
+    <div id="modalDetalhes" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; z-index: 10000;">
+      <div id="modalDetalhesContent" style="background: #FFFFFF; border-radius: 12px; padding: 24px; max-width: 600px; max-height: 80vh; overflow-y: auto;"></div>
+    </div>
+
+    <script src="../core/banco.js"></script>
+    <script src="../core/navbar.js"></script>
+    <script src="../core/formatos.js"></script>
+    <script src="./vendas.js"></script>
+  </body>
+</html>

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="../core/head.js"></script>
+    <script src="../core/auth.js"></script>
+    <title>Alga ERP - Cadastro de Produto</title>
+    <link rel="stylesheet" href="cadastro.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>Cadastro de Produto</h1>
+
+      <form id="formProduto">
+        <input type="hidden" id="produtoEditandoId" value="" />
+
+        <div class="form-group">
+          <label for="nome">Nome do Produto</label>
+          <input type="text" id="nome" name="nome" placeholder="Ex: Quimono Trançado" required />
+        </div>
+
+        <div class="form-group cadastro-venda-grid">
+          <div>
+            <label for="skuProduto">SKU</label>
+            <input type="text" id="skuProduto" name="skuProduto" placeholder="Será gerado automaticamente" readonly />
+          </div>
+          <div>
+            <label for="estoqueProduto">Estoque inicial</label>
+            <input type="number" id="estoqueProduto" name="estoqueProduto" min="0" step="1" value="0" required />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Categorias / Atributos</label>
+          <div class="cat-select-wrapper">
+            <button type="button" id="btnCatDropdown" class="cat-dropdown-btn">
+              <span id="catDropdownLabel">Selecionar categorias</span>
+              <span class="cat-dropdown-arrow">&#9662;</span>
+            </button>
+            <div id="catPopover" class="cat-popover" hidden>
+              <div class="cat-popover-search">
+                <input type="text" id="catSearch" class="cat-search-input" placeholder="Buscar por código ou nome..." />
+              </div>
+              <div class="cat-popover-list" id="catPopoverList"></div>
+              <div class="cat-popover-footer">
+                <button type="button" id="btnAddCategoria" class="btn btn-small btn-add-cat">+ Adicionar Categoria</button>
+              </div>
+            </div>
+          </div>
+          <div id="catChips" class="cat-chips"></div>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Salvar Produto</button>
+          <button type="reset" class="btn btn-secondary" id="btnLimpar">Limpar</button>
+          <button type="button" class="btn btn-secondary" id="btnCancelarEdicao" style="display: none;">Cancelar Edição</button>
+        </div>
+
+        <div class="form-actions form-actions-secondary">
+          <button type="button" class="btn btn-lista" id="btnListaProdutos">Lista de Produtos</button>
+          <button type="button" class="btn btn-lista btn-lista-cat" id="btnListaCategorias">Lista de Categorias</button>
+        </div>
+
+        <div id="mensagem" class="mensagem"></div>
+      </form>
+    </div>
+
+    <!-- Modal: Lista de Produtos -->
+    <div id="modalLista" class="modal-overlay" hidden>
+      <div class="modal-box">
+        <div class="modal-header">
+          <h2>Lista de Produtos</h2>
+          <div class="modal-tools">
+            <input type="text" id="buscaProduto" class="busca-produto" placeholder="Buscar por nome ou categoria..." />
+            <button type="button" id="btnFecharModal" class="btn btn-small" title="Fechar">Fechar</button>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table id="tabelaProdutos">
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>Produto</th>
+                <th>Categorias / Atributos</th>
+                <th class="th-futuro">Preço de Custo</th>
+                <th class="th-futuro">Outros Dados</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="corpoProdutos"></tbody>
+          </table>
+        </div>
+
+        <div id="avisoProdutos" class="aviso"></div>
+        <div class="modal-footer">
+          <span class="placeholder-note">
+            As colunas <strong>Preço de Custo</strong> e <strong>Outros Dados</strong> são espaços reservados
+            para implementação futura.
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Adicionar Categoria -->
+    <div id="modalAddCat" class="modal-overlay" hidden>
+      <div class="modal-box modal-small">
+        <div class="modal-header">
+          <h2 id="addCatModalTitle">Nova Categoria</h2>
+          <button type="button" id="btnFecharModalCat" class="btn btn-small">Fechar</button>
+        </div>
+        <div class="modal-body" style="padding: 16px 20px;">
+          <div class="form-group">
+            <label>Código</label>
+            <input type="text" id="addCatCodigo" readonly />
+          </div>
+          <div class="form-group">
+            <label for="addCatNome">Nome</label>
+            <input type="text" id="addCatNome" placeholder="Ex: Tamanhos, A1, Azul..." required />
+          </div>
+          <div class="form-group">
+            <label for="addCatPai">Agrupar em (opcional)</label>
+            <select id="addCatPai">
+              <option value="">Nenhum (criar grupo principal)</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-actions" style="display:flex;justify-content:flex-end;gap:8px;padding:0 20px 16px;">
+          <button type="button" class="btn btn-primary" id="btnSalvarAddCat">Salvar</button>
+          <button type="button" class="btn btn-secondary" id="btnCancelarAddCat">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="../core/banco.js"></script>
+    <script src="../core/navbar.js"></script>
+    <script src="../core/store.js"></script>
+    <script src="./cadastro.js"></script>
+  </body>
+</html>

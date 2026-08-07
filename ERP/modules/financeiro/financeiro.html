@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="../core/head.js"></script>
+    <script src="../core/auth.js"></script>
+    <link rel="stylesheet" href="../core/modulos.css" />
+    <title>Alga ERP - Financeiro</title>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Financeiro</h1>
+      <p class="subtitle">Contas a pagar, contas a receber e fluxo de caixa realizado.</p>
+
+      <div class="tabs">
+        <button type="button" class="tab-btn active" data-aba="receber">A Receber</button>
+        <button type="button" class="tab-btn" data-aba="pagar">A Pagar</button>
+        <button type="button" class="tab-btn" data-aba="fluxo">Fluxo de Caixa</button>
+      </div>
+
+      <div class="panel">
+        <h2>Novo lançamento manual</h2>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="lancTipo">Tipo</label>
+            <select id="lancTipo">
+              <option value="receber">A receber</option>
+              <option value="pagar">A pagar</option>
+            </select>
+          </div>
+          <div class="form-group" style="grid-column: span 2;">
+            <label for="lancDescricao">Descrição</label>
+            <input type="text" id="lancDescricao" placeholder="Ex: Aluguel, energia, venda a prazo..." />
+          </div>
+          <div class="form-group">
+            <label for="lancValor">Valor (R$)</label>
+            <input type="number" id="lancValor" min="0.01" step="0.01" />
+          </div>
+          <div class="form-group">
+            <label for="lancVencimento">Vencimento</label>
+            <input type="date" id="lancVencimento" />
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" id="btnNovoLancamento" class="btn btn-primary">Adicionar</button>
+        </div>
+      </div>
+
+      <div id="mensagem" class="mensagem"></div>
+
+      <div id="abaLancamentos">
+        <div class="stats-bar" id="statsLancamentos"></div>
+        <div class="panel">
+          <h2 id="tituloLista">Contas a receber</h2>
+          <div id="listaLancamentos">
+            <div class="empty-state">Carregando...</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="abaFluxo" style="display: none;">
+        <div class="filters">
+          <label for="fluxoInicio">De:</label>
+          <input type="date" id="fluxoInicio" />
+          <label for="fluxoFim">Até:</label>
+          <input type="date" id="fluxoFim" />
+          <button type="button" id="btnFiltrarFluxo" class="btn btn-small">Filtrar</button>
+        </div>
+        <div class="stats-bar" id="statsFluxo"></div>
+        <div class="panel">
+          <h2>Movimento por dia</h2>
+          <div id="listaFluxo">
+            <div class="empty-state">Carregando...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="../core/banco.js"></script>
+    <script src="../core/navbar.js"></script>
+    <script src="./financeiro.js"></script>
+  </body>
+</html>

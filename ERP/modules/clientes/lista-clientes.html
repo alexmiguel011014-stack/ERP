@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="../core/head.js"></script>
+    <script src="../core/auth.js"></script>
+    <title>Alga ERP - Lista de Clientes</title>
+    <link rel="stylesheet" href="clientes.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>Clientes</h1>
+      <p class="subtitle">Lista de clientes cadastrados</p>
+
+      <div class="table-section">
+        <div class="table-top-bar">
+          <input type="text" id="buscaCliente" class="busca-input" placeholder="Buscar por nome, CPF/CNPJ, telefone..." />
+          <span class="total-badge" id="totalClientes">0 cliente(s)</span>
+        </div>
+        <div class="table-responsive">
+          <table id="tabelaClientes">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Nome</th>
+                <th>CPF / CNPJ</th>
+                <th>Telefone</th>
+                <th>E-mail</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="corpoClientes"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="mensagem" class="mensagem"></div>
+    </div>
+
+    <div id="movimentacoesModal" class="modal-backdrop" style="display:none;">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>Movimentações de <strong id="modalClienteNome"></strong></h3>
+          <button type="button" id="modalClose" class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div id="modalMovimentacoes"></div>
+        </div>
+      </div>
+    </div>
+
+    <script src="../core/banco.js"></script>
+    <script src="../core/navbar.js"></script>
+    <script src="./lista-clientes.js"></script>
+  </body>
+</html>

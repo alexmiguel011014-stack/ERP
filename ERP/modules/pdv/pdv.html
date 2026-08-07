@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="../core/head.js"></script>
+    <script src="../core/auth.js"></script>
+    <title>Alga ERP - Frente de Caixa</title>
+    <link rel="stylesheet" href="pdv.css" />
+  </head>
+  <body>
+    <div class="pdv-container">
+      <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="spinner"></div>
+        <p>Carregando...</p>
+      </div>
+
+      <header class="pdv-header">
+        <h1>Frente de Caixa</h1>
+        <span class="pdv-date" id="pdvDate"></span>
+      </header>
+
+      <div class="pdv-main">
+        <div class="pdv-left">
+          <div class="scan-area">
+             <label for="skuInput">SKU / Nome do Produto</label>
+            <div style="display:flex; gap:6px;">
+              <input
+                type="text"
+                id="skuInput"
+                 placeholder="Digite o SKU ou o nome do produto e pressione Enter"
+                style="flex:1;"
+                autofocus
+              />
+              <button type="button" id="btnBuscarProduto" title="Buscar produto" style="padding:6px 10px; font-size:0.8rem; cursor:pointer;">ðŸ”</button>
+            </div>
+            <span class="scan-hint">Enter = buscar | Esc = limpar carrinho | F2 = cadastro</span>
+          </div>
+
+          <div id="produtosEncontrados" style="display:none; max-height:160px; overflow-y:auto; border:1px solid #E2E8F0; border-radius:6px;">
+            <table id="tabelaProdutosEncontrados" style="width:100%; border-collapse:collapse; font-size:0.8rem;">
+               <thead style="position:sticky; top:0; background:#F8FAFC;"><tr><th align="left">SKU</th><th align="left">Produto</th><th align="right">Preço</th><th align="right">Estoq</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
+          <div class="cart-area">
+            <h2>Carrinho</h2>
+            <table id="carrinhoTable">
+              <thead>
+                <tr>
+                  <th>Produto</th>
+                  <th>Detalhes</th>
+                  <th>Qtd</th>
+                  <th>Unitário (R$)</th>
+                  <th>Subtotal (R$)</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="carrinhoBody"></tbody>
+              <tfoot>
+                <tr id="carrinhoVazio">
+                  <td colspan="6">Nenhum item no carrinho.</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <div class="pdv-right">
+          <div class="resumo">
+            <h2>Resumo da Venda</h2>
+
+            <div class="forma-pagamento">
+              <label>Cliente</label>
+              <select id="clienteSelect">
+                <option value="">Cliente não informado</option>
+              </select>
+            </div>
+
+            <div class="forma-pagamento">
+              <label>Forma de Pagamento</label>
+              <select id="formaPagamento">
+                <option value="">Selecione</option>
+                <option value="PIX">PIX</option>
+                <option value="Cartão">Cartão</option>
+                <option value="Dinheiro">Dinheiro</option>
+                <option value="Fiado">Fiado (a receber)</option>
+              </select>
+            </div>
+
+            <div class="forma-pagamento">
+              <label>Desconto (R$)</label>
+              <input type="number" id="descontoInput" min="0" step="0.01" value="0" />
+            </div>
+
+            <div class="forma-pagamento">
+              <label>Observação</label>
+              <input type="text" id="observacaoInput" placeholder="opcional" />
+            </div>
+
+            <div class="total-area">
+              <span class="total-label">VALOR TOTAL</span>
+              <span class="total-value" id="totalValue">R$ 0,00</span>
+            </div>
+
+            <div class="acoes-venda">
+              <button id="btnCancelarVenda" class="btn-cancelar" type="button">
+                Cancelar Venda
+              </button>
+              <button id="btnOrcamento" class="btn-orcamento" type="button" disabled>
+                Orçamento
+              </button>
+              <button id="btnFinalizar" class="btn-finalizar" disabled>
+                Finalizar Venda
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="mensagemPDV" class="mensagem-pdv"></div>
+    </div>
+
+    <div id="receiptOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; z-index: 10001;">
+      <div id="receiptContent" style="background: #FFFFFF; border-radius: 8px; padding: 24px; max-width: 320px; width: 90%; font-family: 'Courier New', monospace; font-size: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+        <div id="receiptHTML"></div>
+        <div style="display: flex; gap: 10px; margin-top: 16px;">
+          <button onclick="imprimirRecibo()" style="flex: 1; padding: 8px; background: #2563EB; color: #fff; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Imprimir</button>
+          <button onclick="fecharRecibo()" style="flex: 1; padding: 8px; background: #64748B; color: #fff; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Fechar</button>
+        </div>
+      </div>
+    </div>
+
+    <style>
+      @media print {
+        body * { visibility: hidden; }
+        #receiptContent, #receiptContent * { visibility: visible; }
+        #receiptContent { position: absolute; left: 0; top: 0; width: auto; max-width: none; border: none; box-shadow: none; border-radius: 0; }
+        #receiptOverlay { background: transparent; position: static; display: block; }
+        #receiptOverlay { padding: 0; }
+      }
+      @media print {
+        .dark-theme body { background: #FFFFFF !important; }
+      }
+    </style>
+
+    <script src="../core/banco.js"></script>
+    <script src="../core/navbar.js"></script>
+    <script src="../core/formatos.js"></script>
+    <script src="./pdv.js"></script>
+  </body>
+</html>

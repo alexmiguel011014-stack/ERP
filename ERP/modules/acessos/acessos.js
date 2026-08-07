@@ -1,0 +1,204 @@
+(function () {
+  var form = document.getElementById("formUsuario");
+  var editandoId = document.getElementById("usuarioEditandoId");
+  var nome = document.getElementById("nome");
+  var login = document.getElementById("login");
+  var senha = document.getElementById("senha");
+  var confirmar = document.getElementById("senhaConfirmar");
+  var ativo = document.getElementById("ativo");
+  var perfil = document.getElementById("perfil");
+  var btnSalvar = document.getElementById("btnSalvar");
+  var btnLimpar = document.getElementById("btnLimpar");
+  var btnCancelarEdicao = document.getElementById("btnCancelarEdicao");
+  var lista = document.getElementById("listaUsuarios");
+  var mensagem = document.getElementById("mensagem");
+  var senhaHint = document.getElementById("senhaHint");
+
+  var usuarios = [];
+  var sessaoUsuario = null;
+
+  function mostrarMensagem(texto, tipo) {
+    mensagem.textContent = texto;
+    mensagem.className = "mensagem " + tipo;
+    mensagem.style.display = "block";
+    setTimeout(function () { mensagem.style.display = "none"; }, 5000);
+  }
+
+  function limparEdicao() {
+    editandoId.value = "";
+    form.reset();
+    ativo.checked = true;
+    perfil.value = "admin";
+    senha.required = true;
+    senhaHint.style.display = "none";
+    btnSalvar.textContent = "Salvar Usuário";
+    btnCancelarEdicao.style.display = "none";
+    login.disabled = false;
+    login.readOnly = false;
+  }
+
+  function carregar() {
+    if (!window.api || !window.api.listarUsuarios) {
+      lista.innerHTML = '<div class="empty-state">API indisponível.</div>';
+      return;
+    }
+    window.api.getAuthSession().then(function (s) {
+      sessaoUsuario = (s && s.usuario) || null;
+      return window.api.listarUsuarios();
+    }).then(function (rows) {
+      usuarios = Array.isArray(rows) ? rows : [];
+      renderizar();
+    }).catch(function (err) {
+      lista.innerHTML = '<div class="empty-state">Erro: ' + err + "</div>";
+    });
+  }
+
+  function renderizar() {
+    lista.innerHTML = "";
+    if (usuarios.length === 0) {
+      lista.innerHTML = '<div class="empty-state">Nenhum usuário cadastrado.</div>';
+      return;
+    }
+    usuarios.forEach(function (u) {
+      var eu = sessaoUsuario && (sessaoUsuario.id === u.id);
+      var status = Number(u.ativo) === 1
+        ? '<span class="badge badge-verde">Ativo</span>'
+        : '<span class="badge badge-cinza">Desativado</span>';
+      var perfilBadge = '<span class="badge badge-azul">' + String(u.perfil || "admin").toUpperCase() + "</span>";
+
+      var div = document.createElement("div");
+      div.className = "item-lista";
+      div.innerHTML =
+        '<div class="info"><div class="titulo"></div><div class="detalhe"></div></div>' +
+        '<div class="acoes">' +
+        '<button type="button" class="btn btn-small" data-acao="editar">Editar</button>' +
+        (eu
+          ? ""
+          : '<button type="button" class="btn btn-small" data-acao="alternar">' +
+            (Number(u.ativo) === 1 ? "Desativar" : "Ativar") +
+            "</button>") +
+        (eu
+          ? '<button type="button" class="btn btn-small btn-danger" disabled title="Você está logado com este usuário">Excluir</button>'
+          : '<button type="button" class="btn btn-small btn-danger" data-acao="excluir">Excluir</button>') +
+        "</div>";
+
+      div.querySelector(".titulo").textContent = (u.nome || u.login) + (eu ? " (você)" : "");
+      div.querySelector(".detalhe").innerHTML = "Login: <b>" + u.login + "</b> · " + perfilBadge + " · " + status;
+
+      var btnEditar = div.querySelector('[data-acao="editar"]');
+      if (btnEditar) {
+        btnEditar.addEventListener("click", function () {
+          editandoId.value = u.id;
+          nome.value = u.nome || "";
+          login.value = u.login || "";
+          ativo.checked = Number(u.ativo) === 1;
+          perfil.value = u.perfil === "admin" ? "admin" : "admin";
+          senha.value = "";
+          confirmar.value = "";
+          senha.required = false;
+          senhaHint.style.display = "block";
+          btnSalvar.textContent = "Salvar Alterações";
+          btnCancelarEdicao.style.display = "inline-block";
+          login.disabled = true;
+          login.readOnly = true;
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          nome.focus();
+        });
+      }
+
+      var btnAlternar = div.querySelector('[data-acao="alternar"]');
+      if (btnAlternar) {
+        btnAlternar.addEventListener("click", function () {
+          var novoEstado = Number(u.ativo) === 1 ? 0 : 1;
+          window.api.salvarUsuario({
+            id: u.id,
+            login: u.login,
+            nome: u.nome,
+            perfil: u.perfil,
+            ativo: novoEstado === 1,
+            senha: "",
+          }).then(function () {
+            mostrarMensagem(novoEstado ? "Usuário ativado." : "Usuário desativado.", "sucesso");
+            carregar();
+          }).catch(function (err) {
+            mostrarMensagem("Erro: " + err, "erro");
+          });
+        });
+      }
+
+      var btnExcluir = div.querySelector('[data-acao="excluir"]');
+      if (btnExcluir) {
+        btnExcluir.addEventListener("click", function () {
+          if (!confirm('Excluir o usuário "' + (u.nome || u.login) + '" (' + u.login + ")? Esta ação não pode ser desfeita.")) return;
+          window.api.removerUsuario(u.id).then(function () {
+            mostrarMensagem("Usuário removido.", "sucesso");
+            carregar();
+          }).catch(function (err) {
+            mostrarMensagem("Erro: " + err, "erro");
+          });
+        });
+      }
+
+      lista.appendChild(div);
+    });
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var editando = !!editandoId.value;
+    var senhaVal = senha.value;
+    var loginVal = login.value.trim().toLowerCase();
+
+    if (!nome.value.trim()) {
+      mostrarMensagem("Informe o nome do usuário.", "erro");
+      return;
+    }
+    if (!loginVal) {
+      mostrarMensagem("Informe o login do usuário.", "erro");
+      return;
+    }
+    if (!editando && senhaVal.length < 4) {
+      mostrarMensagem("Defina uma senha com pelo menos 4 caracteres.", "erro");
+      return;
+    }
+    if (!editando && senhaVal !== confirmar.value) {
+      mostrarMensagem("As senhas não coincidem.", "erro");
+      return;
+    }
+    if (editando && senhaVal.length > 0 && senhaVal.length < 4) {
+      mostrarMensagem("A nova senha deve ter pelo menos 4 caracteres.", "erro");
+      return;
+    }
+
+    var dados = {
+      login: loginVal,
+      nome: nome.value.trim(),
+      perfil: "admin",
+      ativo: ativo.checked,
+      senha: senhaVal,
+    };
+    if (editando) dados.id = Number(editandoId.value);
+
+    // Não permite desativar/excluir a si mesmo.
+    if (editando && sessaoUsuario && sessaoUsuario.id === dados.id && !dados.ativo) {
+      mostrarMensagem("Você não pode desativar o próprio usuário.", "erro");
+      return;
+    }
+
+    btnSalvar.disabled = true;
+    window.api.salvarUsuario(dados).then(function () {
+      mostrarMensagem(editando ? "Usuário atualizado!" : "Usuário criado!", "sucesso");
+      btnSalvar.disabled = false;
+      limparEdicao();
+      carregar();
+    }).catch(function (err) {
+      mostrarMensagem("Erro: " + err, "erro");
+      btnSalvar.disabled = false;
+    });
+  });
+
+  btnLimpar.addEventListener("click", limparEdicao);
+  btnCancelarEdicao.addEventListener("click", limparEdicao);
+
+  carregar();
+})();

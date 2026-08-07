@@ -1,0 +1,6 @@
+{
+  "name": "erp-test-harness",
+  "version": "1.0.0",
+  "private": true,
+  "main": "test-ui.js"
+}

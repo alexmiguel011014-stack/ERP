@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="../core/head.js"></script>
+    <script src="../core/auth.js"></script>
+    <link rel="stylesheet" href="../core/modulos.css" />
+    <title>Alga ERP - Relatórios</title>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Relatórios</h1>
+      <p class="subtitle">Vendas por período e Curva ABC de produtos.</p>
+
+      <div class="filters">
+        <label for="dataInicio">De:</label>
+        <input type="date" id="dataInicio" />
+        <label for="dataFim">Até:</label>
+        <input type="date" id="dataFim" />
+        <button type="button" id="btnGerar" class="btn btn-small">Gerar</button>
+        <button type="button" id="btnCsvAbc" class="btn btn-small" style="background-color:#DCFCE7; color:#15803D; border-color:#86EFAC;">Exportar ABC (CSV)</button>
+      </div>
+
+      <div id="mensagem" class="mensagem"></div>
+
+      <div class="stats-bar" id="statsResumo"></div>
+
+      <div class="panel">
+        <h2>Faturamento por dia</h2>
+        <div id="listaPorDia"><div class="empty-state">Carregando...</div></div>
+      </div>
+
+      <div class="panel">
+        <h2>Por forma de pagamento</h2>
+        <div id="listaPorPagamento"><div class="empty-state">Carregando...</div></div>
+      </div>
+
+      <div class="panel">
+        <h2>Curva ABC (por receita)</h2>
+        <p class="subtitle" style="margin-bottom: 10px;">A = até 80% acumulado | B = até 95% | C = restante.</p>
+        <div id="listaAbc"><div class="empty-state">Carregando...</div></div>
+      </div>
+    </div>
+
+    <script src="../core/banco.js"></script>
+    <script src="../core/navbar.js"></script>
+    <script src="./relatorios.js"></script>
+  </body>
+</html>

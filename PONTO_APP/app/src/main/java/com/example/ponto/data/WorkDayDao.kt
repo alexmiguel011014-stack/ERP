@@ -20,4 +20,7 @@ interface WorkDayDao {
 
     @Query("SELECT * FROM work_days WHERE exitTime IS NULL LIMIT 1")
     suspend fun getActiveWorkDay(): WorkDay?
+
+    @Delete
+    suspend fun delete(workDay: WorkDay)
 }

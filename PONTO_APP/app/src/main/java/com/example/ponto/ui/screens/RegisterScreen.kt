@@ -17,14 +17,52 @@ fun RegisterScreen(viewModel: MainViewModel) {
     val expectedHours by viewModel.expectedHours.collectAsState()
     var hoursInput by remember(expectedHours) { mutableStateOf(expectedHours.toString()) }
 
+    var showPunchInDialog by remember { mutableStateOf(false) }
+    var showPunchOutDialog by remember { mutableStateOf(false) }
+
+    if (showPunchInDialog) {
+        AlertDialog(
+            onDismissRequest = { showPunchInDialog = false },
+            title = { Text("Confirmar Entrada") },
+            text = { Text("Tem certeza que deseja bater o ponto de entrada agora?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.punchIn()
+                    showPunchInDialog = false
+                }) { Text("Sim") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPunchInDialog = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
+    if (showPunchOutDialog) {
+        AlertDialog(
+            onDismissRequest = { showPunchOutDialog = false },
+            title = { Text("Confirmar Saída") },
+            text = { Text("Tem certeza que deseja bater o ponto de saída agora?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.punchOut()
+                    showPunchOutDialog = false
+                }) { Text("Sim") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPunchOutDialog = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Center,
     ) {
         Text(text = "Configuração", style = MaterialTheme.typography.headlineSmall)
+        
         Spacer(modifier = Modifier.height(8.dp))
         
         OutlinedTextField(
@@ -35,7 +73,7 @@ fun RegisterScreen(viewModel: MainViewModel) {
             },
             label = { Text("Carga Horária Diária (h)") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.width(200.dp)
+            modifier = Modifier.width(200.dp),
         )
 
         Spacer(modifier = Modifier.height(48.dp))
@@ -57,7 +95,7 @@ fun RegisterScreen(viewModel: MainViewModel) {
 
         if (activeDay == null) {
             Button(
-                onClick = { viewModel.punchIn() },
+                onClick = { showPunchInDialog = true },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(80.dp)
@@ -66,7 +104,7 @@ fun RegisterScreen(viewModel: MainViewModel) {
             }
         } else {
             Button(
-                onClick = { viewModel.punchOut() },
+                onClick = { showPunchOutDialog = true },
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                 modifier = Modifier
                     .fillMaxWidth()

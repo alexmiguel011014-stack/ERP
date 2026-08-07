@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="../core/head.js"></script>
+    <script src="../core/auth.js"></script>
+    <link rel="stylesheet" href="../core/modulos.css" />
+    <title>Alga ERP - Gerenciar Acessos</title>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Gerenciar Acessos</h1>
+      <p class="subtitle">Usuários do sistema e suas credenciais de login.</p>
+
+      <form id="formUsuario" class="panel">
+        <input type="hidden" id="usuarioEditandoId" value="" />
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="nome">Nome completo *</label>
+            <input type="text" id="nome" required placeholder="Ex: Ana Beatriz Silva" />
+          </div>
+          <div class="form-group">
+            <label for="login">Login *</label>
+            <input type="text" id="login" required placeholder="apenas letras, números, . _ -" />
+          </div>
+          <div class="form-group">
+            <label for="senha">Senha *</label>
+            <input type="password" id="senha" autocomplete="new-password" placeholder="mínimo 4 caracteres" />
+            <small id="senhaHint" style="color: #64748B;">Deixe em branco para manter a senha atual</small>
+          </div>
+          <div class="form-group">
+            <label for="senhaConfirmar">Confirmar senha</label>
+            <input type="password" id="senhaConfirmar" autocomplete="new-password" placeholder="repita a senha" />
+          </div>
+          <div class="form-group">
+            <label for="perfil">Perfil de acesso</label>
+            <select id="perfil">
+              <option value="admin">Admin</option>
+            </select>
+            <small style="color: #64748b;">Por enquanto apenas o perfil Admin está disponível.</small>
+          </div>
+          <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+            <input type="checkbox" id="ativo" checked style="width: auto;" />
+            <label for="ativo" style="margin: 0;">Usuário ativo (pode entrar no sistema)</label>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" id="btnSalvar">Salvar Usuário</button>
+          <button type="button" class="btn btn-secondary" id="btnLimpar">Limpar</button>
+          <button type="button" class="btn btn-secondary" id="btnCancelarEdicao" style="display:none;">Cancelar edição</button>
+        </div>
+        <p style="color: #64748b; font-size: 0.75rem; margin-top: 8px;">
+          Dica: a senha do usuário desbloqueia o acesso ao sistema. Para editar um usuário e alterar a senha, informe a nova senha nos campos acima.
+        </p>
+      </form>
+
+      <div id="mensagem" class="mensagem"></div>
+
+      <div class="panel">
+        <h2>Usuários cadastrados</h2>
+        <div id="listaUsuarios">
+          <div class="empty-state">Carregando...</div>
+        </div>
+      </div>
+    </div>
+
+    <script src="../core/banco.js"></script>
+    <script src="../core/navbar.js"></script>
+    <script src="./acessos.js"></script>
+  </body>
+</html>

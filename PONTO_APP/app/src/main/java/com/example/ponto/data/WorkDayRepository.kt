@@ -17,4 +17,8 @@ class WorkDayRepository(private val workDayDao: WorkDayDao) {
     suspend fun getActiveWorkDay(): WorkDay? {
         return workDayDao.getActiveWorkDay()
     }
+
+    suspend fun delete(workDay: WorkDay) {
+        workDayDao.delete(workDay)
+    }
 }

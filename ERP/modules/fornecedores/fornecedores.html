@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="../core/head.js"></script>
+    <script src="../core/auth.js"></script>
+    <link rel="stylesheet" href="../core/modulos.css" />
+    <title>Alga ERP - Fornecedores</title>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Fornecedores</h1>
+      <p class="subtitle">Contatos comerciais e prazos de pagamento acordados.</p>
+
+      <form id="formFornecedor" class="panel">
+        <input type="hidden" id="fornecedorEditandoId" value="" />
+        <div class="form-grid">
+          <div class="form-group" style="grid-column: span 2;">
+            <label for="nome">Nome / Razão Social *</label>
+            <input type="text" id="nome" required placeholder="Ex: Kimonos Brasil Ltda" />
+          </div>
+          <div class="form-group">
+            <label for="cnpj">CNPJ</label>
+            <input type="text" id="cnpj" placeholder="00.000.000/0000-00" />
+          </div>
+          <div class="form-group">
+            <label for="telefone">Telefone</label>
+            <input type="text" id="telefone" placeholder="(11) 99999-8888" />
+          </div>
+          <div class="form-group">
+            <label for="email">E-mail</label>
+            <input type="email" id="email" placeholder="contato@fornecedor.com" />
+          </div>
+          <div class="form-group">
+            <label for="contato">Pessoa de contato</label>
+            <input type="text" id="contato" placeholder="Ex: João Vendas" />
+          </div>
+          <div class="form-group">
+            <label for="prazo">Prazo de pagamento (dias)</label>
+            <input type="number" id="prazo" min="0" step="1" value="0" />
+          </div>
+          <div class="form-group">
+            <label for="observacao">Observação</label>
+            <input type="text" id="observacao" placeholder="opcional" />
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" id="btnSalvar">Salvar Fornecedor</button>
+          <button type="button" class="btn btn-secondary" id="btnLimpar">Limpar</button>
+          <button type="button" class="btn btn-secondary" id="btnCancelarEdicao" style="display:none;">Cancelar edição</button>
+        </div>
+      </form>
+
+      <div id="mensagem" class="mensagem"></div>
+
+      <div class="panel">
+        <h2>Fornecedores cadastrados</h2>
+        <div id="listaFornecedores">
+          <div class="empty-state">Carregando...</div>
+        </div>
+      </div>
+    </div>
+
+    <script src="../core/banco.js"></script>
+    <script src="../core/navbar.js"></script>
+    <script src="./fornecedores.js"></script>
+  </body>
+</html>
