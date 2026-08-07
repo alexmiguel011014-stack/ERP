@@ -17,7 +17,7 @@ const dbReady = Promise.resolve();
 function derivarChave(senha) {
 	return crypto
 		.createHash("sha256")
-		.update("erp:" + String(senha))
+		.update("erp_housekimono:" + String(senha))
 		.digest("hex");
 }
 

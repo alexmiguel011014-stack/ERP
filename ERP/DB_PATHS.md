@@ -95,7 +95,7 @@ Electron app starts
   → main.js calls setDBPath(app.getPath('userData'))
     → DB_PATH = "%APPDATA%/ERP/erp.sqlite"
   → database.js opens DB with SQLCipher
-    → Key derived from SHA-256("erp:" + senha)
+    → Key derived from SHA-256("erp_housekimono:" + senha)
     → PRAGMA key decrypts the database
   → On first login (plaintext DB detected):
     → sqlcipher_export('encrypted') migrates to encrypted
