@@ -1,14 +1,14 @@
 param([switch]$Dev = $false)
 
 $Desktop = [Environment]::GetFolderPath("Desktop")
-$Root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$Root = Split-Path -Parent $PSScriptRoot
 $Name = "Alga ERP"
 $Shortcut = Join-Path $Desktop "$Name.lnk"
 $Icon = Join-Path $Root "build\icon.ico"
 
 if ($Dev) {
     $Target = "powershell.exe"
-    $Arguments = "-NoExit -Command `"cd '$Root' && npm start`""
+    $Arguments = "-NoExit -NoProfile -Command `"cd '$Root'; npm start`""
     Write-Host "Criando atalho DEV..."
 } else {
     $Exe = @(Get-ChildItem -Path (Join-Path $Root "dist") -Filter "*.exe" -ErrorAction SilentlyContinue)
