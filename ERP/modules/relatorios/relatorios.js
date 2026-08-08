@@ -3,13 +3,34 @@
 	var dataFim = document.getElementById("dataFim");
 	var btnGerar = document.getElementById("btnGerar");
 	var btnCsvAbc = document.getElementById("btnCsvAbc");
+	var btnExportarPdf = document.getElementById("btnExportarPdf");
 	var statsResumo = document.getElementById("statsResumo");
 	var listaPorDia = document.getElementById("listaPorDia");
 	var listaPorPagamento = document.getElementById("listaPorPagamento");
 	var listaAbc = document.getElementById("listaAbc");
+	var listaComissoes = document.getElementById("listaComissoes");
+	var dreResultado = document.getElementById("dreResultado");
 	var mensagem = document.getElementById("mensagem");
 
 	var abcCache = [];
+	var relatorioCache = { resumo: null, comissoes: [], dre: null, periodo: { inicio: null, fim: null } };
+	var graficos = {};
+
+	var CORES = {
+		azul: "#2563EB",
+		verde: "#16A34A",
+		vermelho: "#DC2626",
+		amarelo: "#D97706",
+		cinza: "#64748B",
+		paleta: ["#2563EB", "#16A34A", "#D97706", "#DC2626", "#7C3AED", "#0891B2", "#DB2777"],
+	};
+
+	function renderizarGrafico(canvasId, config) {
+		var canvas = document.getElementById(canvasId);
+		if (!canvas || !window.Chart) return;
+		if (graficos[canvasId]) graficos[canvasId].destroy();
+		graficos[canvasId] = new window.Chart(canvas.getContext("2d"), config);
+	}
 
 	function mostrarMensagem(texto, tipo) {
 		mensagem.textContent = texto;
@@ -33,11 +54,13 @@
 	function gerar() {
 		var inicio = dataInicio.value || null;
 		var fim = dataFim.value || null;
+		relatorioCache.periodo = { inicio: inicio, fim: fim };
 
 		if (window.api && window.erpBanco.relatorios.vendasPeriodo) {
 			window.erpBanco.relatorios
 				.vendasPeriodo(inicio, fim)
 				.then((r) => {
+					relatorioCache.resumo = r;
 					statsResumo.innerHTML =
 						'<div class="stat-card"><div class="stat-value">' +
 						r.resumo.vendas +
@@ -81,6 +104,25 @@
 						listaPorDia.appendChild(t1);
 					}
 
+					renderizarGrafico("graficoPorDia", {
+						type: "bar",
+						data: {
+							labels: (r.porDia || []).map((d) => formatarData(d.dia)),
+							datasets: [{
+								label: "Faturamento",
+								data: (r.porDia || []).map((d) => d.faturamento),
+								backgroundColor: CORES.azul,
+								borderRadius: 4,
+							}],
+						},
+						options: {
+							responsive: true,
+							maintainAspectRatio: false,
+							plugins: { legend: { display: false } },
+							scales: { y: { beginAtZero: true } },
+						},
+					});
+
 					listaPorPagamento.innerHTML = "";
 					if (!r.porPagamento || r.porPagamento.length === 0) {
 						listaPorPagamento.innerHTML =
@@ -106,6 +148,22 @@
 						});
 						listaPorPagamento.appendChild(t2);
 					}
+
+					renderizarGrafico("graficoPorPagamento", {
+						type: "doughnut",
+						data: {
+							labels: (r.porPagamento || []).map((p) => p.forma_pagamento),
+							datasets: [{
+								data: (r.porPagamento || []).map((p) => p.faturamento),
+								backgroundColor: CORES.paleta,
+							}],
+						},
+						options: {
+							responsive: true,
+							maintainAspectRatio: false,
+							plugins: { legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 10 } } } },
+						},
+					});
 				})
 				.catch((err) => {
 					mostrarMensagem("Erro no relatório de vendas: " + err, "erro");
@@ -121,6 +179,7 @@
 					if (abcCache.length === 0) {
 						listaAbc.innerHTML =
 							'<div class="empty-state">Sem produtos vendidos no período.</div>';
+						if (graficos.graficoAbc) { graficos.graficoAbc.destroy(); delete graficos.graficoAbc; }
 						return;
 					}
 					var t = document.createElement("table");
@@ -161,9 +220,126 @@
 						tb.appendChild(tr);
 					});
 					listaAbc.appendChild(t);
+
+					var receitaPorClasse = { A: 0, B: 0, C: 0 };
+					abcCache.forEach((l) => { receitaPorClasse[l.classe] += l.receita; });
+					renderizarGrafico("graficoAbc", {
+						type: "pie",
+						data: {
+							labels: ["Classe A", "Classe B", "Classe C"],
+							datasets: [{
+								data: [receitaPorClasse.A, receitaPorClasse.B, receitaPorClasse.C],
+								backgroundColor: [CORES.verde, CORES.amarelo, CORES.cinza],
+							}],
+						},
+						options: {
+							responsive: true,
+							maintainAspectRatio: false,
+							plugins: { legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 10 } } } },
+						},
+					});
 				})
 				.catch((err) => {
 					mostrarMensagem("Erro na Curva ABC: " + err, "erro");
+				});
+		}
+
+		if (window.api && window.erpBanco.relatorios.comissoes) {
+			window.erpBanco.relatorios
+				.comissoes(inicio, fim)
+				.then((linhas) => {
+					relatorioCache.comissoes = linhas || [];
+					listaComissoes.innerHTML = "";
+					if (!linhas || linhas.length === 0) {
+						listaComissoes.innerHTML =
+							'<div class="empty-state">Nenhuma venda atribuída a um vendedor no período.</div>';
+						return;
+					}
+					var t = document.createElement("table");
+					t.innerHTML =
+						"<thead><tr><th>Vendedor</th><th style='text-align:center;'>Vendas</th><th style='text-align:right;'>Total vendido</th><th style='text-align:center;'>Comissão %</th><th style='text-align:right;'>Comissão (R$)</th></tr></thead><tbody></tbody>";
+					var tb = t.querySelector("tbody");
+					linhas.forEach((l) => {
+						var tr = document.createElement("tr");
+						tr.innerHTML =
+							"<td></td>" +
+							"<td style='text-align:center;'>" +
+							l.vendas +
+							"</td>" +
+							"<td style='text-align:right; color:#16A34A; font-weight:600;'>" +
+							formatarMoeda(l.total_vendido) +
+							"</td>" +
+							"<td style='text-align:center;'>" +
+							l.comissao_percentual.toFixed(1) +
+							"%</td>" +
+							"<td style='text-align:right; font-weight:600;'>" +
+							formatarMoeda(l.comissao_valor) +
+							"</td>";
+						tr.children[0].textContent = l.nome || l.login;
+						tb.appendChild(tr);
+					});
+					listaComissoes.appendChild(t);
+				})
+				.catch((err) => {
+					mostrarMensagem("Erro nas comissões: " + err, "erro");
+				});
+		}
+
+		if (window.api && window.erpBanco.relatorios.dre) {
+			window.erpBanco.relatorios
+				.dre(inicio, fim)
+				.then((d) => {
+					relatorioCache.dre = d;
+					var linha = function (label, valor, opts) {
+						opts = opts || {};
+						var cor = opts.cor || "#1E293B";
+						var peso = opts.destaque ? "700" : "500";
+						return (
+							"<div style='display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid #F1F5F9; font-size:" +
+							(opts.destaque ? "0.95rem" : "0.85rem") +
+							";'>" +
+							"<span style='color:#475569;'>" + label + "</span>" +
+							"<span style='color:" + cor + "; font-weight:" + peso + ";'>" + formatarMoeda(valor) + "</span>" +
+							"</div>"
+						);
+					};
+					dreResultado.innerHTML =
+						linha("Receita Bruta (" + d.vendas + " venda(s))", d.receitaBruta) +
+						linha("(-) Descontos", -d.descontos, { cor: "#DC2626" }) +
+						linha("(=) Receita Líquida", d.receitaLiquida, { destaque: true }) +
+						linha("(-) CMV (custo da mercadoria vendida)", -d.cmv, { cor: "#DC2626" }) +
+						linha(
+							"(=) Lucro Bruto (" + d.margemBrutaPercentual.toFixed(1) + "%)",
+							d.lucroBruto,
+							{ destaque: true, cor: d.lucroBruto >= 0 ? "#16A34A" : "#DC2626" },
+						) +
+						linha("(-) Despesas pagas no período", -d.despesas, { cor: "#DC2626" }) +
+						linha(
+							"(=) Lucro Líquido (" + d.margemLiquidaPercentual.toFixed(1) + "%)",
+							d.lucroLiquido,
+							{ destaque: true, cor: d.lucroLiquido >= 0 ? "#16A34A" : "#DC2626" },
+						);
+
+					renderizarGrafico("graficoDre", {
+						type: "bar",
+						data: {
+							labels: ["Receita Líquida", "CMV", "Despesas", "Lucro Líquido"],
+							datasets: [{
+								data: [d.receitaLiquida, -d.cmv, -d.despesas, d.lucroLiquido],
+								backgroundColor: [CORES.azul, CORES.vermelho, CORES.vermelho, d.lucroLiquido >= 0 ? CORES.verde : CORES.vermelho],
+								borderRadius: 4,
+							}],
+						},
+						options: {
+							indexAxis: "y",
+							responsive: true,
+							maintainAspectRatio: false,
+							plugins: { legend: { display: false } },
+						},
+					});
+				})
+				.catch((err) => {
+					mostrarMensagem("Erro no DRE: " + err, "erro");
 				});
 		}
 	}
@@ -206,6 +382,140 @@
 		URL.revokeObjectURL(url);
 		mostrarMensagem("CSV da Curva ABC exportado!", "sucesso");
 	});
+
+	btnExportarPdf.addEventListener("click", exportarPdf);
+
+	function exportarPdf() {
+		if (!window.jspdf || !window.jspdf.jsPDF) {
+			mostrarMensagem("Biblioteca de PDF não carregada.", "erro");
+			return;
+		}
+		var doc = new window.jspdf.jsPDF({ unit: "pt", format: "a4" });
+		var margem = 40;
+		var larguraPagina = doc.internal.pageSize.getWidth();
+		var alturaPagina = doc.internal.pageSize.getHeight();
+		var y = margem;
+
+		function novaPaginaSeNecessario(espacoNecessario) {
+			if (y + espacoNecessario > alturaPagina - margem) {
+				doc.addPage();
+				y = margem;
+			}
+		}
+
+		function titulo(texto) {
+			novaPaginaSeNecessario(30);
+			doc.setFontSize(13);
+			doc.setFont(undefined, "bold");
+			doc.text(texto, margem, y);
+			y += 18;
+			doc.setFont(undefined, "normal");
+			doc.setFontSize(9);
+		}
+
+		function linhaTexto(texto, opts) {
+			opts = opts || {};
+			novaPaginaSeNecessario(14);
+			doc.setFontSize(opts.tamanho || 9);
+			doc.setFont(undefined, opts.negrito ? "bold" : "normal");
+			doc.text(String(texto), margem + (opts.indent || 0), y);
+			y += opts.altura || 13;
+		}
+
+		function tabela(colunas, linhas, larguras) {
+			novaPaginaSeNecessario(20);
+			doc.setFont(undefined, "bold");
+			doc.setFontSize(8.5);
+			var x = margem;
+			colunas.forEach((c, i) => {
+				doc.text(c, x, y);
+				x += larguras[i];
+			});
+			y += 12;
+			doc.setDrawColor(200);
+			doc.line(margem, y - 9, larguraPagina - margem, y - 9);
+			doc.setFont(undefined, "normal");
+			linhas.forEach((linha) => {
+				novaPaginaSeNecessario(14);
+				x = margem;
+				linha.forEach((valor, i) => {
+					doc.text(String(valor), x, y);
+					x += larguras[i];
+				});
+				y += 13;
+			});
+			y += 6;
+		}
+
+		var periodoTxt =
+			(relatorioCache.periodo.inicio || "início") + " a " + (relatorioCache.periodo.fim || "hoje");
+
+		doc.setFontSize(16);
+		doc.setFont(undefined, "bold");
+		doc.text("Relatório Gerencial — Alga ERP", margem, y);
+		y += 20;
+		doc.setFontSize(9);
+		doc.setFont(undefined, "normal");
+		doc.text("Período: " + periodoTxt + " | Gerado em: " + new Date().toLocaleString("pt-BR"), margem, y);
+		y += 24;
+
+		if (relatorioCache.resumo && relatorioCache.resumo.resumo) {
+			var r = relatorioCache.resumo.resumo;
+			titulo("Resumo de Vendas");
+			linhaTexto("Vendas: " + r.vendas);
+			linhaTexto("Faturamento: " + formatarMoeda(r.faturamento));
+			linhaTexto("Ticket médio: " + formatarMoeda(r.ticketMedio));
+			linhaTexto("Descontos dados: " + formatarMoeda(r.descontos));
+			y += 10;
+		}
+
+		if (relatorioCache.dre) {
+			var d = relatorioCache.dre;
+			titulo("DRE — Demonstrativo de Resultado");
+			linhaTexto("Receita Bruta (" + d.vendas + " venda(s)): " + formatarMoeda(d.receitaBruta));
+			linhaTexto("(-) Descontos: " + formatarMoeda(d.descontos));
+			linhaTexto("(=) Receita Líquida: " + formatarMoeda(d.receitaLiquida), { negrito: true });
+			linhaTexto("(-) CMV: " + formatarMoeda(d.cmv));
+			linhaTexto("(=) Lucro Bruto (" + d.margemBrutaPercentual.toFixed(1) + "%): " + formatarMoeda(d.lucroBruto), { negrito: true });
+			linhaTexto("(-) Despesas pagas: " + formatarMoeda(d.despesas));
+			linhaTexto("(=) Lucro Líquido (" + d.margemLiquidaPercentual.toFixed(1) + "%): " + formatarMoeda(d.lucroLiquido), { negrito: true });
+			y += 10;
+		}
+
+		if (relatorioCache.comissoes && relatorioCache.comissoes.length > 0) {
+			titulo("Comissões por vendedor");
+			tabela(
+				["Vendedor", "Vendas", "Total vendido", "Comissão %", "Comissão R$"],
+				relatorioCache.comissoes.map((l) => [
+					l.nome || l.login,
+					String(l.vendas),
+					formatarMoeda(l.total_vendido),
+					l.comissao_percentual.toFixed(1) + "%",
+					formatarMoeda(l.comissao_valor),
+				]),
+				[140, 60, 100, 80, 100],
+			);
+		}
+
+		if (abcCache.length > 0) {
+			titulo("Curva ABC (por receita)");
+			tabela(
+				["#", "Produto", "Qtd", "Receita", "% Acum.", "Classe"],
+				abcCache.map((l, i) => [
+					String(i + 1),
+					String(l.produto_nome).slice(0, 32),
+					String(l.quantidade),
+					formatarMoeda(l.receita),
+					l.acumulado.toFixed(1) + "%",
+					l.classe,
+				]),
+				[25, 220, 50, 90, 70, 50],
+			);
+		}
+
+		doc.save("relatorio_" + new Date().toISOString().slice(0, 10) + ".pdf");
+		mostrarMensagem("PDF exportado!", "sucesso");
+	}
 
 	gerar();
 })();

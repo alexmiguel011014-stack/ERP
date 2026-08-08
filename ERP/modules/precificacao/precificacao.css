@@ -30,6 +30,16 @@ h1 { color: #1E293B; font-size: 1.3rem; font-weight: 600; margin-bottom: 6px; te
   border-radius: 10px;
   padding: 16px 20px;
   margin-bottom: 18px;
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
+.config-item { flex: 1; min-width: 260px; }
+
+.config-item + .config-item {
+  border-left: 1px solid #E2E8F0;
+  padding-left: 28px;
 }
 
 .config-item label {
@@ -38,6 +48,13 @@ h1 { color: #1E293B; font-size: 1.3rem; font-weight: 600; margin-bottom: 6px; te
   font-size: 0.8rem;
   color: #475569;
   margin-bottom: 6px;
+}
+
+.custo-fixo-resultado {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #2563EB;
 }
 
 .config-input-row {
@@ -225,6 +242,21 @@ td input[type="checkbox"] { width: 16px; height: 16px; accent-color: #2563EB; cu
 .lucro-negativo { color: #DC2626; font-weight: 600; }
 .lucro-zero { color: #94A3B8; }
 
+/* Toggle de custo fixo por produto */
+.custo-fixo-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: #475569;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.custo-fixo-toggle input[type="checkbox"] { width: 15px; height: 15px; accent-color: #2563EB; cursor: pointer; }
+
+.dark-theme .custo-fixo-toggle { color: #94A3B8; }
+
 /* Margem tags */
 .margem-tag {
   display: inline-block;
@@ -291,8 +323,10 @@ td input[type="checkbox"] { width: 16px; height: 16px; accent-color: #2563EB; cu
 .dark-theme .subtitle { color: #64748B; }
 .dark-theme .global-config { background: #0F172A; border-color: #334159; }
 .dark-theme .config-item label { color: #94A3B8; }
+.dark-theme .config-item + .config-item { border-left-color: #334159; }
 .dark-theme .config-input-row input[type="number"] { background: #1E293B; border-color: #334159; color: #F1F5F9; }
 .dark-theme .config-hint { color: #64748B; }
+.dark-theme .custo-fixo-resultado { color: #60A5FA; }
 .dark-theme .mass-bar { background: #172554; border-color: #1D4ED8; }
 .dark-theme .mass-bar #massCount { color: #93C5FD; }
 .dark-theme .mass-input-row input[type="number"] { background: #1E293B; border-color: #1D4ED8; color: #F1F5F9; }

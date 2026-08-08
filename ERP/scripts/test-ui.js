@@ -44,7 +44,7 @@ const PAGINAS = [
   ['Clientes - Lista', 'modules/clientes/lista-clientes.html'],
   ['PDV', 'modules/pdv/pdv.html'],
   ['Entrada de estoque', 'modules/entrada/entrada.html'],
-  ['Estoque negativo', 'modules/entrada/estoquenegativo.html'],
+  ['Lista de estoque', 'modules/entrada/estoque-lista.html'],
   ['Precificação', 'modules/precificacao/precificacao.html'],
   ['Vendas', 'modules/vendas/vendas.html'],
   ['Fornecedores', 'modules/fornecedores/fornecedores.html'],
@@ -114,6 +114,15 @@ const CHECAGENS_DOM = {
       const dados = await window.erpBanco.precificacao.dados();
       r.produtosPrecificacao = Array.isArray(dados) ? dados.length : 'nao-array';
       r.linhasTabela = document.querySelectorAll('table tbody tr').length;
+      return r;
+    })()
+  `,
+  'Lista de estoque': `
+    (async () => {
+      await new Promise(res => setTimeout(res, 400));
+      const r = {};
+      r.stats = document.getElementById('statsEstoque').children.length;
+      r.linhasTabela = document.querySelectorAll('#corpoEstoque tr').length;
       return r;
     })()
   `,

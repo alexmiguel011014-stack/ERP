@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="../core/head.js"></script>
+    <script src="../core/auth.js"></script>
+    <link rel="stylesheet" href="../core/modulos.css" />
+    <link rel="stylesheet" href="./entrada.css" />
+    <title>Alga ERP - Lista de Estoque</title>
+  </head>
+  <body data-requer-modulo="estoque">
+    <div class="container">
+      <h1>Lista de Estoque</h1>
+      <p class="subtitle">Visão geral de todos os SKUs, com estoque, mínimo e valorização.</p>
+
+      <div class="panel">
+        <div id="statsEstoque" class="stats-bar"></div>
+        <div class="filters">
+          <input type="text" id="buscaEstoque" class="busca-estoque" placeholder="Buscar por nome ou SKU..." />
+          <div class="chip-group" id="filtroStatus">
+            <button type="button" class="chip active" data-status="todos">Todos</button>
+            <button type="button" class="chip" data-status="baixo">Baixo estoque</button>
+            <button type="button" class="chip" data-status="negativo">Negativo</button>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>Produto</th>
+                <th>Atributos</th>
+                <th>Estoque</th>
+                <th>Mínimo</th>
+                <th>Custo Unit.</th>
+                <th>Valor em Estoque</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="corpoEstoque"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="mensagem" class="mensagem"></div>
+    </div>
+
+    <script src="../core/banco.js"></script>
+    <script src="../core/navbar.js"></script>
+    <script src="../core/formatos.js"></script>
+    <script src="./estoque-lista.js"></script>
+  </body>
+</html>

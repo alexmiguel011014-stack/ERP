@@ -8,8 +8,8 @@
     <link rel="stylesheet" href="../core/modulos.css" />
     <title>Alga ERP - Banco de Dados</title>
     <style>
-      .banco-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-      .banco-toolbar select { flex: 1; }
+      .banco-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+      .banco-toolbar select { flex: 1; min-width: 180px; }
       .banco-grid { overflow-x: auto; }
       .banco-grid table { border-collapse: collapse; width: 100%; font-size: 0.78rem; }
       .banco-grid th, .banco-grid td { border: 1px solid var(--borda, #E2E8F0); padding: 6px 8px; white-space: nowrap; }
@@ -19,9 +19,19 @@
       .modal-senha { position: fixed; inset: 0; background: rgba(15,23,42,0.5); display: flex; align-items: center; justify-content: center; z-index: 3000; }
       .modal-senha .card { background: #FFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 24px; width: 340px; box-shadow: 0 12px 40px rgba(15,23,42,0.2); }
       .dark-theme .modal-senha .card { background: #1E293B; border-color: #334159; }
+      .resumo-tabelas { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-bottom: 18px; }
+      .resumo-card { border: 1px solid #E2E8F0; border-radius: 10px; padding: 12px 14px; background: #F8FAFC; cursor: pointer; transition: border-color 0.15s, background 0.15s; text-align: left; }
+      .resumo-card:hover { border-color: #2563EB; background: #EFF6FF; }
+      .resumo-card.ativo { border-color: #2563EB; background: #EFF6FF; }
+      .resumo-card .nome { font-weight: 700; font-size: 0.82rem; color: #1E293B; word-break: break-word; }
+      .resumo-card .total { font-size: 1.1rem; font-weight: 700; color: #2563EB; margin-top: 4px; }
+      .dark-theme .resumo-card { background: #0F172A; border-color: #334159; }
+      .dark-theme .resumo-card:hover, .dark-theme .resumo-card.ativo { background: #172554; border-color: #3B82F6; }
+      .dark-theme .resumo-card .nome { color: #F1F5F9; }
+      .dark-theme .resumo-card .total { color: #60A5FA; }
     </style>
   </head>
-  <body>
+  <body data-requer-admin="1">
     <div class="container">
       <h1>Banco de Dados</h1>
       <p class="subtitle">Inspeção crua das tabelas. Gestão protegida pela senha do admin.</p>
@@ -48,10 +58,19 @@
             <option value="">Carregando...</option>
           </select>
           <button class="btn btn-small" id="btnAtualizar">Atualizar</button>
+          <button class="btn btn-small btn-primary" id="btnExportar">Exportar Banco (JSON)</button>
         </div>
+
+        <div id="msgExportar" class="mensagem" style="display:none;"></div>
+
+        <h2 style="font-size:0.95rem;margin:6px 0 10px;">Todas as tabelas</h2>
+        <div id="resumoTabelas" class="resumo-tabelas">
+          <div class="empty-state">Carregando...</div>
+        </div>
+
         <div id="infoTabela" style="margin-bottom:8px;font-size:0.8rem;color:#64748B;"></div>
         <div class="banco-grid" id="containerTabela">
-          <div class="empty-state">Selecione uma tabela para visualizar.</div>
+          <div class="empty-state">Selecione uma tabela acima para visualizar os registros.</div>
         </div>
       </div>
     </div>

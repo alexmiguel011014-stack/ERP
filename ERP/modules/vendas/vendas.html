@@ -36,9 +36,20 @@
       <div id="modalDetalhesContent" style="background: #FFFFFF; border-radius: 12px; padding: 24px; max-width: 600px; max-height: 80vh; overflow-y: auto;"></div>
     </div>
 
+    <style>
+      @media print {
+        body * { visibility: hidden; }
+        #modalDetalhesContent, #modalDetalhesContent * { visibility: visible; }
+        #modalDetalhesContent { position: absolute; left: 0; top: 0; width: 100%; max-height: none; overflow: visible; }
+        #modalDetalhes { background: transparent !important; position: static !important; display: block !important; padding: 0; }
+        .no-print { display: none !important; }
+      }
+    </style>
+
     <script src="../core/banco.js"></script>
     <script src="../core/navbar.js"></script>
     <script src="../core/formatos.js"></script>
+    <script src="../core/vendor/jspdf.umd.min.js"></script>
     <script src="./vendas.js"></script>
   </body>
 </html>

@@ -32,6 +32,8 @@
     return partes.join(" | ") || "---";
   };
 
+  window.parseAtributos = parseAtributos;
+
   // Retorna o valor de um atributo por chave (insensível a caixa).
   window.obterAtributo = function (atributos, chaveProcurada) {
     var pars = parseAtributos(atributos);

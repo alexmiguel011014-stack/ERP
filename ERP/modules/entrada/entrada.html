@@ -6,15 +6,24 @@
     <script src="../core/head.js"></script>
     <script src="../core/auth.js"></script>
     <link rel="stylesheet" href="../core/modulos.css" />
-    <title>Alga ERP - Entrada de Estoque</title>
+    <link rel="stylesheet" href="./entrada.css" />
+    <title>Alga ERP - Estoque</title>
   </head>
-  <body>
+  <body data-requer-modulo="estoque">
     <div class="container">
-      <h1>Entrada de Estoque</h1>
-      <p class="subtitle">Reposição manual de mercadorias. O custo informado atualiza o custo médio do produto.</p>
+      <h1>Estoque</h1>
+      <p class="subtitle">Entradas, ajustes e histórico de movimentações.</p>
+
+      <div class="panel panel-lista-estoque">
+        <div>
+          <h2 style="margin: 0;">Lista completa do estoque</h2>
+          <p class="subtitle" style="margin: 4px 0 0;">Todos os SKUs, estoque atual, mínimo e valorização, em uma aba própria.</p>
+        </div>
+        <button type="button" id="btnAbrirListaEstoque" class="btn btn-primary">Ver Lista de Estoque</button>
+      </div>
 
       <div class="panel">
-        <h2>Adicionar item</h2>
+        <h2>Adicionar item (entrada)</h2>
         <div class="form-grid">
           <div class="form-group" style="grid-column: span 2;">
             <label for="skuInput">Código de Barras / SKU</label>
@@ -76,15 +85,7 @@
       <div id="mensagem" class="mensagem"></div>
 
       <div class="panel">
-        <h2>Alertas de estoque mínimo</h2>
-        <p class="subtitle" style="margin-bottom: 10px;">Variações no nível mínimo ou abaixo dele. Ajuste o mínimo por item.</p>
-        <div id="listaBaixo">
-          <div class="empty-state">Carregando...</div>
-        </div>
-      </div>
-
-      <div class="panel">
-        <h2>Ãšltimas movimentações</h2>
+        <h2>Últimas movimentações</h2>
         <div id="listaMov">
           <div class="empty-state">Carregando...</div>
         </div>

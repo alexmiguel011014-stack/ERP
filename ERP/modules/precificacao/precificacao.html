@@ -8,7 +8,7 @@
     <title>Alga ERP - Precificação</title>
     <link rel="stylesheet" href="precificacao.css" />
   </head>
-  <body>
+  <body data-requer-modulo="produtos">
     <div class="container">
       <h1>Precificação</h1>
       <p class="subtitle">Gerencie margens e preços de venda</p>
@@ -22,6 +22,16 @@
             <button type="button" id="btnSaveGlobal" class="btn btn-primary btn-sm">Salvar Margem Global</button>
           </div>
           <span class="config-hint">Aplicada automaticamente a novos produtos e aos que usam margem global.</span>
+        </div>
+        <div class="config-item">
+          <label for="custoFixoMensal">Custos Fixos do Mês (R$ / Volume estimado)</label>
+          <div class="config-input-row">
+            <input type="number" id="custoFixoMensal" min="0" step="0.01" placeholder="Ex: 5000" />
+            <input type="number" id="custoFixoVolume" min="0" step="1" placeholder="Ex: 500 un." />
+            <button type="button" id="btnSaveCustoFixo" class="btn btn-primary btn-sm">Salvar</button>
+          </div>
+          <span class="config-hint">Aluguel, salários e outras despesas fixas, diluídas por unidade vendida no mês. Marque "Custo Fixo" por produto — deixe destravado nas revendas de margem apertada.</span>
+          <div id="custoFixoResultado" class="custo-fixo-resultado"></div>
         </div>
       </div>
 
@@ -53,6 +63,7 @@
               <th>Categoria</th>
               <th>Preço de Custo (R$)</th>
               <th>Impostos / Extras (R$)</th>
+              <th>Custo Fixo</th>
               <th>Margem (%)</th>
               <th>Preço de Venda (R$)</th>
               <th>Lucro (R$)</th>

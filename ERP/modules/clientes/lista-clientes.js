@@ -8,9 +8,12 @@
 	var modalNome = document.getElementById("modalClienteNome");
 	var modalMovimentacoes = document.getElementById("modalMovimentacoes");
 	var modalClose = document.getElementById("modalClose");
+	var btnLixeiraClientes = document.getElementById("btnLixeiraClientes");
+	var btnExportarClientesCsv = document.getElementById("btnExportarClientesCsv");
 
 	var clientes = [];
 	var clienteSelecionado = null;
+	var verLixeira = false;
 
 	function esc(t) {
 		return String(t == null ? "" : t)
@@ -37,15 +40,22 @@
 			return;
 		}
 		window.erpBanco.clientes
-			.listar()
+			.listar(verLixeira)
 			.then((lista) => {
 				clientes = Array.isArray(lista) ? lista : [];
+				if (verLixeira) clientes = clientes.filter((c) => Number(c.ativo) === 0);
 				renderizarTabela();
 			})
 			.catch(() => {
 				tbody.innerHTML =
 					'<tr><td colspan="6"><div class="empty-state">Erro ao carregar.</div></td></tr>';
 			});
+	}
+
+	function atualizarBotaoLixeira() {
+		if (!btnLixeiraClientes) return;
+		btnLixeiraClientes.textContent = verLixeira ? "Ver ativos" : "Lixeira";
+		btnLixeiraClientes.classList.toggle("btn-primary", verLixeira);
 	}
 
 	function renderizarTabela() {
@@ -97,29 +107,89 @@
 			var acoesDiv = document.createElement("div");
 			acoesDiv.className = "acoes";
 
-			var btnEditar = document.createElement("button");
-			btnEditar.type = "button";
-			btnEditar.className = "btn btn-small btn-editar";
-			btnEditar.textContent = "Editar";
-			btnEditar.addEventListener("click", () => {
-				window.location.href = "./clientes.html?id=" + c.id;
-			});
-			acoesDiv.appendChild(btnEditar);
+			if (verLixeira) {
+				var btnRestaurar = document.createElement("button");
+				btnRestaurar.type = "button";
+				btnRestaurar.className = "btn btn-small";
+				btnRestaurar.textContent = "Restaurar";
+				btnRestaurar.addEventListener("click", () => restaurarCliente(c));
+				acoesDiv.appendChild(btnRestaurar);
 
-			var btnMov = document.createElement("button");
-			btnMov.type = "button";
-			btnMov.className = "btn btn-small btn-secondary";
-			btnMov.textContent = "Movimentações";
-			btnMov.addEventListener("click", () => {
-				abrirMovimentacoes(c);
-			});
-			acoesDiv.appendChild(btnMov);
+				var btnExcluirDef = document.createElement("button");
+				btnExcluirDef.type = "button";
+				btnExcluirDef.className = "btn btn-small btn-excluir";
+				btnExcluirDef.textContent = "Excluir definitivo";
+				btnExcluirDef.addEventListener("click", () => excluirClientePermanente(c));
+				acoesDiv.appendChild(btnExcluirDef);
+			} else {
+				var btnEditar = document.createElement("button");
+				btnEditar.type = "button";
+				btnEditar.className = "btn btn-small btn-editar";
+				btnEditar.textContent = "Editar";
+				btnEditar.addEventListener("click", () => {
+					window.location.href = "./clientes.html?id=" + c.id;
+				});
+				acoesDiv.appendChild(btnEditar);
+
+				var btnMov = document.createElement("button");
+				btnMov.type = "button";
+				btnMov.className = "btn btn-small btn-secondary";
+				btnMov.textContent = "Movimentações";
+				btnMov.addEventListener("click", () => {
+					abrirMovimentacoes(c);
+				});
+				acoesDiv.appendChild(btnMov);
+
+				var btnExcluir = document.createElement("button");
+				btnExcluir.type = "button";
+				btnExcluir.className = "btn btn-small btn-excluir";
+				btnExcluir.textContent = "Excluir";
+				btnExcluir.addEventListener("click", () => excluirCliente(c));
+				acoesDiv.appendChild(btnExcluir);
+			}
 
 			tdAcoes.appendChild(acoesDiv);
 			tr.appendChild(tdAcoes);
 
 			tbody.appendChild(tr);
 		});
+	}
+
+	function excluirCliente(c) {
+		if (!window.erpBanco.clientes.remover) return;
+		if (!confirm('Enviar o cliente "' + c.nome + '" para a lixeira? Ele para de aparecer nas buscas e no PDV, mas pode ser restaurado depois.'))
+			return;
+		window.erpBanco.clientes
+			.remover(c.id)
+			.then(() => {
+				mostrarMensagem("Cliente enviado para a lixeira.", "success");
+				carregarClientes();
+			})
+			.catch((err) => mostrarMensagem("Erro ao excluir: " + err, "error"));
+	}
+
+	function restaurarCliente(c) {
+		if (!window.erpBanco.clientes.restaurar) return;
+		window.erpBanco.clientes
+			.restaurar(c.id)
+			.then(() => {
+				mostrarMensagem('Cliente "' + c.nome + '" restaurado.', "success");
+				carregarClientes();
+			})
+			.catch((err) => mostrarMensagem("Erro ao restaurar: " + err, "error"));
+	}
+
+	function excluirClientePermanente(c) {
+		if (!window.erpBanco.clientes.excluirPermanente) return;
+		if (!confirm('Excluir definitivamente o cliente "' + c.nome + '"? Esta ação não pode ser desfeita.'))
+			return;
+		window.erpBanco.clientes
+			.excluirPermanente(c.id)
+			.then(() => {
+				mostrarMensagem("Cliente excluído definitivamente.", "success");
+				carregarClientes();
+			})
+			.catch((err) => mostrarMensagem("Erro ao excluir: " + err, "error"));
 	}
 
 	function abrirMovimentacoes(c) {
@@ -190,6 +260,43 @@
 	});
 
 	if (buscaCliente) buscaCliente.addEventListener("input", renderizarTabela);
+
+	if (btnLixeiraClientes) {
+		btnLixeiraClientes.addEventListener("click", () => {
+			verLixeira = !verLixeira;
+			atualizarBotaoLixeira();
+			carregarClientes();
+		});
+	}
+
+	function csvCampo(v) {
+		return '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
+	}
+
+	if (btnExportarClientesCsv) {
+		btnExportarClientesCsv.addEventListener("click", () => {
+			if (clientes.length === 0) {
+				mostrarMensagem("Nenhum cliente para exportar.", "error");
+				return;
+			}
+			var cabecalho = "Codigo,Nome,CPF/CNPJ,Telefone,Email,Endereco,Academia,Faixa";
+			var linhas = clientes.map((c) =>
+				[csvCampo(c.codigo), csvCampo(c.nome), csvCampo(c.cpf_cnpj), csvCampo(c.telefone),
+					csvCampo(c.email), csvCampo(c.endereco), csvCampo(c.academia), csvCampo(c.faixa)].join(","),
+			);
+			var csv = cabecalho + "\n" + linhas.join("\n");
+			var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+			var url = URL.createObjectURL(blob);
+			var a = document.createElement("a");
+			a.href = url;
+			a.download = "clientes_" + new Date().toISOString().slice(0, 10) + ".csv";
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+			URL.revokeObjectURL(url);
+			mostrarMensagem("CSV de clientes exportado!", "success");
+		});
+	}
 
 	carregarClientes();
 })();

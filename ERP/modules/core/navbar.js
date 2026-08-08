@@ -5,6 +5,8 @@
     var currentPage = window.location.pathname.split("/").pop() || "index.html";
     var perfil = sessao && sessao.perfil ? sessao.perfil : "admin";
     var isAdmin = perfil === "admin";
+    var permissoes = (sessao && sessao.permissoes) || {};
+    function podeModulo(modulo) { return isAdmin || permissoes[modulo] === true; }
     var autenticado = !!(sessao && sessao.autenticado);
 
   function aplicarTema(tema) {
@@ -30,39 +32,83 @@
 
   var style = document.createElement("style");
   style.textContent =
-    "/* === Navbar === */\n" +
-    ".navbar { position: sticky; top: 0; z-index: 1000; display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 20px; background-color: #FFFFFF; border-bottom: 1px solid #E2E8F0; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }\n" +
-    ".hamburger { background: none; border: none; cursor: pointer; padding: 6px; border-radius: 6px; display: flex; flex-direction: column; gap: 4px; transition: background 0.15s; }\n" +
+    "/* === Navbar (top bar, estilo Beron) === */\n" +
+    ".navbar { position: sticky; top: 0; z-index: 1500; display: flex; align-items: center; gap: 14px; width: 100%; padding: 12px 24px; background-color: #FFFFFF; border-bottom: 1px solid #E2E8F0; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }\n" +
+    ".hamburger { background: none; border: none; cursor: pointer; padding: 6px; border-radius: 6px; display: none; flex-direction: column; gap: 4px; transition: background 0.15s; }\n" +
+    "@media (max-width: 880px) { .hamburger { display: flex; } }\n" +
     ".hamburger:hover { background: #F1F5F9; }\n" +
     ".hamburger span { display: block; width: 20px; height: 2px; background: #475569; border-radius: 1px; transition: background 0.15s; }\n" +
-    ".navbar-brand { color: #2563EB; font-weight: 700; font-size: 1rem; white-space: nowrap; margin-right: auto; }\n" +
-    ".navbar-links { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }\n" +
+    ".navbar-brand { display: none; color: #2563EB; font-weight: 700; font-size: 1rem; white-space: nowrap; }\n" +
+    "@media (max-width: 880px) { .navbar-brand { display: block; margin-right: auto; } }\n" +
+    ".navbar-links { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-left: auto; }\n" +
     ".navbar-links a { color: #475569; text-decoration: none; padding: 8px 14px; border-radius: 7px; font-size: 0.82rem; font-weight: 600; background-color: #F8FAFC; border: 1px solid #E2E8F0; transition: background-color 0.15s, color 0.15s, border-color 0.15s; }\n" +
     ".navbar-links a:hover { background-color: #EFF6FF; color: #1E293B; border-color: #BFDBFE; }\n" +
     ".navbar-links a.active { background-color: #2563EB; color: #FFFFFF; border-color: #2563EB; }\n" +
-    ".theme-toggle { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 6px; background: #F1F5F9; color: #64748B; border: 1px solid #E2E8F0; cursor: pointer; font-size: 0.85rem; transition: all 0.15s; }\n" +
+    ".theme-toggle { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 8px; background: #F1F5F9; color: #64748B; border: 1px solid #E2E8F0; cursor: pointer; font-size: 0.85rem; transition: all 0.15s; }\n" +
     ".theme-toggle:hover { background: #2563EB; color: #FFF; border-color: #2563EB; }\n" +
-    "/* === Sidebar === */\n" +
-    ".sidebar-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.45); z-index: 1999; display: none; }\n" +
-    ".sidebar-backdrop.open { display: block; }\n" +
-    ".sidebar { position: fixed; top: 0; left: -310px; width: 290px; height: 100%; z-index: 2000; background: #FFFFFF; border-right: 1px solid #E2E8F0; box-shadow: 2px 0 16px rgba(0,0,0,0.08); transition: left 0.25s ease; display: flex; flex-direction: column; overflow-y: auto; }\n" +
-    ".sidebar.open { left: 0; }\n" +
-    ".sidebar-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 18px 12px; border-bottom: 1px solid #E2E8F0; }\n" +
-    ".sidebar-brand { font-weight: 700; font-size: 1.05rem; color: #2563EB; }\n" +
-    ".sidebar-user { padding: 10px 18px 4px; font-size: 0.72rem; color: #94A3B8; }\n" +
-    ".sidebar-close { background: none; border: none; font-size: 1.3rem; color: #94A3B8; cursor: pointer; padding: 2px 6px; border-radius: 4px; line-height: 1; }\n" +
-    ".sidebar-close:hover { color: #DC2626; background: #FEE2E2; }\n" +
-    ".sidebar-section { padding: 6px 0; border-bottom: 1px solid #F1F5F9; }\n" +
-    ".sidebar-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 18px; border: none; background: none; color: #1E293B; font-size: 0.85rem; font-weight: 500; cursor: pointer; text-align: left; text-decoration: none; transition: background 0.12s; }\n" +
-    ".sidebar-item:hover { background: #F1F5F9; }\n" +
-    ".sidebar-item svg, .sidebar-icon { width: 18px; height: 18px; flex-shrink: 0; color: #64748B; }\n" +
-    ".sidebar-badge { display: inline-flex; align-items: center; justify-content: center; padding: 1px 6px; border-radius: 4px; background: #2563EB; color: #FFFFFF; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.03em; line-height: 1; flex-shrink: 0; min-width: 28px; text-align: center; }\n" +
+    ".navbar-busca { position: relative; width: 320px; max-width: 40vw; }\n" +
+    ".navbar-busca input { width: 100%; padding: 9px 12px 9px 34px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.82rem; outline: none; background: #F8FAFC url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%2394A3B8%22 stroke-width=%222%22%3E%3Ccircle cx=%2211%22 cy=%2211%22 r=%228%22/%3E%3Cpath d=%22m21 21-4.3-4.3%22/%3E%3C/svg%3E') no-repeat 10px center / 15px; }\n" +
+    ".navbar-busca input:focus { border-color: #2563EB; background-color: #FFFFFF; }\n" +
+    ".navbar-busca-resultados { position: absolute; top: calc(100% + 4px); left: 0; width: 320px; max-height: 380px; overflow-y: auto; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); z-index: 3000; display: none; }\n" +
+    ".navbar-busca-resultados.open { display: block; }\n" +
+    ".navbar-busca-grupo-titulo { padding: 6px 12px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #94A3B8; background: #F8FAFC; }\n" +
+    ".navbar-busca-item { display: block; padding: 8px 12px; font-size: 0.82rem; color: #1E293B; text-decoration: none; border-bottom: 1px solid #F1F5F9; cursor: pointer; }\n" +
+    ".navbar-busca-item:hover { background: #EFF6FF; }\n" +
+    ".navbar-busca-item .detalhe { display: block; font-size: 0.72rem; color: #94A3B8; }\n" +
+    ".navbar-busca-vazio { padding: 14px 12px; font-size: 0.8rem; color: #94A3B8; text-align: center; }\n" +
+    ".dark-theme .navbar-busca input { background: #0F172A; border-color: #334159; color: #F1F5F9; }\n" +
+    ".dark-theme .navbar-busca-resultados { background: #1E293B; border-color: #334159; }\n" +
+    ".dark-theme .navbar-busca-grupo-titulo { background: #0F172A; color: #64748B; }\n" +
+    ".dark-theme .navbar-busca-item { color: #E2E8F0; border-bottom-color: #0F172A; }\n" +
+    ".dark-theme .navbar-busca-item:hover { background: #0F172A; }\n" +
+    "/* === Sidebar (fixa, estilo Beron) === */\n" +
+    ":root { --sidebar-w: 264px; --sidebar-w-collapsed: 76px; }\n" +
+    "body { padding-left: var(--sidebar-w); transition: padding-left 0.2s ease; }\n" +
+    "body.sidebar-collapsed { padding-left: var(--sidebar-w-collapsed); }\n" +
+    "@media (max-width: 880px) { body { padding-left: 0 !important; } }\n" +
+    ".sidebar-backdrop { position: fixed; inset: 0; background: rgba(2,6,23,0.55); z-index: 1999; display: none; }\n" +
+    "@media (max-width: 880px) { .sidebar-backdrop.open { display: block; } }\n" +
+    ".sidebar { position: fixed; top: 0; left: 0; width: var(--sidebar-w); height: 100%; z-index: 2000; background: #111827; border-right: 1px solid #1F2937; transition: left 0.2s ease, width 0.2s ease; display: flex; flex-direction: column; overflow: hidden; }\n" +
+    "body.sidebar-collapsed .sidebar { width: var(--sidebar-w-collapsed); }\n" +
+    "@media (max-width: 880px) { .sidebar { left: -300px; width: 280px !important; box-shadow: 4px 0 24px rgba(0,0,0,0.35); } .sidebar.open { left: 0; } }\n" +
+    ".sidebar-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 16px; border-bottom: 1px solid #1F2937; flex-shrink: 0; }\n" +
+    ".sidebar-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.05rem; color: #F8FAFC; white-space: nowrap; overflow: hidden; }\n" +
+    ".sidebar-brand-mark { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg,#6366F1,#8B5CF6); color: #FFF; font-weight: 800; font-size: 0.85rem; flex-shrink: 0; }\n" +
+    "body.sidebar-collapsed .sidebar-brand span.brand-text { display: none; }\n" +
+    ".sidebar-collapse-btn { background: none; border: none; color: #64748B; cursor: pointer; padding: 4px 6px; border-radius: 6px; display: flex; }\n" +
+    ".sidebar-collapse-btn:hover { background: #1F2937; color: #E2E8F0; }\n" +
+    "@media (max-width: 880px) { .sidebar-collapse-btn { display: none; } }\n" +
+    ".sidebar-close { display: none; background: none; border: none; font-size: 1.3rem; color: #64748B; cursor: pointer; padding: 2px 6px; border-radius: 4px; line-height: 1; }\n" +
+    "@media (max-width: 880px) { .sidebar-close { display: inline-flex; } }\n" +
+    ".sidebar-close:hover { color: #F87171; background: #450A0A; }\n" +
+    ".sidebar-user { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid #1F2937; flex-shrink: 0; }\n" +
+    ".sidebar-user-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg,#6366F1,#EC4899); color: #FFF; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; flex-shrink: 0; }\n" +
+    ".sidebar-user-info { min-width: 0; overflow: hidden; }\n" +
+    ".sidebar-user-name { color: #F1F5F9; font-size: 0.8rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n" +
+    ".sidebar-user-role { color: #64748B; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; }\n" +
+    "body.sidebar-collapsed .sidebar-user-info { display: none; }\n" +
+    ".sidebar-nav { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 10px 0; }\n" +
+    ".sidebar-nav::-webkit-scrollbar { width: 5px; }\n" +
+    ".sidebar-nav::-webkit-scrollbar-thumb { background: #1F2937; border-radius: 3px; }\n" +
+    ".sidebar-section-label { padding: 14px 20px 6px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #475569; white-space: nowrap; overflow: hidden; }\n" +
+    "body.sidebar-collapsed .sidebar-section-label { text-align: center; padding: 14px 4px 6px; }\n" +
+    "body.sidebar-collapsed .sidebar-section-label span.label-text { display: none; }\n" +
+    ".sidebar-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 20px; margin: 1px 10px; border-radius: 8px; border: none; background: none; color: #CBD5E1; font-size: 0.85rem; font-weight: 500; cursor: pointer; text-align: left; text-decoration: none; transition: background 0.12s, color 0.12s; white-space: nowrap; width: calc(100% - 20px); }\n" +
+    ".sidebar-item:hover { background: #1F2937; color: #F8FAFC; }\n" +
+    ".sidebar-item.current { background: linear-gradient(90deg, rgba(99,102,241,0.18), rgba(99,102,241,0.04)); color: #A5B4FC; border-left: 3px solid #6366F1; padding-left: 17px; }\n" +
+    ".sidebar-item svg, .sidebar-icon { width: 18px; height: 18px; flex-shrink: 0; }\n" +
+    ".sidebar-badge { display: inline-flex; align-items: center; justify-content: center; padding: 1px 6px; border-radius: 4px; background: #312E81; color: #C7D2FE; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.03em; line-height: 1.6; flex-shrink: 0; min-width: 26px; text-align: center; }\n" +
     ".sidebar-item .item-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n" +
-    ".sidebar-item.disabled { color: #94A3B8; cursor: default; }\n" +
+    "body.sidebar-collapsed .sidebar-item .item-label, body.sidebar-collapsed .sidebar-item .sidebar-badge { display: none; }\n" +
+    "body.sidebar-collapsed .sidebar-item { justify-content: center; padding: 10px; margin: 1px 12px; width: calc(100% - 24px); }\n" +
+    "body.sidebar-collapsed .sidebar-item.current { padding-left: 9px; }\n" +
+    ".sidebar-item.disabled { color: #475569; cursor: default; }\n" +
     ".sidebar-item.disabled:hover { background: none; }\n" +
-    ".sidebar-divider { height: 1px; background: #E2E8F0; margin: 4px 0; }\n" +
-    ".sidebar-item.danger { color: #DC2626; }\n" +
-    ".sidebar-item.danger:hover { background: #FEE2E2; }\n" +
+    ".sidebar-divider { height: 1px; background: #1F2937; margin: 8px 16px; }\n" +
+    ".sidebar-item.danger { color: #FCA5A5; }\n" +
+    ".sidebar-item.danger:hover { background: #450A0A; color: #FECACA; }\n" +
+    ".sidebar-tooltip { position: fixed; left: calc(var(--sidebar-w-collapsed) + 8px); background: #1E293B; color: #F1F5F9; font-size: 0.75rem; font-weight: 600; padding: 6px 10px; border-radius: 6px; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 2100; pointer-events: none; display: none; }\n" +
+    ".sidebar-tooltip.show { display: block; }\n" +
     "/* === Dark theme overrides === */\n" +
     ".dark-theme { background-color: #0F172A; color: #E2E8F0; }\n" +
     ".dark-theme body { background-color: #0F172A; color: #E2E8F0; }\n" +
@@ -75,20 +121,6 @@
     ".dark-theme .navbar-links a.active { background-color: #3B82F6; color: #FFFFFF; border-color: #3B82F6; }\n" +
     ".dark-theme .theme-toggle { background: #334159; color: #94A3B8; border-color: #334159; }\n" +
     ".dark-theme .theme-toggle:hover { background: #3B82F6; color: #FFF; border-color: #3B82F6; }\n" +
-    ".dark-theme .sidebar { background: #1E293B; border-right-color: #334159; }\n" +
-    ".dark-theme .sidebar-backdrop { background: rgba(15,23,42,0.65); }\n" +
-    ".dark-theme .sidebar-header { border-bottom-color: #334159; }\n" +
-    ".dark-theme .sidebar-user { color: #64748B; }\n" +
-    ".dark-theme .sidebar-brand { color: #3B82F6; }\n" +
-    ".dark-theme .sidebar-close { color: #64748B; }\n" +
-    ".dark-theme .sidebar-close:hover { color: #FCA5A5; background: #450A0A; }\n" +
-    ".dark-theme .sidebar-section { border-bottom-color: #1E293B; }\n" +
-    ".dark-theme .sidebar-item { color: #E2E8F0; }\n" +
-    ".dark-theme .sidebar-item:hover { background: #0F172A; }\n" +
-    ".dark-theme .sidebar-divider { background: #334159; }\n" +
-    ".dark-theme .sidebar-item.danger { color: #FCA5A5; }\n" +
-    ".dark-theme .sidebar-item.danger:hover { background: #450A0A; }\n" +
-    ".dark-theme .sidebar-item.disabled { color: #475569; }\n" +
     ".dark-theme .container { background-color: #1E293B; border-color: #334159; color: #E2E8F0; }\n" +
     ".dark-theme h1, .dark-theme h2 { color: #F1F5F9; }\n" +
     ".dark-theme .subtitle { color: #64748B; }\n" +
@@ -179,29 +211,85 @@
   var sidebar = document.createElement("aside");
   sidebar.className = "sidebar";
 
-sidebar.innerHTML =
+  function iniciais(nome) {
+    var partes = String(nome || "?").trim().split(/\s+/);
+    var a = partes[0] ? partes[0][0] : "?";
+    var b = partes.length > 1 ? partes[partes.length - 1][0] : "";
+    return (a + b).toUpperCase();
+  }
+
+  function itemAtivo(arquivo) {
+    return currentPage === arquivo ? " current" : "";
+  }
+
+  var nomeUsuario = autenticado
+    ? (sessao.usuario && sessao.usuario.nome) || (sessao.usuario && sessao.usuario.login) || "Usuário"
+    : "";
+
+  sidebar.innerHTML =
     '<div class="sidebar-header">' +
-    '<span class="sidebar-brand">Alga ERP</span>' +
+    '<span class="sidebar-brand"><span class="sidebar-brand-mark">AE</span><span class="brand-text">Alga ERP</span></span>' +
+    '<button class="sidebar-collapse-btn" id="sidebarCollapseBtn" title="Recolher menu"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>' +
     '<button class="sidebar-close" title="Fechar">&times;</button>' +
     '</div>' +
     (autenticado
-      ? '<div class="sidebar-user">' + (sessao.usuario && sessao.usuario.nome ? sessao.usuario.nome : sessao.usuario && sessao.usuario.login ? sessao.usuario.login : 'Admin') + ' · ADMIN</div>'
+      ? '<div class="sidebar-user"><span class="sidebar-user-avatar">' + iniciais(nomeUsuario) + '</span><span class="sidebar-user-info"><span class="sidebar-user-name">' + nomeUsuario + '</span><span class="sidebar-user-role">' + String(perfil).toUpperCase() + '</span></span></div>'
       : '') +
+    '<nav class="sidebar-nav">' +
     (!autenticado
-      ? '<a href="#" class="sidebar-item sidebar-login" id="sidebarLoginItem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-3a4 4 0 0 0-3-3.87"/><path d="M16 3.13v3a4 4 0 0 1 0 7.75"/><circle cx="12" cy="12" r="4"/><path d="M2 12h3m13-8v3M5 6v12"/></svg><span class="item-label">Login</span></a>'
+      ? '<a href="#" class="sidebar-item sidebar-login" id="sidebarLoginItem" data-tip="Login"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-3a4 4 0 0 0-3-3.87"/><path d="M16 3.13v3a4 4 0 0 1 0 7.75"/><circle cx="12" cy="12" r="4"/><path d="M2 12h3m13-8v3M5 6v12"/></svg><span class="item-label">Login</span></a>'
       : '') +
-    (isAdmin ? '<a href="../dashboard/index.html?workspace=gerenciamento-produtos" class="sidebar-item"><span class="sidebar-badge">PROD</span><span class="item-label">Gerenciamento de Produtos</span></a>' : "") +
-    (isAdmin ? '<a href="../acessos/acessos.html" class="sidebar-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1.5"/></svg><span class="item-label">Gerenciar Acessos</span></a>' : "") +
-    (isAdmin ? '<a href="../banco/banco.html" class="sidebar-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg><span class="item-label">Banco de Dados</span></a>' : "") +
-    '<a href="../clientes/clientes.html" class="sidebar-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="item-label">Clientes</span></a>' +
-    (isAdmin ? '<a href="../fornecedores/fornecedores.html" class="sidebar-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.752 11.168l-2.66-4.29a1 1 0 0 0 0 1.2L14 15l-4 4a1 1 0 0 0 1 1.5l7-7a1 1 0 0 0-.2-1.6z"/></svg><span class="item-label">Fornecedores</span></a>' : "") +
-    (isAdmin ? '<a href="../relatorios/relatorios.html" class="sidebar-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5V5a2 2 0 0 1 2-2h8.5a1.5 1.5 0 0 1 1 1v12.5a1.5 1.5 0 0 1-1 1.5H6a2 2 0 0 0-2 2z"/><path d="M9 5V3h6v2M9 9h6v6H9z"/></svg><span class="item-label">Relatórios</span></a>' : "") +
-    '<a href="../atualizacao/atualizacao.html" class="sidebar-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg><span class="item-label">Atualizações</span></a>' +
+    '<div class="sidebar-section-label"><span class="label-text">Principal</span></div>' +
+    '<a href="../dashboard/index.html" class="sidebar-item' + itemAtivo("index.html") + '" data-tip="Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span class="item-label">Dashboard</span></a>' +
+    '<a href="../pdv/pdv.html" class="sidebar-item' + itemAtivo("pdv.html") + '" data-tip="Frente de Caixa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M7 15h4"/></svg><span class="item-label">Frente de Caixa</span></a>' +
+    '<a href="../clientes/clientes.html" class="sidebar-item' + itemAtivo("clientes.html") + '" data-tip="Clientes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="item-label">Clientes</span></a>' +
+    (podeModulo("produtos") || podeModulo("compras") || podeModulo("financeiro") || podeModulo("fornecedores") || podeModulo("relatorios") || isAdmin
+      ? '<div class="sidebar-section-label"><span class="label-text">Gestão</span></div>'
+      : '') +
+    (podeModulo("produtos") ? '<a href="../dashboard/index.html?workspace=gerenciamento-produtos" class="sidebar-item" data-tip="Produtos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/></svg><span class="item-label">Produtos</span></a>' : "") +
+    (podeModulo("compras") ? '<a href="../compras/compras.html" class="sidebar-item' + itemAtivo("compras.html") + '" data-tip="Compras"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg><span class="item-label">Compras</span></a>' : "") +
+    (podeModulo("fornecedores") ? '<a href="../fornecedores/fornecedores.html" class="sidebar-item' + itemAtivo("fornecedores.html") + '" data-tip="Fornecedores"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.752 11.168l-2.66-4.29a1 1 0 0 0 0 1.2L14 15l-4 4a1 1 0 0 0 1 1.5l7-7a1 1 0 0 0-.2-1.6z"/></svg><span class="item-label">Fornecedores</span></a>' : "") +
+    (podeModulo("financeiro") ? '<a href="../financeiro/financeiro.html" class="sidebar-item' + itemAtivo("financeiro.html") + '" data-tip="Financeiro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span class="item-label">Financeiro</span></a>' : "") +
+    (podeModulo("relatorios") ? '<a href="../relatorios/relatorios.html" class="sidebar-item' + itemAtivo("relatorios.html") + '" data-tip="Relatórios"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5V5a2 2 0 0 1 2-2h8.5a1.5 1.5 0 0 1 1 1v12.5a1.5 1.5 0 0 1-1 1.5H6a2 2 0 0 0-2 2z"/><path d="M9 5V3h6v2M9 9h6v6H9z"/></svg><span class="item-label">Relatórios</span></a>' : "") +
+    (isAdmin ? '<a href="../acessos/acessos.html" class="sidebar-item' + itemAtivo("acessos.html") + '" data-tip="Acessos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1.5"/></svg><span class="item-label">Gerenciar Acessos</span></a>' : "") +
+    (isAdmin ? '<a href="../banco/banco.html" class="sidebar-item' + itemAtivo("banco.html") + '" data-tip="Banco de Dados"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg><span class="item-label">Banco de Dados</span></a>' : "") +
+    '<div class="sidebar-section-label"><span class="label-text">Sistema</span></div>' +
+    '<a href="../atualizacao/atualizacao.html" class="sidebar-item' + itemAtivo("atualizacao.html") + '" data-tip="Atualizações"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg><span class="item-label">Atualizações</span></a>' +
     (autenticado
-      ? '<a href="#" class="sidebar-item sidebar-logout danger" id="sidebarLogoutItem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y12"/></svg><span class="item-label">Logout</span></a>'
-      : '');
+      ? '<a href="#" class="sidebar-item sidebar-logout danger" id="sidebarLogoutItem" data-tip="Sair"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><span class="item-label">Logout</span></a>'
+      : '') +
+    '</nav>';
 
   document.body.appendChild(sidebar);
+
+  var tooltip = document.createElement("div");
+  tooltip.className = "sidebar-tooltip";
+  document.body.appendChild(tooltip);
+
+  Array.prototype.forEach.call(sidebar.querySelectorAll("[data-tip]"), function (el) {
+    el.addEventListener("mouseenter", function () {
+      if (!document.body.classList.contains("sidebar-collapsed")) return;
+      tooltip.textContent = el.getAttribute("data-tip");
+      var rect = el.getBoundingClientRect();
+      tooltip.style.top = (rect.top + rect.height / 2 - 12) + "px";
+      tooltip.classList.add("show");
+    });
+    el.addEventListener("mouseleave", function () {
+      tooltip.classList.remove("show");
+    });
+  });
+
+  var collapseBtn = document.getElementById("sidebarCollapseBtn");
+  if (collapseBtn) {
+    if (localStorage.getItem("sidebarColapsada") === "1") {
+      document.body.classList.add("sidebar-collapsed");
+    }
+    collapseBtn.addEventListener("click", function () {
+      var colapsada = document.body.classList.toggle("sidebar-collapsed");
+      localStorage.setItem("sidebarColapsada", colapsada ? "1" : "0");
+      tooltip.classList.remove("show");
+    });
+  }
 
   function abrirSidebar() {
     sidebar.classList.add("open");
@@ -225,13 +313,19 @@ sidebar.innerHTML =
   var isDark = document.documentElement.classList.contains("dark-theme");
   var themeIcon = isDark ? "&#9728;" : "&#9790;";
   var linksHTML =
-     '<a href="../dashboard/index.html" class="' + (currentPage === "index.html" ? "active" : "") + '">Dashboard</a>' +
-'<a href="../pdv/pdv.html" class="' + (currentPage === "pdv.html" ? "active" : "") + '">Frente de Caixa</a>' +
      '<button type="button" id="themeToggle" class="theme-toggle" title="Alternar tema escuro">' + themeIcon + "</button>";
+
+  var buscaHTML = autenticado
+    ? '<div class="navbar-busca">' +
+      '<input type="text" id="navbarBuscaInput" placeholder="Buscar cliente, produto ou venda #..." autocomplete="off" />' +
+      '<div class="navbar-busca-resultados" id="navbarBuscaResultados"></div>' +
+      "</div>"
+    : "";
 
   nav.innerHTML =
     '<button class="hamburger" id="hamburgerBtn" title="Menu"><span></span><span></span><span></span></button>' +
     '<div class="navbar-brand">Alga ERP</div>' +
+    buscaHTML +
     '<div class="navbar-links">' + linksHTML + "</div>";
 
   document.body.insertBefore(nav, document.body.firstChild);
@@ -275,6 +369,88 @@ sidebar.innerHTML =
       } else {
          window.location.href = "../auth/login.html";
       }
+    });
+  }
+
+  /* ---------- Busca global ---------- */
+  var buscaInput = document.getElementById("navbarBuscaInput");
+  var buscaResultados = document.getElementById("navbarBuscaResultados");
+  var buscaTimer = null;
+
+  function escBusca(t) {
+    return String(t == null ? "" : t)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  function formatarMoedaBusca(v) {
+    return "R$ " + (Number(v) || 0).toFixed(2);
+  }
+
+  function fecharResultadosBusca() {
+    buscaResultados.classList.remove("open");
+    buscaResultados.innerHTML = "";
+  }
+
+  function renderizarResultadosBusca(r) {
+    var partes = [];
+    if (r.clientes && r.clientes.length) {
+      partes.push('<div class="navbar-busca-grupo-titulo">Clientes</div>');
+      r.clientes.forEach(function (c) {
+        partes.push(
+          '<a class="navbar-busca-item" href="../clientes/clientes.html?id=' + c.id + '">' +
+          escBusca((c.codigo ? c.codigo + " - " : "") + c.nome) +
+          (c.telefone ? '<span class="detalhe">' + escBusca(c.telefone) + "</span>" : "") +
+          "</a>",
+        );
+      });
+    }
+    if (r.produtos && r.produtos.length) {
+      partes.push('<div class="navbar-busca-grupo-titulo">Produtos</div>');
+      r.produtos.forEach(function (p) {
+        partes.push(
+          '<a class="navbar-busca-item" href="../produtos/cadastro.html?sku=' + encodeURIComponent(p.sku || "") + '">' +
+          escBusca(p.nome) +
+          '<span class="detalhe">SKU: ' + escBusca(p.sku || "") + " — " + formatarMoedaBusca(p.preco) + "</span>" +
+          "</a>",
+        );
+      });
+    }
+    if (r.vendas && r.vendas.length) {
+      partes.push('<div class="navbar-busca-grupo-titulo">Vendas</div>');
+      r.vendas.forEach(function (v) {
+        partes.push(
+          '<a class="navbar-busca-item" href="../vendas/vendas.html?venda=' + v.id + '">' +
+          "Venda #" + v.id + " — " + formatarMoedaBusca(v.total) +
+          '<span class="detalhe">' + escBusca(v.cliente_nome || "sem cliente") + " · " + escBusca(v.status) + "</span>" +
+          "</a>",
+        );
+      });
+    }
+    if (partes.length === 0) {
+      buscaResultados.innerHTML = '<div class="navbar-busca-vazio">Nenhum resultado encontrado.</div>';
+    } else {
+      buscaResultados.innerHTML = partes.join("");
+    }
+    buscaResultados.classList.add("open");
+  }
+
+  if (buscaInput) {
+    buscaInput.addEventListener("input", function () {
+      var termo = buscaInput.value.trim();
+      clearTimeout(buscaTimer);
+      if (!termo) { fecharResultadosBusca(); return; }
+      buscaTimer = setTimeout(function () {
+        if (!window.erpBanco || !window.erpBanco.busca) return;
+        window.erpBanco.busca.global(termo).then(renderizarResultadosBusca).catch(function () {
+          fecharResultadosBusca();
+        });
+      }, 250);
+    });
+    buscaInput.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") { buscaInput.value = ""; fecharResultadosBusca(); buscaInput.blur(); }
+    });
+    document.addEventListener("click", function (e) {
+      if (!nav.contains(e.target)) fecharResultadosBusca();
     });
   }
   }

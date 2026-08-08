@@ -7,9 +7,9 @@ $Shortcut = Join-Path $Desktop "$Name.lnk"
 $Icon = Join-Path $Root "build\icon.ico"
 
 if ($Dev) {
-    $Target = "powershell.exe"
-    $Arguments = "-NoExit -NoProfile -Command `"cd '$Root'; npm start`""
-    Write-Host "Criando atalho DEV..."
+    $Target = "wscript.exe"
+    $Arguments = "`"$Root\ERP_Launcher.vbs`""
+    Write-Host "Criando atalho DEV (sem janela de console)..."
 } else {
     $Exe = @(Get-ChildItem -Path (Join-Path $Root "dist") -Filter "*.exe" -ErrorAction SilentlyContinue)
     if ($Exe) {

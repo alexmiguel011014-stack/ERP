@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="../core/modulos.css" />
     <title>Alga ERP - Gerenciar Acessos</title>
   </head>
-  <body>
+  <body data-requer-admin="1">
     <div class="container">
       <h1>Gerenciar Acessos</h1>
       <p class="subtitle">Usuários do sistema e suas credenciais de login.</p>
@@ -37,12 +37,30 @@
             <label for="perfil">Perfil de acesso</label>
             <select id="perfil">
               <option value="admin">Admin</option>
+              <option value="vendedor">Vendedor</option>
             </select>
-            <small style="color: #64748b;">Por enquanto apenas o perfil Admin está disponível.</small>
+            <small style="color: #64748b;">Admin acessa tudo. Vendedor acessa só Frente de Caixa (PDV) e Clientes.</small>
+          </div>
+          <div class="form-group" id="grupoComissao" style="display:none;">
+            <label for="comissao">Comissão sobre vendas (%)</label>
+            <input type="number" id="comissao" min="0" max="100" step="0.1" value="0" />
           </div>
           <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
             <input type="checkbox" id="ativo" checked style="width: auto;" />
             <label for="ativo" style="margin: 0;">Usuário ativo (pode entrar no sistema)</label>
+          </div>
+        </div>
+
+        <div class="form-group" id="grupoPermissoes" style="display:none; margin-top:8px;">
+          <label>Módulos liberados (além de PDV e Clientes, sempre disponíveis)</label>
+          <div style="display:flex; flex-wrap:wrap; gap: 14px; margin-top: 6px;">
+            <label style="display:flex; align-items:center; gap:6px; font-weight:400;"><input type="checkbox" class="perm-modulo" value="produtos" style="width:auto;" /> Produtos</label>
+            <label style="display:flex; align-items:center; gap:6px; font-weight:400;"><input type="checkbox" class="perm-modulo" value="estoque" style="width:auto;" /> Estoque</label>
+            <label style="display:flex; align-items:center; gap:6px; font-weight:400;"><input type="checkbox" class="perm-modulo" value="fornecedores" style="width:auto;" /> Fornecedores</label>
+            <label style="display:flex; align-items:center; gap:6px; font-weight:400;"><input type="checkbox" class="perm-modulo" value="compras" style="width:auto;" /> Compras</label>
+            <label style="display:flex; align-items:center; gap:6px; font-weight:400;"><input type="checkbox" class="perm-modulo" value="financeiro" style="width:auto;" /> Financeiro</label>
+            <label style="display:flex; align-items:center; gap:6px; font-weight:400;"><input type="checkbox" class="perm-modulo" value="relatorios" style="width:auto;" /> Relatórios</label>
+            <label style="display:flex; align-items:center; gap:6px; font-weight:400;"><input type="checkbox" class="perm-modulo" value="vendas" style="width:auto;" /> Converter/cancelar orçamento</label>
           </div>
         </div>
         <div class="form-actions">
@@ -60,6 +78,19 @@
       <div class="panel">
         <h2>Usuários cadastrados</h2>
         <div id="listaUsuarios">
+          <div class="empty-state">Carregando...</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Log de atividades</h2>
+        <p class="subtitle" style="margin-bottom: 10px;">Ações de maior impacto no sistema, com quem fez e quando.</p>
+        <div class="filters" style="margin-bottom: 10px;">
+          <select id="filtroLogUsuario"><option value="">Todos os usuários</option></select>
+          <select id="filtroLogAcao"><option value="">Todas as ações</option></select>
+          <button type="button" id="btnAtualizarLog" class="btn btn-small">Atualizar</button>
+        </div>
+        <div id="listaLog">
           <div class="empty-state">Carregando...</div>
         </div>
       </div>

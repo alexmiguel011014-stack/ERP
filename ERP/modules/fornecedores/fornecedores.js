@@ -14,7 +14,133 @@
 	var lista = document.getElementById("listaFornecedores");
 	var mensagem = document.getElementById("mensagem");
 
+	var painelProdutosFornecedor = document.getElementById("painelProdutosFornecedor");
+	var nomeFornecedorAtual = document.getElementById("nomeFornecedorAtual");
+	var pfSku = document.getElementById("pfSku");
+	var pfCusto = document.getElementById("pfCusto");
+	var pfPrazo = document.getElementById("pfPrazo");
+	var pfCodigo = document.getElementById("pfCodigo");
+	var pfPreview = document.getElementById("pfPreview");
+	var btnAddProdutoFornecedor = document.getElementById("btnAddProdutoFornecedor");
+	var listaProdutosFornecedor = document.getElementById("listaProdutosFornecedor");
+
 	var fornecedores = [];
+	var produtoFornecedorAtual = null;
+
+	function detalhesDe(p) {
+		if (window.formatarAtributos)
+			return window.formatarAtributos(p.atributos, p.tamanho, p.cor);
+		return [p.tamanho, p.cor].filter(Boolean).join(" / ") || "---";
+	}
+
+	function formatarMoeda(v) {
+		return "R$ " + (Number(v) || 0).toFixed(2);
+	}
+
+	function limparFormProdutoFornecedor() {
+		produtoFornecedorAtual = null;
+		pfSku.value = "";
+		pfCusto.value = "0";
+		pfPrazo.value = "";
+		pfCodigo.value = "";
+		pfPreview.textContent = "";
+	}
+
+	pfSku.addEventListener("keydown", (e) => {
+		if (e.key !== "Enter") return;
+		e.preventDefault();
+		var sku = pfSku.value.trim().toUpperCase();
+		produtoFornecedorAtual = null;
+		pfPreview.textContent = "";
+		if (!sku) return;
+		window.erpBanco.produtos
+			.buscarSKU(sku)
+			.then((p) => {
+				if (!p) {
+					mostrarMensagem("SKU não encontrado: " + sku, "erro");
+					return;
+				}
+				produtoFornecedorAtual = p;
+				pfPreview.textContent = p.nome + " (" + detalhesDe(p) + ")";
+				pfCusto.focus();
+			})
+			.catch((err) => {
+				mostrarMensagem("Erro ao buscar SKU: " + err, "erro");
+			});
+	});
+
+	function carregarProdutosFornecedor(fornecedorId) {
+		if (!window.api || !window.erpBanco.fornecedores.produtos) return;
+		window.erpBanco.fornecedores
+			.produtos(fornecedorId)
+			.then((rows) => {
+				listaProdutosFornecedor.innerHTML = "";
+				if (!rows || rows.length === 0) {
+					listaProdutosFornecedor.innerHTML =
+						'<div class="empty-state">Nenhum produto vinculado ainda.</div>';
+					return;
+				}
+				rows.forEach((r) => {
+					var div = document.createElement("div");
+					div.className = "item-lista";
+					div.innerHTML =
+						'<div class="info"><div class="titulo"></div><div class="detalhe"></div></div>' +
+						'<div class="acoes"><button type="button" class="btn btn-small btn-danger">Remover</button></div>';
+					div.querySelector(".titulo").textContent =
+						r.produto_nome + " (" + detalhesDe(r) + ")";
+					div.querySelector(".detalhe").textContent =
+						"SKU: " + r.sku + " | Custo: " + formatarMoeda(r.preco_custo) +
+						(r.prazo_entrega_dias != null ? " | Prazo: " + r.prazo_entrega_dias + " dia(s)" : "") +
+						(r.codigo_fornecedor ? " | Código: " + r.codigo_fornecedor : "");
+					div.querySelector("button").addEventListener("click", () => {
+						if (!confirm("Remover o vínculo com " + r.produto_nome + "?")) return;
+						window.erpBanco.fornecedores
+							.removerProduto(r.id)
+							.then(() => {
+								mostrarMensagem("Vínculo removido.", "sucesso");
+								carregarProdutosFornecedor(fornecedorId);
+							})
+							.catch((err) => mostrarMensagem("Erro: " + err, "erro"));
+					});
+					listaProdutosFornecedor.appendChild(div);
+				});
+			})
+			.catch((err) => {
+				listaProdutosFornecedor.innerHTML =
+					'<div class="empty-state">Erro: ' + err + "</div>";
+			});
+	}
+
+	btnAddProdutoFornecedor.addEventListener("click", () => {
+		var fornecedorId = editandoId.value ? Number(editandoId.value) : null;
+		if (!fornecedorId) {
+			mostrarMensagem("Salve o fornecedor antes de vincular produtos.", "erro");
+			return;
+		}
+		if (!produtoFornecedorAtual) {
+			mostrarMensagem("Busque um SKU válido antes de adicionar.", "erro");
+			return;
+		}
+		var custo = Number(pfCusto.value);
+		if (!Number.isFinite(custo) || custo < 0) {
+			mostrarMensagem("Custo inválido.", "erro");
+			return;
+		}
+		window.erpBanco.fornecedores
+			.salvarProduto({
+				fornecedor_id: fornecedorId,
+				variacao_id: produtoFornecedorAtual.id,
+				preco_custo: custo,
+				prazo_entrega_dias: pfPrazo.value !== "" ? parseInt(pfPrazo.value, 10) : null,
+				codigo_fornecedor: pfCodigo.value.trim() || null,
+			})
+			.then(() => {
+				mostrarMensagem("Produto vinculado ao fornecedor!", "sucesso");
+				limparFormProdutoFornecedor();
+				carregarProdutosFornecedor(fornecedorId);
+			})
+			.catch((err) => mostrarMensagem("Erro: " + err, "erro"));
+	});
 
 	function mostrarMensagem(texto, tipo) {
 		mensagem.textContent = texto;
@@ -29,6 +155,8 @@
 		editandoId.value = "";
 		btnSalvar.textContent = "Salvar Fornecedor";
 		btnCancelarEdicao.style.display = "none";
+		painelProdutosFornecedor.style.display = "none";
+		limparFormProdutoFornecedor();
 	}
 
 	function carregar() {
@@ -85,6 +213,10 @@
 					observacao.value = f.observacao || "";
 					btnSalvar.textContent = "Salvar Alterações";
 					btnCancelarEdicao.style.display = "inline-block";
+					nomeFornecedorAtual.textContent = "— " + f.nome;
+					painelProdutosFornecedor.style.display = "block";
+					limparFormProdutoFornecedor();
+					carregarProdutosFornecedor(f.id);
 					window.scrollTo({ top: 0, behavior: "smooth" });
 					nome.focus();
 				});

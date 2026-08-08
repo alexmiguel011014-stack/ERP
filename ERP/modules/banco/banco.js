@@ -7,6 +7,9 @@
   var btnConfirmarSenha = document.getElementById("btnConfirmarSenha");
   var selectTabela = document.getElementById("selectTabela");
   var btnAtualizar = document.getElementById("btnAtualizar");
+  var btnExportar = document.getElementById("btnExportar");
+  var msgExportar = document.getElementById("msgExportar");
+  var resumoTabelas = document.getElementById("resumoTabelas");
   var infoTabela = document.getElementById("infoTabela");
   var containerTabela = document.getElementById("containerTabela");
   var msgSenha = document.getElementById("msgSenha");
@@ -58,9 +61,36 @@
   });
 
   btnAtualizar.addEventListener("click", function () {
+    carregarResumo();
     if (selectTabela.value) consultarTabela(selectTabela.value);
     else carregarTabelas();
   });
+
+  btnExportar.addEventListener("click", function () {
+    btnExportar.disabled = true;
+    btnExportar.textContent = "Exportando...";
+    window.erpBanco.banco
+      .exportarJSON()
+      .then(function (res) {
+        mostrarMensagemExportar(
+          res.tabelas + " tabela(s), " + res.registros + " registro(s) exportados para: " + res.caminho,
+          "success",
+        );
+      })
+      .catch(function (erro) {
+        mostrarMensagemExportar("Erro ao exportar: " + erro, "error");
+      })
+      .finally(function () {
+        btnExportar.disabled = false;
+        btnExportar.textContent = "Exportar Banco (JSON)";
+      });
+  });
+
+  function mostrarMensagemExportar(texto, tipo) {
+    msgExportar.textContent = texto;
+    msgExportar.className = "mensagem " + (tipo || "error");
+    msgExportar.style.display = "block";
+  }
 
   senhaAdmin.addEventListener("keydown", function (e) {
     if (e.key === "Enter") btnConfirmarSenha.click();
@@ -72,6 +102,35 @@
       alert("Falha ao listar tabelas: " + (erro || ""));
       return [];
     });
+  }
+
+  function carregarResumo() {
+    resumoTabelas.innerHTML = '<div class="empty-state">Carregando...</div>';
+    window.erpBanco.banco
+      .resumoTabelas()
+      .then(function (linhas) {
+        resumoTabelas.innerHTML = "";
+        if (!linhas || linhas.length === 0) {
+          resumoTabelas.innerHTML = '<div class="empty-state">Nenhuma tabela encontrada.</div>';
+          return;
+        }
+        linhas.forEach(function (l) {
+          var card = document.createElement("button");
+          card.type = "button";
+          card.className = "resumo-card" + (selectTabela.value === l.tabela ? " ativo" : "");
+          card.innerHTML =
+            '<div class="nome">' + esc(l.tabela) + '</div>' +
+            '<div class="total">' + l.total + '</div>';
+          card.addEventListener("click", function () {
+            selectTabela.value = l.tabela;
+            consultarTabela(l.tabela);
+          });
+          resumoTabelas.appendChild(card);
+        });
+      })
+      .catch(function (erro) {
+        resumoTabelas.innerHTML = '<div class="empty-state">Erro ao carregar resumo: ' + esc(erro) + '</div>';
+      });
   }
 
   function carregarTabelas() {
@@ -88,15 +147,19 @@
         selectTabela.value = atual;
         consultarTabela(atual);
       } else {
-        containerTabela.innerHTML = '<div class="empty-state">Selecione uma tabela para visualizar.</div>';
+        containerTabela.innerHTML = '<div class="empty-state">Selecione uma tabela acima para visualizar os registros.</div>';
         infoTabela.textContent = "";
       }
     });
+    carregarResumo();
   }
 
   function consultarTabela(tabela) {
     containerTabela.innerHTML = '<div class="empty-state">Consultando ' + esc(tabela) + "...</div>";
     infoTabela.textContent = "";
+    Array.prototype.forEach.call(resumoTabelas.querySelectorAll(".resumo-card"), function (c) {
+      c.classList.toggle("ativo", c.querySelector(".nome").textContent === tabela);
+    });
     window.erpBanco.banco
       .consultarTabela(tabela, 200)
       .then(function (res) {
@@ -132,4 +195,19 @@
     painelDados.style.display = "none";
     painelSenha.style.display = "flex";
   });
+
+  // A página só mostra o gate de senha (ou o painel de dados, se já
+  // autorizado nesta sessão) — sem isso nada aparece na tela.
+  function iniciarBanco() {
+    if (!autorizado) {
+      painelSenha.style.display = "flex";
+      senhaAdmin.focus();
+    }
+  }
+
+  if (window.erpAuthPromise) {
+    window.erpAuthPromise.then(iniciarBanco).catch(function () {});
+  } else {
+    iniciarBanco();
+  }
 })();

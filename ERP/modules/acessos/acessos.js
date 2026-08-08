@@ -7,6 +7,10 @@
 	var confirmar = document.getElementById("senhaConfirmar");
 	var ativo = document.getElementById("ativo");
 	var perfil = document.getElementById("perfil");
+	var grupoComissao = document.getElementById("grupoComissao");
+	var comissao = document.getElementById("comissao");
+	var grupoPermissoes = document.getElementById("grupoPermissoes");
+	var checksPermissoes = Array.prototype.slice.call(document.querySelectorAll(".perm-modulo"));
 	var btnSalvar = document.getElementById("btnSalvar");
 	var btnLimpar = document.getElementById("btnLimpar");
 	var btnCancelarEdicao = document.getElementById("btnCancelarEdicao");
@@ -31,6 +35,10 @@
 		form.reset();
 		ativo.checked = true;
 		perfil.value = "admin";
+		comissao.value = "0";
+		grupoComissao.style.display = "none";
+		grupoPermissoes.style.display = "none";
+		checksPermissoes.forEach((c) => { c.checked = false; });
 		senha.required = true;
 		senhaHint.style.display = "none";
 		btnSalvar.textContent = "Salvar Usuário";
@@ -38,6 +46,12 @@
 		login.disabled = false;
 		login.readOnly = false;
 	}
+
+	perfil.addEventListener("change", () => {
+		var ehVendedor = perfil.value === "vendedor";
+		grupoComissao.style.display = ehVendedor ? "block" : "none";
+		grupoPermissoes.style.display = ehVendedor ? "block" : "none";
+	});
 
 	function carregar() {
 		if (!window.api || !window.erpBanco.usuarios.listar) {
@@ -53,6 +67,7 @@
 			.then((rows) => {
 				usuarios = Array.isArray(rows) ? rows : [];
 				renderizar();
+				preencherFiltrosLog();
 			})
 			.catch((err) => {
 				lista.innerHTML = '<div class="empty-state">Erro: ' + err + "</div>";
@@ -105,7 +120,14 @@
 					nome.value = u.nome || "";
 					login.value = u.login || "";
 					ativo.checked = Number(u.ativo) === 1;
-					perfil.value = u.perfil === "admin" ? "admin" : "admin";
+					perfil.value = u.perfil === "vendedor" ? "vendedor" : "admin";
+					comissao.value = Number(u.comissao_percentual) || 0;
+					var ehVendedor = perfil.value === "vendedor";
+					grupoComissao.style.display = ehVendedor ? "block" : "none";
+					grupoPermissoes.style.display = ehVendedor ? "block" : "none";
+					var permissoesUsuario = {};
+					try { permissoesUsuario = JSON.parse(u.permissoes || "{}") || {}; } catch (e) { permissoesUsuario = {}; }
+					checksPermissoes.forEach((c) => { c.checked = permissoesUsuario[c.value] === true; });
 					senha.value = "";
 					confirmar.value = "";
 					senha.required = false;
@@ -123,12 +145,16 @@
 			if (btnAlternar) {
 				btnAlternar.addEventListener("click", () => {
 					var novoEstado = Number(u.ativo) === 1 ? 0 : 1;
+					var permissoesAtuais = {};
+					try { permissoesAtuais = JSON.parse(u.permissoes || "{}") || {}; } catch (e) { permissoesAtuais = {}; }
 					window.erpBanco.usuarios
 						.salvar({
 							id: u.id,
 							login: u.login,
 							nome: u.nome,
 							perfil: u.perfil,
+							comissao_percentual: u.comissao_percentual,
+							permissoes: permissoesAtuais,
 							ativo: novoEstado === 1,
 							senha: "",
 						})
@@ -201,16 +227,21 @@
 			return;
 		}
 
+		var permissoesSelecionadas = {};
+		checksPermissoes.forEach((c) => { if (c.checked) permissoesSelecionadas[c.value] = true; });
+
 		var dados = {
 			login: loginVal,
 			nome: nome.value.trim(),
-			perfil: "admin",
+			perfil: perfil.value === "vendedor" ? "vendedor" : "admin",
+			comissao_percentual: parseFloat(comissao.value) || 0,
 			ativo: ativo.checked,
 			senha: senhaVal,
+			permissoes: permissoesSelecionadas,
 		};
 		if (editando) dados.id = Number(editandoId.value);
 
-		// Não permite desativar/excluir a si mesmo.
+		// Não permite desativar/excluir a si mesmo, nem tirar o próprio acesso admin.
 		if (
 			editando &&
 			sessaoUsuario &&
@@ -218,6 +249,15 @@
 			!dados.ativo
 		) {
 			mostrarMensagem("Você não pode desativar o próprio usuário.", "erro");
+			return;
+		}
+		if (
+			editando &&
+			sessaoUsuario &&
+			sessaoUsuario.id === dados.id &&
+			dados.perfil !== "admin"
+		) {
+			mostrarMensagem("Você não pode remover o próprio acesso de admin.", "erro");
 			return;
 		}
 
@@ -242,5 +282,90 @@
 	btnLimpar.addEventListener("click", limparEdicao);
 	btnCancelarEdicao.addEventListener("click", limparEdicao);
 
+	/* ==================== Log de atividades ==================== */
+
+	var filtroLogUsuario = document.getElementById("filtroLogUsuario");
+	var filtroLogAcao = document.getElementById("filtroLogAcao");
+	var btnAtualizarLog = document.getElementById("btnAtualizarLog");
+	var listaLog = document.getElementById("listaLog");
+
+	var ACOES_LOG = [
+		"login", "criar-produto", "editar-produto", "excluir-produto",
+		"restaurar-produto", "excluir-produto-permanente",
+		"alterar-preco", "finalizar-venda", "criar-orcamento",
+		"excluir-cliente", "restaurar-cliente", "excluir-cliente-permanente",
+		"criar-pedido-compra", "receber-pedido-compra", "cancelar-pedido-compra",
+		"criar-lancamento", "baixar-lancamento", "excluir-lancamento",
+		"abrir-caixa", "fechar-caixa",
+		"criar-usuario", "editar-usuario", "excluir-usuario",
+	];
+
+	function preencherFiltrosLog() {
+		filtroLogUsuario.innerHTML = '<option value="">Todos os usuários</option>';
+		usuarios.forEach((u) => {
+			var opt = document.createElement("option");
+			opt.value = u.id;
+			opt.textContent = u.nome || u.login;
+			filtroLogUsuario.appendChild(opt);
+		});
+		filtroLogAcao.innerHTML = '<option value="">Todas as ações</option>';
+		ACOES_LOG.forEach((a) => {
+			var opt = document.createElement("option");
+			opt.value = a;
+			opt.textContent = a;
+			filtroLogAcao.appendChild(opt);
+		});
+	}
+
+	function formatarDataHora(iso) {
+		if (!iso) return "---";
+		try {
+			return new Date(iso).toLocaleString("pt-BR");
+		} catch (e) {
+			return iso;
+		}
+	}
+
+	function carregarLog() {
+		if (!window.api || !window.erpBanco.banco.logAtividades) {
+			listaLog.innerHTML = '<div class="empty-state">API indisponível.</div>';
+			return;
+		}
+		var filtro = {
+			usuarioId: filtroLogUsuario.value ? Number(filtroLogUsuario.value) : undefined,
+			acao: filtroLogAcao.value || undefined,
+		};
+		listaLog.innerHTML = '<div class="empty-state">Carregando...</div>';
+		window.erpBanco.banco
+			.logAtividades(filtro)
+			.then((linhas) => {
+				listaLog.innerHTML = "";
+				if (!linhas || linhas.length === 0) {
+					listaLog.innerHTML = '<div class="empty-state">Nenhuma atividade registrada.</div>';
+					return;
+				}
+				linhas.forEach((l) => {
+					var div = document.createElement("div");
+					div.className = "item-lista";
+					div.innerHTML = '<div class="info"><div class="titulo"></div><div class="detalhe"></div></div>';
+					div.querySelector(".titulo").textContent =
+						(l.usuario_login || "sistema") + " — " + l.acao;
+					var partes = [formatarDataHora(l.data)];
+					if (l.entidade) partes.push(l.entidade + (l.entidade_id ? " #" + l.entidade_id : ""));
+					if (l.detalhes) partes.push(l.detalhes);
+					div.querySelector(".detalhe").textContent = partes.join(" | ");
+					listaLog.appendChild(div);
+				});
+			})
+			.catch((err) => {
+				listaLog.innerHTML = '<div class="empty-state">Erro: ' + err + "</div>";
+			});
+	}
+
+	btnAtualizarLog.addEventListener("click", carregarLog);
+	filtroLogUsuario.addEventListener("change", carregarLog);
+	filtroLogAcao.addEventListener("change", carregarLog);
+
 	carregar();
+	carregarLog();
 })();

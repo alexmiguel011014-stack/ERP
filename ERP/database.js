@@ -419,6 +419,27 @@ async function iniciarBanco() {
   `,
 	);
 
+	// Tabela de preços por fornecedor: qual fornecedor vende qual SKU, a que
+	// custo e prazo de entrega — usada para sugerir o custo ao lançar um
+	// pedido de compra (em vez de digitar de cabeça toda vez).
+	await runOn(
+		conexao,
+		`
+    CREATE TABLE IF NOT EXISTS FornecedorProdutos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      fornecedor_id INTEGER NOT NULL,
+      variacao_id INTEGER NOT NULL,
+      preco_custo REAL NOT NULL DEFAULT 0,
+      prazo_entrega_dias INTEGER,
+      codigo_fornecedor TEXT,
+      observacao TEXT,
+      FOREIGN KEY (fornecedor_id) REFERENCES Fornecedores(id) ON DELETE CASCADE,
+      FOREIGN KEY (variacao_id) REFERENCES Variacoes(id) ON DELETE CASCADE,
+      UNIQUE (fornecedor_id, variacao_id)
+    )
+  `,
+	);
+
 	await runOn(
 		conexao,
 		`
@@ -469,6 +490,98 @@ async function iniciarBanco() {
   `,
 	);
 
+	// Devolução/troca: estorna item(ns) de uma venda finalizada de volta ao estoque.
+	await runOn(
+		conexao,
+		`
+    CREATE TABLE IF NOT EXISTS Devolucoes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      venda_id INTEGER NOT NULL,
+      motivo TEXT,
+      valor_total REAL NOT NULL DEFAULT 0,
+      usuario_id INTEGER,
+      data TEXT,
+      FOREIGN KEY (venda_id) REFERENCES Vendas(id) ON DELETE CASCADE,
+      FOREIGN KEY (usuario_id) REFERENCES Usuarios(id) ON DELETE SET NULL
+    )
+  `,
+	);
+
+	await runOn(
+		conexao,
+		`
+    CREATE TABLE IF NOT EXISTS ItensDevolucao (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      devolucao_id INTEGER NOT NULL,
+      item_venda_id INTEGER NOT NULL,
+      variacao_id INTEGER NOT NULL,
+      quantidade INTEGER NOT NULL,
+      preco_unitario REAL NOT NULL,
+      FOREIGN KEY (devolucao_id) REFERENCES Devolucoes(id) ON DELETE CASCADE,
+      FOREIGN KEY (item_venda_id) REFERENCES ItensVenda(id) ON DELETE CASCADE,
+      FOREIGN KEY (variacao_id) REFERENCES Variacoes(id) ON DELETE RESTRICT
+    )
+  `,
+	);
+
+	// Preço combinado por cliente para uma variação específica (tabela de preço
+	// dedicada) — se não houver linha aqui, o PDV usa o preço padrão da variação.
+	await runOn(
+		conexao,
+		`
+    CREATE TABLE IF NOT EXISTS PrecoCliente (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      cliente_id INTEGER NOT NULL,
+      variacao_id INTEGER NOT NULL,
+      preco REAL NOT NULL,
+      FOREIGN KEY (cliente_id) REFERENCES Clientes(id) ON DELETE CASCADE,
+      FOREIGN KEY (variacao_id) REFERENCES Variacoes(id) ON DELETE CASCADE,
+      UNIQUE (cliente_id, variacao_id)
+    )
+  `,
+	);
+
+	// Log de auditoria: quem fez o quê, quando — cobre as ações de maior
+	// impacto (não instrumenta as 80+ funções do backend, só as que importam
+	// para responsabilização em um ambiente multiusuário).
+	await runOn(
+		conexao,
+		`
+    CREATE TABLE IF NOT EXISTS LogAtividades (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      usuario_id INTEGER,
+      usuario_login TEXT,
+      acao TEXT NOT NULL,
+      entidade TEXT,
+      entidade_id INTEGER,
+      detalhes TEXT,
+      data TEXT NOT NULL
+    )
+  `,
+	);
+
+	// Fechamento de caixa: um registro por sessão de caixa (abertura -> fechamento).
+	// O valor esperado em dinheiro é calculado a partir das vendas finalizadas
+	// em "Dinheiro" registradas dentro da janela de tempo aberta.
+	await runOn(
+		conexao,
+		`
+    CREATE TABLE IF NOT EXISTS FechamentosCaixa (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      data_abertura TEXT NOT NULL,
+      valor_abertura REAL NOT NULL DEFAULT 0,
+      data_fechamento TEXT,
+      valor_informado REAL,
+      valor_esperado REAL,
+      diferenca REAL,
+      usuario_abertura_id INTEGER,
+      usuario_fechamento_id INTEGER,
+      observacao TEXT,
+      status TEXT NOT NULL DEFAULT 'aberto'
+    )
+  `,
+	);
+
 	// Margem padrão global inicial (se não existir)
 	await runOn(
 		conexao,
@@ -481,6 +594,8 @@ async function iniciarBanco() {
 			"categoria_id INTEGER REFERENCES Categorias(id) ON DELETE SET NULL",
 		subcategoria_id:
 			"subcategoria_id INTEGER REFERENCES Categorias(id) ON DELETE SET NULL",
+		imagem: "imagem TEXT",
+		ativo: "ativo INTEGER NOT NULL DEFAULT 1",
 	});
 	await migrarColunas(conexao, "Variacoes", {
 		preco_custo: "preco_custo REAL NOT NULL DEFAULT 0",
@@ -494,6 +609,7 @@ async function iniciarBanco() {
 		cpf_cnpj: "cpf_cnpj TEXT",
 		email: "email TEXT",
 		endereco: "endereco TEXT",
+		ativo: "ativo INTEGER NOT NULL DEFAULT 1",
 	});
 	await runOn(
 		conexao,
@@ -503,6 +619,33 @@ async function iniciarBanco() {
 		desconto: "desconto REAL NOT NULL DEFAULT 0",
 		observacao: "observacao TEXT",
 		status: "status TEXT NOT NULL DEFAULT 'finalizada'",
+		usuario_id: "usuario_id INTEGER REFERENCES Usuarios(id) ON DELETE SET NULL",
+	});
+	await migrarColunas(conexao, "Precificacao", {
+		aplicar_custo_fixo: "aplicar_custo_fixo INTEGER NOT NULL DEFAULT 1",
+	});
+	await migrarColunas(conexao, "Usuarios", {
+		comissao_percentual: "comissao_percentual REAL NOT NULL DEFAULT 0",
+		// JSON com toggles por módulo p/ perfil vendedor, ex: {"relatorios":true}.
+		// Admin ignora este campo (sempre tem acesso total). Ausente = "{}".
+		permissoes: "permissoes TEXT NOT NULL DEFAULT '{}'",
+	});
+	// Parcelamento: lançamentos da mesma compra/venda a prazo compartilham um
+	// grupo_id, cada linha é uma parcela (parcela_num de parcela_total).
+	await migrarColunas(conexao, "LancamentosFinanceiros", {
+		grupo_id: "grupo_id TEXT",
+		parcela_num: "parcela_num INTEGER NOT NULL DEFAULT 1",
+		parcela_total: "parcela_total INTEGER NOT NULL DEFAULT 1",
+	});
+	// Reserva de estoque: orçamento passa a reservar quantidade (sem baixar o
+	// saldo real) para não ser vendida duas vezes até virar venda ou expirar.
+	await migrarColunas(conexao, "Variacoes", {
+		quantidade_reservada: "quantidade_reservada INTEGER NOT NULL DEFAULT 0",
+	});
+	// Recebimento parcial: cada item do pedido guarda quanto já foi recebido;
+	// o pedido só vira 'recebido' quando todo item atingir sua quantidade.
+	await migrarColunas(conexao, "ItensPedidoCompra", {
+		quantidade_recebida: "quantidade_recebida INTEGER NOT NULL DEFAULT 0",
 	});
 	await criarVariacoesPadrao(conexao);
 }
@@ -726,14 +869,16 @@ async function buscarSKU(sku) {
 		});
 
 	const row = await get(
-		`SELECT v.id AS id, p.nome, p.categoria AS categoria_legada,
+		`SELECT v.id AS id, p.id AS produto_id, p.nome, p.categoria AS categoria_legada,
             c.nome AS categoria_nome, s.nome AS subcategoria_nome,
-            v.tamanho, v.cor, v.preco, v.preco_custo, v.quantidade_estoque, v.estoque_minimo, v.sku, v.atributos
+            v.tamanho, v.cor, v.preco, v.preco_custo, v.quantidade_estoque, v.quantidade_reservada,
+            (v.quantidade_estoque - v.quantidade_reservada) AS quantidade_disponivel,
+            v.estoque_minimo, v.sku, v.atributos, p.imagem
      FROM Variacoes v
      JOIN Produtos p ON p.id = v.produto_id
      LEFT JOIN Categorias c ON c.id = p.categoria_id
      LEFT JOIN Categorias s ON s.id = p.subcategoria_id
-     WHERE UPPER(v.sku) = ?`,
+     WHERE UPPER(v.sku) = ? AND p.ativo = 1`,
 		[String(sku).trim().toUpperCase()],
 	);
 
@@ -754,9 +899,12 @@ async function buscarProdutosPorTermo(termo) {
 	const alvo = normalizarBusca(texto);
 	const linhas = await all(
 		`SELECT v.id AS id, p.id AS produto_id, v.sku, p.nome, v.tamanho, v.cor, v.preco,
-              v.quantidade_estoque, v.estoque_minimo, v.atributos
+              v.quantidade_estoque, v.quantidade_reservada,
+              (v.quantidade_estoque - v.quantidade_reservada) AS quantidade_disponivel,
+              v.estoque_minimo, v.atributos, p.imagem
        FROM Variacoes v
        JOIN Produtos p ON p.id = v.produto_id
+       WHERE p.ativo = 1
         ORDER BY p.nome`,
 	);
 	if (!alvo) return linhas.slice(0, 100);
@@ -991,7 +1139,7 @@ async function finalizarVendaPDV02(dados) {
 	}
 }
 
-async function listProdutosDetalhados() {
+async function listProdutosDetalhados(incluirInativos) {
 	const conn = getConexao();
 
 	const all = (sql, params = []) =>
@@ -1005,11 +1153,13 @@ async function listProdutosDetalhados() {
 	const produtos = await all(
 		`SELECT p.id, p.nome, p.categoria AS categoria_legada,
             c.nome AS categoria_nome, s.nome AS subcategoria_nome,
-            p.categoria_id, p.subcategoria_id
+            p.categoria_id, p.subcategoria_id, p.imagem, p.ativo
      FROM Produtos p
      LEFT JOIN Categorias c ON c.id = p.categoria_id
      LEFT JOIN Categorias s ON s.id = p.subcategoria_id
+     WHERE ? OR p.ativo = 1
      ORDER BY p.nome COLLATE NOCASE`,
+		[incluirInativos ? 1 : 0],
 	);
 	const variacoes = await all(
 		`SELECT v.produto_id, v.id AS variacao_id, v.sku, v.tamanho, v.cor,
@@ -1035,6 +1185,8 @@ async function listProdutosDetalhados() {
 		subcategoria_nome: p.subcategoria_nome,
 		categoria_id: p.categoria_id,
 		subcategoria_id: p.subcategoria_id,
+		imagem: p.imagem,
+		ativo: p.ativo,
 		categorias_selecionadas: catsProd
 			.filter((c) => c.produto_id === p.id)
 			.map((c) => ({
@@ -1194,7 +1346,9 @@ async function atualizarProduto(id, produto, variacoes) {
 			return { success: true, produtoId: id, variacoesPreservadas: true };
 		}
 
-		// Substituição completa de variações (uso futuro da aba comercial).
+		// Sincronização por SKU: variações que já existiam são preservadas (o
+		// mesmo id, então histórico de movimentações e vendas continua íntegro);
+		// só SKUs novos na grade viram INSERT e só os removidos viram DELETE.
 		let proximoSku = null;
 		for (const v of variacoesLista) {
 			if (String(v.sku || "").trim()) continue;
@@ -1207,30 +1361,50 @@ async function atualizarProduto(id, produto, variacoes) {
 			v.sku = "P" + String(proximoSku++).padStart(4, "0");
 		}
 
-		const vendido = await get(
-			`SELECT COUNT(*) AS n FROM ItensVenda iv
-       JOIN Variacoes v ON v.id = iv.variacao_id
-       WHERE v.produto_id = ?`,
-			[id],
-		);
-		if (vendido.n > 0) {
-			throw new Error(
-				"Não é possível editar este produto pois ele possui variações com vendas registradas.",
-			);
-		}
-
 		// SKUs únicos: sem duplicatas na grade e sem conflito com outros produtos.
 		const skusVistos = new Set();
+		const validadas = [];
 		for (const v of variacoesLista) {
-			const { sku } = validarVariacao(v);
-			if (skusVistos.has(sku))
-				throw new Error("SKU duplicado na grade: " + sku);
-			skusVistos.add(sku);
+			const validada = validarVariacao(v);
+			if (skusVistos.has(validada.sku))
+				throw new Error("SKU duplicado na grade: " + validada.sku);
+			skusVistos.add(validada.sku);
 			const outro = await get(
 				"SELECT id FROM Variacoes WHERE UPPER(sku) = ? AND produto_id != ?",
-				[sku, id],
+				[validada.sku, id],
 			);
-			if (outro) throw new Error("Já existe uma variação com o SKU: " + sku);
+			if (outro)
+				throw new Error("Já existe uma variação com o SKU: " + validada.sku);
+			validadas.push({ ...validada, estoque_minimo: v.estoque_minimo });
+		}
+
+		const existentes = await new Promise((resolve, reject) => {
+			conn.all(
+				"SELECT id, sku, preco, preco_custo, estoque_minimo FROM Variacoes WHERE produto_id = ?",
+				[id],
+				(erro, linhas) => (erro ? reject(erro) : resolve(linhas)),
+			);
+		});
+		const existentesPorSku = new Map(
+			existentes.map((e) => [String(e.sku).toUpperCase(), e]),
+		);
+		const skusMantidos = new Set(validadas.map((v) => v.sku));
+
+		// Remove variações que saíram da grade — bloqueado se já tiverem vendas.
+		for (const e of existentes) {
+			if (skusMantidos.has(String(e.sku).toUpperCase())) continue;
+			const vendida = await get(
+				"SELECT COUNT(*) AS n FROM ItensVenda WHERE variacao_id = ?",
+				[e.id],
+			);
+			if (vendida.n > 0) {
+				throw new Error(
+					"Não é possível remover a variação " +
+						e.sku +
+						" pois ela possui vendas registradas.",
+				);
+			}
+			await run("DELETE FROM Variacoes WHERE id = ?", [e.id]);
 		}
 
 		await run(
@@ -1243,31 +1417,46 @@ async function atualizarProduto(id, produto, variacoes) {
 				id,
 			],
 		);
-		await run("DELETE FROM Variacoes WHERE produto_id = ?", [id]);
 
-		for (const v of variacoesLista) {
-			const { sku, preco, precoCusto, estoque, atributos } = validarVariacao(v);
+		for (const v of validadas) {
 			// Fallback legado: se os atributos contêm Tamanho/Cor, espelha nas colunas antigas.
-			const tamanho =
-				obterAtributoLegado(atributos, "tamanho") || v.tamanho || null;
-			const cor = obterAtributoLegado(atributos, "cor") || v.cor || null;
-			await run(
-				"INSERT INTO Variacoes (produto_id, sku, tamanho, cor, preco, preco_custo, quantidade_estoque, estoque_minimo, atributos) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-				[
-					id,
-					sku,
-					tamanho,
-					cor,
-					preco,
-					precoCusto,
-					estoque,
-					Number.isInteger(Number(v.estoque_minimo)) &&
-					Number(v.estoque_minimo) >= 0
-						? Number(v.estoque_minimo)
-						: 5,
-					JSON.stringify(atributos),
-				],
-			);
+			const tamanho = obterAtributoLegado(v.atributos, "tamanho") || null;
+			const cor = obterAtributoLegado(v.atributos, "cor") || null;
+			const existente = existentesPorSku.get(v.sku);
+			const estoqueMinimo =
+				Number.isInteger(Number(v.estoque_minimo)) &&
+				Number(v.estoque_minimo) >= 0
+					? Number(v.estoque_minimo)
+					: existente
+						? existente.estoque_minimo
+						: 5;
+
+			if (existente) {
+				// Já existia: preserva id, preço e saldo de estoque (quantidade só
+				// muda pela aba Estoque) — só os dados descritivos são atualizados.
+				await run(
+					"UPDATE Variacoes SET tamanho = ?, cor = ?, atributos = ?, estoque_minimo = ? WHERE id = ?",
+					[tamanho, cor, JSON.stringify(v.atributos), estoqueMinimo, existente.id],
+				);
+			} else {
+				// Variação nova: herda preço/custo de uma irmã já cadastrada para
+				// não nascer com preço zerado enquanto as demais já têm preço.
+				const irma = existentes[0];
+				await run(
+					"INSERT INTO Variacoes (produto_id, sku, tamanho, cor, preco, preco_custo, quantidade_estoque, estoque_minimo, atributos) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+					[
+						id,
+						v.sku,
+						tamanho,
+						cor,
+						irma ? irma.preco : 0,
+						irma ? irma.preco_custo : 0,
+						v.estoque,
+						estoqueMinimo,
+						JSON.stringify(v.atributos),
+					],
+				);
+			}
 		}
 
 		await run("COMMIT");
@@ -1278,7 +1467,26 @@ async function atualizarProduto(id, produto, variacoes) {
 	}
 }
 
+// Exclusão é lógica (ativo=0): produto some das listas/buscas normais mas
+// fica recuperável na Lixeira, e vendas antigas continuam referenciando as
+// variações sem quebrar (nada em Variacoes/ItensVenda é tocado).
 async function removerProduto(id) {
+	const existente = await getAsync("SELECT id FROM Produtos WHERE id = ?", [id]);
+	if (!existente) throw new Error("Produto não encontrado.");
+
+	await runAsync("UPDATE Produtos SET ativo = 0 WHERE id = ?", [id]);
+	return { success: true };
+}
+
+async function restaurarProduto(id) {
+	const existente = await getAsync("SELECT id FROM Produtos WHERE id = ?", [id]);
+	if (!existente) throw new Error("Produto não encontrado.");
+
+	await runAsync("UPDATE Produtos SET ativo = 1 WHERE id = ?", [id]);
+	return { success: true };
+}
+
+async function excluirProdutoPermanente(id) {
 	const conn = getConexao();
 
 	const run = (sql, params = []) =>
@@ -1300,8 +1508,10 @@ async function removerProduto(id) {
 	await run("BEGIN TRANSACTION");
 
 	try {
-		const existente = await get("SELECT id FROM Produtos WHERE id = ?", [id]);
+		const existente = await get("SELECT id, ativo FROM Produtos WHERE id = ?", [id]);
 		if (!existente) throw new Error("Produto não encontrado.");
+		if (Number(existente.ativo) === 1)
+			throw new Error("Envie o produto para a lixeira antes de excluir definitivamente.");
 
 		const vendido = await get(
 			`SELECT COUNT(*) AS n FROM ItensVenda iv
@@ -1323,6 +1533,59 @@ async function removerProduto(id) {
 		await run("ROLLBACK");
 		throw erro;
 	}
+}
+
+/* ============ Imagem do produto ============ */
+
+function pastaImagensProdutos() {
+	const dir = path.join(app.getPath("userData"), "produto-imagens");
+	if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+	return dir;
+}
+
+// Copia o arquivo escolhido (caminho absoluto já validado pelo diálogo nativo
+// do main.js) para a pasta de imagens do app e grava o nome do arquivo salvo.
+// Remove a imagem anterior do produto, se houver, para não acumular lixo.
+async function salvarImagemProduto(produtoId, caminhoOrigem) {
+	const id = Number(produtoId);
+	if (!Number.isInteger(id) || id <= 0) throw new Error("Produto inválido.");
+	if (!caminhoOrigem || !fs.existsSync(caminhoOrigem))
+		throw new Error("Arquivo de imagem não encontrado.");
+
+	const extensoesPermitidas = [".png", ".jpg", ".jpeg", ".webp"];
+	const ext = path.extname(caminhoOrigem).toLowerCase();
+	if (!extensoesPermitidas.includes(ext))
+		throw new Error("Formato de imagem não suportado. Use PNG, JPG ou WEBP.");
+
+	const produto = await getAsync("SELECT imagem FROM Produtos WHERE id = ?", [id]);
+	if (!produto) throw new Error("Produto não encontrado.");
+
+	const dir = pastaImagensProdutos();
+	const nomeArquivo = "produto-" + id + "-" + Date.now() + ext;
+	fs.copyFileSync(caminhoOrigem, path.join(dir, nomeArquivo));
+
+	if (produto.imagem) {
+		try { fs.unlinkSync(path.join(dir, produto.imagem)); } catch (e) { /* já não existe */ }
+	}
+
+	await runAsync("UPDATE Produtos SET imagem = ? WHERE id = ?", [nomeArquivo, id]);
+	return { success: true, imagem: nomeArquivo, caminho: path.join(dir, nomeArquivo) };
+}
+
+async function removerImagemProduto(produtoId) {
+	const id = Number(produtoId);
+	const produto = await getAsync("SELECT imagem FROM Produtos WHERE id = ?", [id]);
+	if (!produto) throw new Error("Produto não encontrado.");
+	if (produto.imagem) {
+		try { fs.unlinkSync(path.join(pastaImagensProdutos(), produto.imagem)); } catch (e) { /* já não existe */ }
+	}
+	await runAsync("UPDATE Produtos SET imagem = NULL WHERE id = ?", [id]);
+	return { success: true };
+}
+
+function getCaminhoImagemProduto(nomeArquivo) {
+	if (!nomeArquivo) return null;
+	return path.join(pastaImagensProdutos(), nomeArquivo);
 }
 
 async function getListCategoriasWithUsage() {
@@ -1471,7 +1734,7 @@ async function getPricingData() {
 	const rows = await all(
 		`SELECT pr.id, pr.produto_id, p.nome AS produto_nome, p.categoria_id,
             pr.preco_custo, pr.impostos_extras, pr.margem_percentual,
-            pr.preco_venda, pr.status,
+            pr.preco_venda, pr.status, pr.aplicar_custo_fixo,
             COALESCE(v.preco_custo, 0) AS custo_variacao,
             COALESCE(v.preco, 0) AS preco_variacao,
             v.sku AS sku_primeiro,
@@ -1505,7 +1768,55 @@ async function getPricingData() {
 		preco_variacao: Number(r.preco_variacao || 0),
 		sku_primeiro: r.sku_primeiro || null,
 		categorias: r.categorias || null,
+		aplicar_custo_fixo: !!r.aplicar_custo_fixo,
 	}));
+}
+
+// Custo fixo mensal (aluguel, salários, etc.) diluído por unidade vendida,
+// para compor o preço de venda junto do custo variável do produto. O admin
+// informa o total mensal e o volume de vendas estimado no mês; o valor por
+// unidade é sempre recalculado a partir desses dois números.
+async function getCustoFixoConfig() {
+	const linhas = await allAsync(
+		"SELECT chave, valor FROM Configuracao WHERE chave IN ('custo_fixo_mensal', 'custo_fixo_volume_mensal')",
+	);
+	const mapa = {};
+	linhas.forEach((l) => {
+		mapa[l.chave] = l.valor;
+	});
+	const mensal = parseFloat(mapa.custo_fixo_mensal) || 0;
+	const volumeMensal = parseInt(mapa.custo_fixo_volume_mensal, 10) || 0;
+	return {
+		mensal,
+		volumeMensal,
+		porUnidade: volumeMensal > 0 ? mensal / volumeMensal : 0,
+	};
+}
+
+async function saveCustoFixoConfig(mensal, volumeMensal) {
+	const mensalVal = Number(mensal);
+	const volumeVal = Number(volumeMensal);
+	if (!Number.isFinite(mensalVal) || mensalVal < 0)
+		throw new Error("Custo fixo mensal inválido.");
+	if (!Number.isInteger(volumeVal) || volumeVal < 0)
+		throw new Error("Volume de vendas estimado inválido.");
+	await runAsync(
+		"INSERT OR REPLACE INTO Configuracao (chave, valor) VALUES ('custo_fixo_mensal', ?)",
+		[String(mensalVal)],
+	);
+	await runAsync(
+		"INSERT OR REPLACE INTO Configuracao (chave, valor) VALUES ('custo_fixo_volume_mensal', ?)",
+		[String(volumeVal)],
+	);
+	return { success: true };
+}
+
+async function saveAplicarCustoFixo(produtoId, aplicar) {
+	await runAsync(
+		"UPDATE Precificacao SET aplicar_custo_fixo = ? WHERE produto_id = ?",
+		[aplicar ? 1 : 0, produtoId],
+	);
+	return { success: true };
 }
 
 async function saveProductMargin(produtoId, margem) {
@@ -1602,7 +1913,7 @@ async function massUpdateMargem(produtoIds, margem) {
 	}
 }
 
-async function finalizarVenda(dados) {
+async function finalizarVenda(dados, usuarioId) {
 	const conn = getConexao();
 
 	const run = (sql, params = []) =>
@@ -1636,7 +1947,7 @@ async function finalizarVenda(dados) {
 
 	try {
 		const result = await run(
-			"INSERT INTO Vendas (cliente_id, total, forma_pagamento, data_venda, desconto, observacao, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			"INSERT INTO Vendas (cliente_id, total, forma_pagamento, data_venda, desconto, observacao, status, usuario_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
 			[
 				clienteId,
 				total,
@@ -1645,6 +1956,7 @@ async function finalizarVenda(dados) {
 				desconto,
 				observacao,
 				status,
+				usuarioId || null,
 			],
 		);
 		const vendaId = result.lastID;
@@ -1655,8 +1967,34 @@ async function finalizarVenda(dados) {
 				[vendaId, item.variacao_id, item.quantidade, item.preco_unitario],
 			);
 
-			// Orçamento é intenção de compra: não movimenta estoque.
-			if (status === "orcamento") continue;
+			// Orçamento não baixa estoque, mas reserva a quantidade para que não
+			// seja vendida por outra frente enquanto o orçamento está em aberto.
+			if (status === "orcamento") {
+				const reserva = await run(
+					"UPDATE Variacoes SET quantidade_reservada = quantidade_reservada + ? WHERE id = ? AND (quantidade_estoque - quantidade_reservada) >= ?",
+					[item.quantidade, item.variacao_id, item.quantidade],
+				);
+				if (reserva.changes === 0) {
+					const varRow = await get(
+						"SELECT v.sku, v.quantidade_estoque, v.quantidade_reservada, p.nome FROM Variacoes v JOIN Produtos p ON p.id = v.produto_id WHERE v.id = ?",
+						[item.variacao_id],
+					);
+					const rotulo = varRow
+						? varRow.nome + " (" + varRow.sku + ")"
+						: "item " + item.variacao_id;
+					const disponivel = varRow
+						? varRow.quantidade_estoque - varRow.quantidade_reservada
+						: 0;
+					throw new Error(
+						"Estoque disponível insuficiente para reservar " +
+							rotulo +
+							". Disponível: " +
+							disponivel +
+							".",
+					);
+				}
+				continue;
+			}
 
 			// Baixa atômica com guarda: falha (e faz ROLLBACK) se o estoque não for suficiente.
 			const baixa = await run(
@@ -1744,9 +2082,11 @@ async function converterOrcamento(vendaId) {
 		]);
 
 		for (const item of itens) {
+			// A quantidade já estava reservada desde a criação do orçamento:
+			// libera a reserva e baixa o estoque real na mesma operação.
 			const baixa = await run(
-				"UPDATE Variacoes SET quantidade_estoque = quantidade_estoque - ? WHERE id = ? AND quantidade_estoque >= ?",
-				[item.quantidade, item.variacao_id, item.quantidade],
+				"UPDATE Variacoes SET quantidade_estoque = quantidade_estoque - ?, quantidade_reservada = MAX(0, quantidade_reservada - ?) WHERE id = ? AND quantidade_estoque >= ?",
+				[item.quantidade, item.quantidade, item.variacao_id, item.quantidade],
 			);
 			if (baixa.changes === 0) {
 				const varRow = await get(
@@ -1792,6 +2132,271 @@ async function converterOrcamento(vendaId) {
 	}
 }
 
+// Cancela um orçamento em aberto, liberando a reserva de estoque associada.
+async function cancelarOrcamento(vendaId) {
+	const conn = getConexao();
+
+	const run = (sql, params = []) =>
+		new Promise((resolve, reject) => {
+			conn.run(sql, params, function (erro) {
+				if (erro) return reject(erro);
+				resolve(this);
+			});
+		});
+
+	const get = (sql, params = []) =>
+		new Promise((resolve, reject) => {
+			conn.get(sql, params, (erro, linha) => {
+				if (erro) return reject(erro);
+				resolve(linha);
+			});
+		});
+
+	const all = (sql, params = []) =>
+		new Promise((resolve, reject) => {
+			conn.all(sql, params, (erro, linhas) => {
+				if (erro) return reject(erro);
+				resolve(linhas);
+			});
+		});
+
+	await run("BEGIN TRANSACTION");
+
+	try {
+		const venda = await get("SELECT * FROM Vendas WHERE id = ?", [vendaId]);
+		if (!venda) throw new Error("Orçamento não encontrado.");
+		if (venda.status !== "orcamento")
+			throw new Error("Esta venda não é um orçamento em aberto.");
+
+		const itens = await all("SELECT * FROM ItensVenda WHERE venda_id = ?", [
+			vendaId,
+		]);
+		for (const item of itens) {
+			await run(
+				"UPDATE Variacoes SET quantidade_reservada = MAX(0, quantidade_reservada - ?) WHERE id = ?",
+				[item.quantidade, item.variacao_id],
+			);
+		}
+
+		await run("UPDATE Vendas SET status = 'cancelado' WHERE id = ?", [
+			vendaId,
+		]);
+
+		await run("COMMIT");
+		return { success: true };
+	} catch (erro) {
+		await run("ROLLBACK");
+		throw erro;
+	}
+}
+
+/* ============ Busca global ============ */
+
+// Busca combinada em Clientes, Produtos (via SKU/nome) e Vendas (por número),
+// usada pela barra de busca da navbar. Limita a poucos resultados por
+// categoria — é um atalho de navegação, não um relatório.
+async function buscaGlobal(termo) {
+	const texto = String(termo || "").trim();
+	if (!texto) return { clientes: [], produtos: [], vendas: [] };
+	const alvo = normalizarBusca(texto);
+	const like = "%" + texto.toUpperCase() + "%";
+
+	const clientes = await allAsync(
+		`SELECT id, codigo, nome, telefone FROM Clientes
+     WHERE ativo = 1 AND (UPPER(nome) LIKE ? OR UPPER(COALESCE(codigo,'')) LIKE ? OR UPPER(COALESCE(cpf_cnpj,'')) LIKE ?)
+     ORDER BY nome LIMIT 6`,
+		[like, like, like],
+	);
+
+	const produtosBrutos = await allAsync(
+		`SELECT v.id, v.sku, p.nome, v.tamanho, v.cor, v.preco
+     FROM Variacoes v JOIN Produtos p ON p.id = v.produto_id
+     WHERE p.ativo = 1
+     ORDER BY p.nome LIMIT 500`,
+	);
+	const produtos = produtosBrutos
+		.filter(
+			(p) =>
+				normalizarBusca(p.nome).indexOf(alvo) !== -1 ||
+				normalizarBusca(p.sku).indexOf(alvo) !== -1,
+		)
+		.slice(0, 6);
+
+	let vendas = [];
+	const numero = parseInt(texto.replace(/\D/g, ""), 10);
+	if (Number.isInteger(numero) && numero > 0) {
+		vendas = await allAsync(
+			`SELECT v.id, v.total, v.data_venda, v.status, c.nome AS cliente_nome
+       FROM Vendas v LEFT JOIN Clientes c ON c.id = v.cliente_id
+       WHERE v.id = ? LIMIT 1`,
+			[numero],
+		);
+	}
+
+	return { clientes, produtos, vendas };
+}
+
+/* ============ Devolução / troca ============ */
+
+// Devolve item(ns) de uma venda finalizada: estorna a quantidade ao estoque,
+// registra a movimentação e devolve o valor ao cliente (ajuste no financeiro
+// se a venda original foi fiado, senão é considerado ressarcido fora do sistema).
+async function registrarDevolucao(dados, usuarioId) {
+	const conn = getConexao();
+
+	const run = (sql, params = []) =>
+		new Promise((resolve, reject) => {
+			conn.run(sql, params, function (erro) {
+				if (erro) return reject(erro);
+				resolve(this);
+			});
+		});
+
+	const get = (sql, params = []) =>
+		new Promise((resolve, reject) => {
+			conn.get(sql, params, (erro, linha) => {
+				if (erro) return reject(erro);
+				resolve(linha);
+			});
+		});
+
+	const vendaId = Number(dados && dados.venda_id);
+	const itens = Array.isArray(dados && dados.itens) ? dados.itens : [];
+	const motivo = (dados && dados.motivo) || null;
+	if (!Number.isInteger(vendaId) || vendaId <= 0)
+		throw new Error("Venda inválida.");
+	if (itens.length === 0)
+		throw new Error("Selecione ao menos um item para devolver.");
+
+	await run("BEGIN TRANSACTION");
+
+	try {
+		const venda = await get("SELECT * FROM Vendas WHERE id = ?", [vendaId]);
+		if (!venda) throw new Error("Venda não encontrada.");
+		if (venda.status !== "finalizada")
+			throw new Error("Só é possível devolver itens de uma venda finalizada.");
+
+		const result = await run(
+			"INSERT INTO Devolucoes (venda_id, motivo, valor_total, usuario_id, data) VALUES (?, ?, 0, ?, ?)",
+			[vendaId, motivo, usuarioId || null, new Date().toISOString()],
+		);
+		const devolucaoId = result.lastID;
+		let valorTotal = 0;
+
+		for (const item of itens) {
+			const itemVendaId = Number(item.item_venda_id);
+			const quantidade = Number(item.quantidade);
+			if (!Number.isInteger(itemVendaId) || itemVendaId <= 0)
+				throw new Error("Item de venda inválido.");
+			if (!Number.isInteger(quantidade) || quantidade <= 0)
+				throw new Error("Quantidade de devolução inválida.");
+
+			const itemVenda = await get(
+				"SELECT * FROM ItensVenda WHERE id = ? AND venda_id = ?",
+				[itemVendaId, vendaId],
+			);
+			if (!itemVenda)
+				throw new Error("Item não pertence a esta venda.");
+
+			const jaDevolvido = await get(
+				"SELECT COALESCE(SUM(quantidade), 0) AS total FROM ItensDevolucao WHERE item_venda_id = ?",
+				[itemVendaId],
+			);
+			const disponivel = itemVenda.quantidade - (jaDevolvido ? jaDevolvido.total : 0);
+			if (quantidade > disponivel)
+				throw new Error(
+					"Quantidade maior que o disponível para devolução (" + disponivel + ").",
+				);
+
+			await run(
+				"INSERT INTO ItensDevolucao (devolucao_id, item_venda_id, variacao_id, quantidade, preco_unitario) VALUES (?, ?, ?, ?, ?)",
+				[devolucaoId, itemVendaId, itemVenda.variacao_id, quantidade, itemVenda.preco_unitario],
+			);
+
+			await run(
+				"UPDATE Variacoes SET quantidade_estoque = quantidade_estoque + ? WHERE id = ?",
+				[quantidade, itemVenda.variacao_id],
+			);
+
+			await run(
+				"INSERT INTO MovimentacoesEstoque (variacao_id, tipo, quantidade, custo_unitario, origem, referencia_id, observacao, data) VALUES (?, 'entrada', ?, NULL, 'devolucao', ?, ?, ?)",
+				[
+					itemVenda.variacao_id,
+					quantidade,
+					devolucaoId,
+					"Devolução da venda #" + vendaId + (motivo ? " — " + motivo : ""),
+					new Date().toISOString(),
+				],
+			);
+
+			valorTotal += quantidade * itemVenda.preco_unitario;
+		}
+
+		await run("UPDATE Devolucoes SET valor_total = ? WHERE id = ?", [
+			Math.round(valorTotal * 100) / 100,
+			devolucaoId,
+		]);
+
+		// Venda fiado com conta a receber ainda aberta: abate o valor devolvido.
+		if (venda.forma_pagamento === "Fiado") {
+			const lancamento = await get(
+				"SELECT * FROM LancamentosFinanceiros WHERE origem = 'venda' AND referencia_id = ? AND tipo = 'receber' AND status = 'aberto'",
+				[vendaId],
+			);
+			if (lancamento) {
+				const novoValor = Math.max(0, lancamento.valor - valorTotal);
+				if (novoValor <= 0.005) {
+					await run(
+						"UPDATE LancamentosFinanceiros SET status = 'pago', data_pagamento = ?, valor = 0 WHERE id = ?",
+						[new Date().toISOString(), lancamento.id],
+					);
+				} else {
+					await run(
+						"UPDATE LancamentosFinanceiros SET valor = ? WHERE id = ?",
+						[Math.round(novoValor * 100) / 100, lancamento.id],
+					);
+				}
+			}
+		}
+
+		await run("COMMIT");
+		return { success: true, devolucaoId, valorTotal: Math.round(valorTotal * 100) / 100 };
+	} catch (erro) {
+		await run("ROLLBACK");
+		throw erro;
+	}
+}
+
+async function getDevolucoes(filtro) {
+	filtro = filtro || {};
+	let sql =
+		`SELECT d.*, v.cliente_id, c.nome AS cliente_nome
+     FROM Devolucoes d
+     JOIN Vendas v ON v.id = d.venda_id
+     LEFT JOIN Clientes c ON c.id = v.cliente_id`;
+	const where = [];
+	const params = [];
+	if (filtro.vendaId) {
+		where.push("d.venda_id = ?");
+		params.push(filtro.vendaId);
+	}
+	if (where.length > 0) sql += " WHERE " + where.join(" AND ");
+	sql += " ORDER BY d.id DESC LIMIT 200";
+	return allAsync(sql, params);
+}
+
+async function getItensDevolucao(devolucaoId) {
+	return allAsync(
+		`SELECT idv.*, v.sku, p.nome AS produto_nome
+     FROM ItensDevolucao idv
+     JOIN Variacoes v ON v.id = idv.variacao_id
+     JOIN Produtos p ON p.id = v.produto_id
+     WHERE idv.devolucao_id = ?
+     ORDER BY idv.id`,
+		[devolucaoId],
+	);
+}
+
 function getDBPath() {
 	return DB_PATH;
 }
@@ -1810,6 +2415,50 @@ async function listarTabelasBanco() {
 			},
 		);
 	});
+}
+
+// Visão geral: todas as tabelas (já cadastradas e as que forem criadas no
+// futuro, já que a lista vem de sqlite_master) com a contagem de registros.
+async function resumoTabelasBanco() {
+	const tabelas = await listarTabelasBanco();
+	const resumo = [];
+	for (const tabela of tabelas) {
+		const linha = await getAsync("SELECT COUNT(*) AS n FROM " + tabela, []);
+		resumo.push({ tabela, total: Number(linha.n) });
+	}
+	return resumo;
+}
+
+// Exporta o conteúdo completo do banco (todas as tabelas, sem limite de
+// linhas) para um arquivo JSON legível, para backup/auditoria fora do app.
+async function exportarBancoJSON() {
+	const fs = require("fs");
+	const tabelas = await listarTabelasBanco();
+	const dados = {};
+	let totalRegistros = 0;
+	for (const tabela of tabelas) {
+		const linhas = await allAsync("SELECT * FROM " + tabela, []);
+		dados[tabela] = linhas;
+		totalRegistros += linhas.length;
+	}
+
+	const dbDir = path.dirname(DB_PATH);
+	const exportDir = path.join(dbDir, "exports");
+	if (!fs.existsSync(exportDir)) fs.mkdirSync(exportDir, { recursive: true });
+
+	const carimbo = new Date().toISOString().replace(/[:.]/g, "-");
+	const destino = path.join(exportDir, "banco_export_" + carimbo + ".json");
+	fs.writeFileSync(
+		destino,
+		JSON.stringify(
+			{ exportadoEm: new Date().toISOString(), tabelas: dados },
+			null,
+			2,
+		),
+		"utf8",
+	);
+
+	return { caminho: destino, tabelas: tabelas.length, registros: totalRegistros };
 }
 
 async function consultarTabelaBanco(tabela, limite) {
@@ -1841,7 +2490,7 @@ function verificarSenhaAdmin(login, senha) {
 		.toLowerCase();
 	const hash = hashSenhaUsuario(l, String(senha || ""));
 	return getAsync(
-		"SELECT senha_hash, perfil FROM Usuarios WHERE login = ? COLLATE NOCASE",
+		"SELECT senha_hash, perfil, ativo FROM Usuarios WHERE login = ? COLLATE NOCASE",
 		[l],
 	).then(
 		(usr) =>
@@ -1863,11 +2512,15 @@ module.exports = {
 	isDesbloqueado,
 	bloquearBanco,
 	listarTabelasBanco,
+	resumoTabelasBanco,
 	consultarTabelaBanco,
+	exportarBancoJSON,
 	verificarSenhaAdmin,
 	salvarProduto,
 	atualizarProduto,
 	removerProduto,
+	restaurarProduto,
+	excluirProdutoPermanente,
 	listProdutosDetalhados,
 	getProximoSkuProduto,
 	getProximoCodigoCategoria,
@@ -1882,6 +2535,8 @@ module.exports = {
 	salvarCliente,
 	atualizarCliente,
 	removerCliente,
+	restaurarCliente,
+	excluirClientePermanente,
 	buscarCliente,
 	getVendas,
 	getVendasHoje,
@@ -1894,6 +2549,9 @@ module.exports = {
 	getPricingData,
 	getGlobalMargin,
 	saveGlobalMargin,
+	getCustoFixoConfig,
+	saveCustoFixoConfig,
+	saveAplicarCustoFixo,
 	saveProductMargin,
 	saveProductPrice,
 	saveProductCost,
@@ -1907,6 +2565,7 @@ module.exports = {
 	registrarEntradaEstoque,
 	getMovimentacoesEstoque,
 	getEstoqueBaixo,
+	getEstoqueVisaoGeral,
 	salvarEstoqueMinimo,
 	ajustarEstoqueManual,
 	converterOrcamento,
@@ -1914,6 +2573,10 @@ module.exports = {
 	salvarFornecedor,
 	atualizarFornecedor,
 	removerFornecedor,
+	listarProdutosFornecedor,
+	salvarProdutoFornecedor,
+	removerProdutoFornecedor,
+	getCustoFornecedorProduto,
 	criarPedidoCompra,
 	getPedidosCompra,
 	getItensPedidoCompra,
@@ -1923,22 +2586,44 @@ module.exports = {
 	criarLancamento,
 	baixarLancamento,
 	excluirLancamento,
+	abrirCaixa,
+	fecharCaixa,
+	getCaixaAberto,
+	getResumoCaixaAberto,
+	getHistoricoCaixa,
 	getFluxoCaixa,
+	getDRE,
 	getRelatorioVendas,
 	getCurvaABC,
+	getComissoes,
+	registrarLog,
+	getLogAtividades,
 	autenticarUsuario,
 	getUsuario,
 	listarUsuarios,
 	salvarUsuario,
 	removerUsuario,
+	cancelarOrcamento,
+	registrarDevolucao,
+	getDevolucoes,
+	getItensDevolucao,
+	getCotacaoProduto,
+	listarPrecosCliente,
+	salvarPrecoCliente,
+	removerPrecoCliente,
+	getPrecoCliente,
+	salvarImagemProduto,
+	removerImagemProduto,
+	getCaminhoImagemProduto,
+	buscaGlobal,
 };
 
-function getClientes() {
+function getClientes(incluirInativos) {
 	const conn = getConexao();
 	return new Promise((resolver, rejeitar) => {
 		conn.all(
-			"SELECT id, codigo, nome, cpf_cnpj, telefone, email, endereco, academia, faixa FROM Clientes ORDER BY nome",
-			[],
+			"SELECT id, codigo, nome, cpf_cnpj, telefone, email, endereco, academia, faixa, ativo FROM Clientes WHERE ? OR ativo = 1 ORDER BY nome",
+			[incluirInativos ? 1 : 0],
 			(erro, linhas) => {
 				if (erro) return rejeitar(erro.message);
 				resolver(linhas);
@@ -2014,18 +2699,54 @@ async function atualizarCliente(id, dados) {
 	}
 }
 
+// Exclusão é lógica (ativo=0): cliente some das listas/buscas normais mas
+// fica recuperável na Lixeira, e vendas antigas continuam com a referência
+// (Vendas.cliente_id não é tocado).
 async function removerCliente(id) {
+	const existente = await getAsync("SELECT id FROM Clientes WHERE id = ?", [id]);
+	if (!existente) throw new Error("Cliente não encontrado.");
+
+	await runAsync("UPDATE Clientes SET ativo = 0 WHERE id = ?", [id]);
+	return { success: true };
+}
+
+async function restaurarCliente(id) {
+	const existente = await getAsync("SELECT id FROM Clientes WHERE id = ?", [id]);
+	if (!existente) throw new Error("Cliente não encontrado.");
+
+	await runAsync("UPDATE Clientes SET ativo = 1 WHERE id = ?", [id]);
+	return { success: true };
+}
+
+async function excluirClientePermanente(id) {
+	const conn = getConexao();
 	const run = (sql, params = []) =>
 		new Promise((resolve, reject) => {
-			const conn = getConexao();
 			conn.run(sql, params, function (erro) {
 				if (erro) return reject(erro);
 				resolve(this);
 			});
 		});
+	const get = (sql, params = []) =>
+		new Promise((resolve, reject) => {
+			conn.get(sql, params, (erro, linha) => {
+				if (erro) return reject(erro);
+				resolve(linha);
+			});
+		});
 
 	await run("BEGIN TRANSACTION");
 	try {
+		const existente = await get("SELECT id, ativo FROM Clientes WHERE id = ?", [id]);
+		if (!existente) throw new Error("Cliente não encontrado.");
+		if (Number(existente.ativo) === 1)
+			throw new Error("Envie o cliente para a lixeira antes de excluir definitivamente.");
+
+		const vendido = await get("SELECT COUNT(*) AS n FROM Vendas WHERE cliente_id = ?", [id]);
+		if (vendido.n > 0) {
+			throw new Error("Este cliente não pode ser excluído pois possui vendas registradas.");
+		}
+
 		await run("DELETE FROM Clientes WHERE id = ?", [id]);
 		await run("COMMIT");
 		return { success: true };
@@ -2039,7 +2760,7 @@ async function buscarCliente(filtro) {
 	const conn = getConexao();
 	return new Promise((resolver, rejeitar) => {
 		const sql =
-			"SELECT id, codigo, nome, cpf_cnpj, telefone, email, endereco, academia, faixa FROM Clientes ORDER BY nome";
+			"SELECT id, codigo, nome, cpf_cnpj, telefone, email, endereco, academia, faixa FROM Clientes WHERE ativo = 1 ORDER BY nome";
 		const alvo = normalizarBusca(filtro);
 		conn.all(sql, [], (erro, linhas) => {
 			if (erro) return rejeitar(erro.message);
@@ -2203,6 +2924,42 @@ async function getDashboardStats() {
 		[hoje],
 	);
 
+	// Série curta para o mini-gráfico do dashboard — últimos 7 dias, incluindo
+	// hoje, preenchendo com zero os dias sem venda.
+	const seteDiasAtras = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000)
+		.toISOString()
+		.slice(0, 10);
+	const porDiaBruto = await all(
+		"SELECT DATE(data_venda) AS dia, COALESCE(SUM(total), 0) AS faturamento FROM Vendas WHERE status = 'finalizada' AND DATE(data_venda) BETWEEN ? AND ? GROUP BY DATE(data_venda)",
+		[seteDiasAtras, hoje],
+	);
+	const mapaDias = {};
+	porDiaBruto.forEach((r) => { mapaDias[r.dia] = r.faturamento; });
+	const faturamentoUltimos7Dias = [];
+	for (let i = 6; i >= 0; i--) {
+		const dia = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+		faturamentoUltimos7Dias.push({ dia, faturamento: mapaDias[dia] || 0 });
+	}
+
+	// Produtos mais vendidos nos últimos 30 dias (por receita) — alimenta o
+	// painel "Mais vendidos" do dashboard.
+	const trintaDiasAtras = new Date(Date.now() - 29 * 24 * 60 * 60 * 1000)
+		.toISOString()
+		.slice(0, 10);
+	const topProdutos = await all(
+		`SELECT p.nome, p.imagem, v.sku, SUM(iv.quantidade) AS quantidade,
+            SUM(iv.quantidade * iv.preco_unitario) AS receita
+     FROM ItensVenda iv
+     JOIN Vendas ve ON ve.id = iv.venda_id
+     JOIN Variacoes v ON v.id = iv.variacao_id
+     JOIN Produtos p ON p.id = v.produto_id
+     WHERE ve.status = 'finalizada' AND DATE(ve.data_venda) >= ?
+     GROUP BY p.id
+     ORDER BY receita DESC
+     LIMIT 5`,
+		[trintaDiasAtras],
+	);
+
 	return {
 		vendasHoje: totalVendas.total,
 		faturamentoHoje: somaTotal.soma,
@@ -2210,6 +2967,8 @@ async function getDashboardStats() {
 		estoqueBaixo: estoqueBaixo[0].total,
 		aReceberHoje: aReceber.soma,
 		aPagarHoje: aPagar.soma,
+		faturamentoUltimos7Dias,
+		topProdutos,
 	};
 }
 
@@ -2217,7 +2976,9 @@ async function getItensVenda(vendaId) {
 	const conn = getConexao();
 	return new Promise((resolver, rejeitar) => {
 		const sql =
-			"SELECT p.nome AS produto_nome, v.tamanho, v.cor, v.atributos, v.sku, iv.quantidade, iv.preco_unitario, (iv.quantidade * iv.preco_unitario) AS subtotal FROM ItensVenda iv JOIN Variacoes v ON v.id = iv.variacao_id JOIN Produtos p ON p.id = v.produto_id WHERE iv.venda_id = ? ORDER BY iv.id";
+			"SELECT iv.id, iv.variacao_id, p.nome AS produto_nome, v.tamanho, v.cor, v.atributos, v.sku, iv.quantidade, iv.preco_unitario, (iv.quantidade * iv.preco_unitario) AS subtotal, " +
+			"(SELECT COALESCE(SUM(idv.quantidade), 0) FROM ItensDevolucao idv WHERE idv.item_venda_id = iv.id) AS quantidade_devolvida " +
+			"FROM ItensVenda iv JOIN Variacoes v ON v.id = iv.variacao_id JOIN Produtos p ON p.id = v.produto_id WHERE iv.venda_id = ? ORDER BY iv.id";
 		conn.all(sql, [vendaId], (erro, linhas) => {
 			if (erro) return rejeitar(erro.message);
 			resolver(linhas);
@@ -2555,6 +3316,19 @@ async function getEstoqueBaixo() {
 	);
 }
 
+// Visão geral: todas as variações (não só as em alerta), para a tabela de
+// estoque completa com valorização (quantidade x custo).
+async function getEstoqueVisaoGeral() {
+	return allAsync(
+		`SELECT v.id AS variacao_id, v.sku, v.quantidade_estoque, v.estoque_minimo,
+            v.preco_custo, v.atributos, v.tamanho, v.cor,
+            p.nome AS produto_nome, p.id AS produto_id
+     FROM Variacoes v
+     JOIN Produtos p ON p.id = v.produto_id
+     ORDER BY p.nome COLLATE NOCASE, v.sku`,
+	);
+}
+
 async function salvarEstoqueMinimo(variacaoId, valor) {
 	const v = Number(valor);
 	if (!Number.isInteger(v) || v < 0)
@@ -2595,7 +3369,7 @@ async function ajustarEstoqueManual(dados) {
 	await run("BEGIN TRANSACTION");
 	try {
 		const atual = await get(
-			"SELECT quantidade_estoque FROM Variacoes WHERE id = ?",
+			"SELECT quantidade_estoque, quantidade_reservada FROM Variacoes WHERE id = ?",
 			[variacaoId],
 		);
 		if (!atual) throw new Error("Variação não encontrada.");
@@ -2608,6 +3382,12 @@ async function ajustarEstoqueManual(dados) {
 				quantidade_estoque: novaQuantidade,
 			};
 		}
+		// Ajuste manual pode legitimamente zerar/reduzir por perda ou avaria, mas
+		// se isso deixar o saldo abaixo do já reservado em orçamentos abertos, o
+		// operador precisa ser avisado — senão o PDV promete um estoque que não
+		// existe de fato.
+		const reservada = Number(atual.quantidade_reservada || 0);
+		const ficaAbaixoDoReservado = novaQuantidade < reservada;
 		await run("UPDATE Variacoes SET quantidade_estoque = ? WHERE id = ?", [
 			novaQuantidade,
 			variacaoId,
@@ -2627,6 +3407,8 @@ async function ajustarEstoqueManual(dados) {
 			alterado: true,
 			diferenca,
 			quantidade_estoque: novaQuantidade,
+			abaixoDoReservado: ficaAbaixoDoReservado,
+			quantidade_reservada: reservada,
 		};
 	} catch (erro) {
 		await run("ROLLBACK");
@@ -2690,6 +3472,140 @@ async function removerFornecedor(id) {
 	}
 	await runAsync("DELETE FROM Fornecedores WHERE id = ?", [id]);
 	return { success: true };
+}
+
+/* ============ Fornecedor x Produto (tabela de preços) ============ */
+
+async function listarProdutosFornecedor(fornecedorId) {
+	return allAsync(
+		`SELECT fp.id, fp.fornecedor_id, fp.variacao_id, fp.preco_custo,
+            fp.prazo_entrega_dias, fp.codigo_fornecedor, fp.observacao,
+            v.sku, v.tamanho, v.cor, v.atributos, p.nome AS produto_nome
+     FROM FornecedorProdutos fp
+     JOIN Variacoes v ON v.id = fp.variacao_id
+     JOIN Produtos p ON p.id = v.produto_id
+     WHERE fp.fornecedor_id = ?
+     ORDER BY p.nome COLLATE NOCASE`,
+		[fornecedorId],
+	);
+}
+
+async function salvarProdutoFornecedor(dados) {
+	const fornecedorId = Number(dados && dados.fornecedor_id);
+	const variacaoId = Number(dados && dados.variacao_id);
+	const precoCusto = Number(dados && dados.preco_custo);
+	if (!fornecedorId) throw new Error("Fornecedor inválido.");
+	if (!variacaoId) throw new Error("SKU inválido.");
+	if (!Number.isFinite(precoCusto) || precoCusto < 0)
+		throw new Error("Custo inválido.");
+	const prazo =
+		dados.prazo_entrega_dias !== undefined && dados.prazo_entrega_dias !== null && dados.prazo_entrega_dias !== ""
+			? Number(dados.prazo_entrega_dias)
+			: null;
+
+	// Mesmo par fornecedor+SKU já cadastrado -> substitui (sem duplicar linha).
+	await runAsync(
+		`INSERT OR REPLACE INTO FornecedorProdutos
+       (id, fornecedor_id, variacao_id, preco_custo, prazo_entrega_dias, codigo_fornecedor, observacao)
+     VALUES (
+       (SELECT id FROM FornecedorProdutos WHERE fornecedor_id = ? AND variacao_id = ?),
+       ?, ?, ?, ?, ?, ?
+     )`,
+		[
+			fornecedorId,
+			variacaoId,
+			fornecedorId,
+			variacaoId,
+			precoCusto,
+			prazo,
+			dados.codigo_fornecedor || null,
+			dados.observacao || null,
+		],
+	);
+	return { success: true };
+}
+
+async function removerProdutoFornecedor(id) {
+	const result = await runAsync(
+		"DELETE FROM FornecedorProdutos WHERE id = ?",
+		[id],
+	);
+	if (result.changes === 0) throw new Error("Registro não encontrado.");
+	return { success: true };
+}
+
+async function getCustoFornecedorProduto(fornecedorId, variacaoId) {
+	if (!fornecedorId || !variacaoId) return null;
+	const row = await getAsync(
+		"SELECT preco_custo, prazo_entrega_dias FROM FornecedorProdutos WHERE fornecedor_id = ? AND variacao_id = ?",
+		[Number(fornecedorId), Number(variacaoId)],
+	);
+	return row || null;
+}
+
+// Cotação comparativa: todos os fornecedores cadastrados para um SKU,
+// ordenados do custo mais barato para o mais caro — usado para escolher com
+// quem comprar antes de lançar o pedido.
+async function getCotacaoProduto(variacaoId) {
+	if (!variacaoId) return [];
+	return allAsync(
+		`SELECT fp.fornecedor_id, f.nome AS fornecedor_nome, fp.preco_custo,
+            fp.prazo_entrega_dias, fp.codigo_fornecedor
+     FROM FornecedorProdutos fp
+     JOIN Fornecedores f ON f.id = fp.fornecedor_id
+     WHERE fp.variacao_id = ?
+     ORDER BY fp.preco_custo ASC`,
+		[Number(variacaoId)],
+	);
+}
+
+/* ============ Tabela de preço por cliente ============ */
+
+async function listarPrecosCliente(clienteId) {
+	if (!clienteId) return [];
+	return allAsync(
+		`SELECT pc.id, pc.cliente_id, pc.variacao_id, pc.preco,
+            v.sku, v.tamanho, v.cor, v.atributos, v.preco AS preco_padrao, p.nome AS produto_nome
+     FROM PrecoCliente pc
+     JOIN Variacoes v ON v.id = pc.variacao_id
+     JOIN Produtos p ON p.id = v.produto_id
+     WHERE pc.cliente_id = ?
+     ORDER BY p.nome COLLATE NOCASE`,
+		[Number(clienteId)],
+	);
+}
+
+async function salvarPrecoCliente(dados) {
+	const clienteId = Number(dados && dados.cliente_id);
+	const variacaoId = Number(dados && dados.variacao_id);
+	const preco = Number(dados && dados.preco);
+	if (!clienteId) throw new Error("Cliente inválido.");
+	if (!variacaoId) throw new Error("SKU inválido.");
+	if (!Number.isFinite(preco) || preco < 0) throw new Error("Preço inválido.");
+
+	await runAsync(
+		`INSERT OR REPLACE INTO PrecoCliente (id, cliente_id, variacao_id, preco)
+     VALUES ((SELECT id FROM PrecoCliente WHERE cliente_id = ? AND variacao_id = ?), ?, ?, ?)`,
+		[clienteId, variacaoId, clienteId, variacaoId, Math.round(preco * 100) / 100],
+	);
+	return { success: true };
+}
+
+async function removerPrecoCliente(id) {
+	const result = await runAsync("DELETE FROM PrecoCliente WHERE id = ?", [id]);
+	if (result.changes === 0) throw new Error("Preço especial não encontrado.");
+	return { success: true };
+}
+
+// Consultado pelo PDV ao escanear um SKU com cliente já selecionado: retorna
+// o preço combinado com este cliente para esta variação, ou null se não houver.
+async function getPrecoCliente(clienteId, variacaoId) {
+	if (!clienteId || !variacaoId) return null;
+	const row = await getAsync(
+		"SELECT preco FROM PrecoCliente WHERE cliente_id = ? AND variacao_id = ?",
+		[Number(clienteId), Number(variacaoId)],
+	);
+	return row ? row.preco : null;
 }
 
 /* ============ Compras (pedidos + recebimento) ============ */
@@ -2773,14 +3689,14 @@ async function getPedidosCompra() {
 		`SELECT pc.*, f.nome AS fornecedor_nome
      FROM PedidosCompra pc
      LEFT JOIN Fornecedores f ON f.id = pc.fornecedor_id
-     ORDER BY (CASE pc.status WHEN 'aberto' THEN 0 WHEN 'recebido' THEN 1 ELSE 2 END), pc.id DESC
+     ORDER BY (CASE pc.status WHEN 'aberto' THEN 0 WHEN 'parcial' THEN 1 WHEN 'recebido' THEN 2 ELSE 3 END), pc.id DESC
      LIMIT 100`,
 	);
 }
 
 async function getItensPedidoCompra(pedidoId) {
 	return allAsync(
-		`SELECT ipc.id, ipc.quantidade, ipc.custo_unitario,
+		`SELECT ipc.id, ipc.quantidade, ipc.quantidade_recebida, ipc.custo_unitario,
             v.sku, v.atributos, v.tamanho, v.cor, p.nome AS produto_nome
      FROM ItensPedidoCompra ipc
      JOIN Variacoes v ON v.id = ipc.variacao_id
@@ -2792,7 +3708,11 @@ async function getItensPedidoCompra(pedidoId) {
 }
 
 // Recebimento: dá entrada no estoque (custo médio), fecha o pedido e gera a conta a pagar.
-async function receberPedidoCompra(pedidoId) {
+// Recebe um pedido de compra, total ou parcialmente. `itensRecebidos` é opcional:
+// [{ item_id, quantidade }] com a quantidade a receber AGORA em cada item
+// (não o total acumulado). Sem esse parâmetro, recebe tudo que falta de uma vez
+// — mantém o comportamento anterior para quem chama sem essa opção.
+async function receberPedidoCompra(pedidoId, itensRecebidos) {
 	const conn = getConexao();
 
 	const run = (sql, params = []) =>
@@ -2826,7 +3746,7 @@ async function receberPedidoCompra(pedidoId) {
 			pedidoId,
 		]);
 		if (!pedido) throw new Error("Pedido de compra não encontrado.");
-		if (pedido.status !== "aberto")
+		if (pedido.status !== "aberto" && pedido.status !== "parcial")
 			throw new Error(
 				"Este pedido já foi " +
 					(pedido.status === "recebido" ? "recebido" : "cancelado") +
@@ -2839,7 +3759,30 @@ async function receberPedidoCompra(pedidoId) {
 		);
 		const agora = new Date().toISOString();
 
+		const mapaRecebimento = new Map();
+		if (Array.isArray(itensRecebidos)) {
+			for (const r of itensRecebidos) {
+				const qtd = Number(r.quantidade);
+				if (Number.isInteger(qtd) && qtd > 0) {
+					mapaRecebimento.set(Number(r.item_id), qtd);
+				}
+			}
+		}
+
+		let valorRecebidoAgora = 0;
+		let tudoRecebido = true;
+
 		for (const item of itens) {
+			const faltante = item.quantidade - item.quantidade_recebida;
+			const receberAgora = mapaRecebimento.size > 0
+				? Math.min(mapaRecebimento.get(item.id) || 0, faltante)
+				: faltante;
+
+			if (receberAgora <= 0) {
+				if (faltante > 0) tudoRecebido = false;
+				continue;
+			}
+
 			const varRow = await get(
 				"SELECT id, quantidade_estoque, preco_custo FROM Variacoes WHERE id = ?",
 				[item.variacao_id],
@@ -2850,61 +3793,78 @@ async function receberPedidoCompra(pedidoId) {
 			await aplicarEntradaEstoque(
 				run,
 				varRow,
-				item.quantidade,
+				receberAgora,
 				item.custo_unitario,
+			);
+
+			await run(
+				"UPDATE ItensPedidoCompra SET quantidade_recebida = quantidade_recebida + ? WHERE id = ?",
+				[receberAgora, item.id],
 			);
 
 			await run(
 				"INSERT INTO MovimentacoesEstoque (variacao_id, tipo, quantidade, custo_unitario, origem, referencia_id, observacao, data) VALUES (?, 'entrada', ?, ?, 'compra', ?, ?, ?)",
 				[
 					item.variacao_id,
-					item.quantidade,
+					receberAgora,
 					item.custo_unitario,
 					pedidoId,
-					"Recebimento do pedido #" + pedidoId,
+					"Recebimento do pedido #" + pedidoId +
+						(receberAgora < item.quantidade ? " (parcial)" : ""),
 					agora,
 				],
 			);
+
+			valorRecebidoAgora += receberAgora * item.custo_unitario;
+			if (receberAgora < faltante) tudoRecebido = false;
 		}
 
+		const novoStatus = tudoRecebido ? "recebido" : "parcial";
 		await run(
-			"UPDATE PedidosCompra SET status = 'recebido', data_recebimento = ? WHERE id = ?",
-			[agora, pedidoId],
+			"UPDATE PedidosCompra SET status = ?, data_recebimento = ? WHERE id = ?",
+			[novoStatus, tudoRecebido ? agora : pedido.data_recebimento, pedidoId],
 		);
 
-		// Conta a pagar com vencimento conforme prazo acordado com o fornecedor.
-		let prazoDias = 0;
-		if (pedido.fornecedor_id) {
-			const fornecedor = await get(
-				"SELECT prazo_pagamento_dias FROM Fornecedores WHERE id = ?",
-				[pedido.fornecedor_id],
-			);
-			prazoDias = fornecedor ? Number(fornecedor.prazo_pagamento_dias) || 0 : 0;
-		}
-		const vencimento = new Date(
-			Date.now() + prazoDias * 24 * 60 * 60 * 1000,
-		).toISOString();
+		// Conta a pagar proporcional ao que foi recebido agora, com vencimento
+		// conforme o prazo acordado com o fornecedor.
+		if (valorRecebidoAgora > 0) {
+			let prazoDias = 0;
+			if (pedido.fornecedor_id) {
+				const fornecedor = await get(
+					"SELECT prazo_pagamento_dias FROM Fornecedores WHERE id = ?",
+					[pedido.fornecedor_id],
+				);
+				prazoDias = fornecedor ? Number(fornecedor.prazo_pagamento_dias) || 0 : 0;
+			}
+			const vencimento = new Date(
+				Date.now() + prazoDias * 24 * 60 * 60 * 1000,
+			).toISOString();
 
-		await criarLancamentoInterno(run, {
-			tipo: "pagar",
-			descricao: "Pedido de compra #" + pedidoId,
-			valor: pedido.total,
-			data_vencimento: vencimento,
-			origem: "compra",
-			referencia_id: pedidoId,
-		});
+			await criarLancamentoInterno(run, {
+				tipo: "pagar",
+				descricao:
+					"Pedido de compra #" + pedidoId +
+					(novoStatus === "parcial" ? " (recebimento parcial)" : ""),
+				valor: Math.round(valorRecebidoAgora * 100) / 100,
+				data_vencimento: vencimento,
+				origem: "compra",
+				referencia_id: pedidoId,
+			});
+		}
 
 		await run("COMMIT");
-		return { success: true, pedidoId };
+		return { success: true, pedidoId, status: novoStatus };
 	} catch (erro) {
 		await run("ROLLBACK");
 		throw erro;
 	}
 }
 
+// Cancela o que ainda falta receber. Se já houve recebimento parcial, o que
+// foi recebido permanece no estoque — só o saldo pendente é cancelado.
 async function cancelarPedidoCompra(pedidoId) {
 	const result = await runAsync(
-		"UPDATE PedidosCompra SET status = 'cancelado' WHERE id = ? AND status = 'aberto'",
+		"UPDATE PedidosCompra SET status = 'cancelado' WHERE id = ? AND status IN ('aberto', 'parcial')",
 		[pedidoId],
 	);
 	if (result.changes === 0)
@@ -2958,6 +3918,11 @@ async function criarLancamento(dados) {
 	if (!descricao) throw new Error("Informe a descrição do lançamento.");
 	if (!Number.isFinite(valor) || valor <= 0) throw new Error("Valor inválido.");
 
+	const parcelas = Math.max(1, parseInt(dados.parcelas, 10) || 1);
+	if (parcelas > 1) {
+		return criarLancamentoParcelado(dados, tipo, descricao, valor, parcelas);
+	}
+
 	const vencimento = dados.data_vencimento
 		? new Date(dados.data_vencimento).toISOString()
 		: new Date().toISOString();
@@ -2973,6 +3938,46 @@ async function criarLancamento(dados) {
 		],
 	);
 	return { success: true, lancamentoId: result.lastID };
+}
+
+// Divide um lançamento em N parcelas mensais iguais (a última absorve o
+// arredondamento), ligadas por um grupo_id para exibição/baixa individual.
+async function criarLancamentoParcelado(dados, tipo, descricao, valor, parcelas) {
+	const grupoId =
+		Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+	const dataBase = dados.data_vencimento
+		? new Date(dados.data_vencimento)
+		: new Date();
+	const valorParcela = Math.round((valor / parcelas) * 100) / 100;
+	const agora = new Date().toISOString();
+	const ids = [];
+
+	let somaParcelas = 0;
+	for (let i = 0; i < parcelas; i++) {
+		const vencParcela = new Date(dataBase);
+		vencParcela.setMonth(vencParcela.getMonth() + i);
+		const ultima = i === parcelas - 1;
+		const valorEsta = ultima
+			? Math.round((valor - somaParcelas) * 100) / 100
+			: valorParcela;
+		somaParcelas += valorEsta;
+
+		const result = await runAsync(
+			"INSERT INTO LancamentosFinanceiros (tipo, descricao, valor, data_vencimento, data_pagamento, status, origem, referencia_id, forma_pagamento, data_criacao, grupo_id, parcela_num, parcela_total) VALUES (?, ?, ?, ?, NULL, 'aberto', 'manual', NULL, NULL, ?, ?, ?, ?)",
+			[
+				tipo,
+				descricao + " (" + (i + 1) + "/" + parcelas + ")",
+				valorEsta,
+				vencParcela.toISOString(),
+				agora,
+				grupoId,
+				i + 1,
+				parcelas,
+			],
+		);
+		ids.push(result.lastID);
+	}
+	return { success: true, lancamentoId: ids[0], grupoId, parcelaIds: ids };
 }
 
 async function baixarLancamento(id) {
@@ -2993,6 +3998,114 @@ async function excluirLancamento(id) {
 	if (result.changes === 0)
 		throw new Error("Só é possível excluir lançamentos manuais em aberto.");
 	return { success: true };
+}
+
+/* ============ Fechamento de caixa ============ */
+
+// Soma o que deveria estar em dinheiro no caixa: vendas finalizadas em
+// "Dinheiro" dentro da janela aberta, menos devoluções em dinheiro no mesmo
+// período (Devolucoes não guarda forma de pagamento — como o troco de uma
+// devolução normalmente sai do caixa físico, todo estorno é descontado).
+async function calcularValorEsperadoCaixa(dataAbertura, dataFechamento) {
+	const fim = dataFechamento || new Date().toISOString();
+	const vendas = await getAsync(
+		`SELECT COALESCE(SUM(total), 0) AS soma FROM Vendas
+     WHERE status = 'finalizada' AND forma_pagamento = 'Dinheiro'
+       AND data_venda >= ? AND data_venda <= ?`,
+		[dataAbertura, fim],
+	);
+	const devolucoes = await getAsync(
+		`SELECT COALESCE(SUM(valor_total), 0) AS soma FROM Devolucoes
+     WHERE data >= ? AND data <= ?`,
+		[dataAbertura, fim],
+	);
+	return (
+		Math.round((Number(vendas.soma || 0) - Number(devolucoes.soma || 0)) * 100) /
+		100
+	);
+}
+
+async function getCaixaAberto() {
+	return getAsync(
+		"SELECT * FROM FechamentosCaixa WHERE status = 'aberto' ORDER BY id DESC LIMIT 1",
+	);
+}
+
+async function abrirCaixa(valorAbertura, usuarioId) {
+	const existente = await getCaixaAberto();
+	if (existente) throw new Error("Já existe um caixa aberto (desde " + existente.data_abertura + ").");
+
+	const valor = Number(valorAbertura);
+	if (!Number.isFinite(valor) || valor < 0)
+		throw new Error("Valor de abertura inválido.");
+
+	const result = await runAsync(
+		"INSERT INTO FechamentosCaixa (data_abertura, valor_abertura, usuario_abertura_id, status) VALUES (?, ?, ?, 'aberto')",
+		[new Date().toISOString(), valor, usuarioId || null],
+	);
+	return { success: true, caixaId: result.lastID };
+}
+
+async function fecharCaixa(valorInformado, observacao, usuarioId) {
+	const caixa = await getCaixaAberto();
+	if (!caixa) throw new Error("Não há caixa aberto.");
+
+	const valor = Number(valorInformado);
+	if (!Number.isFinite(valor) || valor < 0)
+		throw new Error("Valor informado inválido.");
+
+	const dataFechamento = new Date().toISOString();
+	const vendidoEmDinheiro = await calcularValorEsperadoCaixa(
+		caixa.data_abertura,
+		dataFechamento,
+	);
+	const valorEsperado =
+		Math.round((Number(caixa.valor_abertura) + vendidoEmDinheiro) * 100) / 100;
+	const diferenca = Math.round((valor - valorEsperado) * 100) / 100;
+
+	await runAsync(
+		`UPDATE FechamentosCaixa
+     SET data_fechamento = ?, valor_informado = ?, valor_esperado = ?, diferenca = ?,
+         usuario_fechamento_id = ?, observacao = ?, status = 'fechado'
+     WHERE id = ?`,
+		[
+			dataFechamento,
+			valor,
+			valorEsperado,
+			diferenca,
+			usuarioId || null,
+			String(observacao || "").trim() || null,
+			caixa.id,
+		],
+	);
+	return {
+		success: true,
+		valorEsperado,
+		valorInformado: valor,
+		diferenca,
+	};
+}
+
+async function getResumoCaixaAberto() {
+	const caixa = await getCaixaAberto();
+	if (!caixa) return null;
+	const vendidoEmDinheiro = await calcularValorEsperadoCaixa(caixa.data_abertura, null);
+	const valorEsperadoAgora =
+		Math.round((Number(caixa.valor_abertura) + vendidoEmDinheiro) * 100) / 100;
+	return {
+		id: caixa.id,
+		data_abertura: caixa.data_abertura,
+		valor_abertura: caixa.valor_abertura,
+		vendido_em_dinheiro: vendidoEmDinheiro,
+		valor_esperado_agora: valorEsperadoAgora,
+	};
+}
+
+async function getHistoricoCaixa(limite) {
+	const lim = Math.max(1, Math.min(200, Number(limite) || 50));
+	return allAsync(
+		"SELECT * FROM FechamentosCaixa WHERE status = 'fechado' ORDER BY id DESC LIMIT " + lim,
+	);
 }
 
 // Fluxo de caixa realizado: entradas = vendas à vista + recebimentos; saídas = pagamentos.
@@ -3041,6 +4154,58 @@ async function getFluxoCaixa(dataInicio, dataFim) {
 }
 
 /* ============ Relatórios ============ */
+
+// DRE simplificado (regime de caixa para despesas, já que é isso que o
+// Fluxo de Caixa também usa): Receita líquida - CMV = Lucro Bruto;
+// Lucro Bruto - Despesas pagas no período = Lucro Líquido.
+// O CMV usa o preco_custo ATUAL da variação (não o custo histórico da época
+// da venda) — mesma simplificação que a Curva ABC já assume para receita.
+async function getDRE(dataInicio, dataFim) {
+	const hoje = new Date().toISOString().slice(0, 10);
+	const inicio = dataInicio || hoje.slice(0, 8) + "01";
+	const fim = dataFim || hoje;
+
+	const resumoVendas = await getAsync(
+		"SELECT COUNT(*) AS vendas, COALESCE(SUM(total), 0) AS receitaBruta, COALESCE(SUM(desconto), 0) AS descontos FROM Vendas WHERE status = 'finalizada' AND DATE(data_venda) BETWEEN ? AND ?",
+		[inicio, fim],
+	);
+
+	const cmvLinha = await getAsync(
+		`SELECT COALESCE(SUM(iv.quantidade * var.preco_custo), 0) AS cmv
+     FROM ItensVenda iv
+     JOIN Vendas v ON v.id = iv.venda_id
+     JOIN Variacoes var ON var.id = iv.variacao_id
+     WHERE v.status = 'finalizada' AND DATE(v.data_venda) BETWEEN ? AND ?`,
+		[inicio, fim],
+	);
+
+	const despesasLinha = await getAsync(
+		"SELECT COALESCE(SUM(valor), 0) AS despesas FROM LancamentosFinanceiros WHERE tipo = 'pagar' AND status = 'pago' AND DATE(data_pagamento) BETWEEN ? AND ?",
+		[inicio, fim],
+	);
+
+	const receitaBruta = Number(resumoVendas.receitaBruta) || 0;
+	const descontos = Number(resumoVendas.descontos) || 0;
+	const receitaLiquida = receitaBruta - descontos;
+	const cmv = Number(cmvLinha.cmv) || 0;
+	const lucroBruto = receitaLiquida - cmv;
+	const despesas = Number(despesasLinha.despesas) || 0;
+	const lucroLiquido = lucroBruto - despesas;
+
+	return {
+		periodo: { inicio, fim },
+		vendas: Number(resumoVendas.vendas) || 0,
+		receitaBruta,
+		descontos,
+		receitaLiquida,
+		cmv,
+		lucroBruto,
+		margemBrutaPercentual: receitaLiquida > 0 ? (lucroBruto / receitaLiquida) * 100 : 0,
+		despesas,
+		lucroLiquido,
+		margemLiquidaPercentual: receitaLiquida > 0 ? (lucroLiquido / receitaLiquida) * 100 : 0,
+	};
+}
 
 async function getRelatorioVendas(dataInicio, dataFim) {
 	const hoje = new Date().toISOString().slice(0, 10);
@@ -3108,6 +4273,92 @@ async function getCurvaABC(dataInicio, dataFim) {
 			classe: acumulado <= 80 ? "A" : acumulado <= 95 ? "B" : "C",
 		};
 	});
+}
+
+// Comissão por vendedor: soma das vendas finalizadas atribuídas a cada
+// usuário no período, multiplicada pelo percentual de comissão dele.
+async function getComissoes(dataInicio, dataFim) {
+	const hoje = new Date().toISOString().slice(0, 10);
+	const inicio = dataInicio || hoje.slice(0, 8) + "01";
+	const fim = dataFim || hoje;
+
+	const linhas = await allAsync(
+		`SELECT u.id AS usuario_id, u.nome, u.login, u.perfil, u.comissao_percentual,
+            COUNT(v.id) AS vendas, COALESCE(SUM(v.total), 0) AS total_vendido
+     FROM Vendas v
+     JOIN Usuarios u ON u.id = v.usuario_id
+     WHERE v.status = 'finalizada' AND DATE(v.data_venda) BETWEEN ? AND ?
+     GROUP BY u.id
+     ORDER BY total_vendido DESC`,
+		[inicio, fim],
+	);
+
+	return linhas.map((l) => {
+		const totalVendido = Number(l.total_vendido) || 0;
+		const percentual = Number(l.comissao_percentual) || 0;
+		return {
+			usuario_id: l.usuario_id,
+			nome: l.nome,
+			login: l.login,
+			perfil: l.perfil,
+			vendas: Number(l.vendas) || 0,
+			total_vendido: totalVendido,
+			comissao_percentual: percentual,
+			comissao_valor: (totalVendido * percentual) / 100,
+		};
+	});
+}
+
+/* ============ Log de atividades (auditoria) ============ */
+
+// Nunca deve derrubar a ação real por causa de uma falha de log — quem chama
+// isso já está dentro de um try/catch da ação principal, então erros aqui
+// são engolidos silenciosamente (loga no console do processo principal).
+async function registrarLog(usuarioId, usuarioLogin, acao, entidade, entidadeId, detalhes) {
+	try {
+		await runAsync(
+			"INSERT INTO LogAtividades (usuario_id, usuario_login, acao, entidade, entidade_id, detalhes, data) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			[
+				usuarioId || null,
+				usuarioLogin || null,
+				acao,
+				entidade || null,
+				entidadeId || null,
+				detalhes || null,
+				new Date().toISOString(),
+			],
+		);
+	} catch (erro) {
+		console.error("Falha ao registrar log de atividade:", erro);
+	}
+}
+
+async function getLogAtividades(filtro) {
+	filtro = filtro || {};
+	var condicoes = [];
+	var params = [];
+	if (filtro.usuarioId) {
+		condicoes.push("usuario_id = ?");
+		params.push(Number(filtro.usuarioId));
+	}
+	if (filtro.acao) {
+		condicoes.push("acao = ?");
+		params.push(filtro.acao);
+	}
+	if (filtro.inicio) {
+		condicoes.push("DATE(data) >= ?");
+		params.push(filtro.inicio);
+	}
+	if (filtro.fim) {
+		condicoes.push("DATE(data) <= ?");
+		params.push(filtro.fim);
+	}
+	var where = condicoes.length ? "WHERE " + condicoes.join(" AND ") : "";
+	var limite = Math.max(1, Math.min(500, Number(filtro.limite) || 200));
+	return allAsync(
+		"SELECT * FROM LogAtividades " + where + " ORDER BY id DESC LIMIT " + limite,
+		params,
+	);
 }
 
 /* ============ Usuários (login do sistema) ============ */
@@ -3249,7 +4500,7 @@ async function autenticarUsuario(login, senha) {
 
 	// 5) Valida o usuário cadastrado e ativo.
 	const usr = await getAsync(
-		"SELECT id, login, nome, perfil, ativo FROM Usuarios WHERE login = ? COLLATE NOCASE",
+		"SELECT id, login, nome, perfil, ativo, permissoes FROM Usuarios WHERE login = ? COLLATE NOCASE",
 		[l],
 	);
 	if (!usr) {
@@ -3268,20 +4519,31 @@ async function autenticarUsuario(login, senha) {
 			login: usr.login,
 			nome: usr.nome,
 			perfil: usr.perfil,
+			permissoes: parsePermissoes(usr.permissoes),
 		},
 	};
 }
 
+// Parse defensivo: permissoes nunca deve derrubar o login por JSON inválido.
+function parsePermissoes(texto) {
+	try {
+		const obj = JSON.parse(texto || "{}");
+		return obj && typeof obj === "object" ? obj : {};
+	} catch (e) {
+		return {};
+	}
+}
+
 function getUsuario(login) {
 	return getAsync(
-		"SELECT id, login, nome, perfil, ativo FROM Usuarios WHERE login = ? COLLATE NOCASE",
+		"SELECT id, login, nome, perfil, ativo, permissoes FROM Usuarios WHERE login = ? COLLATE NOCASE",
 		[String(login)],
 	);
 }
 
 async function listarUsuarios() {
 	return allAsync(
-		"SELECT id, login, nome, perfil, ativo, criado_em FROM Usuarios ORDER BY login",
+		"SELECT id, login, nome, perfil, ativo, criado_em, comissao_percentual, permissoes FROM Usuarios ORDER BY login",
 	);
 }
 
@@ -3296,6 +4558,11 @@ async function salvarUsuario(dados) {
 		);
 	}
 	if (!nome) throw new Error("Informe o nome do usuário.");
+	const perfil = dados.perfil === "vendedor" ? "vendedor" : "admin";
+	const comissao = Math.max(0, Number(dados.comissao_percentual) || 0);
+	const permissoes = JSON.stringify(
+		dados.permissoes && typeof dados.permissoes === "object" ? dados.permissoes : {},
+	);
 
 	const inserindo = !dados.id;
 	const senha = String(dados.senha || "");
@@ -3308,22 +4575,24 @@ async function salvarUsuario(dados) {
 		);
 		if (existente) throw new Error("Já existe um usuário com esse login.");
 		await runAsync(
-			"INSERT INTO Usuarios (login, nome, perfil, ativo, senha_hash, criado_em) VALUES (?, ?, ?, ?, ?, ?)",
+			"INSERT INTO Usuarios (login, nome, perfil, ativo, senha_hash, criado_em, comissao_percentual, permissoes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
 			[
 				l,
 				nome,
-				"admin",
+				perfil,
 				dados.ativo ? 1 : 0,
 				hashSenhaUsuario(l, senha),
 				new Date().toISOString(),
+				comissao,
+				permissoes,
 			],
 		);
 	} else {
 		if (!/^[0-9]+$/.test(String(dados.id)))
 			throw new Error("Usuário inválido.");
 		await runAsync(
-			"UPDATE Usuarios SET nome = ?, ativo = ?, perfil = ? WHERE id = ?",
-			[nome, dados.ativo ? 1 : 0, "admin", Number(dados.id)],
+			"UPDATE Usuarios SET nome = ?, ativo = ?, perfil = ?, comissao_percentual = ?, permissoes = ? WHERE id = ?",
+			[nome, dados.ativo ? 1 : 0, perfil, comissao, permissoes, Number(dados.id)],
 		);
 		if (senha) {
 			if (senha.length < 4)
@@ -3353,12 +4622,16 @@ async function removerUsuario(id) {
 	]);
 	if (!usr) throw new Error("Usuário não encontrado.");
 
-	const ativos = await getAsync(
-		"SELECT COUNT(*) AS n FROM Usuarios WHERE ativo = 1",
-		[],
-	);
-	if (Number(ativos.n) <= 1 && Number(usr.ativo) === 1) {
-		throw new Error("Não é possível remover o último usuário ativo.");
+	// A trava tem que ser sobre admins, não usuários em geral — senão dá pra
+	// apagar o último admin e deixar só vendedores, travando a administração.
+	if (usr.perfil === "admin") {
+		const adminsAtivos = await getAsync(
+			"SELECT COUNT(*) AS n FROM Usuarios WHERE ativo = 1 AND perfil = 'admin'",
+			[],
+		);
+		if (Number(adminsAtivos.n) <= 1 && Number(usr.ativo) === 1) {
+			throw new Error("Não é possível remover o último administrador ativo.");
+		}
 	}
 
 	await runAsync("DELETE FROM Usuarios WHERE id = ?", [usuarioId]);

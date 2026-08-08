@@ -18,6 +18,7 @@
 
 	var carrinho = [];
 	var buscando = false;
+	var imagemCache = {};
 
 	function esc(t) {
 		return String(t == null ? "" : t)
@@ -31,22 +32,24 @@
 
 	/* ---------- Clientes ---------- */
 
+	var clienteBusca = document.getElementById("clienteBusca");
+	var clienteResultados = document.getElementById("clienteResultados");
+	var clienteEscolhido = document.getElementById("clienteEscolhido");
+	var clienteEscolhidoNome = document.getElementById("clienteEscolhidoNome");
+	var btnLimparCliente = document.getElementById("btnLimparCliente");
+	var clientesCache = [];
+
 	function carregarClientes() {
 		if (!window.api || !window.erpBanco.clientes.listar) return;
 		window.erpBanco.clientes
 			.listar()
 			.then((rows) => {
-				(rows || []).forEach((c) => {
-					var opt = document.createElement("option");
-					opt.value = c.id;
-					opt.textContent = (c.codigo ? c.codigo + " - " : "") + c.nome;
-					clienteSelect.appendChild(opt);
-				});
+				clientesCache = rows || [];
 			})
 			.catch((erro) => {
 				console.error("Erro ao carregar clientes:", erro);
 				mostrarMensagem(
-					"N�o foi poss�vel carregar os clientes: " + erro,
+					"Não foi possível carregar os clientes: " + erro,
 					"erro",
 				);
 			});
@@ -59,11 +62,129 @@
 				carregarCarrinho();
 			})
 			.catch((erro) => {
-				console.error("Autentica��o do PDV falhou:", erro);
+				console.error("Autenticação do PDV falhou:", erro);
 			});
 	} else {
 		carregarClientes();
 		carregarCarrinho();
+	}
+
+	function normalizar(t) {
+		return String(t || "")
+			.normalize("NFD")
+			.replace(/[̀-ͯ]/g, "")
+			.toLowerCase();
+	}
+
+	clienteBusca.addEventListener("input", () => {
+		var termo = normalizar(clienteBusca.value.trim());
+		if (!termo) {
+			clienteResultados.style.display = "none";
+			clienteResultados.innerHTML = "";
+			return;
+		}
+		var achados = clientesCache
+			.filter(
+				(c) =>
+					normalizar(c.nome).indexOf(termo) !== -1 ||
+					normalizar(c.codigo).indexOf(termo) !== -1,
+			)
+			.slice(0, 8);
+		if (achados.length === 0) {
+			clienteResultados.innerHTML =
+				'<div style="padding:8px; font-size:0.85rem; color:#94A3B8;">Nenhum cliente encontrado.</div>';
+			clienteResultados.style.display = "block";
+			return;
+		}
+		clienteResultados.innerHTML = achados
+			.map(
+				(c, i) =>
+					'<div class="cliente-item" data-index="' +
+					i +
+					'" style="padding:6px 8px; cursor:pointer; font-size:0.85rem; border-bottom:1px solid #F1F5F9;">' +
+					esc((c.codigo ? c.codigo + " - " : "") + c.nome) +
+					"</div>",
+			)
+			.join("");
+		clienteResultados.querySelectorAll(".cliente-item").forEach((el, i) => {
+			el.addEventListener("mouseenter", () => (el.style.background = "#F1F5F9"));
+			el.addEventListener("mouseleave", () => (el.style.background = ""));
+			el.addEventListener("click", () => escolherCliente(achados[i]));
+		});
+		clienteResultados.style.display = "block";
+	});
+
+	function escolherCliente(c) {
+		clienteSelect.value = c.id;
+		clienteEscolhidoNome.textContent = (c.codigo ? c.codigo + " - " : "") + c.nome;
+		clienteEscolhido.style.display = "flex";
+		clienteBusca.value = "";
+		clienteBusca.style.display = "none";
+		clienteResultados.style.display = "none";
+		clienteResultados.innerHTML = "";
+		reaplicarPrecoClienteNoCarrinho();
+	}
+
+	function limparClienteSelecionado() {
+		clienteSelect.value = "";
+		clienteEscolhidoNome.textContent = "";
+		clienteEscolhido.style.display = "none";
+		clienteBusca.style.display = "block";
+		clienteBusca.value = "";
+	}
+
+	btnLimparCliente.addEventListener("click", () => {
+		limparClienteSelecionado();
+		clienteBusca.focus();
+	});
+
+	document.addEventListener("click", (e) => {
+		if (
+			clienteResultados.style.display === "block" &&
+			!clienteResultados.contains(e.target) &&
+			e.target !== clienteBusca
+		) {
+			clienteResultados.style.display = "none";
+		}
+	});
+
+	// Aplica o preço combinado com o cliente selecionado (se houver) a um item
+	// recém-adicionado ao carrinho. Sem cliente ou sem preço especial, mantém
+	// o preço padrão do produto já atribuído ao item.
+	function aplicarPrecoCliente(item, variacaoId) {
+		if (!item) return;
+		var clienteId = clienteSelect.value ? Number(clienteSelect.value) : null;
+		if (!clienteId || !window.erpBanco.clientes.precoEspecial) return;
+		window.erpBanco.clientes
+			.precoEspecial(clienteId, variacaoId)
+			.then((preco) => {
+				if (preco !== null && preco !== undefined) {
+					item.preco_unitario = Number(preco);
+					salvarCarrinho();
+					renderizarCarrinho();
+				}
+			})
+			.catch(() => {});
+	}
+
+	// Trocar o cliente com itens já no carrinho reaplica o preço especial de
+	// cada item (ou volta ao padrão se o novo cliente não tiver combinado nada).
+	function reaplicarPrecoClienteNoCarrinho() {
+		if (carrinho.length === 0) return;
+		var clienteId = clienteSelect.value ? Number(clienteSelect.value) : null;
+		if (!clienteId || !window.erpBanco.clientes.precoEspecial) return;
+		carrinho.forEach((item) => {
+			window.erpBanco.clientes
+				.precoEspecial(clienteId, item.variacao_id)
+				.then((preco) => {
+					if (preco !== null && preco !== undefined) {
+						item.preco_unitario = Number(preco);
+						salvarCarrinho();
+						renderizarCarrinho();
+					}
+				})
+				.catch(() => {});
+		});
 	}
 
 	/* ---------- Totais ---------- */
@@ -86,10 +207,55 @@
 	}
 
 	function atualizarTotal() {
-		totalValue.textContent = "R$ " + totalCarrinho().toFixed(2);
+		totalValue.textContent = "R$ " + totalCarrinho().toLocaleString("pt-BR", {
+			minimumFractionDigits: 2,
+			maximumFractionDigits: 2,
+		});
+		if (typeof atualizarTroco === "function") atualizarTroco();
 	}
 
 	descontoInput.addEventListener("input", atualizarTotal);
+
+	/* ---------- Troco ---------- */
+
+	var grupoTroco = document.getElementById("grupoTroco");
+	var valorRecebidoInput = document.getElementById("valorRecebidoInput");
+	var trocoResultado = document.getElementById("trocoResultado");
+
+	function esconderGrupoTroco() {
+		grupoTroco.style.display = "none";
+		valorRecebidoInput.value = "";
+		trocoResultado.textContent = "";
+	}
+
+	function atualizarTroco() {
+		var recebido = Number(valorRecebidoInput.value);
+		if (!Number.isFinite(recebido) || recebido <= 0) {
+			trocoResultado.textContent = "";
+			return;
+		}
+		var troco = recebido - totalCarrinho();
+		if (troco < 0) {
+			trocoResultado.style.color = "#DC2626";
+			trocoResultado.textContent =
+				"Falta R$ " + Math.abs(troco).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+		} else {
+			trocoResultado.style.color = "#16A34A";
+			trocoResultado.textContent =
+				"Troco: R$ " + troco.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+		}
+	}
+
+	formaPagamento.addEventListener("change", () => {
+		if (formaPagamento.value === "Dinheiro") {
+			grupoTroco.style.display = "block";
+			valorRecebidoInput.focus();
+		} else {
+			esconderGrupoTroco();
+		}
+	});
+
+	valorRecebidoInput.addEventListener("input", atualizarTroco);
 
 	function salvarCarrinho() {
 		try {
@@ -107,7 +273,7 @@
 				if (Array.isArray(carrinho)) {
 					renderizarCarrinho();
 					mostrarMensagem(
-						"Carrinho restaurado de uma sess�o anterior.",
+						"Carrinho restaurado de uma sessão anterior.",
 						"info",
 					);
 				}
@@ -151,6 +317,12 @@
 			tr.addEventListener("click", () => {
 				selecionarProdutoLista(i);
 			});
+			var precoCel = Number(p.preco || 0) > 0
+				? Number(p.preco).toFixed(2)
+				: '<span style="color:#DC2626;font-weight:600;">Sem preço</span>';
+			var disponivelCel = Number.isFinite(Number(p.quantidade_disponivel))
+				? Number(p.quantidade_disponivel)
+				: p.quantidade_estoque || 0;
 			tr.innerHTML =
 				"<td>" +
 				esc(p.sku || "") +
@@ -159,10 +331,10 @@
 				esc(p.nome) +
 				"</td>" +
 				'<td style="text-align:right;">' +
-				Number(p.preco || 0).toFixed(2) +
+				precoCel +
 				"</td>" +
 				'<td style="text-align:right;">' +
-				(p.quantidade_estoque || 0) +
+				disponivelCel +
 				"</td>";
 			produtosTbody.appendChild(tr);
 		});
@@ -180,7 +352,16 @@
 	}
 
 	function adicionarProdutoCarrinho(produto) {
-		if (produto.quantidade_estoque <= 0) {
+		if (!(Number(produto.preco) > 0)) {
+			mostrarAlertaPreco(produto);
+			skuInput.value = "";
+			skuInput.focus();
+			return;
+		}
+		var disponivel = Number.isFinite(Number(produto.quantidade_disponivel))
+			? Number(produto.quantidade_disponivel)
+			: produto.quantidade_estoque;
+		if (disponivel <= 0) {
 			mostrarAlertaEstoque(produto, "Sem estoque");
 			skuInput.value = "";
 			skuInput.focus();
@@ -189,13 +370,13 @@
 		var minimo = Number.isFinite(Number(produto.estoque_minimo))
 			? Number(produto.estoque_minimo)
 			: 5;
-		if (produto.quantidade_estoque <= minimo)
+		if (disponivel <= minimo)
 			mostrarAlertaEstoque(produto, "Estoque Baixo");
 
 		var existente = carrinho.find((item) => item.variacao_id === produto.id);
 
 		if (existente) {
-			if (existente.quantidade >= produto.quantidade_estoque) {
+			if (existente.quantidade >= disponivel) {
 				mostrarMensagem("Estoque insuficiente para " + produto.nome, "erro");
 				return;
 			}
@@ -213,10 +394,12 @@
 				cor: produto.cor,
 				preco_unitario: produto.preco,
 				quantidade: 1,
-				estoque: produto.quantidade_estoque,
+				estoque: disponivel,
+				imagem: produto.imagem || null,
 			});
 		}
 
+		aplicarPrecoCliente(carrinho[carrinho.length - 1] || existente, produto.id);
 		salvarCarrinho();
 		renderizarCarrinho();
 		skuInput.value = "";
@@ -225,7 +408,7 @@
 
 	function buscarPorTermo(termo) {
 		if (!window.api || !window.erpBanco.produtos.buscarPorTermo) {
-			mostrarMensagem("API de pesquisa indispon�vel.", "erro");
+			mostrarMensagem("API de pesquisa indisponível.", "erro");
 			return;
 		}
 		mostrarLoading(true);
@@ -236,7 +419,7 @@
 				produtoSelecionadoIndex = produtosEncontrados.length ? 0 : -1;
 				renderizarProdutosEncontrados();
 				if (!produtosEncontrados.length) {
-					mostrarMensagem("Produto n�o encontrado: " + termo, "erro");
+					mostrarMensagem("Produto não encontrado: " + termo, "erro");
 				}
 			})
 			.catch((err) => {
@@ -248,7 +431,7 @@
 			});
 	}
 
-	// Tecla Enter: c�digo do produto exato ou busca por nome.
+	// Tecla Enter: código do produto exato ou busca por nome.
 	skuInput.addEventListener("keydown", (e) => {
 		if (e.key === "Enter") {
 			e.preventDefault();
@@ -353,7 +536,7 @@
 			"Total: R$ " +
 			total.toFixed(2) +
 			"\n\n" +
-			"Esta a��o n�o pode ser desfeita.";
+			"Esta ação não pode ser desfeita.";
 
 		if (confirm(msg)) {
 			limparCarrinho();
@@ -364,12 +547,12 @@
 	function buscarESku(sku) {
 		if (buscando) return;
 		if (typeof window.api === "undefined") {
-			alert("DEBUG: window.api � undefined. preload.js n�o carregou?");
+			alert("DEBUG: window.api é undefined. preload.js não carregou?");
 			return;
 		}
 		if (!window.erpBanco.produtos.buscarSKU) {
 			alert(
-				"DEBUG: window.erpBanco.produtos.buscarSKU � undefined. preload.js desatualizado?",
+				"DEBUG: window.erpBanco.produtos.buscarSKU é undefined. preload.js desatualizado?",
 			);
 			return;
 		}
@@ -386,13 +569,23 @@
 				skuInput.disabled = false;
 
 				if (!produto) {
-					mostrarMensagem("SKU n�o encontrado: " + sku, "erro");
+					mostrarMensagem("SKU não encontrado: " + sku, "erro");
 					skuInput.value = "";
 					skuInput.focus();
 					return;
 				}
 
-				if (produto.quantidade_estoque <= 0) {
+				if (!(Number(produto.preco) > 0)) {
+					mostrarAlertaPreco(produto);
+					skuInput.value = "";
+					skuInput.focus();
+					return;
+				}
+
+				var disponivel = Number.isFinite(Number(produto.quantidade_disponivel))
+					? Number(produto.quantidade_disponivel)
+					: produto.quantidade_estoque;
+				if (disponivel <= 0) {
 					mostrarAlertaEstoque(produto, "Sem estoque");
 					skuInput.value = "";
 					skuInput.focus();
@@ -402,7 +595,7 @@
 				var minimo = Number.isFinite(Number(produto.estoque_minimo))
 					? Number(produto.estoque_minimo)
 					: 5;
-				if (produto.quantidade_estoque <= minimo) {
+				if (disponivel <= minimo) {
 					mostrarAlertaEstoque(produto, "Estoque Baixo");
 				}
 
@@ -411,7 +604,7 @@
 				);
 
 				if (existente) {
-					if (existente.quantidade >= produto.quantidade_estoque) {
+					if (existente.quantidade >= disponivel) {
 						mostrarMensagem(
 							"Estoque insuficiente para " + produto.nome,
 							"erro",
@@ -434,10 +627,12 @@
 						cor: produto.cor,
 						preco_unitario: produto.preco,
 						quantidade: 1,
-						estoque: produto.quantidade_estoque,
+						estoque: disponivel,
+						imagem: produto.imagem || null,
 					});
 				}
 
+				aplicarPrecoCliente(carrinho[carrinho.length - 1] || existente, produto.id);
 				salvarCarrinho();
 				renderizarCarrinho();
 				skuInput.value = "";
@@ -501,6 +696,40 @@
 		}, 4000);
 	}
 
+	// Produto novo criado no Cadastro nasce com preço zerado até ser
+	// configurado na aba Precificação — bloqueia a venda em vez de deixar
+	// passar de graça, e deixa claro qual é o próximo passo.
+	function mostrarAlertaPreco(produto) {
+		mostrarMensagem(
+			"Preço não definido para: " + produto.nome + ". Configure em Precificação antes de vender.",
+			"erro",
+		);
+
+		var alerta = document.createElement("div");
+		alerta.style.cssText =
+			"position: fixed; top: 60px; right: 20px; background: #DC2626; color: white; padding: 12px 16px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 10000; font-size: 14px; max-width: 300px;";
+		alerta.innerHTML =
+			'<div style="font-weight: 600; margin-bottom: 4px;">Sem preço definido</div>' +
+			"<div>" +
+			produto.nome +
+			"</div>" +
+			"<div>SKU: " +
+			produto.sku +
+			"</div>" +
+			"<div>Configure o preço na aba Precificação.</div>";
+		document.body.appendChild(alerta);
+
+		setTimeout(() => {
+			alerta.style.transition = "opacity 0.3s";
+			alerta.style.opacity = "0";
+			setTimeout(() => {
+				if (alerta.parentNode) {
+					alerta.parentNode.removeChild(alerta);
+				}
+			}, 300);
+		}, 4000);
+	}
+
 	function renderizarCarrinho() {
 		carrinhoBody.innerHTML = "";
 
@@ -527,9 +756,30 @@
 			var tr = document.createElement("tr");
 
 			var tdNome = document.createElement("td");
-			tdNome.textContent = item.nome;
+			tdNome.style.display = "flex";
+			tdNome.style.alignItems = "center";
+			tdNome.style.gap = "8px";
+			var thumb = document.createElement("span");
+			thumb.style.cssText =
+				"width:28px; height:28px; border-radius:4px; background:#F1F5F9 center/cover no-repeat; flex-shrink:0;";
+			tdNome.appendChild(thumb);
+			var spanNome = document.createElement("span");
+			spanNome.textContent = item.nome;
+			tdNome.appendChild(spanNome);
+			if (item.imagem) {
+				if (imagemCache[item.imagem]) {
+					thumb.style.backgroundImage = "url('" + imagemCache[item.imagem] + "')";
+				} else if (window.erpBanco.produtos.imagem) {
+					window.erpBanco.produtos.imagem(item.imagem).then((dataUrl) => {
+						if (dataUrl) {
+							imagemCache[item.imagem] = dataUrl;
+							thumb.style.backgroundImage = "url('" + dataUrl + "')";
+						}
+					}).catch(() => {});
+				}
+			}
 			if (estoqueBaixo) {
-				tdNome.style.color = "#f59e0b";
+				spanNome.style.color = "#f59e0b";
 				tdNome.title = "Estoque baixo: " + item.estoque + " unidades";
 			}
 
@@ -633,7 +883,7 @@
 		renderizarCarrinho();
 		skuInput.value = "";
 		formaPagamento.value = "";
-		clienteSelect.value = "";
+		limparClienteSelecionado();
 		descontoInput.value = "0";
 		observacaoInput.value = "";
 		skuInput.focus();
@@ -648,7 +898,7 @@
 
 		if (
 			!confirm(
-				"Salvar como or�amento?\n\nO estoque N�O ser� baixado agora. Converta em venda depois, na tela de Hist�rico.",
+				"Salvar como orçamento?\n\nO estoque NÃO será baixado agora. Converta em venda depois, na tela de Histórico.",
 			)
 		) {
 			return;
@@ -671,6 +921,20 @@
 
 		var total = totalCarrinho();
 		var desconto = descontoAtual();
+		var recebido = Number(valorRecebidoInput.value);
+
+		if (pagamento === "Dinheiro") {
+			if (!Number.isFinite(recebido) || recebido <= 0) {
+				mostrarMensagem("Informe o valor recebido.", "erro");
+				valorRecebidoInput.focus();
+				return;
+			}
+			if (recebido < total) {
+				mostrarMensagem("Valor recebido é menor que o total da venda.", "erro");
+				valorRecebidoInput.focus();
+				return;
+			}
+		}
 
 		var mensagemConfirmacao =
 			"Finalizar venda?\n\n" +
@@ -686,8 +950,11 @@
 			"\n" +
 			"Pagamento: " +
 			pagamento +
+			(pagamento === "Dinheiro"
+				? "\nRecebido: R$ " + recebido.toFixed(2) + "\nTroco: R$ " + (recebido - total).toFixed(2)
+				: "") +
 			(pagamento === "Fiado"
-				? "\n\nAten��o: ser� gerada uma conta a receber."
+				? "\n\nAtenção: será gerada uma conta a receber."
 				: "");
 
 		if (!confirm(mensagemConfirmacao)) {
@@ -715,7 +982,7 @@
 		};
 
 		if (!window.api || !window.erpBanco.vendas.finalizar) {
-			mostrarMensagem("API indispon�vel.", "erro");
+			mostrarMensagem("API indisponível.", "erro");
 			mostrarLoading(false);
 			btnFinalizar.disabled = false;
 			btnOrcamento.disabled = false;
@@ -728,7 +995,7 @@
 			.then((resultado) => {
 				if (status === "orcamento") {
 					mostrarMensagem(
-						"Or�amento salvo! ID: " + resultado.vendaId,
+						"Orçamento salvo! ID: " + resultado.vendaId,
 						"sucesso",
 					);
 				} else {
@@ -745,8 +1012,9 @@
 						total: totalCarrinho(),
 						forma_pagamento: dados.forma_pagamento,
 						cliente_nome: clienteSelect.value
-							? clienteSelect.options[clienteSelect.selectedIndex].textContent
+							? clienteEscolhidoNome.textContent
 							: null,
+						valorRecebido: dados.forma_pagamento === "Dinheiro" ? Number(valorRecebidoInput.value) || 0 : null,
 						data: new Date().toISOString(),
 					};
 					mostrarRecibo(dadosRecibo);
@@ -756,10 +1024,11 @@
 				limparCarrinhoPersistente();
 				renderizarCarrinho();
 				formaPagamento.value = "";
-				clienteSelect.value = "";
+				limparClienteSelecionado();
 				descontoInput.value = "0";
 				observacaoInput.value = "";
 				skuInput.value = "";
+				esconderGrupoTroco();
 				btnFinalizar.disabled = false;
 				btnOrcamento.disabled = false;
 				btnFinalizar.textContent = "Finalizar Venda";
@@ -769,7 +1038,7 @@
 			.catch((err) => {
 				mostrarMensagem(
 					"Erro ao " +
-						(status === "orcamento" ? "salvar or�amento" : "finalizar venda") +
+						(status === "orcamento" ? "salvar orçamento" : "finalizar venda") +
 						": " +
 						err,
 					"erro",
@@ -861,6 +1130,16 @@
 			"<div style='font-size: 12px; font-weight: bold; text-align: right; margin-bottom: 4px;'>Total: R$ " +
 			dados.total.toFixed(2) +
 			"</div>";
+		if (dados.valorRecebido !== null && dados.valorRecebido !== undefined) {
+			html +=
+				"<div style='font-size: 10px; text-align: right;'>Recebido: R$ " +
+				dados.valorRecebido.toFixed(2) +
+				"</div>";
+			html +=
+				"<div style='font-size: 10px; text-align: right; font-weight: bold;'>Troco: R$ " +
+				(dados.valorRecebido - dados.total).toFixed(2) +
+				"</div>";
+		}
 		html +=
 			"<div style='text-align: center; font-size: 9px; color: #666; margin-top: 10px;'>Obrigado pela preferencia!</div>";
 
@@ -886,4 +1165,275 @@
 			mensagemPDV.style.display = "none";
 		}, 4000);
 	}
+
+	/* ---------- Devolução / troca ---------- */
+
+	var devolucaoOverlay = document.getElementById("devolucaoOverlay");
+	var btnAbrirDevolucao = document.getElementById("btnAbrirDevolucao");
+	var btnFecharDevolucao = document.getElementById("btnFecharDevolucao");
+	var btnBuscarVendaDevolucao = document.getElementById("btnBuscarVendaDevolucao");
+	var btnConfirmarDevolucao = document.getElementById("btnConfirmarDevolucao");
+	var devVendaId = document.getElementById("devVendaId");
+	var devMotivo = document.getElementById("devMotivo");
+	var devMensagem = document.getElementById("devMensagem");
+	var devItens = document.getElementById("devItens");
+
+	function devMsg(texto, cor) {
+		devMensagem.textContent = texto;
+		devMensagem.style.color = cor || "#DC2626";
+	}
+
+	function abrirDevolucao() {
+		devVendaId.value = "";
+		devMotivo.value = "";
+		devMensagem.textContent = "";
+		devItens.innerHTML = "";
+		btnConfirmarDevolucao.disabled = true;
+		devolucaoOverlay.style.display = "flex";
+		devVendaId.focus();
+	}
+
+	function fecharDevolucao() {
+		devolucaoOverlay.style.display = "none";
+	}
+
+	if (btnAbrirDevolucao) btnAbrirDevolucao.addEventListener("click", abrirDevolucao);
+	if (btnFecharDevolucao) btnFecharDevolucao.addEventListener("click", fecharDevolucao);
+
+	function buscarVendaParaDevolucao() {
+		var vendaId = parseInt(devVendaId.value, 10);
+		devItens.innerHTML = "";
+		btnConfirmarDevolucao.disabled = true;
+		if (!Number.isInteger(vendaId) || vendaId <= 0) {
+			devMsg("Informe um número de venda válido.");
+			return;
+		}
+		if (!window.erpBanco.vendas.itens) {
+			devMsg("API indisponível.");
+			return;
+		}
+		window.erpBanco.vendas
+			.itens(vendaId)
+			.then((itensVenda) => {
+				itensVenda = itensVenda || [];
+				if (itensVenda.length === 0) {
+					devMsg("Venda não encontrada ou sem itens.");
+					return;
+				}
+				devMsg("Venda #" + vendaId + " localizada.", "#16A34A");
+				devItens.innerHTML = itensVenda
+					.map((i) => {
+						var disponivel = i.quantidade - (i.quantidade_devolvida || 0);
+						return (
+							'<div style="display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid #F1F5F9;" data-item-id="' +
+							i.id +
+							'" data-variacao-id="' +
+							i.variacao_id +
+							'" data-preco="' +
+							i.preco_unitario +
+							'">' +
+							'<span style="flex:1; font-size:0.85rem;">' +
+							esc(i.produto_nome || i.nome || "Item") +
+							" (" + i.quantidade + "x " + Number(i.preco_unitario).toFixed(2) + ")" +
+							(i.quantidade_devolvida > 0
+								? " — já devolvido: " + i.quantidade_devolvida
+								: "") +
+							"</span>" +
+							'<input type="number" min="0" max="' + disponivel + '" step="1" value="0" class="qtd-devolver" style="width:60px;" ' +
+							(disponivel <= 0 ? "disabled" : "") +
+							"/>" +
+							"</div>"
+						);
+					})
+					.join("");
+				btnConfirmarDevolucao.disabled = false;
+			})
+			.catch((err) => {
+				devMsg("Erro: " + err);
+			});
+	}
+
+	if (btnBuscarVendaDevolucao)
+		btnBuscarVendaDevolucao.addEventListener("click", buscarVendaParaDevolucao);
+	devVendaId.addEventListener("keydown", (e) => {
+		if (e.key === "Enter") {
+			e.preventDefault();
+			buscarVendaParaDevolucao();
+		}
+	});
+
+	if (btnConfirmarDevolucao) {
+		btnConfirmarDevolucao.addEventListener("click", () => {
+			var vendaId = parseInt(devVendaId.value, 10);
+			var itensSelecionados = [];
+			devItens.querySelectorAll("[data-item-id]").forEach((linha) => {
+				var qtd = parseInt(linha.querySelector(".qtd-devolver").value, 10);
+				if (Number.isInteger(qtd) && qtd > 0) {
+					itensSelecionados.push({
+						item_venda_id: Number(linha.getAttribute("data-item-id")),
+						quantidade: qtd,
+					});
+				}
+			});
+			if (itensSelecionados.length === 0) {
+				devMsg("Informe ao menos uma quantidade a devolver.");
+				return;
+			}
+			if (!confirm("Confirmar devolução de " + itensSelecionados.length + " item(ns)? O estoque será estornado."))
+				return;
+
+			btnConfirmarDevolucao.disabled = true;
+			window.erpBanco.vendas
+				.registrarDevolucao({
+					venda_id: vendaId,
+					itens: itensSelecionados,
+					motivo: devMotivo.value.trim() || null,
+				})
+				.then((r) => {
+					mostrarMensagem(
+						"Devolução registrada! Valor: R$ " + Number(r.valorTotal).toFixed(2),
+						"sucesso",
+					);
+					fecharDevolucao();
+				})
+				.catch((err) => {
+					devMsg("Erro: " + err);
+					btnConfirmarDevolucao.disabled = false;
+				});
+		});
+	}
+
+	/* ---------- Fechamento de caixa ---------- */
+
+	var caixaStatusBadge = document.getElementById("caixaStatusBadge");
+	var btnCaixa = document.getElementById("btnCaixa");
+	var caixaOverlay = document.getElementById("caixaOverlay");
+	var btnFecharCaixaOverlay = document.getElementById("btnFecharCaixaOverlay");
+	var caixaFechadoBox = document.getElementById("caixaFechadoBox");
+	var caixaAbertoBox = document.getElementById("caixaAbertoBox");
+	var caixaValorAbertura = document.getElementById("caixaValorAbertura");
+	var btnConfirmarAbrirCaixa = document.getElementById("btnConfirmarAbrirCaixa");
+	var caixaResumoInfo = document.getElementById("caixaResumoInfo");
+	var caixaValorFechamento = document.getElementById("caixaValorFechamento");
+	var caixaObservacaoFechamento = document.getElementById("caixaObservacaoFechamento");
+	var btnConfirmarFecharCaixa = document.getElementById("btnConfirmarFecharCaixa");
+	var caixaMensagem = document.getElementById("caixaMensagem");
+
+	function caixaMsg(texto, cor) {
+		caixaMensagem.textContent = texto || "";
+		caixaMensagem.style.color = cor || "#DC2626";
+	}
+
+	function formatarMoedaCaixa(v) {
+		return "R$ " + Number(v || 0).toFixed(2).replace(".", ",");
+	}
+
+	function atualizarBadgeCaixa() {
+		if (!caixaStatusBadge || !window.erpBanco || !window.erpBanco.caixa) return;
+		window.erpBanco.caixa
+			.aberto()
+			.then((caixa) => {
+				if (caixa) {
+					caixaStatusBadge.textContent = "Caixa aberto";
+					caixaStatusBadge.style.background = "#DCFCE7";
+					caixaStatusBadge.style.color = "#15803D";
+				} else {
+					caixaStatusBadge.textContent = "Caixa fechado";
+					caixaStatusBadge.style.background = "#FEE2E2";
+					caixaStatusBadge.style.color = "#B91C1C";
+				}
+			})
+			.catch(() => {});
+	}
+
+	function abrirCaixaModal() {
+		caixaMsg("");
+		caixaOverlay.style.display = "flex";
+		if (!window.erpBanco || !window.erpBanco.caixa) return;
+		window.erpBanco.caixa
+			.aberto()
+			.then((caixa) => {
+				if (caixa) {
+					caixaFechadoBox.style.display = "none";
+					caixaAbertoBox.style.display = "block";
+					caixaValorFechamento.value = "";
+					caixaObservacaoFechamento.value = "";
+					return window.erpBanco.caixa.resumo().then((resumo) => {
+						if (!resumo) return;
+						caixaResumoInfo.innerHTML =
+							"Aberto em: " + new Date(resumo.data_abertura).toLocaleString("pt-BR") + "<br>" +
+							"Valor de abertura: " + formatarMoedaCaixa(resumo.valor_abertura) + "<br>" +
+							"Vendido em dinheiro: " + formatarMoedaCaixa(resumo.vendido_em_dinheiro) + "<br>" +
+							"<strong>Esperado no caixa agora: " + formatarMoedaCaixa(resumo.valor_esperado_agora) + "</strong>";
+					});
+				} else {
+					caixaFechadoBox.style.display = "block";
+					caixaAbertoBox.style.display = "none";
+					caixaValorAbertura.value = "0";
+				}
+			})
+			.catch((err) => caixaMsg("Erro ao carregar caixa: " + err));
+	}
+
+	function fecharCaixaModal() {
+		caixaOverlay.style.display = "none";
+	}
+
+	if (btnCaixa) btnCaixa.addEventListener("click", abrirCaixaModal);
+	if (btnFecharCaixaOverlay) btnFecharCaixaOverlay.addEventListener("click", fecharCaixaModal);
+	caixaOverlay.addEventListener("click", (e) => {
+		if (e.target === caixaOverlay) fecharCaixaModal();
+	});
+
+	if (btnConfirmarAbrirCaixa) {
+		btnConfirmarAbrirCaixa.addEventListener("click", () => {
+			var valor = Number(caixaValorAbertura.value);
+			if (!Number.isFinite(valor) || valor < 0) {
+				caixaMsg("Valor de abertura inválido.");
+				return;
+			}
+			btnConfirmarAbrirCaixa.disabled = true;
+			window.erpBanco.caixa
+				.abrir(valor)
+				.then(() => {
+					mostrarMensagem("Caixa aberto!", "sucesso");
+					atualizarBadgeCaixa();
+					fecharCaixaModal();
+				})
+				.catch((err) => caixaMsg("Erro: " + err))
+				.finally(() => {
+					btnConfirmarAbrirCaixa.disabled = false;
+				});
+		});
+	}
+
+	if (btnConfirmarFecharCaixa) {
+		btnConfirmarFecharCaixa.addEventListener("click", () => {
+			var valor = Number(caixaValorFechamento.value);
+			if (!Number.isFinite(valor) || valor < 0) {
+				caixaMsg("Informe o valor contado no caixa.");
+				return;
+			}
+			if (!confirm("Confirmar fechamento do caixa com " + formatarMoedaCaixa(valor) + "?"))
+				return;
+			btnConfirmarFecharCaixa.disabled = true;
+			window.erpBanco.caixa
+				.fechar(valor, caixaObservacaoFechamento.value.trim())
+				.then((r) => {
+					var diffTexto = r.diferenca === 0
+						? "Caixa fechado sem diferença."
+						: "Caixa fechado. Diferença: " + formatarMoedaCaixa(r.diferenca) +
+							(r.diferenca < 0 ? " (faltou)" : " (sobrou)");
+					mostrarMensagem(diffTexto, r.diferenca === 0 ? "sucesso" : "erro");
+					atualizarBadgeCaixa();
+					fecharCaixaModal();
+				})
+				.catch((err) => caixaMsg("Erro: " + err))
+				.finally(() => {
+					btnConfirmarFecharCaixa.disabled = false;
+				});
+		});
+	}
+
+	atualizarBadgeCaixa();
 })();

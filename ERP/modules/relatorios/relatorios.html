@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="../core/modulos.css" />
     <title>Alga ERP - Relatórios</title>
   </head>
-  <body>
+  <body data-requer-modulo="relatorios">
     <div class="container">
       <h1>Relatórios</h1>
       <p class="subtitle">Vendas por período e Curva ABC de produtos.</p>
@@ -20,6 +20,7 @@
         <input type="date" id="dataFim" />
         <button type="button" id="btnGerar" class="btn btn-small">Gerar</button>
         <button type="button" id="btnCsvAbc" class="btn btn-small" style="background-color:#DCFCE7; color:#15803D; border-color:#86EFAC;">Exportar ABC (CSV)</button>
+        <button type="button" id="btnExportarPdf" class="btn btn-small" style="background-color:#FEE2E2; color:#B91C1C; border-color:#FCA5A5;">Exportar PDF</button>
       </div>
 
       <div id="mensagem" class="mensagem"></div>
@@ -28,23 +29,41 @@
 
       <div class="panel">
         <h2>Faturamento por dia</h2>
+        <div style="max-height:260px; margin-bottom:12px;"><canvas id="graficoPorDia"></canvas></div>
         <div id="listaPorDia"><div class="empty-state">Carregando...</div></div>
       </div>
 
       <div class="panel">
         <h2>Por forma de pagamento</h2>
+        <div style="max-width:340px; max-height:260px; margin-bottom:12px;"><canvas id="graficoPorPagamento"></canvas></div>
         <div id="listaPorPagamento"><div class="empty-state">Carregando...</div></div>
       </div>
 
       <div class="panel">
         <h2>Curva ABC (por receita)</h2>
         <p class="subtitle" style="margin-bottom: 10px;">A = até 80% acumulado | B = até 95% | C = restante.</p>
+        <div style="max-width:320px; max-height:240px; margin-bottom:12px;"><canvas id="graficoAbc"></canvas></div>
         <div id="listaAbc"><div class="empty-state">Carregando...</div></div>
+      </div>
+
+      <div class="panel">
+        <h2>Comissões por vendedor</h2>
+        <p class="subtitle" style="margin-bottom: 10px;">Vendas finalizadas no período, atribuídas a quem estava logado ao fechar a venda.</p>
+        <div id="listaComissoes"><div class="empty-state">Carregando...</div></div>
+      </div>
+
+      <div class="panel">
+        <h2>DRE (Demonstrativo de Resultado)</h2>
+        <p class="subtitle" style="margin-bottom: 10px;">Receita − custo da mercadoria vendida − despesas pagas no período.</p>
+        <div style="max-width:420px; max-height:240px; margin-bottom:12px;"><canvas id="graficoDre"></canvas></div>
+        <div id="dreResultado"><div class="empty-state">Carregando...</div></div>
       </div>
     </div>
 
     <script src="../core/banco.js"></script>
     <script src="../core/navbar.js"></script>
+    <script src="../core/vendor/jspdf.umd.min.js"></script>
+    <script src="../core/vendor/chart.umd.min.js"></script>
     <script src="./relatorios.js"></script>
   </body>
 </html>

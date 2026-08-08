@@ -19,6 +19,21 @@
 	}
 
 	var vendasCache = [];
+	var vendaDaURLAberta = false;
+	var detalheAtualCache = null;
+
+	function abrirVendaDaURL() {
+		if (vendaDaURLAberta) return;
+		var params = new URLSearchParams(window.location.search);
+		var vendaId = parseInt(params.get("venda"), 10);
+		if (!Number.isInteger(vendaId) || vendaId <= 0) return;
+		vendaDaURLAberta = true;
+		if (vendasCache.some((v) => v.id === vendaId)) {
+			mostrarDetalhesVenda(vendaId);
+		} else {
+			mostrarMensagem("Venda #" + vendaId + " não encontrada na lista atual.", "erro");
+		}
+	}
 
 	function carregarVendas(filtro) {
 		if (!window.api || !window.erpBanco.vendas.listar) {
@@ -34,6 +49,8 @@
 				vendasCache = vendas || [];
 				listaVendas.innerHTML = "";
 				statsVendas.innerHTML = "";
+
+				abrirVendaDaURL();
 
 				if (!vendas || vendas.length === 0) {
 					listaVendas.innerHTML =
@@ -123,6 +140,7 @@
 		window.api
 			.getItensVenda(vendaId)
 			.then((itens) => {
+				detalheAtualCache = { vendaId: vendaId, venda: venda, itens: itens || [] };
 				var html = "";
 				html += '<div style="max-width:600px;">';
 				html +=
@@ -218,7 +236,11 @@
 						"<tr><td colspan='5' style='padding:12px; text-align:center; color:#94A3B8; font-size:0.85rem;'>Nenhum item encontrado.</td></tr>";
 				}
 				html += "</tbody></table>";
-				html += '<div style="display:flex; gap:10px;">';
+				html += '<div style="display:flex; gap:10px;" class="no-print">';
+				html +=
+					'<button onclick="window.print()" style="padding:8px 16px; background:#64748B; color:#fff; border:none; border-radius:6px; font-size:0.85rem; font-weight:600; cursor:pointer;">Imprimir</button>';
+				html +=
+					'<button onclick="window.exportarDetalhePdf()" style="padding:8px 16px; background:#B91C1C; color:#fff; border:none; border-radius:6px; font-size:0.85rem; font-weight:600; cursor:pointer;">PDF</button>';
 				html +=
 					'<button onclick="fecharDetalhes()" style="padding:8px 16px; background:#2563EB; color:#fff; border:none; border-radius:6px; font-size:0.85rem; font-weight:600; cursor:pointer;">Fechar</button>';
 				if (venda && venda.status === "orcamento") {
@@ -315,6 +337,85 @@
 	window.fecharDetalhes = () => {
 		var modal = document.getElementById("modalDetalhes");
 		if (modal) modal.style.display = "none";
+	};
+
+	window.exportarDetalhePdf = () => {
+		if (!detalheAtualCache) return;
+		if (!window.jspdf || !window.jspdf.jsPDF) {
+			mostrarMensagem("Biblioteca de PDF não carregada.", "erro");
+			return;
+		}
+		var venda = detalheAtualCache.venda;
+		var itens = detalheAtualCache.itens;
+		var doc = new window.jspdf.jsPDF({ unit: "pt", format: "a4" });
+		var margem = 40;
+		var y = margem;
+
+		doc.setFontSize(15);
+		doc.setFont(undefined, "bold");
+		doc.text(
+			(venda && venda.status === "orcamento" ? "Orçamento" : "Venda") + " #" + detalheAtualCache.vendaId,
+			margem,
+			y,
+		);
+		y += 22;
+		doc.setFontSize(9);
+		doc.setFont(undefined, "normal");
+		if (venda) {
+			doc.text("Data: " + formatarData(venda.data_venda), margem, y);
+			y += 14;
+			doc.text("Pagamento: " + (venda.forma_pagamento || "---"), margem, y);
+			y += 14;
+			doc.text("Cliente: " + (venda.cliente_nome || "Não informado"), margem, y);
+			y += 14;
+			if (venda.observacao) {
+				doc.text("Observação: " + venda.observacao, margem, y);
+				y += 14;
+			}
+		}
+		y += 10;
+
+		doc.setFont(undefined, "bold");
+		doc.setFontSize(8.5);
+		var colunas = ["Produto", "SKU", "Qtd", "Unit.", "Total"];
+		var larguras = [220, 90, 50, 80, 80];
+		var x = margem;
+		colunas.forEach((c, i) => { doc.text(c, x, y); x += larguras[i]; });
+		y += 10;
+		doc.setDrawColor(200);
+		doc.line(margem, y - 7, margem + larguras.reduce((a, b) => a + b, 0), y - 7);
+		y += 4;
+		doc.setFont(undefined, "normal");
+
+		itens.forEach((item) => {
+			if (y > 780) { doc.addPage(); y = margem; }
+			var subtotal = (item.preco_unitario || 0) * (item.quantidade || 1);
+			var detalhes = formatarAtributos(item.atributos, item.tamanho, item.cor);
+			var nomeLinha = item.produto_nome + (detalhes !== "---" ? " (" + detalhes + ")" : "");
+			x = margem;
+			doc.text(nomeLinha.slice(0, 38), x, y); x += larguras[0];
+			doc.text(String(item.sku || "---"), x, y); x += larguras[1];
+			doc.text(String(item.quantidade), x, y); x += larguras[2];
+			doc.text(formatarMoeda(item.preco_unitario), x, y); x += larguras[3];
+			doc.text(formatarMoeda(subtotal), x, y);
+			y += 13;
+		});
+
+		y += 10;
+		if (venda && venda.desconto > 0) {
+			doc.text("Subtotal: " + formatarMoeda(venda.total + venda.desconto), margem + 300, y);
+			y += 14;
+			doc.text("Desconto: -" + formatarMoeda(venda.desconto), margem + 300, y);
+			y += 14;
+		}
+		doc.setFont(undefined, "bold");
+		doc.setFontSize(11);
+		doc.text("Total: " + formatarMoeda(venda ? venda.total : 0), margem + 300, y);
+
+		doc.save(
+			(venda && venda.status === "orcamento" ? "orcamento_" : "venda_") +
+				detalheAtualCache.vendaId + ".pdf",
+		);
 	};
 
 	function filtroAtual() {

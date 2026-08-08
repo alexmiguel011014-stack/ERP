@@ -1,0 +1,95 @@
+.panel-lista-estoque {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* Tabela de visão geral do estoque */
+.table-responsive { overflow-x: auto; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+th {
+  background: #F8FAFC;
+  color: #64748B;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 10px 10px;
+  text-align: left;
+  border-bottom: 1px solid #E2E8F0;
+  white-space: nowrap;
+}
+
+td {
+  padding: 8px 10px;
+  font-size: 0.82rem;
+  border-bottom: 1px solid #F1F5F9;
+  color: #1E293B;
+  vertical-align: middle;
+}
+
+tr:hover td { background: #F8FAFC; }
+
+td input[type="number"].minimo-input {
+  width: 70px;
+  padding: 5px 8px;
+  border: 1px solid #E2E8F0;
+  border-radius: 5px;
+  font-size: 0.82rem;
+  outline: none;
+  background: #FFF;
+  text-align: right;
+}
+
+td input[type="number"].minimo-input:focus { border-color: #2563EB; }
+
+.busca-estoque {
+  flex: 1;
+  min-width: 200px;
+  padding: 8px 12px;
+  border: 1px solid #E2E8F0;
+  border-radius: 7px;
+  font-size: 0.85rem;
+  outline: none;
+}
+
+.busca-estoque:focus { border-color: #2563EB; }
+
+.chip-group { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.chip {
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid #E2E8F0;
+  background: #F8FAFC;
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.chip:hover { background: #EFF6FF; border-color: #BFDBFE; }
+.chip.active { background: #2563EB; color: #FFFFFF; border-color: #2563EB; }
+
+/* Dark theme */
+.dark-theme table { background: #1E293B; border-color: #334159; }
+.dark-theme th { background: #0F172A; color: #94A3B8; border-bottom-color: #334159; }
+.dark-theme td { color: #E2E8F0; border-bottom-color: #1E293B; }
+.dark-theme tr:hover td { background: #0F172A; }
+.dark-theme td input[type="number"].minimo-input { background: #0F172A; border-color: #334159; color: #F1F5F9; }
+.dark-theme .busca-estoque { background: #0F172A; border-color: #334159; color: #F1F5F9; }
+.dark-theme .chip { background: #0F172A; border-color: #334159; color: #94A3B8; }
+.dark-theme .chip:hover { background: #334159; }
+.dark-theme .chip.active { background: #3B82F6; border-color: #3B82F6; color: #FFFFFF; }

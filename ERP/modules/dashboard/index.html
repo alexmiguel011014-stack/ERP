@@ -15,161 +15,193 @@
       }
       body {
         font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-        background-color: #F8FAFC;
+        background-color: #F1F5F9;
         color: #1E293B;
         min-height: 100vh;
         font-size: 14px;
         line-height: 1.5;
       }
-      .navbar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 10px 24px;
-        background-color: #FFFFFF;
-        border-bottom: 1px solid #E2E8F0;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-      }
-      .navbar-brand {
-        color: #2563EB;
-        font-weight: 700;
-        font-size: 1rem;
-      }
-      .navbar-links {
-        display: flex;
-        gap: 4px;
-      }
-      .navbar-links a {
-        color: #64748B;
-        text-decoration: none;
-        padding: 6px 14px;
-        border-radius: 6px;
-        font-size: 0.8rem;
-        font-weight: 500;
-        transition: background-color 0.15s, color 0.15s;
-      }
-      .navbar-links a:hover {
-        background-color: #F1F5F9;
-        color: #1E293B;
-      }
-      .navbar-links a.active {
-        background-color: #2563EB;
-        color: #FFFFFF;
-      }
       .container {
-        max-width: 1200px;
+        max-width: 1280px;
         width: 100%;
-        margin: 32px auto;
+        margin: 28px auto;
         padding: 0 24px;
       }
-      h1 {
-        color: #1E293B;
-        font-size: 1.5rem;
+      .dash-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin-bottom: 22px;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .dash-header h1 {
+        color: #0F172A;
+        font-size: 1.4rem;
         font-weight: 700;
-        margin-bottom: 6px;
-        text-align: center;
       }
-      .subtitle {
+      .dash-header .subtitle {
         color: #94A3B8;
-        margin-bottom: 24px;
-        text-align: center;
-        font-size: 0.9rem;
+        font-size: 0.85rem;
+        margin-top: 2px;
       }
+
+      /* ---- Metric cards ---- */
       .stats {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-        gap: 12px;
-        margin-bottom: 28px;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        gap: 16px;
+        margin-bottom: 20px;
       }
       .stat-card {
         background-color: #FFFFFF;
         border: 1px solid #E2E8F0;
-        border-radius: 10px;
-        padding: 18px 16px;
-        text-align: center;
-        transition: box-shadow 0.2s;
+        border-radius: 14px;
+        padding: 18px 20px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        transition: box-shadow 0.2s, transform 0.15s;
       }
       .stat-card:hover {
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+        transform: translateY(-1px);
       }
-      .stat-card.alert {
-        border-color: #FDE68A;
+      .stat-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 46px;
+        height: 46px;
+        border-radius: 12px;
+        flex-shrink: 0;
       }
-      .stat-value {
-        font-size: 1.8rem;
+      .stat-icon svg { width: 22px; height: 22px; }
+      .stat-icon.blue { background: #EFF6FF; color: #2563EB; }
+      .stat-icon.green { background: #F0FDF4; color: #16A34A; }
+      .stat-icon.purple { background: #F5F3FF; color: #7C3AED; }
+      .stat-icon.amber { background: #FFFBEB; color: #D97706; }
+      .stat-icon.red { background: #FEF2F2; color: #DC2626; }
+      .stat-body { min-width: 0; }
+      .stat-value { font-size: 1.35rem; font-weight: 700; color: #0F172A; line-height: 1.2; }
+      .stat-card.alert .stat-value { color: #D97706; }
+      .stat-label { font-size: 0.72rem; color: #94A3B8; margin-top: 3px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+
+      /* ---- Panels / grid ---- */
+      .dash-grid {
+        display: grid;
+        grid-template-columns: 1.6fr 1fr;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+      @media (max-width: 900px) {
+        .dash-grid { grid-template-columns: 1fr; }
+      }
+      .panel {
+        background-color: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 14px;
+        padding: 20px 22px;
+      }
+      .panel-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 14px;
+      }
+      .panel-head h3 {
+        font-size: 0.92rem;
+        color: #0F172A;
         font-weight: 700;
-        color: #2563EB;
       }
-      .stat-card.alert .stat-value {
-        color: #F59E0B;
-      }
-      .stat-label {
-        font-size: 0.7rem;
+      .panel-head .panel-sub {
+        font-size: 0.72rem;
         color: #94A3B8;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        font-weight: 600;
-        margin-top: 4px;
       }
+
+      /* ---- Top products table ---- */
+      .top-produtos-table { width: 100%; border-collapse: collapse; }
+      .top-produtos-table th {
+        text-align: left;
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #94A3B8;
+        font-weight: 700;
+        padding: 0 8px 10px;
+        border-bottom: 1px solid #F1F5F9;
+      }
+      .top-produtos-table td {
+        padding: 10px 8px;
+        border-bottom: 1px solid #F8FAFC;
+        font-size: 0.83rem;
+        vertical-align: middle;
+      }
+      .top-produtos-table tr:last-child td { border-bottom: none; }
+      .prod-cell { display: flex; align-items: center; gap: 10px; }
+      .prod-thumb {
+        width: 34px; height: 34px; border-radius: 8px; background: #EFF6FF;
+        color: #2563EB; display: flex; align-items: center; justify-content: center;
+        font-size: 0.68rem; font-weight: 700; flex-shrink: 0; background-size: cover; background-position: center;
+      }
+      .prod-name { font-weight: 600; color: #1E293B; }
+      .prod-sku { font-size: 0.72rem; color: #94A3B8; }
+      .qtd-badge {
+        display: inline-block; padding: 2px 9px; border-radius: 999px;
+        background: #F0FDF4; color: #15803D; font-size: 0.72rem; font-weight: 700;
+      }
+
+      /* ---- Quick links (antigos "cards") ---- */
       .cards {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-        gap: 16px;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 14px;
+        margin-bottom: 16px;
       }
       .card {
         background-color: #FFFFFF;
         border: 1px solid #E2E8F0;
-        border-radius: 10px;
-        padding: 28px 24px;
+        border-radius: 14px;
+        padding: 22px 20px;
         cursor: pointer;
         transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
-        text-align: center;
       }
       .card:hover {
         border-color: #2563EB;
-        box-shadow: 0 4px 16px rgba(37, 99, 235, 0.1);
+        box-shadow: 0 8px 24px rgba(37, 99, 235, 0.1);
         transform: translateY(-2px);
       }
       .card-icon {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-width: 48px;
-        height: 48px;
-        padding: 0 12px;
+        width: 42px;
+        height: 42px;
         border-radius: 10px;
         background-color: #EFF6FF;
         color: #2563EB;
-        font-size: 0.85rem;
-        font-weight: 700;
-        letter-spacing: 0.05em;
-        margin-bottom: 10px;
+        margin-bottom: 12px;
       }
+      .card-icon svg { width: 20px; height: 20px; }
       html.dark-theme .card-icon {
         background-color: #0F172A;
         color: #3B82F6;
       }
       .card h3 {
         color: #1E293B;
-        margin-bottom: 6px;
-        font-size: 1rem;
+        margin-bottom: 4px;
+        font-size: 0.95rem;
         font-weight: 600;
       }
       .card p {
         color: #94A3B8;
-        font-size: 0.8rem;
+        font-size: 0.78rem;
         line-height: 1.4;
       }
       .card a {
         text-decoration: none;
         color: inherit;
         display: block;
-      }
-      .panel {
-        background-color: #FFFFFF;
-        border: 1px solid #E2E8F0;
-        border-radius: 10px;
-        padding: 16px 24px;
       }
       .version-badge {
         display: inline-block;
@@ -192,139 +224,165 @@
       }
 
       /* Dark Theme */
-      html.dark-theme {
-        background-color: #0F172A;
-      }
-      html.dark-theme body {
-        background-color: #0F172A;
-        color: #E2E8F0;
-      }
-      html.dark-theme h1 {
-        color: #F1F5F9;
-      }
-      html.dark-theme .subtitle {
-        color: #64748B;
-      }
-      html.dark-theme .stats .stat-card,
-      html.dark-theme .panel {
-        background-color: #1E293B;
-        border-color: #334159;
-      }
-      html.dark-theme .stat-value {
-        color: #3B82F6;
-      }
-      html.dark-theme .stat-card.alert {
-        border-color: #42271B;
-      }
-      html.dark-theme .stat-card.alert .stat-value {
-        color: #FBBF24;
-      }
-      html.dark-theme .stat-label {
-        color: #64748B;
-      }
-      html.dark-theme .card {
-        background-color: #1E293B;
-        border-color: #334159;
-        color: #E2E8F0;
-      }
-      html.dark-theme .card p {
-        color: #94A3B8;
-      }
-      html.dark-theme .card h3 {
-        color: #F1F5F9;
-      }
-      html.dark-theme .version-badge.current {
-        background-color: #064E35;
-        color: #6EE7B7;
-      }
-      html.dark-theme .version-badge.latest {
-        background-color: #0F172A;
-        color: #60A5FA;
-      }
-      html.dark-theme .version-badge.outdated {
-        background-color: #450A0A;
-        color: #FCA5A5;
-      }
+      html.dark-theme { background-color: #0F172A; }
+      html.dark-theme body { background-color: #0F172A; color: #E2E8F0; }
+      html.dark-theme .dash-header h1 { color: #F1F5F9; }
+      html.dark-theme .dash-header .subtitle { color: #64748B; }
+      html.dark-theme .stat-card,
+      html.dark-theme .panel,
+      html.dark-theme .card { background-color: #1E293B; border-color: #334159; color: #E2E8F0; }
+      html.dark-theme .stat-value { color: #F1F5F9; }
+      html.dark-theme .stat-icon.blue { background: #0F172A; color: #60A5FA; }
+      html.dark-theme .stat-icon.green { background: #0F172A; color: #4ADE80; }
+      html.dark-theme .stat-icon.purple { background: #0F172A; color: #A78BFA; }
+      html.dark-theme .stat-icon.amber { background: #0F172A; color: #FBBF24; }
+      html.dark-theme .stat-icon.red { background: #0F172A; color: #F87171; }
+      html.dark-theme .panel-head h3 { color: #F1F5F9; }
+      html.dark-theme .panel-head .panel-sub { color: #64748B; }
+      html.dark-theme .top-produtos-table th { color: #64748B; border-bottom-color: #334159; }
+      html.dark-theme .top-produtos-table td { border-bottom-color: #1E293B; color: #E2E8F0; }
+      html.dark-theme .prod-name { color: #F1F5F9; }
+      html.dark-theme .prod-sku { color: #64748B; }
+      html.dark-theme .prod-thumb { background: #0F172A; color: #60A5FA; }
+      html.dark-theme .card p { color: #94A3B8; }
+      html.dark-theme .card h3 { color: #F1F5F9; }
+      html.dark-theme .version-badge.current { background-color: #064E35; color: #6EE7B7; }
+      html.dark-theme .version-badge.latest { background-color: #0F172A; color: #60A5FA; }
+      html.dark-theme .version-badge.outdated { background-color: #450A0A; color: #FCA5A5; }
     </style>
   </head>
   <body>
     <div class="container">
-      <h1>Alga ERP</h1>
-      <p class="subtitle">Bem-vindo ao sistema de gestão</p>
+      <div class="dash-header">
+        <div>
+          <h1>Dashboard</h1>
+          <div class="subtitle">Visão geral da loja — hoje, <span id="dashDataHoje"></span></div>
+        </div>
+      </div>
 
       <div class="stats" id="statsContainer">
         <div class="stat-card">
-          <div class="stat-value" id="statVendas">--</div>
-          <div class="stat-label">Vendas Hoje</div>
+          <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M7 15h4"/></svg></div>
+          <div class="stat-body">
+            <div class="stat-value" id="statVendas">--</div>
+            <div class="stat-label">Vendas Hoje</div>
+          </div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" id="statFaturamento">--</div>
-          <div class="stat-label">Faturamento Hoje</div>
+          <div class="stat-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          <div class="stat-body">
+            <div class="stat-value" id="statFaturamento">--</div>
+            <div class="stat-label">Faturamento Hoje</div>
+          </div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" id="statProdutos">--</div>
-          <div class="stat-label">Produtos</div>
+          <div class="stat-icon purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/></svg></div>
+          <div class="stat-body">
+            <div class="stat-value" id="statProdutos">--</div>
+            <div class="stat-label">Produtos</div>
+          </div>
         </div>
         <div class="stat-card alert" id="statEstoqueBaixo">
-          <div class="stat-value" id="statEstoque">--</div>
-          <div class="stat-label">Estoque Baixo</div>
+          <div class="stat-icon amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+          <div class="stat-body">
+            <div class="stat-value" id="statEstoque">--</div>
+            <div class="stat-label">Estoque Baixo</div>
+          </div>
         </div>
         <div class="stat-card" onclick="window.location.href='../financeiro/financeiro.html';" style="cursor:pointer;">
-          <div class="stat-value" id="statAReceber" style="color: #16A34A;">--</div>
-          <div class="stat-label">A Receber (vencido/hoje)</div>
+          <div class="stat-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          <div class="stat-body">
+            <div class="stat-value" id="statAReceber">--</div>
+            <div class="stat-label">A Receber</div>
+          </div>
         </div>
         <div class="stat-card alert" onclick="window.location.href='../financeiro/financeiro.html';" style="cursor:pointer;">
-          <div class="stat-value" id="statAPagar">--</div>
-          <div class="stat-label">A Pagar (vencido/hoje)</div>
+          <div class="stat-icon red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          <div class="stat-body">
+            <div class="stat-value" id="statAPagar">--</div>
+            <div class="stat-label">A Pagar</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dash-grid">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Faturamento — últimos 7 dias</h3>
+            <span class="panel-sub">Vendas finalizadas</span>
+          </div>
+          <div style="max-height:220px;"><canvas id="graficoFaturamento7d"></canvas></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Mais vendidos</h3>
+            <span class="panel-sub">Últimos 30 dias</span>
+          </div>
+          <table class="top-produtos-table" id="tabelaTopProdutos">
+            <thead>
+              <tr><th>Produto</th><th>Qtd.</th><th>Receita</th></tr>
+            </thead>
+            <tbody id="corpoTopProdutos">
+              <tr><td colspan="3" style="text-align:center; color:#94A3B8; padding:18px 0;">Carregando...</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
       <div class="cards">
         <div class="card">
           <a href="../pdv/pdv.html">
-            <div class="card-icon">PDV</div>
+            <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M7 15h4"/></svg></div>
             <h3>Frente de Caixa</h3>
             <p>Leitor de SKU, carrinho e finalização de venda</p>
           </a>
         </div>
-        <div class="card">
+        <div class="card" data-modulo="produtos">
           <a href="./index.html?workspace=gerenciamento-produtos">
-            <div class="card-icon">PROD</div>
+            <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/></svg></div>
             <h3>Gerenciamento de Produtos</h3>
             <p>Cadastro, precificação e estoque</p>
           </a>
         </div>
         <div class="card">
           <a href="../clientes/clientes.html">
-            <div class="card-icon">CLI</div>
+            <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
             <h3>Clientes</h3>
             <p>Cadastro e gerenciamento de clientes</p>
           </a>
         </div>
-        <div class="card">
+        <div class="card" data-modulo="compras">
           <a href="../compras/compras.html">
-            <div class="card-icon">CMP</div>
+            <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg></div>
             <h3>Compras</h3>
             <p>Pedidos e recebimento de mercadorias</p>
           </a>
         </div>
-        <div class="card">
+        <div class="card" data-modulo="fornecedores">
+          <a href="../fornecedores/fornecedores.html">
+            <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.752 11.168l-2.66-4.29a1 1 0 0 0 0 1.2L14 15l-4 4a1 1 0 0 0 1 1.5l7-7a1 1 0 0 0-.2-1.6z"/></svg></div>
+            <h3>Fornecedores</h3>
+            <p>Contatos e custos por fornecedor</p>
+          </a>
+        </div>
+        <div class="card" data-modulo="financeiro">
           <a href="../financeiro/financeiro.html">
-            <div class="card-icon">FIN</div>
+            <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
             <h3>Financeiro</h3>
             <p>Contas a pagar, receber e fluxo de caixa</p>
           </a>
         </div>
-        <div class="card">
+        <div class="card" data-modulo="relatorios">
           <a href="../relatorios/relatorios.html">
-            <div class="card-icon">REL</div>
+            <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5V5a2 2 0 0 1 2-2h8.5a1.5 1.5 0 0 1 1 1v12.5a1.5 1.5 0 0 1-1 1.5H6a2 2 0 0 0-2 2z"/><path d="M9 5V3h6v2M9 9h6v6H9z"/></svg></div>
             <h3>Relatórios</h3>
             <p>Vendas por período e Curva ABC</p>
           </a>
         </div>
       </div>
 
-      <div class="panel" style="margin-top:24px;">
+      <div class="panel" style="margin-bottom:14px;">
         <div style="display:flex; justify-content: space-between; align-items: center;">
           <div>
             <strong style="color:#64748B; font-size:0.8rem;">Backup</strong>
@@ -336,10 +394,10 @@
         </div>
       </div>
 
-      <div class="panel" style="margin-top:24px; text-align:center;">
+      <div class="panel" style="text-align:center; margin-bottom:12px;">
         <span class="version-badge current" id="appVersion">v--</span>
       </div>
-      <div class="panel" style="margin-top:12px; text-align:center;">
+      <div class="panel" style="text-align:center;">
         <span id="dbPathStatus" style="color:#94A3B8; font-size:0.72rem;">Banco: verificando...</span>
       </div>
     </div>
@@ -356,14 +414,57 @@
         <button type="button" class="gerenciamento-tab active" data-src="../produtos/cadastro.html?embedded=1">Produtos</button>
         <button type="button" class="gerenciamento-tab" data-src="../precificacao/precificacao.html?embedded=1">Precificação</button>
         <button type="button" class="gerenciamento-tab" data-src="../entrada/entrada.html?embedded=1">Estoque</button>
+        <button type="button" class="gerenciamento-tab" data-src="../entrada/estoque-lista.html?embedded=1">Lista de Estoque</button>
       </nav>
       <iframe id="gerenciamentoProdutosFrame" title="Gerenciamento de Produtos"></iframe>
     </section>
 
     <script src="../core/banco.js"></script>
     <script src="../core/navbar.js"></script>
+    <script src="../core/vendor/chart.umd.min.js"></script>
     <script src="../produtos/gerenciamento-produtos.js"></script>
     <script>
+      function esc(t) {
+        return String(t == null ? "" : t)
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      }
+
+      document.getElementById("dashDataHoje").textContent = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "long" });
+
+      function ocultarCardsAdmin(sessao) {
+        if (sessao && sessao.perfil === "admin") return;
+        var permissoes = (sessao && sessao.permissoes) || {};
+        Array.prototype.forEach.call(
+          document.querySelectorAll('[data-modulo]'),
+          function (el) {
+            var modulo = el.getAttribute("data-modulo");
+            if (permissoes[modulo] !== true) el.style.display = "none";
+          },
+        );
+      }
+      if (window.erpAuthPromise) {
+        window.erpAuthPromise.then(ocultarCardsAdmin).catch(function () { ocultarCardsAdmin(null); });
+      }
+
+      function renderizarTopProdutos(lista) {
+        var corpo = document.getElementById("corpoTopProdutos");
+        if (!lista || lista.length === 0) {
+          corpo.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#94A3B8; padding:18px 0;">Nenhuma venda nos últimos 30 dias.</td></tr>';
+          return;
+        }
+        corpo.innerHTML = lista.map(function (p) {
+          var iniciais = esc(String(p.nome || "?").trim().slice(0, 2).toUpperCase());
+          return (
+            '<tr><td><div class="prod-cell">' +
+            '<span class="prod-thumb">' + iniciais + '</span>' +
+            '<div><div class="prod-name">' + esc(p.nome) + '</div><div class="prod-sku">' + esc(p.sku || "") + '</div></div>' +
+            '</div></td>' +
+            '<td><span class="qtd-badge">' + Number(p.quantidade || 0) + '</span></td>' +
+            '<td>R$ ' + Number(p.receita || 0).toFixed(2) + '</td></tr>'
+          );
+        }).join("");
+      }
+
       if (window.api && window.api.dashboardStats) {
         window.api
           .dashboardStats()
@@ -380,6 +481,36 @@
               "R$ " + (stats.aReceberHoje || 0).toFixed(2);
             document.getElementById("statAPagar").textContent =
               "R$ " + (stats.aPagarHoje || 0).toFixed(2);
+
+            renderizarTopProdutos(stats.topProdutos);
+
+            var canvas = document.getElementById("graficoFaturamento7d");
+            if (canvas && window.Chart && Array.isArray(stats.faturamentoUltimos7Dias)) {
+              new window.Chart(canvas.getContext("2d"), {
+                type: "line",
+                data: {
+                  labels: stats.faturamentoUltimos7Dias.map(function (d) {
+                    var p = d.dia.split("-");
+                    return p[2] + "/" + p[1];
+                  }),
+                  datasets: [{
+                    label: "Faturamento",
+                    data: stats.faturamentoUltimos7Dias.map(function (d) { return d.faturamento; }),
+                    borderColor: "#2563EB",
+                    backgroundColor: "rgba(37,99,235,0.12)",
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 3,
+                  }],
+                },
+                options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: { legend: { display: false } },
+                  scales: { y: { beginAtZero: true } },
+                },
+              });
+            }
           })
           .catch(function () {});
       }

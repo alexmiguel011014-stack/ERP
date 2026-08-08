@@ -60,6 +60,29 @@
           <div id="movimentacoesContainer"></div>
         </fieldset>
 
+        <!-- Preços especiais (visível apenas ao editar) -->
+        <fieldset class="form-section" id="precosEspeciaisSection" style="display:none;">
+          <legend>Preços especiais</legend>
+          <p class="subtitle" style="margin: 0 0 10px;">Preço combinado com este cliente para SKUs específicos. Aplicado automaticamente no PDV quando este cliente estiver selecionado.</p>
+          <div class="form-grid">
+            <div class="form-group form-group-wide">
+              <label for="pePreSku">SKU</label>
+              <input type="text" id="pePreSku" placeholder="Digite o SKU e pressione Enter" />
+            </div>
+            <div class="form-group">
+              <label for="pePreco">Preço combinado (R$)</label>
+              <input type="number" id="pePreco" min="0" step="0.01" value="0" />
+            </div>
+          </div>
+          <div id="pePreview" style="font-size: 0.8rem; color: #475569; margin-bottom: 8px;"></div>
+          <div class="form-actions">
+            <button type="button" id="btnAddPrecoEspecial" class="btn btn-small btn-primary">Adicionar / Atualizar</button>
+          </div>
+          <div id="listaPrecosEspeciais" style="margin-top: 10px;">
+            <div class="empty-state">Nenhum preço especial cadastrado.</div>
+          </div>
+        </fieldset>
+
         <div class="form-actions">
           <button type="submit" class="btn btn-primary" id="btnSalvar">Salvar Cliente</button>
           <button type="reset" class="btn btn-secondary" id="btnLimpar">Limpar</button>
@@ -85,6 +108,7 @@
 
     <script src="../core/banco.js"></script>
     <script src="../core/navbar.js"></script>
+    <script src="../core/formatos.js"></script>
     <script src="./clientes.js"></script>
   </body>
 </html>

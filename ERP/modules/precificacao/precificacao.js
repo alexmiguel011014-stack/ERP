@@ -3,10 +3,15 @@
 	var pricingData = [];
 	var todasCategorias = [];
 	var debounceTimers = {};
+	var custoFixoConfig = { mensal: 0, volumeMensal: 0, porUnidade: 0 };
 
 	// DOM
 	var globalMarginInput = document.getElementById("globalMargin");
 	var btnSaveGlobal = document.getElementById("btnSaveGlobal");
+	var custoFixoMensalInput = document.getElementById("custoFixoMensal");
+	var custoFixoVolumeInput = document.getElementById("custoFixoVolume");
+	var btnSaveCustoFixo = document.getElementById("btnSaveCustoFixo");
+	var custoFixoResultado = document.getElementById("custoFixoResultado");
 	var massBar = document.getElementById("massBar");
 	var massCount = document.getElementById("massCount");
 	var massMargin = document.getElementById("massMargin");
@@ -44,20 +49,20 @@
 
 	/* ==================== Cálculos ==================== */
 
-	function calcPrecoVenda(custo, impostos, margem) {
-		var base = Number(custo || 0) + Number(impostos || 0);
+	function calcPrecoVenda(custo, impostos, margem, custoFixo) {
+		var base = Number(custo || 0) + Number(impostos || 0) + Number(custoFixo || 0);
 		if (base <= 0) return 0;
 		return base * (1 + Number(margem || 0) / 100);
 	}
 
-	function calcMargem(custo, impostos, precoVenda) {
-		var base = Number(custo || 0) + Number(impostos || 0);
+	function calcMargem(custo, impostos, precoVenda, custoFixo) {
+		var base = Number(custo || 0) + Number(impostos || 0) + Number(custoFixo || 0);
 		if (base <= 0) return 0;
 		return (Number(precoVenda || 0) / base - 1) * 100;
 	}
 
-	function calcLucro(custo, impostos, precoVenda) {
-		var base = Number(custo || 0) + Number(impostos || 0);
+	function calcLucro(custo, impostos, precoVenda, custoFixo) {
+		var base = Number(custo || 0) + Number(impostos || 0) + Number(custoFixo || 0);
 		return Number(precoVenda || 0) - base;
 	}
 
@@ -66,6 +71,10 @@
 			return Number(p.margem_percentual);
 		}
 		return globalMargin;
+	}
+
+	function custoFixoDe(p) {
+		return p.aplicar_custo_fixo ? custoFixoConfig.porUnidade : 0;
 	}
 
 	/* ==================== Filtros ==================== */
@@ -120,6 +129,9 @@
 				? window.erpBanco.precificacao.dados()
 				: Promise.resolve([]),
 			erpCategoryStore.getCategoriasFlux(),
+			window.api && window.erpBanco.precificacao.custoFixoConfig
+				? window.erpBanco.precificacao.custoFixoConfig()
+				: Promise.resolve({ mensal: 0, volumeMensal: 0, porUnidade: 0 }),
 		];
 
 		Promise.all(promises)
@@ -128,6 +140,10 @@
 				globalMarginInput.value = globalMargin;
 				pricingData = Array.isArray(results[1]) ? results[1] : [];
 				todasCategorias = Array.isArray(results[2]) ? results[2] : [];
+				custoFixoConfig = results[3] || { mensal: 0, volumeMensal: 0, porUnidade: 0 };
+				custoFixoMensalInput.value = custoFixoConfig.mensal || "";
+				custoFixoVolumeInput.value = custoFixoConfig.volumeMensal || "";
+				atualizarCustoFixoResultado();
 				preencherFiltroCategoria();
 				renderizar();
 				aviso.style.display = "none";
@@ -155,7 +171,7 @@
 					? "Nenhum produto cadastrado ainda. Cadastre produtos e eles aparecerão aqui automaticamente."
 					: "Nenhum produto encontrado para os filtros aplicados.";
 			tbody.innerHTML =
-				'<tr><td colspan="10"><div class="empty-state">' +
+				'<tr><td colspan="11"><div class="empty-state">' +
 				msg +
 				"</div></td></tr>";
 			atualizarMassBar();
@@ -164,11 +180,12 @@
 
 		filtrados.forEach((p) => {
 			var margemReal = margemEfetiva(p);
+			var custoFixoAplicado = custoFixoDe(p);
 			var precoCalculado =
 				Number(p.preco_venda || 0) > 0
 					? Number(p.preco_venda)
-					: calcPrecoVenda(p.preco_custo, p.impostos_extras, margemReal);
-			var lucro = calcLucro(p.preco_custo, p.impostos_extras, precoCalculado);
+					: calcPrecoVenda(p.preco_custo, p.impostos_extras, margemReal, custoFixoAplicado);
+			var lucro = calcLucro(p.preco_custo, p.impostos_extras, precoCalculado, custoFixoAplicado);
 
 			var tr = document.createElement("tr");
 
@@ -236,12 +253,38 @@
 			tdImp.appendChild(inpImp);
 			tr.appendChild(tdImp);
 
-			// 6: Margem (%)
+			// 6: Custo Fixo (diluído)
+			var tdCustoFixo = document.createElement("td");
+			var custoFixoBox = document.createElement("label");
+			custoFixoBox.className = "custo-fixo-toggle";
+			var chkCustoFixo = document.createElement("input");
+			chkCustoFixo.type = "checkbox";
+			chkCustoFixo.checked = !!p.aplicar_custo_fixo;
+			chkCustoFixo.title = "Diluir o custo fixo mensal neste produto";
+			chkCustoFixo.addEventListener("change", () => {
+				p.aplicar_custo_fixo = chkCustoFixo.checked;
+				if (window.erpBanco.precificacao.salvarAplicarCustoFixo) {
+					window.erpBanco.precificacao
+						.salvarAplicarCustoFixo(p.produto_id, chkCustoFixo.checked)
+						.catch((err) => mostrarMensagem("Erro ao salvar: " + err, "error"));
+				}
+				renderizar();
+			});
+			var custoFixoValor = document.createElement("span");
+			custoFixoValor.textContent = p.aplicar_custo_fixo
+				? "R$ " + fmtMoeda(custoFixoConfig.porUnidade)
+				: "—";
+			custoFixoBox.appendChild(chkCustoFixo);
+			custoFixoBox.appendChild(custoFixoValor);
+			tdCustoFixo.appendChild(custoFixoBox);
+			tr.appendChild(tdCustoFixo);
+
+			// 7: Margem (%)
 			var tdMarg = document.createElement("td");
 			var inpMarg = criarInputNumero(
 				margemReal,
 				(val) => {
-					var novoPreco = calcPrecoVenda(p.preco_custo, p.impostos_extras, val);
+					var novoPreco = calcPrecoVenda(p.preco_custo, p.impostos_extras, val, custoFixoAplicado);
 					p.margem_percentual = val;
 					p.preco_venda = novoPreco;
 					debounceSalvarMargemPreco(p.produto_id, val, novoPreco);
@@ -256,12 +299,12 @@
 			tdMarg.appendChild(inpMarg);
 			tr.appendChild(tdMarg);
 
-			// 7: Preço de Venda
+			// 8: Preço de Venda
 			var tdPreco = document.createElement("td");
 			var inpPreco = criarInputNumero(
 				precoCalculado,
 				(val) => {
-					var novaMargem = calcMargem(p.preco_custo, p.impostos_extras, val);
+					var novaMargem = calcMargem(p.preco_custo, p.impostos_extras, val, custoFixoAplicado);
 					p.margem_percentual = novaMargem;
 					p.preco_venda = val;
 					debounceSalvarMargemPreco(p.produto_id, novaMargem, val);
@@ -453,6 +496,49 @@
 			})
 			.then(() => {
 				btnSaveGlobal.disabled = false;
+			});
+	});
+
+	/* ==================== Custos Fixos ==================== */
+
+	function atualizarCustoFixoResultado() {
+		if (custoFixoConfig.porUnidade > 0) {
+			custoFixoResultado.textContent =
+				"= R$ " + fmtMoeda(custoFixoConfig.porUnidade) + " por unidade vendida";
+		} else {
+			custoFixoResultado.textContent = "Informe os dois campos para calcular o valor por unidade.";
+		}
+	}
+
+	btnSaveCustoFixo.addEventListener("click", () => {
+		var mensal = parseFloat(custoFixoMensalInput.value) || 0;
+		var volume = parseInt(custoFixoVolumeInput.value, 10) || 0;
+		if (mensal < 0 || volume < 0) {
+			mostrarMensagem("Informe valores válidos.", "error");
+			return;
+		}
+		if (!window.api || !window.erpBanco.precificacao.salvarCustoFixoConfig) {
+			mostrarMensagem("API indisponível.", "error");
+			return;
+		}
+		btnSaveCustoFixo.disabled = true;
+		window.erpBanco.precificacao
+			.salvarCustoFixoConfig(mensal, volume)
+			.then(() => {
+				custoFixoConfig = {
+					mensal: mensal,
+					volumeMensal: volume,
+					porUnidade: volume > 0 ? mensal / volume : 0,
+				};
+				atualizarCustoFixoResultado();
+				renderizar();
+				mostrarMensagem("Custos fixos atualizados!", "success");
+			})
+			.catch((err) => {
+				mostrarMensagem("Erro: " + err, "error");
+			})
+			.then(() => {
+				btnSaveCustoFixo.disabled = false;
 			});
 	});
 

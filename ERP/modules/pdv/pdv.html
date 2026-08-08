@@ -17,7 +17,11 @@
 
       <header class="pdv-header">
         <h1>Frente de Caixa</h1>
-        <span class="pdv-date" id="pdvDate"></span>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span id="caixaStatusBadge" style="font-size:0.75rem; padding:4px 10px; border-radius:12px; font-weight:600;"></span>
+          <button type="button" id="btnCaixa" class="btn btn-small">Caixa</button>
+          <span class="pdv-date" id="pdvDate"></span>
+        </div>
       </header>
 
       <div class="pdv-main">
@@ -72,10 +76,14 @@
             <h2>Resumo da Venda</h2>
 
             <div class="forma-pagamento">
-              <label>Cliente</label>
-              <select id="clienteSelect">
-                <option value="">Cliente não informado</option>
-              </select>
+              <label for="clienteBusca">Cliente</label>
+              <input type="text" id="clienteBusca" placeholder="Buscar por nome ou código..." autocomplete="off" />
+              <input type="hidden" id="clienteSelect" value="" />
+              <div id="clienteResultados" style="display:none; max-height:140px; overflow-y:auto; border:1px solid #E2E8F0; border-radius:6px; margin-top:4px; background:#fff; position:relative; z-index:5;"></div>
+              <div id="clienteEscolhido" style="display:none; margin-top:6px; font-size:0.85rem; background:#EFF6FF; border:1px solid #BFDBFE; border-radius:6px; padding:6px 8px; display:flex; align-items:center; justify-content:space-between;">
+                <span id="clienteEscolhidoNome"></span>
+                <button type="button" id="btnLimparCliente" style="border:none; background:none; color:#DC2626; cursor:pointer; font-weight:600;">x</button>
+              </div>
             </div>
 
             <div class="forma-pagamento">
@@ -87,6 +95,12 @@
                 <option value="Dinheiro">Dinheiro</option>
                 <option value="Fiado">Fiado (a receber)</option>
               </select>
+            </div>
+
+            <div class="forma-pagamento" id="grupoTroco" style="display:none;">
+              <label for="valorRecebidoInput">Valor recebido (R$)</label>
+              <input type="number" id="valorRecebidoInput" min="0" step="0.01" placeholder="0,00" />
+              <div id="trocoResultado" style="margin-top: 6px; font-size: 0.9rem; font-weight: 600;"></div>
             </div>
 
             <div class="forma-pagamento">
@@ -115,11 +129,67 @@
                 Finalizar Venda
               </button>
             </div>
+            <div class="acoes-venda" style="margin-top: 8px;">
+              <button id="btnAbrirDevolucao" type="button" style="width:100%; padding:8px; background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; border-radius:6px; font-size:0.85rem; cursor:pointer;">
+                Devolução / Troca
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       <div id="mensagemPDV" class="mensagem-pdv"></div>
+    </div>
+
+    <div id="devolucaoOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; z-index: 10001;">
+      <div style="background: #FFFFFF; border-radius: 8px; padding: 20px; max-width: 440px; width: 92%; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+        <h2 style="margin: 0 0 4px; font-size: 1.05rem; color:#1E293B;">Devolução / Troca</h2>
+        <p style="margin: 0 0 12px; font-size: 0.8rem; color:#64748B;">Informe o número da venda para localizar os itens.</p>
+        <div style="display:flex; gap:6px; margin-bottom:10px;">
+          <input type="number" id="devVendaId" placeholder="Nº da venda" style="flex:1; padding:8px; border:1px solid #CBD5E1; border-radius:6px;" />
+          <button type="button" id="btnBuscarVendaDevolucao" style="padding:8px 14px; background:#2563EB; color:#fff; border:none; border-radius:6px; cursor:pointer;">Buscar</button>
+        </div>
+        <div id="devMensagem" style="font-size:0.8rem; margin-bottom:8px;"></div>
+        <div id="devItens"></div>
+        <div style="display:flex; gap:6px; margin-top:14px;">
+          <input type="text" id="devMotivo" placeholder="Motivo (opcional)" style="flex:1; padding:8px; border:1px solid #CBD5E1; border-radius:6px;" />
+        </div>
+        <div style="display: flex; gap: 10px; margin-top: 14px;">
+          <button type="button" id="btnConfirmarDevolucao" disabled style="flex: 1; padding: 8px; background: #DC2626; color: #fff; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Confirmar devolução</button>
+          <button type="button" id="btnFecharDevolucao" style="flex: 1; padding: 8px; background: #64748B; color: #fff; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Fechar</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="caixaOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; z-index: 10001;">
+      <div style="background: #FFFFFF; border-radius: 8px; padding: 20px; max-width: 400px; width: 92%; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+        <h2 style="margin: 0 0 12px; font-size: 1.05rem; color:#1E293B;">Caixa</h2>
+
+        <div id="caixaFechadoBox">
+          <p style="margin: 0 0 10px; font-size: 0.85rem; color:#64748B;">Nenhum caixa aberto. Informe o valor inicial (troco) para abrir.</p>
+          <div style="margin-bottom:10px;">
+            <label style="font-size:0.8rem; display:block; margin-bottom:4px;">Valor de abertura (R$)</label>
+            <input type="number" id="caixaValorAbertura" min="0" step="0.01" value="0" style="width:100%; padding:8px; border:1px solid #CBD5E1; border-radius:6px;" />
+          </div>
+          <button type="button" id="btnConfirmarAbrirCaixa" style="width:100%; padding:8px; background:#16A34A; color:#fff; border:none; border-radius:6px; font-size:0.85rem; font-weight:600; cursor:pointer;">Abrir caixa</button>
+        </div>
+
+        <div id="caixaAbertoBox" style="display:none;">
+          <div id="caixaResumoInfo" style="font-size:0.85rem; color:#334155; margin-bottom:12px; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:6px; padding:10px;"></div>
+          <div style="margin-bottom:10px;">
+            <label style="font-size:0.8rem; display:block; margin-bottom:4px;">Valor contado no caixa (R$)</label>
+            <input type="number" id="caixaValorFechamento" min="0" step="0.01" placeholder="0,00" style="width:100%; padding:8px; border:1px solid #CBD5E1; border-radius:6px;" />
+          </div>
+          <div style="margin-bottom:10px;">
+            <label style="font-size:0.8rem; display:block; margin-bottom:4px;">Observação (opcional)</label>
+            <input type="text" id="caixaObservacaoFechamento" style="width:100%; padding:8px; border:1px solid #CBD5E1; border-radius:6px;" />
+          </div>
+          <button type="button" id="btnConfirmarFecharCaixa" style="width:100%; padding:8px; background:#DC2626; color:#fff; border:none; border-radius:6px; font-size:0.85rem; font-weight:600; cursor:pointer;">Fechar caixa</button>
+        </div>
+
+        <div id="caixaMensagem" style="font-size:0.8rem; margin-top:10px;"></div>
+        <button type="button" id="btnFecharCaixaOverlay" style="width:100%; margin-top:10px; padding:8px; background:#64748B; color:#fff; border:none; border-radius:6px; font-size:0.8rem; font-weight:600; cursor:pointer;">Fechar janela</button>
+      </div>
     </div>
 
     <div id="receiptOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; z-index: 10001;">

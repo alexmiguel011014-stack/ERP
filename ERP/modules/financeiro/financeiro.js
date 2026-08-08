@@ -3,6 +3,8 @@
 	var tabBtns = document.querySelectorAll(".tab-btn");
 	var abaLancamentos = document.getElementById("abaLancamentos");
 	var abaFluxo = document.getElementById("abaFluxo");
+	var abaFechamentos = document.getElementById("abaFechamentos");
+	var listaFechamentos = document.getElementById("listaFechamentos");
 	var tituloLista = document.getElementById("tituloLista");
 	var listaLancamentos = document.getElementById("listaLancamentos");
 	var statsLancamentos = document.getElementById("statsLancamentos");
@@ -12,6 +14,7 @@
 	var lancDescricao = document.getElementById("lancDescricao");
 	var lancValor = document.getElementById("lancValor");
 	var lancVencimento = document.getElementById("lancVencimento");
+	var lancParcelas = document.getElementById("lancParcelas");
 	var btnNovoLancamento = document.getElementById("btnNovoLancamento");
 
 	var fluxoInicio = document.getElementById("fluxoInicio");
@@ -48,19 +51,63 @@
 			});
 			btn.classList.add("active");
 			abaAtual = btn.getAttribute("data-aba");
+			abaLancamentos.style.display = "none";
+			abaFluxo.style.display = "none";
+			abaFechamentos.style.display = "none";
 			if (abaAtual === "fluxo") {
-				abaLancamentos.style.display = "none";
 				abaFluxo.style.display = "block";
 				carregarFluxo();
+			} else if (abaAtual === "fechamentos") {
+				abaFechamentos.style.display = "block";
+				carregarFechamentos();
 			} else {
 				abaLancamentos.style.display = "block";
-				abaFluxo.style.display = "none";
 				tituloLista.textContent =
 					abaAtual === "receber" ? "Contas a receber" : "Contas a pagar";
 				carregarLancamentos();
 			}
 		});
 	});
+
+	/* ---------- Fechamentos de caixa ---------- */
+
+	function carregarFechamentos() {
+		if (!window.api || !window.erpBanco.caixa || !window.erpBanco.caixa.historico) {
+			listaFechamentos.innerHTML =
+				'<div class="empty-state">API indisponível.</div>';
+			return;
+		}
+		listaFechamentos.innerHTML = '<div class="empty-state">Carregando...</div>';
+		window.erpBanco.caixa
+			.historico(100)
+			.then((linhas) => {
+				if (!linhas || linhas.length === 0) {
+					listaFechamentos.innerHTML =
+						'<div class="empty-state">Nenhum fechamento registrado ainda.</div>';
+					return;
+				}
+				var html =
+					'<table class="modal-table"><thead><tr><th>Abertura</th><th>Fechamento</th>' +
+					"<th>Valor abertura</th><th>Esperado</th><th>Informado</th><th>Diferença</th><th>Obs.</th></tr></thead><tbody>";
+				linhas.forEach((f) => {
+					var corDiff = Number(f.diferenca) === 0 ? "#15803D" : "#B91C1C";
+					html +=
+						"<tr><td>" + formatarData(f.data_abertura) + "</td>" +
+						"<td>" + formatarData(f.data_fechamento) + "</td>" +
+						"<td>" + formatarMoeda(f.valor_abertura) + "</td>" +
+						"<td>" + formatarMoeda(f.valor_esperado) + "</td>" +
+						"<td>" + formatarMoeda(f.valor_informado) + "</td>" +
+						'<td style="color:' + corDiff + '; font-weight:600;">' + formatarMoeda(f.diferenca) + "</td>" +
+						"<td>" + (f.observacao || "---") + "</td></tr>";
+				});
+				html += "</tbody></table>";
+				listaFechamentos.innerHTML = html;
+			})
+			.catch((err) => {
+				listaFechamentos.innerHTML =
+					'<div class="empty-state">Erro: ' + err + "</div>";
+			});
+	}
 
 	/* ---------- Lançamentos ---------- */
 
@@ -138,7 +185,10 @@
 							? " | Pago em: " + formatarData(l.data_pagamento)
 							: "") +
 						" | Origem: " +
-						origemTxt;
+						origemTxt +
+						(l.parcela_total > 1
+							? " | Parcela " + l.parcela_num + "/" + l.parcela_total
+							: "");
 
 					var acoes = div.querySelector(".acoes");
 
@@ -202,11 +252,13 @@
 	}
 
 	btnNovoLancamento.addEventListener("click", () => {
+		var parcelas = Math.max(1, parseInt(lancParcelas.value, 10) || 1);
 		var dados = {
 			tipo: lancTipo.value,
 			descricao: lancDescricao.value.trim(),
 			valor: Number(lancValor.value),
 			data_vencimento: lancVencimento.value || null,
+			parcelas: parcelas,
 		};
 		if (!dados.descricao) {
 			mostrarMensagem("Informe a descrição.", "erro");
@@ -220,10 +272,16 @@
 		window.erpBanco.financeiro
 			.criarLancamento(dados)
 			.then(() => {
-				mostrarMensagem("Lançamento adicionado.", "sucesso");
+				mostrarMensagem(
+					parcelas > 1
+						? "Lançamento adicionado em " + parcelas + " parcelas."
+						: "Lançamento adicionado.",
+					"sucesso",
+				);
 				lancDescricao.value = "";
 				lancValor.value = "";
 				lancVencimento.value = "";
+				lancParcelas.value = "1";
 				if (abaAtual === dados.tipo) carregarLancamentos();
 			})
 			.catch((err) => {

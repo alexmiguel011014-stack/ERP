@@ -66,6 +66,8 @@
 	},
 	"dependencies": {
 		"@journeyapps/sqlcipher": "^5.3.1",
-		"electron-updater": "^6.8.9"
+		"chart.js": "^4.5.1",
+		"electron-updater": "^6.8.9",
+		"jspdf": "^4.2.1"
 	}
 }

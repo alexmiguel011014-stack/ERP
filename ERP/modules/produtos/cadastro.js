@@ -9,6 +9,53 @@
   var btnSalvar = form.querySelector('button[type="submit"]');
   var produtoEditandoId = document.getElementById("produtoEditandoId");
 
+  var grupoImagemProduto = document.getElementById("grupoImagemProduto");
+  var previewImagemProduto = document.getElementById("previewImagemProduto");
+  var btnEscolherImagem = document.getElementById("btnEscolherImagem");
+  var btnRemoverImagem = document.getElementById("btnRemoverImagem");
+
+  function mostrarPreviewImagem(nomeArquivo) {
+    if (!nomeArquivo || !window.erpBanco.produtos.imagem) {
+      previewImagemProduto.style.backgroundImage = "";
+      previewImagemProduto.textContent = "Sem imagem";
+      btnRemoverImagem.style.display = "none";
+      return;
+    }
+    window.erpBanco.produtos.imagem(nomeArquivo).then(function (dataUrl) {
+      if (!dataUrl) {
+        previewImagemProduto.style.backgroundImage = "";
+        previewImagemProduto.textContent = "Sem imagem";
+        btnRemoverImagem.style.display = "none";
+        return;
+      }
+      previewImagemProduto.style.backgroundImage = "url('" + dataUrl + "')";
+      previewImagemProduto.textContent = "";
+      btnRemoverImagem.style.display = "inline-block";
+    }).catch(function () {});
+  }
+
+  btnEscolherImagem.addEventListener("click", function () {
+    var id = produtoEditandoId.value;
+    if (!id) { mostrarMensagem("Salve o produto antes de adicionar uma imagem.", "erro"); return; }
+    window.erpBanco.produtos.escolherImagem(id).then(function (r) {
+      if (r && r.cancelado) return;
+      if (r && r.success) {
+        mostrarMensagem("Imagem atualizada!", "sucesso");
+        mostrarPreviewImagem(r.imagem);
+      }
+    }).catch(function (err) { mostrarMensagem("Erro ao definir imagem: " + err, "erro"); });
+  });
+
+  btnRemoverImagem.addEventListener("click", function () {
+    var id = produtoEditandoId.value;
+    if (!id) return;
+    if (!confirm("Remover a imagem deste produto?")) return;
+    window.erpBanco.produtos.removerImagem(id).then(function () {
+      mostrarMensagem("Imagem removida.", "sucesso");
+      mostrarPreviewImagem(null);
+    }).catch(function (err) { mostrarMensagem("Erro: " + err, "erro"); });
+  });
+
   // Dropdown de categorias
   var btnCatDropdown = document.getElementById("btnCatDropdown");
   var catDropdownLabel = document.getElementById("catDropdownLabel");
@@ -30,6 +77,8 @@
   var btnListaCategorias = document.getElementById("btnListaCategorias");
   var modalLista = document.getElementById("modalLista");
   var btnFecharModal = document.getElementById("btnFecharModal");
+  var btnLixeiraProdutos = document.getElementById("btnLixeiraProdutos");
+  var btnExportarProdutosCsv = document.getElementById("btnExportarProdutosCsv");
   var buscaProduto = document.getElementById("buscaProduto");
   var tbodyProdutos = document.getElementById("corpoProdutos");
   var avisoProdutos = document.getElementById("avisoProdutos");
@@ -37,8 +86,8 @@
   var salvando = false;
   var todasCategorias = [];     // flat list from categoriasWithUsage
   var produtosCarregados = [];
+  var verLixeira = false;
   var selecionadosAtuais = [];  // IDs selecionados (string)
-  var precoEdicao = 0;
 
   function esc(texto) {
     return String(texto == null ? "" : texto)
@@ -280,6 +329,24 @@
     });
   }
 
+  // As categorias já são o sistema de classificação genérico do produto
+  // (Tamanho, Cor, ou qualquer outro grupo criado em "+ Adicionar Categoria").
+  // Os atributos da variação (exigidos pelo banco) são derivados delas, sem
+  // pedir a mesma informação de novo em um formulário separado.
+  function derivarAtributosDeCategorias(categoriaIds) {
+    var atributos = [];
+    categoriaIds.forEach(function (id) {
+      var cat = null;
+      for (var i = 0; i < todasCategorias.length; i++) {
+        if (todasCategorias[i].id === id) { cat = todasCategorias[i]; break; }
+      }
+      if (!cat) return;
+      atributos.push({ chave: cat.categoria_pai_nome || "Categoria", valor: cat.nome });
+    });
+    if (atributos.length === 0) atributos.push({ chave: "Categoria", valor: "Geral" });
+    return atributos;
+  }
+
   /* ==================== Produtos / Modal ==================== */
 
   function carregarProdutos() {
@@ -287,8 +354,9 @@
       if (avisoProdutos) avisoProdutos.innerHTML = "API indisponível.";
       return;
     }
-    window.erpBanco.produtos.detalhados().then(function (dados) {
+    window.erpBanco.produtos.detalhados(verLixeira).then(function (dados) {
       produtosCarregados = Array.isArray(dados) ? dados : [];
+      if (verLixeira) produtosCarregados = produtosCarregados.filter(function (p) { return Number(p.ativo) === 0; });
       if (modalLista.hasAttribute("hidden")) return;
       renderizarProdutos();
     }).catch(function (err) {
@@ -298,10 +366,19 @@
 
   function abrirModal() {
     modalLista.hidden = false;
-    if (!produtosCarregados.length) { carregarProdutos(); } else { renderizarProdutos(); }
+    carregarProdutos();
   }
 
-  function fecharModal() { modalLista.hidden = true; }
+  function fecharModal() {
+    modalLista.hidden = true;
+    if (verLixeira) { verLixeira = false; atualizarBotaoLixeira(); }
+  }
+
+  function atualizarBotaoLixeira() {
+    if (!btnLixeiraProdutos) return;
+    btnLixeiraProdutos.textContent = verLixeira ? "Ver ativos" : "Lixeira";
+    btnLixeiraProdutos.classList.toggle("btn-primary", verLixeira);
+  }
 
   function tagsCategorias(p) {
     var tags = [];
@@ -360,14 +437,24 @@
       tdOutros.innerHTML = '<span class="placeholder-cell">&mdash;</span>'; tr.appendChild(tdOutros);
 
       var tdAcoes = document.createElement("td");
-      var btnEditar = document.createElement("button");
-      btnEditar.type = "button"; btnEditar.className = "btn btn-small btn-editar"; btnEditar.textContent = "Editar";
-      btnEditar.addEventListener("click", function () { fecharModal(); editarProduto(p.id); });
-      var btnExcluir = document.createElement("button");
-      btnExcluir.type = "button"; btnExcluir.className = "btn btn-small btn-excluir"; btnExcluir.textContent = "Excluir";
-      btnExcluir.addEventListener("click", function () { excluirProduto(p.id, p.nome); });
       var acoes = document.createElement("div"); acoes.className = "acoes-prod";
-      acoes.appendChild(btnEditar); acoes.appendChild(btnExcluir);
+      if (verLixeira) {
+        var btnRestaurar = document.createElement("button");
+        btnRestaurar.type = "button"; btnRestaurar.className = "btn btn-small"; btnRestaurar.textContent = "Restaurar";
+        btnRestaurar.addEventListener("click", function () { restaurarProduto(p.id, p.nome); });
+        var btnExcluirDef = document.createElement("button");
+        btnExcluirDef.type = "button"; btnExcluirDef.className = "btn btn-small btn-excluir"; btnExcluirDef.textContent = "Excluir definitivo";
+        btnExcluirDef.addEventListener("click", function () { excluirProdutoPermanente(p.id, p.nome); });
+        acoes.appendChild(btnRestaurar); acoes.appendChild(btnExcluirDef);
+      } else {
+        var btnEditar = document.createElement("button");
+        btnEditar.type = "button"; btnEditar.className = "btn btn-small btn-editar"; btnEditar.textContent = "Editar";
+        btnEditar.addEventListener("click", function () { fecharModal(); editarProduto(p.id); });
+        var btnExcluir = document.createElement("button");
+        btnExcluir.type = "button"; btnExcluir.className = "btn btn-small btn-excluir"; btnExcluir.textContent = "Excluir";
+        btnExcluir.addEventListener("click", function () { excluirProduto(p.id, p.nome); });
+        acoes.appendChild(btnEditar); acoes.appendChild(btnExcluir);
+      }
       tdAcoes.appendChild(acoes); tr.appendChild(tdAcoes);
       tbodyProdutos.appendChild(tr);
     });
@@ -377,12 +464,13 @@
 
   function limparEdicao() {
     produtoEditandoId.value = "";
-    precoEdicao = 0;
     btnSalvar.textContent = "Salvar Produto";
     btnCancelarEdicao.style.display = "none";
     selecionadosAtuais = [];
     atualizarDropdownLabel();
     atualizarChips();
+    atualizarSkuNovo();
+    grupoImagemProduto.style.display = "none";
   }
 
   function editarProduto(id) {
@@ -403,11 +491,12 @@
       nomeInput.value = p.nome;
       var variacao = p.variacoes && p.variacoes.length ? p.variacoes[0] : null;
       skuInput.value = variacao ? variacao.sku : "";
-      precoEdicao = variacao ? Number(variacao.preco || 0) : 0;
       estoqueInput.value = variacao ? Number(variacao.quantidade_estoque || 0) : 0;
       produtoEditandoId.value = String(p.id);
       btnSalvar.textContent = "Salvar Alterações";
       btnCancelarEdicao.style.display = "inline-block";
+      grupoImagemProduto.style.display = "block";
+      mostrarPreviewImagem(p.imagem);
       atualizarDropdownLabel();
       atualizarChips();
       var container = document.querySelector(".container");
@@ -418,10 +507,27 @@
 
   function excluirProduto(id, nome) {
     if (!window.erpBanco || !window.erpBanco.produtos || !window.erpBanco.produtos.remover) { mostrarMensagem("API indisponível.", "erro"); return; }
-    if (!confirm('Excluir o produto "' + nome + '"? Esta ação não pode ser desfeita.')) return;
+    if (!confirm('Enviar o produto "' + nome + '" para a lixeira? Ele para de aparecer nas buscas e no PDV, mas pode ser restaurado depois.')) return;
     window.erpBanco.produtos.remover(id).then(function () {
-      mostrarMensagem("Produto excluído com sucesso!", "sucesso");
+      mostrarMensagem("Produto enviado para a lixeira.", "sucesso");
       carregarProdutos(); atualizarSkuNovo();
+    }).catch(function (err) { mostrarMensagem("Erro ao excluir: " + err, "erro"); });
+  }
+
+  function restaurarProduto(id, nome) {
+    if (!window.erpBanco || !window.erpBanco.produtos || !window.erpBanco.produtos.restaurar) { mostrarMensagem("API indisponível.", "erro"); return; }
+    window.erpBanco.produtos.restaurar(id).then(function () {
+      mostrarMensagem('Produto "' + nome + '" restaurado.', "sucesso");
+      carregarProdutos();
+    }).catch(function (err) { mostrarMensagem("Erro ao restaurar: " + err, "erro"); });
+  }
+
+  function excluirProdutoPermanente(id, nome) {
+    if (!window.erpBanco || !window.erpBanco.produtos || !window.erpBanco.produtos.excluirPermanente) { mostrarMensagem("API indisponível.", "erro"); return; }
+    if (!confirm('Excluir definitivamente o produto "' + nome + '"? Esta ação não pode ser desfeita.')) return;
+    window.erpBanco.produtos.excluirPermanente(id).then(function () {
+      mostrarMensagem("Produto excluído definitivamente.", "sucesso");
+      carregarProdutos();
     }).catch(function (err) { mostrarMensagem("Erro ao excluir: " + err, "erro"); });
   }
 
@@ -434,6 +540,7 @@
     var skuProduto = skuInput.value.trim().toUpperCase();
     var estoqueProduto = Number(estoqueInput.value);
     if (!Number.isInteger(estoqueProduto) || estoqueProduto < 0 || !estoqueInput.value.trim()) { mostrarMensagem("Estoque inválido. Informe um número inteiro.", "erro"); estoqueInput.focus(); return; }
+
     var categoriasSel = coletarSelecionados().map(function (id) { return parseInt(id, 10); });
     var dados = {
       nome: nomeProduto,
@@ -441,11 +548,11 @@
       categoriasSelecionadas: categoriasSel,
       variacoes: [{
         sku: skuProduto,
-        preco: produtoEditandoId.value ? precoEdicao : 0,
+        preco: 0,
         preco_custo: 0,
         quantidade_estoque: estoqueProduto,
-        atributos: [{ chave: "Unidade", valor: "Padrão" }]
-      }]
+        atributos: derivarAtributosDeCategorias(categoriasSel),
+      }],
     };
     salvando = true; btnSalvar.disabled = true; btnSalvar.textContent = "Salvando...";
     var editandoId = produtoEditandoId.value;
@@ -486,6 +593,50 @@
   btnListaProdutos.addEventListener("click", abrirModal);
   if (btnListaCategorias) btnListaCategorias.addEventListener("click", function () { window.location.href = "categorias.html"; });
   btnFecharModal.addEventListener("click", fecharModal);
+  if (btnLixeiraProdutos) {
+    btnLixeiraProdutos.addEventListener("click", function () {
+      verLixeira = !verLixeira;
+      atualizarBotaoLixeira();
+      carregarProdutos();
+    });
+  }
+
+  function csvCampoProduto(v) {
+    return '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
+  }
+
+  if (btnExportarProdutosCsv) {
+    btnExportarProdutosCsv.addEventListener("click", function () {
+      if (produtosCarregados.length === 0) {
+        mostrarMensagem("Nenhum produto para exportar.", "erro");
+        return;
+      }
+      var cabecalho = "SKU,Produto,Categorias,Tamanho,Cor,Preco,PrecoCusto,Estoque";
+      var linhas = [];
+      produtosCarregados.forEach(function (p) {
+        var categorias = tagsCategorias(p).join(" / ");
+        var variacoes = p.variacoes && p.variacoes.length ? p.variacoes : [{ sku: "", tamanho: "", cor: "", preco: "", preco_custo: "", quantidade_estoque: "" }];
+        variacoes.forEach(function (v) {
+          linhas.push([
+            csvCampoProduto(v.sku), csvCampoProduto(p.nome), csvCampoProduto(categorias),
+            csvCampoProduto(v.tamanho), csvCampoProduto(v.cor),
+            csvCampoProduto(v.preco), csvCampoProduto(v.preco_custo), csvCampoProduto(v.quantidade_estoque),
+          ].join(","));
+        });
+      });
+      var csv = cabecalho + "\n" + linhas.join("\n");
+      var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = "produtos_" + new Date().toISOString().slice(0, 10) + ".csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      mostrarMensagem("CSV de produtos exportado!", "sucesso");
+    });
+  }
   modalLista.addEventListener("click", function (e) { if (e.target === modalLista) fecharModal(); });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !modalLista.hasAttribute("hidden")) fecharModal(); });
   if (buscaProduto) buscaProduto.addEventListener("input", renderizarProdutos);
@@ -496,10 +647,24 @@
     mensagem.style.display = "block";
   }
 
+  function abrirProdutoDaURL() {
+    var params = new URLSearchParams(window.location.search);
+    var sku = params.get("sku");
+    if (!sku || !window.erpBanco.produtos.buscarSKU) return;
+    window.erpBanco.produtos.buscarSKU(sku).then(function (v) {
+      if (!v || !v.produto_id) { mostrarMensagem("SKU não encontrado: " + sku, "erro"); return; }
+      window.erpBanco.produtos.detalhados().then(function (dados) {
+        produtosCarregados = Array.isArray(dados) ? dados : [];
+        editarProduto(v.produto_id);
+      });
+    }).catch(function () {});
+  }
+
   function iniciarCadastro() {
     erpCategoryStore.refresh();
     carregarProdutos();
     atualizarSkuNovo();
+    abrirProdutoDaURL();
   }
 
   if (window.erpAuthPromise) window.erpAuthPromise.then(iniciarCadastro).catch(function () {});

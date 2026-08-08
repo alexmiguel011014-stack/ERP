@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="../core/modulos.css" />
     <title>Alga ERP - Fornecedores</title>
   </head>
-  <body>
+  <body data-requer-modulo="fornecedores">
     <div class="container">
       <h1>Fornecedores</h1>
       <p class="subtitle">Contatos comerciais e prazos de pagamento acordados.</p>
@@ -54,6 +54,36 @@
 
       <div id="mensagem" class="mensagem"></div>
 
+      <div class="panel" id="painelProdutosFornecedor" style="display:none;">
+        <h2>Produtos fornecidos <span id="nomeFornecedorAtual" style="color:#2563EB;"></span></h2>
+        <p class="subtitle" style="margin-bottom: 10px;">SKUs que este fornecedor vende, com o custo combinado. Usado para sugerir o custo ao lançar um pedido de compra.</p>
+        <div class="form-grid">
+          <div class="form-group" style="grid-column: span 2;">
+            <label for="pfSku">SKU</label>
+            <input type="text" id="pfSku" placeholder="Escaneie ou digite o SKU e pressione Enter" />
+          </div>
+          <div class="form-group">
+            <label for="pfCusto">Custo (R$)</label>
+            <input type="number" id="pfCusto" min="0" step="0.01" value="0" />
+          </div>
+          <div class="form-group">
+            <label for="pfPrazo">Prazo de entrega (dias)</label>
+            <input type="number" id="pfPrazo" min="0" step="1" placeholder="opcional" />
+          </div>
+          <div class="form-group">
+            <label for="pfCodigo">Código no fornecedor</label>
+            <input type="text" id="pfCodigo" placeholder="opcional" />
+          </div>
+        </div>
+        <div id="pfPreview" class="detalhe" style="font-size: 0.85rem; color: #475569; margin-bottom: 10px;"></div>
+        <div class="form-actions">
+          <button type="button" id="btnAddProdutoFornecedor" class="btn btn-primary">Adicionar / Atualizar</button>
+        </div>
+        <div id="listaProdutosFornecedor" style="margin-top: 14px;">
+          <div class="empty-state">Nenhum produto vinculado ainda.</div>
+        </div>
+      </div>
+
       <div class="panel">
         <h2>Fornecedores cadastrados</h2>
         <div id="listaFornecedores">
@@ -64,6 +94,7 @@
 
     <script src="../core/banco.js"></script>
     <script src="../core/navbar.js"></script>
+    <script src="../core/formatos.js"></script>
     <script src="./fornecedores.js"></script>
   </body>
 </html>

@@ -8,7 +8,6 @@
 	var btnConfirmar = document.getElementById("btnConfirmar");
 	var btnLimpar = document.getElementById("btnLimpar");
 	var listaItens = document.getElementById("listaItens");
-	var listaBaixo = document.getElementById("listaBaixo");
 	var listaMov = document.getElementById("listaMov");
 	var mensagem = document.getElementById("mensagem");
 	var ajusteSkuInput = document.getElementById("ajusteSkuInput");
@@ -16,10 +15,22 @@
 	var ajusteObsInput = document.getElementById("ajusteObsInput");
 	var ajusteProdutoPreview = document.getElementById("ajusteProdutoPreview");
 	var btnAjustarEstoque = document.getElementById("btnAjustarEstoque");
+	var btnAbrirListaEstoque = document.getElementById("btnAbrirListaEstoque");
 
 	var itens = [];
 	var produtoAtual = null;
 	var ajusteProdutoAtual = null;
+
+	// A tela roda embutida num iframe do workspace "Gerenciamento de Produtos".
+	// A lista completa do estoque vive em uma aba própria desse mesmo workspace;
+	// abrir por aqui só ativa aquela aba no documento pai.
+	btnAbrirListaEstoque.addEventListener("click", () => {
+		if (window.parent && window.parent !== window) {
+			var tab = window.parent.document.querySelector('.gerenciamento-tab[data-src*="estoque-lista.html"]');
+			if (tab) { tab.click(); return; }
+		}
+		window.location.href = "./estoque-lista.html";
+	});
 
 	function mostrarMensagem(texto, tipo) {
 		mensagem.textContent = texto;
@@ -130,22 +141,31 @@
 		btnAjustarEstoque.disabled = true;
 		window.erpBanco.estoque
 			.ajustarManual({
-				variacao_id: ajusteProdutoAtual.variacao_id,
+				variacao_id: ajusteProdutoAtual.id,
 				quantidade: quantidade,
 				observacao: ajusteObsInput.value.trim(),
 			})
 			.then((resultado) => {
-				mostrarMensagem(
-					resultado.alterado === false
-						? "O estoque já estava nesse saldo."
-						: "Ajuste de estoque salvo!",
-					"sucesso",
-				);
+				if (resultado.abaixoDoReservado) {
+					mostrarMensagem(
+						"Ajuste salvo, mas o novo saldo (" + quantidade +
+							") ficou abaixo do que está reservado em orçamentos abertos (" +
+							resultado.quantidade_reservada +
+							"). Verifique os orçamentos pendentes desse produto.",
+						"erro",
+					);
+				} else {
+					mostrarMensagem(
+						resultado.alterado === false
+							? "O estoque já estava nesse saldo."
+							: "Ajuste de estoque salvo!",
+						"sucesso",
+					);
+				}
 				ajusteProdutoAtual.quantidade_estoque = quantidade;
 				ajusteProdutoPreview.textContent =
 					ajusteProdutoAtual.nome + " — estoque atual: " + quantidade;
 				ajusteObsInput.value = "";
-				carregarAlertas();
 				carregarMovimentacoes();
 			})
 			.catch((err) => {
@@ -179,7 +199,7 @@
 
 		var existente = null;
 		for (var i = 0; i < itens.length; i++) {
-			if (itens[i].variacao_id === produtoAtual.variacao_id) {
+			if (itens[i].variacao_id === produtoAtual.id) {
 				existente = itens[i];
 				break;
 			}
@@ -189,7 +209,7 @@
 			if (custo !== null) existente.custo_unitario = custo;
 		} else {
 			itens.push({
-				variacao_id: produtoAtual.variacao_id,
+				variacao_id: produtoAtual.id,
 				nome: produtoAtual.nome,
 				detalhes: detalhesDe(produtoAtual),
 				sku: produtoAtual.sku,
@@ -277,7 +297,6 @@
 				itens = [];
 				obsInput.value = "";
 				renderizarItens();
-				carregarAlertas();
 				carregarMovimentacoes();
 				btnConfirmar.textContent = "Confirmar Entrada";
 				skuInput.focus();
@@ -288,69 +307,6 @@
 				btnConfirmar.textContent = "Confirmar Entrada";
 			});
 	});
-
-	/* ---------- Alertas de estoque mínimo ---------- */
-
-	function carregarAlertas() {
-		if (!window.api || !window.erpBanco.estoque.baixo) {
-			listaBaixo.innerHTML = '<div class="empty-state">API indisponível.</div>';
-			return;
-		}
-		window.erpBanco.estoque
-			.baixo()
-			.then((rows) => {
-				listaBaixo.innerHTML = "";
-				if (!rows || rows.length === 0) {
-					listaBaixo.innerHTML =
-						'<div class="empty-state" style="color:#16A34A;">Nenhuma variação abaixo do estoque mínimo.</div>';
-					return;
-				}
-				rows.forEach((r) => {
-					var div = document.createElement("div");
-					div.className = "item-lista";
-					var negativo = r.quantidade_estoque < 0;
-					div.innerHTML =
-						'<div class="info"><div class="titulo"></div><div class="detalhe"></div></div>' +
-						'<div class="acoes">' +
-						'<input type="number" min="0" step="1" style="width:70px; padding:5px 8px; border:1px solid #E2E8F0; border-radius:6px; font-size:0.8rem;" title="Estoque mínimo" />' +
-						'<button type="button" class="btn btn-small">Salvar mín.</button>' +
-						"</div>";
-					div.querySelector(".titulo").textContent =
-						r.produto_nome + " (" + detalhesDe(r) + ")";
-					var detalhe = div.querySelector(".detalhe");
-					detalhe.textContent =
-						"SKU: " +
-						r.sku +
-						" | Estoque: " +
-						r.quantidade_estoque +
-						" | Mínimo: " +
-						r.estoque_minimo;
-					if (negativo) detalhe.style.color = "#DC2626";
-
-					var inputMin = div.querySelector("input");
-					inputMin.value = r.estoque_minimo;
-					div.querySelector("button").addEventListener("click", () => {
-						window.erpBanco.estoque
-							.salvarMinimo(r.variacao_id, parseInt(inputMin.value, 10))
-							.then(() => {
-								mostrarMensagem(
-									"Estoque mínimo atualizado para " + r.sku + ".",
-									"sucesso",
-								);
-								carregarAlertas();
-							})
-							.catch((err) => {
-								mostrarMensagem("Erro: " + err, "erro");
-							});
-					});
-					listaBaixo.appendChild(div);
-				});
-			})
-			.catch((err) => {
-				listaBaixo.innerHTML =
-					'<div class="empty-state">Erro: ' + err + "</div>";
-			});
-	}
 
 	/* ---------- Movimentações ---------- */
 
@@ -399,7 +355,6 @@
 	}
 
 	function iniciarEstoque() {
-		carregarAlertas();
 		carregarMovimentacoes();
 	}
 

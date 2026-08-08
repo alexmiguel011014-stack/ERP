@@ -22,6 +22,14 @@
 	var modalMovimentacoes = document.getElementById("modalMovimentacoes");
 	var modalClose = document.getElementById("modalClose");
 
+	var precosEspeciaisSection = document.getElementById("precosEspeciaisSection");
+	var pePreSku = document.getElementById("pePreSku");
+	var pePreco = document.getElementById("pePreco");
+	var pePreview = document.getElementById("pePreview");
+	var btnAddPrecoEspecial = document.getElementById("btnAddPrecoEspecial");
+	var listaPrecosEspeciais = document.getElementById("listaPrecosEspeciais");
+	var produtoPrecoEspecialAtual = null;
+
 	var salvando = false;
 
 	function esc(t) {
@@ -133,7 +141,121 @@
 		btnCancelarEdicao.style.display = "none";
 		movimentacoesSection.style.display = "none";
 		movimentacoesContainer.innerHTML = "";
+		precosEspeciaisSection.style.display = "none";
+		limparFormPrecoEspecial();
 	}
+
+	/* ==================== Preços especiais ==================== */
+
+	function limparFormPrecoEspecial() {
+		produtoPrecoEspecialAtual = null;
+		pePreSku.value = "";
+		pePreco.value = "0";
+		pePreview.textContent = "";
+	}
+
+	function detalhesProdutoPreco(p) {
+		if (window.formatarAtributos)
+			return window.formatarAtributos(p.atributos, p.tamanho, p.cor);
+		return [p.tamanho, p.cor].filter(Boolean).join(" / ") || "---";
+	}
+
+	pePreSku.addEventListener("keydown", (e) => {
+		if (e.key !== "Enter") return;
+		e.preventDefault();
+		var sku = pePreSku.value.trim().toUpperCase();
+		produtoPrecoEspecialAtual = null;
+		pePreview.textContent = "";
+		if (!sku || !window.erpBanco.produtos.buscarSKU) return;
+		window.erpBanco.produtos
+			.buscarSKU(sku)
+			.then((p) => {
+				if (!p) {
+					mostrarMensagem("SKU não encontrado: " + sku, "error");
+					return;
+				}
+				produtoPrecoEspecialAtual = p;
+				pePreview.textContent =
+					p.nome + " (" + detalhesProdutoPreco(p) + ") — preço padrão: R$ " +
+					Number(p.preco).toFixed(2);
+				pePreco.focus();
+			})
+			.catch((err) => {
+				mostrarMensagem("Erro ao buscar SKU: " + err, "error");
+			});
+	});
+
+	function carregarPrecosEspeciais(clienteId) {
+		if (!window.erpBanco.clientes.precos) return;
+		window.erpBanco.clientes
+			.precos(clienteId)
+			.then((rows) => {
+				listaPrecosEspeciais.innerHTML = "";
+				if (!rows || rows.length === 0) {
+					listaPrecosEspeciais.innerHTML =
+						'<div class="empty-state">Nenhum preço especial cadastrado.</div>';
+					return;
+				}
+				rows.forEach((r) => {
+					var div = document.createElement("div");
+					div.className = "item-lista";
+					div.innerHTML =
+						'<div class="info"><div class="titulo"></div><div class="detalhe"></div></div>' +
+						'<div class="acoes"><button type="button" class="btn btn-small btn-danger">Remover</button></div>';
+					div.querySelector(".titulo").textContent =
+						r.produto_nome + " (" + detalhesProdutoPreco(r) + ")";
+					div.querySelector(".detalhe").textContent =
+						"SKU: " + r.sku + " | Preço especial: R$ " +
+						Number(r.preco).toFixed(2) +
+						" | Padrão: R$ " + Number(r.preco_padrao).toFixed(2);
+					div.querySelector("button").addEventListener("click", () => {
+						if (!confirm("Remover o preço especial para " + r.produto_nome + "?"))
+							return;
+						window.erpBanco.clientes
+							.removerPreco(r.id)
+							.then(() => {
+								mostrarMensagem("Preço especial removido.", "success");
+								carregarPrecosEspeciais(clienteId);
+							})
+							.catch((err) => mostrarMensagem("Erro: " + err, "error"));
+					});
+					listaPrecosEspeciais.appendChild(div);
+				});
+			})
+			.catch((err) => {
+				listaPrecosEspeciais.innerHTML =
+					'<div class="empty-state">Erro: ' + err + "</div>";
+			});
+	}
+
+	btnAddPrecoEspecial.addEventListener("click", () => {
+		var clienteId = clienteEditandoId.value ? Number(clienteEditandoId.value) : null;
+		if (!clienteId) {
+			mostrarMensagem("Salve o cliente antes de definir preços especiais.", "error");
+			return;
+		}
+		if (!produtoPrecoEspecialAtual) {
+			mostrarMensagem("Busque um SKU válido antes de adicionar.", "error");
+			return;
+		}
+		var preco = Number(pePreco.value);
+		if (!Number.isFinite(preco) || preco < 0) {
+			mostrarMensagem("Preço inválido.", "error");
+			return;
+		}
+		window.erpBanco.clientes
+			.salvarPreco({
+				cliente_id: clienteId,
+				variacao_id: produtoPrecoEspecialAtual.id,
+				preco: preco,
+			})
+			.then(() => {
+				mostrarMensagem("Preço especial salvo!", "success");
+				limparFormPrecoEspecial();
+				carregarPrecosEspeciais(clienteId);
+			})
+			.catch((err) => mostrarMensagem("Erro: " + err, "error"));
+	});
 
 	/* ==================== Mensagens ==================== */
 
@@ -307,7 +429,46 @@
 		if (e.target === modal) modal.style.display = "none";
 	});
 
+	/* ==================== Carregar para edição ==================== */
+
+	function preencherFormCliente(c) {
+		clienteEditandoId.value = c.id;
+		codigoInput.value = c.codigo || "";
+		nomeInput.value = c.nome || "";
+		cpfCnpjInput.value = c.cpf_cnpj || "";
+		enderecoInput.value = c.endereco || "";
+		telefoneInput.value = c.telefone || "";
+		emailInput.value = c.email || "";
+		btnSalvar.textContent = "Salvar Alterações";
+		btnCancelarEdicao.style.display = "inline-block";
+		movimentacoesSection.style.display = "block";
+		precosEspeciaisSection.style.display = "block";
+		limparFormPrecoEspecial();
+		carregarPrecosEspeciais(c.id);
+	}
+
+	function carregarClienteDaURL() {
+		var params = new URLSearchParams(window.location.search);
+		var id = parseInt(params.get("id"), 10);
+		if (!Number.isInteger(id) || id <= 0) return;
+		if (!window.erpBanco.clientes.listar) return;
+		window.erpBanco.clientes
+			.listar()
+			.then((rows) => {
+				var c = (rows || []).find((r) => r.id === id);
+				if (!c) {
+					mostrarMensagem("Cliente não encontrado.", "error");
+					return;
+				}
+				preencherFormCliente(c);
+			})
+			.catch((err) => {
+				mostrarMensagem("Erro ao carregar cliente: " + err, "error");
+			});
+	}
+
 	/* ==================== Inicializar ==================== */
 
 	atualizarCodigoNovo();
+	carregarClienteDaURL();
 })();
