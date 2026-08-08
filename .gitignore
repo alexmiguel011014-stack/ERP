@@ -1,0 +1,5 @@
+# Projetos separados que vivem em repositórios próprios — nunca devem
+# ser versionados aqui por engano (ver: remoção do PONTO_APP e base_project).
+PONTO_APP/
+base_project/
+TunelSSH_OpenPortal/
