@@ -6,28 +6,73 @@
     <script src="../core/head.js"></script>
     <script src="../core/auth.js"></script>
     <link rel="stylesheet" href="./vendas.css" />
-    <title>Alga ERP - Histórico de Vendas</title>
+    <link rel="stylesheet" href="../core/modulos.css" />
+    <title>ALLU ERP - Histórico de Vendas</title>
   </head>
   <body>
-    <div class="container">
+    <div class="container container-larga">
       <h1>Histórico de Vendas</h1>
 
-      <div class="filters">
-        <label for="filterDate">Filtrar por data:</label>
-        <input type="date" id="filterDate" />
-        <select id="filterStatus" style="padding: 6px 10px; border: 1px solid #E2E8F0; border-radius: 7px; font-size: 0.82rem;">
-          <option value="">Todas</option>
-          <option value="finalizada">Finalizadas</option>
-          <option value="orcamento">Orçamentos</option>
-        </select>
-        <button id="btnFilter" class="btn btn-small">Filtrar</button>
-        <button id="btnClear" class="btn btn-small btn-secondary">Limpar</button>
-        <button id="btnExportCsv" class="btn btn-small" style="margin-left: auto; background-color: #16A34A; color: #FFFFFF;">Exportar CSV</button>
+      <div class="vendas-painel">
+        <div class="vendas-topo">
+          <div id="statsVendas" class="stats-bar"></div>
+          <div class="vendas-topo-acoes">
+            <button id="btnExportCsv" class="btn btn-small">Exportar CSV</button>
+            <input type="text" id="buscaVendas" class="busca-vendas" placeholder="Buscar por # venda, cliente..." autocomplete="off" />
+          </div>
+        </div>
+
+        <div class="vendas-filtros">
+          <div class="filtro-data-inline">
+            <label for="filterDataInicio">De</label>
+            <input type="date" id="filterDataInicio" />
+            <label for="filterDataFim">Até</label>
+            <input type="date" id="filterDataFim" />
+            <button type="button" id="btnFilter" class="btn btn-small">Filtrar por data</button>
+          </div>
+          <div class="legend-grupo" id="legendStatus">
+            <span class="legend-label">Status</span>
+            <button type="button" class="legend-btn active" data-status="">Todas <span class="count-badge" id="cntStatusTodas">0</span></button>
+            <button type="button" class="legend-btn" data-status="finalizada">Finalizadas <span class="count-badge" id="cntStatusFinalizada">0</span></button>
+            <button type="button" class="legend-btn" data-status="orcamento">Orçamentos <span class="count-badge" id="cntStatusOrcamento">0</span></button>
+          </div>
+          <div class="legend-grupo" id="legendPagamento">
+            <span class="legend-label">Pagamento</span>
+            <button type="button" class="legend-btn active" data-pagamento="">Todas <span class="count-badge" id="cntPagTodas">0</span></button>
+          </div>
+          <button type="button" id="btnClear" class="btn-limpar-filtros">Limpar filtros</button>
+        </div>
+
+        <div class="tabela-scroll">
+          <table class="tabela-vendas">
+            <thead>
+              <tr>
+                <th class="col-expandir"></th>
+                <th class="sortable" data-key="id">Venda # <span class="sort-icon" id="sortIcon-id"></span></th>
+                <th class="sortable" data-key="cliente_nome">Cliente <span class="sort-icon" id="sortIcon-cliente_nome"></span></th>
+                <th class="sortable" data-key="status">Status <span class="sort-icon" id="sortIcon-status"></span></th>
+                <th class="sortable" data-key="data_venda">Data <span class="sort-icon" id="sortIcon-data_venda"></span></th>
+                <th class="sortable" data-key="forma_pagamento">Pagamento <span class="sort-icon" id="sortIcon-forma_pagamento"></span></th>
+                <th class="sortable col-valor" data-key="total">Total <span class="sort-icon" id="sortIcon-total"></span></th>
+              </tr>
+            </thead>
+            <tbody id="tbodyVendas"></tbody>
+          </table>
+        </div>
+
+        <div class="vendas-paginacao">
+          <div class="paginacao-tamanho">
+            <label for="linhasPorPagina">Linhas por página:</label>
+            <select id="linhasPorPagina">
+              <option value="10" selected>10</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+          <div id="pager" class="pager"></div>
+        </div>
       </div>
-
-      <div id="statsVendas" class="stats-bar"></div>
-
-      <div id="listaVendas" class="lista"></div>
 
       <div id="mensagem" class="mensagem"></div>
     </div>

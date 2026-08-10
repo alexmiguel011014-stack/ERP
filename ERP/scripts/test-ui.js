@@ -46,6 +46,7 @@ const PAGINAS = [
   ['Entrada de estoque', 'modules/entrada/entrada.html'],
   ['Lista de estoque', 'modules/entrada/estoque-lista.html'],
   ['Precificação', 'modules/precificacao/precificacao.html'],
+  ['Importação', 'modules/importacao/importacao.html'],
   ['Vendas', 'modules/vendas/vendas.html'],
   ['Fornecedores', 'modules/fornecedores/fornecedores.html'],
   ['Compras', 'modules/compras/compras.html'],

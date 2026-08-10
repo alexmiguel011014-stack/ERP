@@ -620,6 +620,7 @@ async function iniciarBanco() {
 		observacao: "observacao TEXT",
 		status: "status TEXT NOT NULL DEFAULT 'finalizada'",
 		usuario_id: "usuario_id INTEGER REFERENCES Usuarios(id) ON DELETE SET NULL",
+		origem: "origem TEXT NOT NULL DEFAULT 'pdv'",
 	});
 	await migrarColunas(conexao, "Precificacao", {
 		aplicar_custo_fixo: "aplicar_custo_fixo INTEGER NOT NULL DEFAULT 1",
@@ -1700,7 +1701,51 @@ async function saveGlobalMargin(valor) {
 		"INSERT OR REPLACE INTO Configuracao (chave, valor) VALUES ('margem_padrao', ?)",
 		[String(valor)],
 	);
+	// A margem global recém-salva precisa refletir imediatamente no preço dos
+	// produtos que ainda não têm override manual — senão o preço de venda real
+	// (Variacoes.preco) só seria atualizado na próxima vez que a tela de
+	// Precificação fosse recarregada, deixando o PDV desatualizado até lá.
+	await sincronizarPrecosPendentes();
 	return { success: true };
+}
+
+// Recalcula e grava (Precificacao.preco_venda + Variacoes.preco) o preço de
+// venda de todo produto "pendente" (sem override manual de margem/preço),
+// usando a margem global e o custo fixo atuais. Chamado tanto ao carregar a
+// tela de Precificação quanto ao salvar uma nova margem global/custo fixo,
+// para que o preço real nunca fique defasado do que a tela exibe.
+async function sincronizarPrecosPendentes() {
+	const margemGlobalAtual = await getGlobalMargin();
+	const custoFixoAtual = await getCustoFixoConfig();
+	const pendentes = await allAsync(
+		`SELECT pr.produto_id, pr.preco_custo, pr.impostos_extras, pr.preco_venda, pr.aplicar_custo_fixo
+     FROM Precificacao pr
+     WHERE pr.status = 'pendente'`,
+	);
+	for (const p of pendentes) {
+		const base = Number(p.preco_custo || 0) + Number(p.impostos_extras || 0);
+		const custoFixoPercentual = p.aplicar_custo_fixo ? custoFixoAtual.percentual : 0;
+		const precoCalculado =
+			base > 0 ? base * (1 + margemGlobalAtual / 100) * (1 + custoFixoPercentual / 100) : 0;
+		if (precoCalculado > 0 && Math.abs(precoCalculado - Number(p.preco_venda || 0)) > 0.001) {
+			const conn2 = getConexao();
+			await runOn(conn2, "BEGIN TRANSACTION");
+			try {
+				await runOn(conn2, "UPDATE Precificacao SET preco_venda = ? WHERE produto_id = ?", [
+					precoCalculado,
+					p.produto_id,
+				]);
+				await runOn(conn2, "UPDATE Variacoes SET preco = ? WHERE produto_id = ?", [
+					precoCalculado,
+					p.produto_id,
+				]);
+				await runOn(conn2, "COMMIT");
+			} catch (erro) {
+				await runOn(conn2, "ROLLBACK");
+				throw erro;
+			}
+		}
+	}
 }
 
 async function getPricingData() {
@@ -1730,6 +1775,13 @@ async function getPricingData() {
             preco_venda = CASE WHEN preco_venda = 0 THEN COALESCE((SELECT MIN(v.preco) FROM Variacoes v WHERE v.produto_id = Precificacao.produto_id), 0) ELSE preco_venda END
       WHERE status = 'pendente'`,
 	);
+
+	// Produtos "pendentes" (sem override manual) usam a margem global para exibição,
+	// mas isso nunca era gravado no banco — o preço de venda real (Variacoes.preco)
+	// ficava em 0 até o usuário editar algum campo manualmente na tela de Precificação,
+	// fazendo o PDV mostrar "Sem preço" mesmo com a Precificação exibindo um valor calculado.
+	// Aqui sincronizamos automaticamente sempre que a lista é carregada.
+	await sincronizarPrecosPendentes();
 
 	const rows = await all(
 		`SELECT pr.id, pr.produto_id, p.nome AS produto_nome, p.categoria_id,
@@ -1772,42 +1824,58 @@ async function getPricingData() {
 	}));
 }
 
-// Custo fixo mensal (aluguel, salários, etc.) diluído por unidade vendida,
-// para compor o preço de venda junto do custo variável do produto. O admin
-// informa o total mensal e o volume de vendas estimado no mês; o valor por
-// unidade é sempre recalculado a partir desses dois números.
+// Custo fixo mensal (aluguel, salários, etc.) diluído como uma PORCENTAGEM do
+// faturamento, não um R$ fixo por unidade — ratear em R$ fixo penalizava
+// desproporcionalmente produtos baratos (um acessório de R$20 absorvia o
+// mesmo custo fixo em R$ que um quimono de R$1000). A % é sempre recalculada
+// a partir do faturamento médio histórico real (ver getFaturamentoMedioHistorico),
+// nunca de um "volume estimado" digitado à mão.
+async function getFaturamentoMedioHistorico(meses) {
+	const qtdMeses = Number(meses) > 0 ? Number(meses) : 3;
+	const linhas = await allAsync(
+		`SELECT strftime('%Y-%m', data_venda) AS mes, SUM(total) AS faturamento
+     FROM Vendas
+     WHERE status = 'finalizada'
+     GROUP BY mes
+     ORDER BY mes DESC
+     LIMIT ?`,
+		[qtdMeses],
+	);
+	if (linhas.length === 0) return { media: 0, mesesConsiderados: 0 };
+	const soma = linhas.reduce((acc, l) => acc + (Number(l.faturamento) || 0), 0);
+	return { media: soma / linhas.length, mesesConsiderados: linhas.length };
+}
+
 async function getCustoFixoConfig() {
 	const linhas = await allAsync(
-		"SELECT chave, valor FROM Configuracao WHERE chave IN ('custo_fixo_mensal', 'custo_fixo_volume_mensal')",
+		"SELECT chave, valor FROM Configuracao WHERE chave = 'custo_fixo_mensal'",
 	);
 	const mapa = {};
 	linhas.forEach((l) => {
 		mapa[l.chave] = l.valor;
 	});
 	const mensal = parseFloat(mapa.custo_fixo_mensal) || 0;
-	const volumeMensal = parseInt(mapa.custo_fixo_volume_mensal, 10) || 0;
+	const { media, mesesConsiderados } = await getFaturamentoMedioHistorico(3);
+	const percentual = mensal > 0 && media > 0 ? (mensal / media) * 100 : 0;
 	return {
 		mensal,
-		volumeMensal,
-		porUnidade: volumeMensal > 0 ? mensal / volumeMensal : 0,
+		faturamentoMedioHistorico: media,
+		mesesConsiderados,
+		percentual,
 	};
 }
 
-async function saveCustoFixoConfig(mensal, volumeMensal) {
+async function saveCustoFixoConfig(mensal) {
 	const mensalVal = Number(mensal);
-	const volumeVal = Number(volumeMensal);
 	if (!Number.isFinite(mensalVal) || mensalVal < 0)
 		throw new Error("Custo fixo mensal inválido.");
-	if (!Number.isInteger(volumeVal) || volumeVal < 0)
-		throw new Error("Volume de vendas estimado inválido.");
 	await runAsync(
 		"INSERT OR REPLACE INTO Configuracao (chave, valor) VALUES ('custo_fixo_mensal', ?)",
 		[String(mensalVal)],
 	);
-	await runAsync(
-		"INSERT OR REPLACE INTO Configuracao (chave, valor) VALUES ('custo_fixo_volume_mensal', ?)",
-		[String(volumeVal)],
-	);
+	// Reflete imediatamente no preço dos produtos sem override manual — mesmo
+	// motivo de saveGlobalMargin chamar sincronizarPrecosPendentes().
+	await sincronizarPrecosPendentes();
 	return { success: true };
 }
 
@@ -2540,6 +2608,8 @@ module.exports = {
 	buscarCliente,
 	getVendas,
 	getVendasHoje,
+	importarVendasHistoricas,
+	getFaturamentoMedioHistorico,
 	getItensVenda,
 	getMovimentacoesCliente,
 	getEstoqueNegativo,
@@ -2784,19 +2854,33 @@ async function getVendas(filtro) {
 		const params = [];
 		const where = [];
 
-		// Compatibilidade: string simples filtra por data (frontend antigo).
-		const filtroData =
-			typeof filtro === "string" ? filtro : (filtro && filtro.data) || null;
-		const filtroStatus =
-			filtro && typeof filtro === "object" ? filtro.status || null : null;
+		// Compatibilidade: string simples filtra por data exata (frontend antigo).
+		const filtroObj = filtro && typeof filtro === "object" ? filtro : {};
+		const filtroData = typeof filtro === "string" ? filtro : filtroObj.data || null;
+		const filtroDataInicio = filtroObj.dataInicio || null;
+		const filtroDataFim = filtroObj.dataFim || null;
+		const filtroStatus = filtroObj.status || null;
+		const filtroFormaPagamento = filtroObj.formaPagamento || null;
 
 		if (filtroData) {
 			where.push("DATE(v.data_venda) = ?");
 			params.push(filtroData);
 		}
+		if (filtroDataInicio) {
+			where.push("DATE(v.data_venda) >= ?");
+			params.push(filtroDataInicio);
+		}
+		if (filtroDataFim) {
+			where.push("DATE(v.data_venda) <= ?");
+			params.push(filtroDataFim);
+		}
 		if (filtroStatus) {
 			where.push("v.status = ?");
 			params.push(filtroStatus);
+		}
+		if (filtroFormaPagamento) {
+			where.push("v.forma_pagamento = ?");
+			params.push(filtroFormaPagamento);
 		}
 		if (where.length > 0) {
 			sql += " WHERE " + where.join(" AND ");
@@ -2809,6 +2893,72 @@ async function getVendas(filtro) {
 			resolver(linhas);
 		});
 	});
+}
+
+// Importa vendas históricas já normalizadas (ver ferramenta externa de tratamento
+// de planilhas do cliente — o ERP não faz parsing/mapeamento de coluna, só recebe
+// {sku, quantidade, valorUnitario, data} prontos). Usado para popular o histórico
+// de faturamento (getFaturamentoMedioHistorico) sem esperar um mês real de uso.
+// Diferente de finalizarVenda: NÃO mexe em Variacoes.quantidade_estoque, pois é
+// histórico de um período passado — o estoque atual não deve ser afetado.
+async function importarVendasHistoricas(linhas) {
+	if (!Array.isArray(linhas) || linhas.length === 0) {
+		throw new Error("Nenhuma linha para importar.");
+	}
+	const conn = getConexao();
+
+	const get = (sql, params = []) =>
+		new Promise((resolve, reject) => {
+			conn.get(sql, params, (erro, linha) => {
+				if (erro) return reject(erro);
+				resolve(linha);
+			});
+		});
+
+	let importadas = 0;
+	let puladas = 0;
+	await runOn(conn, "BEGIN TRANSACTION");
+	try {
+		for (const linha of linhas) {
+			const sku = String(linha.sku || "").trim().toUpperCase();
+			const quantidade = Number(linha.quantidade);
+			const valorUnitario = Number(linha.valorUnitario);
+			const data = linha.data ? String(linha.data) : null;
+			if (
+				!sku ||
+				!Number.isFinite(quantidade) ||
+				quantidade <= 0 ||
+				!Number.isFinite(valorUnitario) ||
+				valorUnitario < 0 ||
+				!data
+			) {
+				puladas++;
+				continue;
+			}
+			const variacao = await get("SELECT id FROM Variacoes WHERE UPPER(sku) = ?", [sku]);
+			if (!variacao) {
+				puladas++;
+				continue;
+			}
+			const total = quantidade * valorUnitario;
+			const vendaResult = await runOn(
+				conn,
+				"INSERT INTO Vendas (total, forma_pagamento, data_venda, status, origem) VALUES (?, NULL, ?, 'finalizada', 'importado')",
+				[total, data],
+			);
+			await runOn(
+				conn,
+				"INSERT INTO ItensVenda (venda_id, variacao_id, quantidade, preco_unitario) VALUES (?, ?, ?, ?)",
+				[vendaResult.lastID, variacao.id, quantidade, valorUnitario],
+			);
+			importadas++;
+		}
+		await runOn(conn, "COMMIT");
+	} catch (erro) {
+		await runOn(conn, "ROLLBACK");
+		throw erro;
+	}
+	return { importadas, puladas, total: linhas.length };
 }
 
 async function getVendasHoje() {
@@ -2897,6 +3047,7 @@ async function getDashboardStats() {
 		});
 
 	const hoje = new Date().toISOString().slice(0, 10);
+	const ontem = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
 	const totalVendas = await get(
 		"SELECT COUNT(*) AS total FROM Vendas WHERE DATE(data_venda) = ? AND status = 'finalizada'",
@@ -2907,6 +3058,23 @@ async function getDashboardStats() {
 		"SELECT COALESCE(SUM(total), 0) AS soma FROM Vendas WHERE DATE(data_venda) = ? AND status = 'finalizada'",
 		[hoje],
 	);
+
+	// Comparativo "hoje vs. ontem" para o badge de tendência do dashboard —
+	// só faz sentido pra vendas/faturamento do dia, não pros demais cards.
+	const totalVendasOntem = await get(
+		"SELECT COUNT(*) AS total FROM Vendas WHERE DATE(data_venda) = ? AND status = 'finalizada'",
+		[ontem],
+	);
+	const somaTotalOntem = await get(
+		"SELECT COALESCE(SUM(total), 0) AS soma FROM Vendas WHERE DATE(data_venda) = ? AND status = 'finalizada'",
+		[ontem],
+	);
+	function variacaoPercentual(hojeVal, ontemVal) {
+		if (!ontemVal) return null;
+		return ((hojeVal - ontemVal) / ontemVal) * 100;
+	}
+	const vendasHojeVariacao = variacaoPercentual(totalVendas.total, totalVendasOntem.total);
+	const faturamentoHojeVariacao = variacaoPercentual(somaTotal.soma, somaTotalOntem.soma);
 
 	const totalProdutos = await get("SELECT COUNT(*) AS total FROM Produtos");
 
@@ -2962,7 +3130,9 @@ async function getDashboardStats() {
 
 	return {
 		vendasHoje: totalVendas.total,
+		vendasHojeVariacao,
 		faturamentoHoje: somaTotal.soma,
+		faturamentoHojeVariacao,
 		totalProdutos: totalProdutos.total,
 		estoqueBaixo: estoqueBaixo[0].total,
 		aReceberHoje: aReceber.soma,

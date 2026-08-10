@@ -49,6 +49,7 @@ contextBridge.exposeInMainWorld("api", {
 		ipcRenderer.invoke("get-preco-cliente", clienteId, variacaoId),
 	getVendas: (filtro) => ipcRenderer.invoke("get-vendas", filtro),
 	getVendasHoje: () => ipcRenderer.invoke("get-vendas-hoje"),
+	importarVendasHistoricas: (linhas) => ipcRenderer.invoke("importar-vendas-historicas", linhas),
 	getItensVenda: (vendaId) => ipcRenderer.invoke("get-itens-venda", vendaId),
 	getEstoqueNegativo: () => ipcRenderer.invoke("get-estoque-negativo"),
 	getCategorias: () => ipcRenderer.invoke("get-categorias"),

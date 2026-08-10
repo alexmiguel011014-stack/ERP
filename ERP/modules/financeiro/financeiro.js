@@ -90,7 +90,7 @@
 					'<table class="modal-table"><thead><tr><th>Abertura</th><th>Fechamento</th>' +
 					"<th>Valor abertura</th><th>Esperado</th><th>Informado</th><th>Diferença</th><th>Obs.</th></tr></thead><tbody>";
 				linhas.forEach((f) => {
-					var corDiff = Number(f.diferenca) === 0 ? "#15803D" : "#B91C1C";
+					var corDiff = Number(f.diferenca) === 0 ? "var(--cor-sucesso)" : "var(--cor-erro)";
 					html +=
 						"<tr><td>" + formatarData(f.data_abertura) + "</td>" +
 						"<td>" + formatarData(f.data_fechamento) + "</td>" +
@@ -197,7 +197,7 @@
 						btnBaixar.type = "button";
 						btnBaixar.className = "btn btn-small";
 						btnBaixar.style.background = "#DCFCE7";
-						btnBaixar.style.color = "#15803D";
+						btnBaixar.style.color = "var(--cor-sucesso)";
 						btnBaixar.style.borderColor = "#86EFAC";
 						btnBaixar.textContent =
 							abaAtual === "receber" ? "Receber" : "Pagar";
@@ -329,10 +329,10 @@
 						"<td>" +
 						formatarData(d.dia) +
 						"</td>" +
-						"<td style='text-align:right; color:#16A34A;'>" +
+						"<td style='text-align:right; color:var(--cor-sucesso);'>" +
 						formatarMoeda(d.entradas) +
 						"</td>" +
-						"<td style='text-align:right; color:#DC2626;'>" +
+						"<td style='text-align:right; color:var(--cor-erro);'>" +
 						formatarMoeda(d.saidas) +
 						"</td>" +
 						"<td style='text-align:right;'>" +

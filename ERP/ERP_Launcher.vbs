@@ -1,4 +1,4 @@
-' Alga ERP - Launcher silencioso (nao abre CMD/PowerShell)
+' ALLU ERP - Launcher silencioso (nao abre CMD/PowerShell)
 Dim fso, shell, appDir
 Set fso = CreateObject("Scripting.FileSystemObject")
 appDir = fso.GetParentFolderName(WScript.ScriptFullName)

@@ -26,7 +26,7 @@ body {
 }
 
 .navbar-brand {
-  color: #2563EB;
+  color: var(--cor-primaria);
   font-weight: 700;
   font-size: 1rem;
   letter-spacing: -0.01em;
@@ -53,7 +53,7 @@ body {
 }
 
 .navbar-links a.active {
-  background-color: #2563EB;
+  background-color: var(--cor-primaria);
   color: #FFFFFF;
 }
 
@@ -122,7 +122,7 @@ body {
   padding: 10px 14px;
   font-size: 1rem;
   border: 1px solid #E2E8F0;
-  border-radius: 8px;
+  border-radius: 7px;
   background-color: #FFFFFF;
   color: #1E293B;
   outline: none;
@@ -130,8 +130,8 @@ body {
 }
 
 .scan-area input:focus {
-  border-color: #2563EB;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  border-color: var(--cor-primaria);
+  box-shadow: 0 0 0 2px rgba(109, 40, 217, 0.1);
 }
 
 .scan-area input:disabled {
@@ -154,47 +154,107 @@ body {
   font-weight: 600;
 }
 
-#carrinhoTable {
-  width: 100%;
-  border-collapse: collapse;
-  background-color: #FFFFFF;
-  border-radius: 8px;
+/* Carrinho em accordion: cada item é um card numerado que expande para
+   mostrar detalhes/controles — colapsado só mostra nome, qtd e subtotal. */
+.carrinho-accordion { display: flex; flex-direction: column; gap: 10px; }
+
+.carrinho-item {
+  border: 1px solid #1E293B;
+  border-bottom: 3px solid #1E293B;
+  border-radius: 14px;
   overflow: hidden;
-  border: 1px solid #E2E8F0;
-}
-
-#carrinhoTable th {
   background-color: #F8FAFC;
-  color: #64748B;
-  text-transform: uppercase;
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  padding: 10px 12px;
-  text-align: left;
-  border-bottom: 1px solid #E2E8F0;
 }
 
-#carrinhoTable td {
-  padding: 10px 12px;
-  font-size: 0.85rem;
-  border-bottom: 1px solid #F1F5F9;
+.carrinho-item-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
   color: #1E293B;
 }
 
-#carrinhoTable tr:last-child td {
-  border-bottom: none;
+.carrinho-item.open .carrinho-item-header {
+  background-color: var(--cor-primaria-fraca);
 }
 
-#carrinhoTable tr:hover td {
-  background-color: #F8FAFC;
+.carrinho-item-numero {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #94A3B8;
+  flex-shrink: 0;
+  min-width: 32px;
 }
 
-#carrinhoVazio td {
+.carrinho-item.open .carrinho-item-numero { color: var(--cor-primaria); }
+
+.carrinho-item-thumb {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: #E2E8F0 center/cover no-repeat;
+  flex-shrink: 0;
+}
+
+.carrinho-item-resumo { flex: 1; min-width: 0; }
+.carrinho-item-nome { font-size: 0.88rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.carrinho-item-nome.estoque-baixo { color: var(--cor-destaque); }
+.carrinho-item-sub { font-size: 0.74rem; color: #64748B; margin-top: 1px; }
+
+.carrinho-item-subtotal { font-size: 0.92rem; font-weight: 700; color: #1E293B; flex-shrink: 0; }
+
+.carrinho-item-seta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid #1E293B;
+  background: #F8FAFC;
+  color: #1E293B;
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  transition: transform 0.2s;
+}
+
+.carrinho-item.open .carrinho-item-seta { transform: rotate(90deg); }
+
+.carrinho-item-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease;
+  background-color: #FFFFFF;
+  border-top: 1px solid #E2E8F0;
+}
+
+.carrinho-item.open .carrinho-item-body { max-height: 200px; }
+
+.carrinho-item-body-inner {
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.carrinho-item-qtd-controle { display: flex; align-items: center; gap: 8px; }
+.carrinho-item-preco { font-size: 0.82rem; color: #64748B; }
+
+#carrinhoVazio.carrinho-vazio {
   text-align: center;
   color: #94A3B8;
   padding: 30px;
   font-size: 0.85rem;
+  border: 1px dashed #E2E8F0;
+  border-radius: 12px;
 }
 
 /* Quantity Buttons */
@@ -212,16 +272,16 @@ body {
 }
 
 .btn-qtd:hover {
-  background-color: #2563EB;
+  background-color: var(--cor-primaria);
   color: #FFFFFF;
-  border-color: #2563EB;
+  border-color: var(--cor-primaria);
 }
 
 /* Remove Button */
 .btn-remover {
   background: none;
-  border: 1px solid #FEE2E2;
-  color: #DC2626;
+  border: 1px solid var(--cor-erro-fraca);
+  color: var(--cor-erro);
   border-radius: 4px;
   padding: 2px 8px;
   cursor: pointer;
@@ -231,8 +291,8 @@ body {
 }
 
 .btn-remover:hover {
-  background-color: #FEE2E2;
-  border-color: #DC2626;
+  background-color: var(--cor-erro-fraca);
+  border-color: var(--cor-erro);
   color: #FFFFFF;
 }
 
@@ -267,7 +327,7 @@ body {
   width: 100%;
   padding: 8px 12px;
   border: 1px solid #E2E8F0;
-  border-radius: 8px;
+  border-radius: 7px;
   background-color: #FFFFFF;
   color: #1E293B;
   font-size: 0.85rem;
@@ -276,8 +336,8 @@ body {
 }
 
 .forma-pagamento select:focus {
-  border-color: #2563EB;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  border-color: var(--cor-primaria);
+  box-shadow: 0 0 0 2px rgba(109, 40, 217, 0.1);
 }
 
 .forma-pagamento {
@@ -288,7 +348,7 @@ body {
   width: 100%;
   padding: 8px 12px;
   border: 1px solid #E2E8F0;
-  border-radius: 8px;
+  border-radius: 7px;
   background-color: #FFFFFF;
   color: #1E293B;
   font-size: 0.85rem;
@@ -297,8 +357,8 @@ body {
 }
 
 .forma-pagamento input:focus {
-  border-color: #2563EB;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  border-color: var(--cor-primaria);
+  box-shadow: 0 0 0 2px rgba(109, 40, 217, 0.1);
 }
 
 .btn-orcamento {
@@ -306,16 +366,16 @@ body {
   padding: 10px 16px;
   font-size: 0.9rem;
   font-weight: 600;
-  border: 1px solid #F59E0B;
-  border-radius: 8px;
+  border: 1px solid var(--cor-destaque-solido);
+  border-radius: 7px;
   cursor: pointer;
-  background-color: #FFFBEB;
+  background-color: var(--cor-destaque-fraca);
   color: #B45309;
   transition: background-color 0.15s, color 0.15s;
 }
 
 .btn-orcamento:hover {
-  background-color: #F59E0B;
+  background-color: var(--cor-destaque-solido);
   color: #FFFFFF;
 }
 
@@ -348,7 +408,7 @@ body {
 .total-value {
   font-size: 1.6rem;
   font-weight: 700;
-  color: #16A34A;
+  color: var(--cor-sucesso);
 }
 
 .acoes-venda {
@@ -363,7 +423,7 @@ body {
   font-size: 0.9rem;
   font-weight: 600;
   border: 1px solid #CBD5E1;
-  border-radius: 8px;
+  border-radius: 7px;
   cursor: pointer;
   background-color: #FFFFFF;
   color: #64748B;
@@ -371,13 +431,13 @@ body {
 }
 
 .btn-cancelar:hover {
-  background-color: #FEE2E2;
-  color: #DC2626;
-  border-color: #DC2626;
+  background-color: var(--cor-erro-fraca);
+  color: var(--cor-erro);
+  border-color: var(--cor-erro);
 }
 
 .btn-voltar-menu:hover {
-  color: #2563EB;
+  color: var(--cor-primaria);
 }
 
 /* Loading Overlay */
@@ -411,7 +471,7 @@ body {
   width: 32px;
   height: 32px;
   border: 3px solid #E2E8F0;
-  border-top: 3px solid #2563EB;
+  border-top: 3px solid var(--cor-primaria);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }

@@ -10,16 +10,19 @@
 	var listaItens = document.getElementById("listaItens");
 	var listaMov = document.getElementById("listaMov");
 	var mensagem = document.getElementById("mensagem");
-	var ajusteSkuInput = document.getElementById("ajusteSkuInput");
-	var ajusteQtdInput = document.getElementById("ajusteQtdInput");
-	var ajusteObsInput = document.getElementById("ajusteObsInput");
-	var ajusteProdutoPreview = document.getElementById("ajusteProdutoPreview");
-	var btnAjustarEstoque = document.getElementById("btnAjustarEstoque");
+	var baixaSkuInput = document.getElementById("baixaSkuInput");
+	var baixaQtdInput = document.getElementById("baixaQtdInput");
+	var baixaMotivoInput = document.getElementById("baixaMotivoInput");
+	var baixaProdutoPreview = document.getElementById("baixaProdutoPreview");
+	var btnDarBaixa = document.getElementById("btnDarBaixa");
 	var btnAbrirListaEstoque = document.getElementById("btnAbrirListaEstoque");
+	var filtroCategoriaEstoque = document.getElementById("filtroCategoriaEstoque");
 
 	var itens = [];
 	var produtoAtual = null;
-	var ajusteProdutoAtual = null;
+	var baixaProdutoAtual = null;
+	var categoriaPorProdutoId = {};
+	var movimentacoesCache = [];
 
 	// A tela roda embutida num iframe do workspace "Gerenciamento de Produtos".
 	// A lista completa do estoque vive em uma aba própria desse mesmo workspace;
@@ -87,10 +90,10 @@
 			});
 	}
 
-	function buscarProdutoAjuste() {
-		var sku = ajusteSkuInput.value.trim().toUpperCase();
-		ajusteProdutoAtual = null;
-		ajusteProdutoPreview.textContent = "";
+	function buscarProdutoBaixa() {
+		var sku = baixaSkuInput.value.trim().toUpperCase();
+		baixaProdutoAtual = null;
+		baixaProdutoPreview.textContent = "";
 		if (!sku) return;
 		window.erpBanco.produtos
 			.buscarSKU(sku)
@@ -99,11 +102,10 @@
 					mostrarMensagem("SKU não encontrado: " + sku, "erro");
 					return;
 				}
-				ajusteProdutoAtual = p;
-				ajusteQtdInput.value = p.quantidade_estoque;
-				ajusteProdutoPreview.textContent =
-					p.nome + " — estoque atual: " + p.quantidade_estoque;
-				ajusteQtdInput.focus();
+				baixaProdutoAtual = p;
+				baixaProdutoPreview.textContent =
+					p.nome + " (" + detalhesDe(p) + ") — estoque atual: " + p.quantidade_estoque;
+				baixaQtdInput.focus();
 			})
 			.catch((err) => {
 				mostrarMensagem("Erro ao buscar SKU: " + err, "erro");
@@ -117,62 +119,65 @@
 		}
 	});
 
-	ajusteSkuInput.addEventListener("keydown", (e) => {
+	baixaSkuInput.addEventListener("keydown", (e) => {
 		if (e.key === "Enter") {
 			e.preventDefault();
-			buscarProdutoAjuste();
+			buscarProdutoBaixa();
 		}
 	});
 
-	btnAjustarEstoque.addEventListener("click", () => {
-		if (!ajusteProdutoAtual) {
-			buscarProdutoAjuste();
-			mostrarMensagem("Busque um SKU válido antes de ajustar.", "erro");
+	btnDarBaixa.addEventListener("click", () => {
+		if (!baixaProdutoAtual) {
+			buscarProdutoBaixa();
+			mostrarMensagem("Busque um SKU válido antes de dar baixa.", "erro");
 			return;
 		}
-		var quantidade = Number(ajusteQtdInput.value);
-		if (!Number.isInteger(quantidade) || quantidade < 0) {
+		var qtdBaixa = parseInt(baixaQtdInput.value, 10);
+		if (!Number.isInteger(qtdBaixa) || qtdBaixa <= 0) {
+			mostrarMensagem("Informe uma quantidade válida para dar baixa.", "erro");
+			return;
+		}
+		var novoSaldo = baixaProdutoAtual.quantidade_estoque - qtdBaixa;
+		if (novoSaldo < 0) {
 			mostrarMensagem(
-				"O novo saldo precisa ser um número inteiro maior ou igual a zero.",
+				"Essa baixa deixaria o estoque negativo (saldo atual: " +
+					baixaProdutoAtual.quantidade_estoque +
+					"). Confira a quantidade.",
 				"erro",
 			);
 			return;
 		}
-		btnAjustarEstoque.disabled = true;
+		var motivo = baixaMotivoInput.value;
+		btnDarBaixa.disabled = true;
 		window.erpBanco.estoque
 			.ajustarManual({
-				variacao_id: ajusteProdutoAtual.id,
-				quantidade: quantidade,
-				observacao: ajusteObsInput.value.trim(),
+				variacao_id: baixaProdutoAtual.id,
+				quantidade: novoSaldo,
+				observacao: motivo + " (baixa de " + qtdBaixa + " un.)",
 			})
 			.then((resultado) => {
 				if (resultado.abaixoDoReservado) {
 					mostrarMensagem(
-						"Ajuste salvo, mas o novo saldo (" + quantidade +
+						"Baixa registrada, mas o novo saldo (" + novoSaldo +
 							") ficou abaixo do que está reservado em orçamentos abertos (" +
 							resultado.quantidade_reservada +
 							"). Verifique os orçamentos pendentes desse produto.",
 						"erro",
 					);
 				} else {
-					mostrarMensagem(
-						resultado.alterado === false
-							? "O estoque já estava nesse saldo."
-							: "Ajuste de estoque salvo!",
-						"sucesso",
-					);
+					mostrarMensagem("Baixa de estoque registrada!", "sucesso");
 				}
-				ajusteProdutoAtual.quantidade_estoque = quantidade;
-				ajusteProdutoPreview.textContent =
-					ajusteProdutoAtual.nome + " — estoque atual: " + quantidade;
-				ajusteObsInput.value = "";
+				baixaProdutoAtual.quantidade_estoque = novoSaldo;
+				baixaProdutoPreview.textContent =
+					baixaProdutoAtual.nome + " — estoque atual: " + novoSaldo;
+				baixaQtdInput.value = "";
 				carregarMovimentacoes();
 			})
 			.catch((err) => {
-				mostrarMensagem("Erro ao ajustar estoque: " + err, "erro");
+				mostrarMensagem("Erro ao registrar baixa: " + err, "erro");
 			})
 			.finally(() => {
-				btnAjustarEstoque.disabled = false;
+				btnDarBaixa.disabled = false;
 			});
 	});
 
@@ -310,6 +315,48 @@
 
 	/* ---------- Movimentações ---------- */
 
+	function renderizarMovimentacoes() {
+		var categoriaFiltro = filtroCategoriaEstoque.value;
+		var rows = movimentacoesCache;
+		if (categoriaFiltro) {
+			rows = rows.filter((m) => {
+				var catId = categoriaPorProdutoId[m.produto_nome];
+				return String(catId) === categoriaFiltro;
+			});
+		}
+
+		listaMov.innerHTML = "";
+		if (!rows || rows.length === 0) {
+			listaMov.innerHTML =
+				'<div class="empty-state">Nenhuma movimentação registrada.</div>';
+			return;
+		}
+		rows.forEach((m) => {
+			var div = document.createElement("div");
+			div.className = "item-lista";
+			var data = m.data ? new Date(m.data).toLocaleString("pt-BR") : "---";
+			var sinal =
+				m.tipo === "ajuste" && Number(m.quantidade) < 0 ? "" : "+";
+			div.innerHTML =
+				'<div class="info"><div class="titulo"></div><div class="detalhe"></div></div>' +
+				'<span class="badge badge-verde">' +
+				sinal +
+				m.quantidade +
+				"</span>";
+			div.querySelector(".titulo").textContent =
+				m.produto_nome + " (" + detalhesDe(m) + ")";
+			div.querySelector(".detalhe").textContent =
+				data +
+				" | Origem: " +
+				(m.origem || "manual") +
+				(m.custo_unitario !== null && m.custo_unitario !== undefined
+					? " | Custo: " + formatarMoeda(m.custo_unitario)
+					: "") +
+				(m.observacao ? " | " + m.observacao : "");
+			listaMov.appendChild(div);
+		});
+	}
+
 	function carregarMovimentacoes() {
 		if (!window.api || !window.erpBanco.estoque.movimentacoes) {
 			listaMov.innerHTML = '<div class="empty-state">API indisponível.</div>';
@@ -318,43 +365,46 @@
 		window.erpBanco.estoque
 			.movimentacoes(30)
 			.then((rows) => {
-				listaMov.innerHTML = "";
-				if (!rows || rows.length === 0) {
-					listaMov.innerHTML =
-						'<div class="empty-state">Nenhuma movimentação registrada.</div>';
-					return;
-				}
-				rows.forEach((m) => {
-					var div = document.createElement("div");
-					div.className = "item-lista";
-					var data = m.data ? new Date(m.data).toLocaleString("pt-BR") : "---";
-					var sinal =
-						m.tipo === "ajuste" && Number(m.quantidade) < 0 ? "" : "+";
-					div.innerHTML =
-						'<div class="info"><div class="titulo"></div><div class="detalhe"></div></div>' +
-						'<span class="badge badge-verde">' +
-						sinal +
-						m.quantidade +
-						"</span>";
-					div.querySelector(".titulo").textContent =
-						m.produto_nome + " (" + detalhesDe(m) + ")";
-					div.querySelector(".detalhe").textContent =
-						data +
-						" | Origem: " +
-						(m.origem || "manual") +
-						(m.custo_unitario !== null && m.custo_unitario !== undefined
-							? " | Custo: " + formatarMoeda(m.custo_unitario)
-							: "") +
-						(m.observacao ? " | " + m.observacao : "");
-					listaMov.appendChild(div);
-				});
+				movimentacoesCache = rows || [];
+				renderizarMovimentacoes();
 			})
 			.catch((err) => {
 				listaMov.innerHTML = '<div class="empty-state">Erro: ' + err + "</div>";
 			});
 	}
 
+	/* ---------- Filtro de categoria ---------- */
+
+	function popularFiltroCategoria() {
+		Promise.all([
+			erpCategoryStore.getCategoriasFlux(),
+			window.api && window.erpBanco.produtos.buscar
+				? window.erpBanco.produtos.buscar()
+				: Promise.resolve([]),
+		]).then(([categorias, produtos]) => {
+			categoriaPorProdutoId = {};
+			(produtos || []).forEach((p) => {
+				if (p.categoria_id) categoriaPorProdutoId[p.nome] = p.categoria_id;
+			});
+			// A movimentação só traz o nome do produto, não o id — o mapa é
+			// indexado por nome para permitir o cruzamento no filtro.
+			var valorAtual = filtroCategoriaEstoque.value;
+			filtroCategoriaEstoque.innerHTML =
+				'<option value="">Todas as categorias</option>';
+			(categorias || []).forEach((c) => {
+				var opt = document.createElement("option");
+				opt.value = c.id;
+				opt.textContent = c.nome;
+				filtroCategoriaEstoque.appendChild(opt);
+			});
+			filtroCategoriaEstoque.value = valorAtual;
+		});
+	}
+
+	filtroCategoriaEstoque.addEventListener("change", renderizarMovimentacoes);
+
 	function iniciarEstoque() {
+		popularFiltroCategoria();
 		carregarMovimentacoes();
 	}
 

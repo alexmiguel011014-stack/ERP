@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="../core/head.js"></script>
     <script src="../core/auth.js"></script>
-    <title>Alga ERP - Cadastro de Produto</title>
+    <title>ALLU ERP - Cadastro de Produto</title>
+    <link rel="stylesheet" href="../core/modulos.css" />
     <link rel="stylesheet" href="cadastro.css" />
   </head>
   <body data-requer-modulo="produtos">
@@ -79,7 +80,7 @@
 
     <!-- Modal: Lista de Produtos -->
     <div id="modalLista" class="modal-overlay" hidden>
-      <div class="modal-box">
+      <div class="modal-box modal-box-larga">
         <div class="modal-header">
           <h2>Lista de Produtos</h2>
           <div class="modal-tools">
@@ -90,28 +91,49 @@
           </div>
         </div>
 
-        <div class="table-responsive">
-          <table id="tabelaProdutos">
-            <thead>
-              <tr>
-                <th>SKU</th>
-                <th>Produto</th>
-                <th>Categorias / Atributos</th>
-                <th class="th-futuro">Preço de Custo</th>
-                <th class="th-futuro">Outros Dados</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody id="corpoProdutos"></tbody>
-          </table>
-        </div>
+        <div class="filtros-layout" style="padding: 16px 20px 0;">
+          <aside class="filtros-sidebar">
+            <div class="filtros-sidebar-titulo">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+              Filtros
+            </div>
+            <div class="filtro-grupo">
+              <div class="filtro-grupo-label">Categoria</div>
+              <div id="filtroCategoriasProduto"><div class="empty-state" style="padding:8px 0; font-size:0.78rem;">Carregando...</div></div>
+            </div>
+            <div class="filtro-grupo">
+              <div class="filtro-grupo-label">Estoque</div>
+              <label class="filtro-check"><input type="checkbox" id="filtroEstoqueBaixo" /> Estoque baixo</label>
+              <label class="filtro-check"><input type="checkbox" id="filtroSemEstoque" /> Sem estoque</label>
+            </div>
+            <button type="button" id="btnLimparFiltrosProduto" class="btn-limpar-filtros">Limpar filtros</button>
+          </aside>
 
-        <div id="avisoProdutos" class="aviso"></div>
-        <div class="modal-footer">
-          <span class="placeholder-note">
-            As colunas <strong>Preço de Custo</strong> e <strong>Outros Dados</strong> são espaços reservados
-            para implementação futura.
-          </span>
+          <div class="filtros-resultado">
+            <div class="table-responsive">
+              <table id="tabelaProdutos">
+                <thead>
+                  <tr>
+                    <th>SKU</th>
+                    <th>Produto</th>
+                    <th>Categorias / Atributos</th>
+                    <th class="th-futuro">Preço de Custo</th>
+                    <th class="th-futuro">Outros Dados</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoProdutos"></tbody>
+              </table>
+            </div>
+
+            <div id="avisoProdutos" class="aviso"></div>
+            <div class="modal-footer">
+              <span class="placeholder-note">
+                As colunas <strong>Preço de Custo</strong> e <strong>Outros Dados</strong> são espaços reservados
+                para implementação futura.
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     </div>

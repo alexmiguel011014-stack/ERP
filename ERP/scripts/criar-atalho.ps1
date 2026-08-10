@@ -2,7 +2,7 @@ param([switch]$Dev = $false)
 
 $Desktop = [Environment]::GetFolderPath("Desktop")
 $Root = Split-Path -Parent $PSScriptRoot
-$Name = "Alga ERP"
+$Name = "ALLU ERP"
 $Shortcut = Join-Path $Desktop "$Name.lnk"
 $Icon = Join-Path $Root "build\icon.ico"
 

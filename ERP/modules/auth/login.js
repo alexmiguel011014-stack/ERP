@@ -45,9 +45,12 @@
       .then(function (res) {
         window.erpPerfil = res.usuario.perfil;
         mostrarMensagem("Login realizado! Bem-vindo, " + res.usuario.nome + ".", "sucesso");
+        var splash = document.getElementById("loginSplash");
+        if (splash) splash.classList.add("ativo");
         setTimeout(function () {
+          if (splash) splash.classList.add("saindo");
           window.location.href = "../dashboard/index.html";
-        }, 700);
+        }, 3000);
       })
       .catch(function (err) {
         mostrarMensagem(err || "Usuário ou senha incorreta.", "erro");

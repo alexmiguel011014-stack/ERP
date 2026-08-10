@@ -6,6 +6,38 @@
   flex-wrap: wrap;
 }
 
+.panel-cat-filtro {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.panel-cat-filtro label {
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: #64748B;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.panel-cat-filtro select {
+  padding: 7px 12px;
+  border: 1px solid #E2E8F0;
+  border-radius: 7px;
+  font-size: 0.85rem;
+  background: #FFFFFF;
+  outline: none;
+  min-width: 220px;
+}
+
+.panel-cat-filtro select:focus { border-color: var(--cor-primaria); }
+
+.panel-baixa h2 { color: var(--cor-erro); }
+
+.dark-theme .panel-cat-filtro label { color: #94A3B8; }
+.dark-theme .panel-cat-filtro select { background: #0F172A; border-color: #334159; color: #F1F5F9; }
+
 /* Tabela de visão geral do estoque */
 .table-responsive { overflow-x: auto; }
 
@@ -52,7 +84,7 @@ td input[type="number"].minimo-input {
   text-align: right;
 }
 
-td input[type="number"].minimo-input:focus { border-color: #2563EB; }
+td input[type="number"].minimo-input:focus { border-color: var(--cor-primaria); }
 
 .busca-estoque {
   flex: 1;
@@ -64,7 +96,7 @@ td input[type="number"].minimo-input:focus { border-color: #2563EB; }
   outline: none;
 }
 
-.busca-estoque:focus { border-color: #2563EB; }
+.busca-estoque:focus { border-color: var(--cor-primaria); }
 
 .chip-group { display: flex; gap: 6px; flex-wrap: wrap; }
 
@@ -80,8 +112,8 @@ td input[type="number"].minimo-input:focus { border-color: #2563EB; }
   transition: all 0.15s;
 }
 
-.chip:hover { background: #EFF6FF; border-color: #BFDBFE; }
-.chip.active { background: #2563EB; color: #FFFFFF; border-color: #2563EB; }
+.chip:hover { background: var(--cor-primaria-fraca); border-color: var(--cor-primaria-fraca-borda); }
+.chip.active { background: var(--cor-primaria); color: #FFFFFF; border-color: var(--cor-primaria); }
 
 /* Dark theme */
 .dark-theme table { background: #1E293B; border-color: #334159; }
@@ -92,4 +124,4 @@ td input[type="number"].minimo-input:focus { border-color: #2563EB; }
 .dark-theme .busca-estoque { background: #0F172A; border-color: #334159; color: #F1F5F9; }
 .dark-theme .chip { background: #0F172A; border-color: #334159; color: #94A3B8; }
 .dark-theme .chip:hover { background: #334159; }
-.dark-theme .chip.active { background: #3B82F6; border-color: #3B82F6; color: #FFFFFF; }
+.dark-theme .chip.active { background: var(--cor-primaria); border-color: var(--cor-primaria); color: #FFFFFF; }

@@ -1,7 +1,7 @@
 (() => {
 	"use strict";
 	var skuInput = document.getElementById("skuInput");
-	var carrinhoBody = document.getElementById("carrinhoBody");
+	var carrinhoAccordion = document.getElementById("carrinhoAccordion");
 	var carrinhoVazio = document.getElementById("carrinhoVazio");
 	var totalValue = document.getElementById("totalValue");
 	var formaPagamento = document.getElementById("formaPagamento");
@@ -19,6 +19,7 @@
 	var carrinho = [];
 	var buscando = false;
 	var imagemCache = {};
+	var carrinhoItemAberto = -1; // índice do card expandido; -1 = nenhum
 
 	function esc(t) {
 		return String(t == null ? "" : t)
@@ -236,11 +237,11 @@
 		}
 		var troco = recebido - totalCarrinho();
 		if (troco < 0) {
-			trocoResultado.style.color = "#DC2626";
+			trocoResultado.style.color = "var(--cor-erro)";
 			trocoResultado.textContent =
 				"Falta R$ " + Math.abs(troco).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 		} else {
-			trocoResultado.style.color = "#16A34A";
+			trocoResultado.style.color = "var(--cor-sucesso)";
 			trocoResultado.textContent =
 				"Troco: R$ " + troco.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 		}
@@ -319,7 +320,7 @@
 			});
 			var precoCel = Number(p.preco || 0) > 0
 				? Number(p.preco).toFixed(2)
-				: '<span style="color:#DC2626;font-weight:600;">Sem preço</span>';
+				: '<span style="color:var(--cor-erro);font-weight:600;">Sem preço</span>';
 			var disponivelCel = Number.isFinite(Number(p.quantidade_disponivel))
 				? Number(p.quantidade_disponivel)
 				: p.quantidade_estoque || 0;
@@ -381,6 +382,7 @@
 				return;
 			}
 			existente.quantidade += 1;
+			carrinhoItemAberto = carrinho.indexOf(existente);
 		} else {
 			carrinho.push({
 				variacao_id: produto.id,
@@ -397,6 +399,7 @@
 				estoque: disponivel,
 				imagem: produto.imagem || null,
 			});
+			carrinhoItemAberto = carrinho.length - 1;
 		}
 
 		aplicarPrecoCliente(carrinho[carrinho.length - 1] || existente, produto.id);
@@ -614,6 +617,7 @@
 						return;
 					}
 					existente.quantidade += 1;
+					carrinhoItemAberto = carrinho.indexOf(existente);
 				} else {
 					carrinho.push({
 						variacao_id: produto.id,
@@ -630,6 +634,7 @@
 						estoque: disponivel,
 						imagem: produto.imagem || null,
 					});
+					carrinhoItemAberto = carrinho.length - 1;
 				}
 
 				aplicarPrecoCliente(carrinho[carrinho.length - 1] || existente, produto.id);
@@ -650,7 +655,7 @@
 	}
 
 	function mostrarAlertaEstoque(produto, tipo) {
-		var cor = tipo === "Sem estoque" ? "#DC2626" : "#F59E0B";
+		var cor = tipo === "Sem estoque" ? "var(--cor-erro)" : "var(--cor-destaque-solido)";
 		var mensagemTexto =
 			tipo === "Sem estoque"
 				? "Sem estoque para: " + produto.nome
@@ -707,7 +712,7 @@
 
 		var alerta = document.createElement("div");
 		alerta.style.cssText =
-			"position: fixed; top: 60px; right: 20px; background: #DC2626; color: white; padding: 12px 16px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 10000; font-size: 14px; max-width: 300px;";
+			"position: fixed; top: 60px; right: 20px; background: var(--cor-erro); color: white; padding: 12px 16px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 10000; font-size: 14px; max-width: 300px;";
 		alerta.innerHTML =
 			'<div style="font-weight: 600; margin-bottom: 4px;">Sem preço definido</div>' +
 			"<div>" +
@@ -731,7 +736,7 @@
 	}
 
 	function renderizarCarrinho() {
-		carrinhoBody.innerHTML = "";
+		carrinhoAccordion.innerHTML = "";
 
 		if (carrinho.length === 0) {
 			carrinhoVazio.style.display = "";
@@ -752,20 +757,24 @@
 				: 5;
 			var estoqueBaixo =
 				item.estoque !== undefined && item.estoque <= minimoItem;
+			var detalhesTexto =
+				item.detalhes || formatarAtributos(item.atributos, item.tamanho, item.cor);
 
-			var tr = document.createElement("tr");
+			var card = document.createElement("div");
+			card.className = "carrinho-item" + (index === carrinhoItemAberto ? " open" : "");
 
-			var tdNome = document.createElement("td");
-			tdNome.style.display = "flex";
-			tdNome.style.alignItems = "center";
-			tdNome.style.gap = "8px";
+			var header = document.createElement("button");
+			header.type = "button";
+			header.className = "carrinho-item-header";
+
+			var numero = document.createElement("span");
+			numero.className = "carrinho-item-numero";
+			numero.textContent = String(index + 1).padStart(2, "0");
+			header.appendChild(numero);
+
 			var thumb = document.createElement("span");
-			thumb.style.cssText =
-				"width:28px; height:28px; border-radius:4px; background:#F1F5F9 center/cover no-repeat; flex-shrink:0;";
-			tdNome.appendChild(thumb);
-			var spanNome = document.createElement("span");
-			spanNome.textContent = item.nome;
-			tdNome.appendChild(spanNome);
+			thumb.className = "carrinho-item-thumb";
+			header.appendChild(thumb);
 			if (item.imagem) {
 				if (imagemCache[item.imagem]) {
 					thumb.style.backgroundImage = "url('" + imagemCache[item.imagem] + "')";
@@ -778,69 +787,79 @@
 					}).catch(() => {});
 				}
 			}
-			if (estoqueBaixo) {
-				spanNome.style.color = "#f59e0b";
-				tdNome.title = "Estoque baixo: " + item.estoque + " unidades";
-			}
 
-			var tdDetalhes = document.createElement("td");
-			tdDetalhes.textContent =
-				item.detalhes ||
-				formatarAtributos(item.atributos, item.tamanho, item.cor);
+			var resumo = document.createElement("span");
+			resumo.className = "carrinho-item-resumo";
+			var nomeSpan = document.createElement("span");
+			nomeSpan.className = "carrinho-item-nome" + (estoqueBaixo ? " estoque-baixo" : "");
+			nomeSpan.textContent = item.nome;
+			if (estoqueBaixo) header.title = "Estoque baixo: " + item.estoque + " unidades";
+			var subSpan = document.createElement("span");
+			subSpan.className = "carrinho-item-sub";
+			subSpan.textContent = (detalhesTexto || "") + " \u00b7 Qtd: " + item.quantidade;
+			resumo.appendChild(nomeSpan);
+			resumo.appendChild(subSpan);
+			header.appendChild(resumo);
 
-			var tdQtd = document.createElement("td");
-			tdQtd.style.textAlign = "center";
+			var subtotalSpan = document.createElement("span");
+			subtotalSpan.className = "carrinho-item-subtotal";
+			subtotalSpan.textContent = "R$ " + subtotal.toFixed(2);
+			header.appendChild(subtotalSpan);
 
+			var seta = document.createElement("span");
+			seta.className = "carrinho-item-seta";
+			seta.innerHTML = "&#8250;";
+			header.appendChild(seta);
+
+			header.addEventListener("click", () => {
+				carrinhoItemAberto = carrinhoItemAberto === index ? -1 : index;
+				renderizarCarrinho();
+			});
+
+			var body = document.createElement("div");
+			body.className = "carrinho-item-body";
+			var bodyInner = document.createElement("div");
+			bodyInner.className = "carrinho-item-body-inner";
+
+			var qtdControle = document.createElement("div");
+			qtdControle.className = "carrinho-item-qtd-controle";
 			var btnMenos = document.createElement("button");
 			btnMenos.type = "button";
 			btnMenos.className = "btn-qtd";
 			btnMenos.textContent = "\u2212";
 			btnMenos.title = "Diminuir 1";
-			btnMenos.addEventListener("click", () => {
-				diminuirQtd(index);
-			});
-
+			btnMenos.addEventListener("click", (e) => { e.stopPropagation(); diminuirQtd(index); });
 			var spanQtd = document.createElement("span");
 			spanQtd.textContent = " " + item.quantidade + " ";
-
 			var btnMais = document.createElement("button");
 			btnMais.type = "button";
 			btnMais.className = "btn-qtd";
 			btnMais.textContent = "+";
 			btnMais.title = "Adicionar 1";
-			btnMais.addEventListener("click", () => {
-				aumentarQtd(index);
-			});
+			btnMais.addEventListener("click", (e) => { e.stopPropagation(); aumentarQtd(index); });
+			qtdControle.appendChild(btnMenos);
+			qtdControle.appendChild(spanQtd);
+			qtdControle.appendChild(btnMais);
 
-			tdQtd.appendChild(btnMenos);
-			tdQtd.appendChild(spanQtd);
-			tdQtd.appendChild(btnMais);
+			var precoUnit = document.createElement("span");
+			precoUnit.className = "carrinho-item-preco";
+			precoUnit.textContent = "Unit\u00e1rio: R$ " + item.preco_unitario.toFixed(2);
 
-			var tdPreco = document.createElement("td");
-			tdPreco.textContent = "R$ " + item.preco_unitario.toFixed(2);
-
-			var tdSubtotal = document.createElement("td");
-			tdSubtotal.textContent = "R$ " + subtotal.toFixed(2);
-
-			var tdRemover = document.createElement("td");
 			var btnRemover = document.createElement("button");
 			btnRemover.type = "button";
 			btnRemover.className = "btn-remover";
-			btnRemover.textContent = "x";
+			btnRemover.textContent = "Remover";
 			btnRemover.title = "Remover item";
-			btnRemover.addEventListener("click", () => {
-				removerItem(index);
-			});
-			tdRemover.appendChild(btnRemover);
+			btnRemover.addEventListener("click", (e) => { e.stopPropagation(); removerItem(index); });
 
-			tr.appendChild(tdNome);
-			tr.appendChild(tdDetalhes);
-			tr.appendChild(tdQtd);
-			tr.appendChild(tdPreco);
-			tr.appendChild(tdSubtotal);
-			tr.appendChild(tdRemover);
+			bodyInner.appendChild(qtdControle);
+			bodyInner.appendChild(precoUnit);
+			bodyInner.appendChild(btnRemover);
+			body.appendChild(bodyInner);
 
-			carrinhoBody.appendChild(tr);
+			card.appendChild(header);
+			card.appendChild(body);
+			carrinhoAccordion.appendChild(card);
 		});
 
 		atualizarTotal();
@@ -879,6 +898,7 @@
 
 	function limparCarrinho() {
 		carrinho = [];
+		carrinhoItemAberto = -1;
 		limparCarrinhoPersistente();
 		renderizarCarrinho();
 		skuInput.value = "";
@@ -1064,7 +1084,7 @@
 		var html = "";
 		html +=
 			"<div style='text-align: center; margin-bottom: 10px; font-size: 14px; font-weight: bold;'>";
-		html += "Alga ERP";
+		html += "ALLU ERP";
 		html += "</div>";
 		html +=
 			"<div style='text-align: center; font-size: 10px; color: #666; margin-bottom: 10px;'>";
@@ -1180,7 +1200,7 @@
 
 	function devMsg(texto, cor) {
 		devMensagem.textContent = texto;
-		devMensagem.style.color = cor || "#DC2626";
+		devMensagem.style.color = cor || "var(--cor-erro)";
 	}
 
 	function abrirDevolucao() {
@@ -1220,7 +1240,7 @@
 					devMsg("Venda não encontrada ou sem itens.");
 					return;
 				}
-				devMsg("Venda #" + vendaId + " localizada.", "#16A34A");
+				devMsg("Venda #" + vendaId + " localizada.", "var(--cor-sucesso)");
 				devItens.innerHTML = itensVenda
 					.map((i) => {
 						var disponivel = i.quantidade - (i.quantidade_devolvida || 0);
@@ -1321,7 +1341,7 @@
 
 	function caixaMsg(texto, cor) {
 		caixaMensagem.textContent = texto || "";
-		caixaMensagem.style.color = cor || "#DC2626";
+		caixaMensagem.style.color = cor || "var(--cor-erro)";
 	}
 
 	function formatarMoedaCaixa(v) {
@@ -1336,11 +1356,11 @@
 				if (caixa) {
 					caixaStatusBadge.textContent = "Caixa aberto";
 					caixaStatusBadge.style.background = "#DCFCE7";
-					caixaStatusBadge.style.color = "#15803D";
+					caixaStatusBadge.style.color = "var(--cor-sucesso)";
 				} else {
 					caixaStatusBadge.textContent = "Caixa fechado";
 					caixaStatusBadge.style.background = "#FEE2E2";
-					caixaStatusBadge.style.color = "#B91C1C";
+					caixaStatusBadge.style.color = "var(--cor-erro)";
 				}
 			})
 			.catch(() => {});

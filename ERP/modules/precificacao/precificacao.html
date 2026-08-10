@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="../core/head.js"></script>
     <script src="../core/auth.js"></script>
-    <title>Alga ERP - Precificação</title>
+    <title>ALLU ERP - Precificação</title>
     <link rel="stylesheet" href="precificacao.css" />
   </head>
   <body data-requer-modulo="produtos">
@@ -24,13 +24,12 @@
           <span class="config-hint">Aplicada automaticamente a novos produtos e aos que usam margem global.</span>
         </div>
         <div class="config-item">
-          <label for="custoFixoMensal">Custos Fixos do Mês (R$ / Volume estimado)</label>
+          <label for="custoFixoMensal">Custos Fixos do Mês (R$)</label>
           <div class="config-input-row">
             <input type="number" id="custoFixoMensal" min="0" step="0.01" placeholder="Ex: 5000" />
-            <input type="number" id="custoFixoVolume" min="0" step="1" placeholder="Ex: 500 un." />
             <button type="button" id="btnSaveCustoFixo" class="btn btn-primary btn-sm">Salvar</button>
           </div>
-          <span class="config-hint">Aluguel, salários e outras despesas fixas, diluídas por unidade vendida no mês. Marque "Custo Fixo" por produto — deixe destravado nas revendas de margem apertada.</span>
+          <span class="config-hint">Aluguel, salários e outras despesas fixas, diluídas como % do faturamento (calculada automaticamente pelo histórico de vendas, não por um volume estimado). Marque "Custo Fixo" por produto — deixe destravado nas revendas de margem apertada.</span>
           <div id="custoFixoResultado" class="custo-fixo-resultado"></div>
         </div>
       </div>

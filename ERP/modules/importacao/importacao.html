@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="../core/head.js"></script>
+    <script src="../core/auth.js"></script>
+    <link rel="stylesheet" href="../core/modulos.css" />
+    <link rel="stylesheet" href="./importacao.css" />
+    <title>ALLU ERP - Importação de Vendas</title>
+  </head>
+  <body data-requer-modulo="estoque">
+    <div class="container">
+      <h1>Importação de Vendas Históricas</h1>
+      <p class="subtitle">
+        Popula o histórico de vendas a partir de um arquivo já normalizado, para que o cálculo
+        automático de Custos Fixos e outros relatórios tenham dado real desde já — sem esperar
+        um mês de uso do sistema.
+      </p>
+
+      <div class="panel">
+        <h2>Selecionar arquivo</h2>
+        <p class="subtitle" style="margin-bottom: 10px;">
+          Arquivo <strong>.json</strong> com uma lista de vendas já tratadas, no formato:
+          <code>[{"sku": "P0001", "quantidade": 2, "valorUnitario": 150.00, "data": "2026-05-10"}, ...]</code>.
+          Linhas com SKU não cadastrado são puladas automaticamente — esse tratamento de dado
+          (mapear planilha, corrigir SKU, etc.) é feito antes, fora do ERP.
+        </p>
+        <div class="form-group" style="max-width: 480px;">
+          <label for="arquivoInput">Arquivo JSON</label>
+          <input type="file" id="arquivoInput" accept="application/json,.json" />
+        </div>
+        <div id="previaResultado" class="detalhe" style="font-size: 0.85rem; color: #475569; margin-bottom: 10px;"></div>
+        <div class="form-actions">
+          <button type="button" id="btnImportar" class="btn btn-primary" disabled>Confirmar Importação</button>
+        </div>
+      </div>
+
+      <div id="mensagem" class="mensagem"></div>
+    </div>
+
+    <script src="../core/banco.js"></script>
+    <script src="../core/navbar.js"></script>
+    <script src="../core/formatos.js"></script>
+    <script src="./importacao.js"></script>
+  </body>
+</html>

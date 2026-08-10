@@ -1,7 +1,7 @@
 {
 	"name": "erp",
 	"version": "1.0.4",
-	"description": "ERP local (offline) da Alga",
+	"description": "ERP local (offline) da ALLU",
 	"main": "main.js",
 	"scripts": {
 		"start": "electron .",
@@ -14,7 +14,7 @@
 	"type": "commonjs",
 	"build": {
 		"appId": "com.erpsystem.erp",
-		"productName": "Alga ERP",
+		"productName": "ALLU ERP",
 		"directories": {
 			"output": "dist",
 			"buildResources": "build"
@@ -52,12 +52,12 @@
 			"icon": "build/icon.ico"
 		},
 		"nsis": {
-			"artifactName": "Alga-ERP-Setup-${version}.${ext}",
+			"artifactName": "ALLU-ERP-Setup-${version}.${ext}",
 			"oneClick": false,
 			"allowToChangeInstallationDirectory": true,
 			"createDesktopShortcut": true,
 			"createStartMenuShortcut": true,
-			"shortcutName": "Alga ERP"
+			"shortcutName": "ALLU ERP"
 		}
 	},
 	"devDependencies": {

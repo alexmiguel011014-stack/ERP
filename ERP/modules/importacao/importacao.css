@@ -1,0 +1,14 @@
+code {
+  display: block;
+  background: #F1F5F9;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  margin: 6px 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.dark-theme code { background: #0F172A; border-color: #334159; color: #E2E8F0; }

@@ -17,12 +17,12 @@
 	var graficos = {};
 
 	var CORES = {
-		azul: "#2563EB",
-		verde: "#16A34A",
-		vermelho: "#DC2626",
-		amarelo: "#D97706",
+		azul: "#6D28D9",
+		verde: "#15803D",
+		vermelho: "#B91C1C",
+		amarelo: "#B45309",
 		cinza: "#64748B",
-		paleta: ["#2563EB", "#16A34A", "#D97706", "#DC2626", "#7C3AED", "#0891B2", "#DB2777"],
+		paleta: ["#6D28D9", "#15803D", "#F5B301", "#B91C1C", "#8B5CF6", "#0891B2", "#DB2777"],
 	};
 
 	function renderizarGrafico(canvasId, config) {
@@ -51,6 +51,26 @@
 		return p[2] + "/" + p[1] + "/" + p[0];
 	}
 
+	var ICONES_STAT = {
+		vendas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M7 15h4"/></svg>',
+		faturamento: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+		ticket: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/></svg>',
+		descontos: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2.59 12.6A2 2 0 0 1 2 11.17V4a2 2 0 0 1 2-2h7.17a2 2 0 0 1 1.42.59l7.99 7.99a2 2 0 0 1 .01 2.83z"/><line x1="7.5" y1="7.5" x2="7.51" y2="7.5"/></svg>',
+	};
+
+	function cardStatV2(cor, icone, valor, label, progresso) {
+		var barra = progresso == null ? "" :
+			'<div class="stat-v2-progress"><div style="width:' + Math.max(0, Math.min(100, progresso)).toFixed(1) + '%"></div></div>';
+		return (
+			'<div class="stat-card-v2 ' + cor + '">' +
+			'<div class="stat-v2-row">' +
+			'<div><div class="stat-v2-value">' + valor + '</div><div class="stat-v2-label">' + label + '</div></div>' +
+			'<div class="stat-v2-icon">' + icone + '</div>' +
+			'</div>' + barra +
+			'</div>'
+		);
+	}
+
 	function gerar() {
 		var inicio = dataInicio.value || null;
 		var fim = dataFim.value || null;
@@ -61,19 +81,14 @@
 				.vendasPeriodo(inicio, fim)
 				.then((r) => {
 					relatorioCache.resumo = r;
+					var percentualDesconto = r.resumo.faturamento > 0
+						? (r.resumo.descontos / (r.resumo.faturamento + r.resumo.descontos)) * 100
+						: 0;
 					statsResumo.innerHTML =
-						'<div class="stat-card"><div class="stat-value">' +
-						r.resumo.vendas +
-						'</div><div class="stat-label">Vendas</div></div>' +
-						'<div class="stat-card"><div class="stat-value verde">' +
-						formatarMoeda(r.resumo.faturamento) +
-						'</div><div class="stat-label">Faturamento</div></div>' +
-						'<div class="stat-card"><div class="stat-value">' +
-						formatarMoeda(r.resumo.ticketMedio) +
-						'</div><div class="stat-label">Ticket médio</div></div>' +
-						'<div class="stat-card"><div class="stat-value vermelho">' +
-						formatarMoeda(r.resumo.descontos) +
-						'</div><div class="stat-label">Descontos dados</div></div>';
+						cardStatV2("azul", ICONES_STAT.vendas, r.resumo.vendas, "Vendas") +
+						cardStatV2("verde", ICONES_STAT.faturamento, formatarMoeda(r.resumo.faturamento), "Faturamento") +
+						cardStatV2("azul", ICONES_STAT.ticket, formatarMoeda(r.resumo.ticketMedio), "Ticket médio") +
+						cardStatV2("vermelho", ICONES_STAT.descontos, formatarMoeda(r.resumo.descontos), "Descontos dados", percentualDesconto);
 
 					listaPorDia.innerHTML = "";
 					if (!r.porDia || r.porDia.length === 0) {
@@ -93,7 +108,7 @@
 								"<td style='text-align:center;'>" +
 								d.vendas +
 								"</td>" +
-								"<td style='text-align:right; color:#16A34A; font-weight:600;'>" +
+								"<td style='text-align:right; color:var(--cor-sucesso); font-weight:600;'>" +
 								formatarMoeda(d.faturamento) +
 								"</td>" +
 								"<td style='text-align:right;'>" +
@@ -141,7 +156,7 @@
 								"<td style='text-align:center;'>" +
 								p.vendas +
 								"</td>" +
-								"<td style='text-align:right; color:#16A34A; font-weight:600;'>" +
+								"<td style='text-align:right; color:var(--cor-sucesso); font-weight:600;'>" +
 								formatarMoeda(p.faturamento) +
 								"</td>";
 							tb2.appendChild(tr);
@@ -202,7 +217,7 @@
 							"<td style='text-align:center;'>" +
 							l.quantidade +
 							"</td>" +
-							"<td style='text-align:right; color:#16A34A; font-weight:600;'>" +
+							"<td style='text-align:right; color:var(--cor-sucesso); font-weight:600;'>" +
 							formatarMoeda(l.receita) +
 							"</td>" +
 							"<td style='text-align:right;'>" +
@@ -266,7 +281,7 @@
 							"<td style='text-align:center;'>" +
 							l.vendas +
 							"</td>" +
-							"<td style='text-align:right; color:#16A34A; font-weight:600;'>" +
+							"<td style='text-align:right; color:var(--cor-sucesso); font-weight:600;'>" +
 							formatarMoeda(l.total_vendido) +
 							"</td>" +
 							"<td style='text-align:center;'>" +
@@ -305,19 +320,19 @@
 					};
 					dreResultado.innerHTML =
 						linha("Receita Bruta (" + d.vendas + " venda(s))", d.receitaBruta) +
-						linha("(-) Descontos", -d.descontos, { cor: "#DC2626" }) +
+						linha("(-) Descontos", -d.descontos, { cor: "var(--cor-erro)" }) +
 						linha("(=) Receita Líquida", d.receitaLiquida, { destaque: true }) +
-						linha("(-) CMV (custo da mercadoria vendida)", -d.cmv, { cor: "#DC2626" }) +
+						linha("(-) CMV (custo da mercadoria vendida)", -d.cmv, { cor: "var(--cor-erro)" }) +
 						linha(
 							"(=) Lucro Bruto (" + d.margemBrutaPercentual.toFixed(1) + "%)",
 							d.lucroBruto,
-							{ destaque: true, cor: d.lucroBruto >= 0 ? "#16A34A" : "#DC2626" },
+							{ destaque: true, cor: d.lucroBruto >= 0 ? "var(--cor-sucesso)" : "var(--cor-erro)" },
 						) +
-						linha("(-) Despesas pagas no período", -d.despesas, { cor: "#DC2626" }) +
+						linha("(-) Despesas pagas no período", -d.despesas, { cor: "var(--cor-erro)" }) +
 						linha(
 							"(=) Lucro Líquido (" + d.margemLiquidaPercentual.toFixed(1) + "%)",
 							d.lucroLiquido,
-							{ destaque: true, cor: d.lucroLiquido >= 0 ? "#16A34A" : "#DC2626" },
+							{ destaque: true, cor: d.lucroLiquido >= 0 ? "var(--cor-sucesso)" : "var(--cor-erro)" },
 						);
 
 					renderizarGrafico("graficoDre", {
@@ -452,7 +467,7 @@
 
 		doc.setFontSize(16);
 		doc.setFont(undefined, "bold");
-		doc.text("Relatório Gerencial — Alga ERP", margem, y);
+		doc.text("Relatório Gerencial — ALLU ERP", margem, y);
 		y += 20;
 		doc.setFontSize(9);
 		doc.setFont(undefined, "normal");

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="../core/head.js"></script>
     <script src="../core/auth.js"></script>
-    <title>Alga ERP - Frente de Caixa</title>
+    <title>ALLU ERP - Frente de Caixa</title>
     <link rel="stylesheet" href="pdv.css" />
   </head>
   <body>
@@ -50,24 +50,8 @@
 
           <div class="cart-area">
             <h2>Carrinho</h2>
-            <table id="carrinhoTable">
-              <thead>
-                <tr>
-                  <th>Produto</th>
-                  <th>Detalhes</th>
-                  <th>Qtd</th>
-                  <th>Unitário (R$)</th>
-                  <th>Subtotal (R$)</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody id="carrinhoBody"></tbody>
-              <tfoot>
-                <tr id="carrinhoVazio">
-                  <td colspan="6">Nenhum item no carrinho.</td>
-                </tr>
-              </tfoot>
-            </table>
+            <div id="carrinhoAccordion" class="carrinho-accordion"></div>
+            <div id="carrinhoVazio" class="carrinho-vazio">Nenhum item no carrinho.</div>
           </div>
         </div>
 

@@ -385,7 +385,7 @@
 						btnReceber.type = "button";
 						btnReceber.className = "btn btn-small";
 						btnReceber.style.background = "#DCFCE7";
-						btnReceber.style.color = "#15803D";
+						btnReceber.style.color = "var(--cor-sucesso)";
 						btnReceber.style.borderColor = "#86EFAC";
 						btnReceber.textContent = "Receber";
 						btnReceber.addEventListener("click", () => {

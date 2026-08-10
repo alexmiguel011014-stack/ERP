@@ -7,7 +7,7 @@
     <script src="../core/auth.js"></script>
     <link rel="stylesheet" href="../core/modulos.css" />
     <link rel="stylesheet" href="./entrada.css" />
-    <title>Alga ERP - Estoque</title>
+    <title>ALLU ERP - Estoque</title>
   </head>
   <body data-requer-modulo="estoque">
     <div class="container">
@@ -22,15 +22,23 @@
         <button type="button" id="btnAbrirListaEstoque" class="btn btn-primary">Ver Lista de Estoque</button>
       </div>
 
-      <div class="panel">
-        <h2>Adicionar item (entrada)</h2>
+      <div class="panel-cat-filtro">
+        <label for="filtroCategoriaEstoque">Categoria</label>
+        <select id="filtroCategoriaEstoque">
+          <option value="">Todas as categorias</option>
+        </select>
+      </div>
+
+      <div class="panel panel-reposicao">
+        <h2>Repor Estoque</h2>
+        <p class="subtitle" style="margin-bottom: 10px;">Registre mercadoria recebida ou produzida — soma ao saldo atual do SKU.</p>
         <div class="form-grid">
           <div class="form-group" style="grid-column: span 2;">
             <label for="skuInput">Código de Barras / SKU</label>
             <input type="text" id="skuInput" placeholder="Escaneie ou digite o SKU e pressione Enter" autofocus />
           </div>
           <div class="form-group">
-            <label for="qtdInput">Quantidade</label>
+            <label for="qtdInput">Quantidade recebida</label>
             <input type="number" id="qtdInput" min="1" step="1" value="1" />
           </div>
           <div class="form-group">
@@ -40,35 +48,12 @@
         </div>
         <div id="produtoPreview" class="detalhe" style="font-size: 0.85rem; color: #475569; margin-bottom: 10px;"></div>
         <div class="form-actions">
-          <button type="button" id="btnAdicionar" class="btn btn-primary">Adicionar à entrada</button>
+          <button type="button" id="btnAdicionar" class="btn btn-primary">Adicionar à reposição</button>
         </div>
       </div>
 
       <div class="panel">
-        <h2>Ajuste manual de estoque</h2>
-        <p class="subtitle" style="margin-bottom: 10px;">Informe o novo saldo do SKU. A diferença ficará registrada no histórico.</p>
-        <div class="form-grid">
-          <div class="form-group" style="grid-column: span 2;">
-            <label for="ajusteSkuInput">SKU</label>
-            <input type="text" id="ajusteSkuInput" placeholder="Digite o SKU e pressione Enter" />
-          </div>
-          <div class="form-group">
-            <label for="ajusteQtdInput">Novo saldo</label>
-            <input type="number" id="ajusteQtdInput" min="0" step="1" placeholder="0" />
-          </div>
-        </div>
-        <div id="ajusteProdutoPreview" class="detalhe" style="font-size: 0.85rem; color: #475569; margin-bottom: 10px;"></div>
-        <div class="form-group">
-          <label for="ajusteObsInput">Motivo do ajuste</label>
-          <input type="text" id="ajusteObsInput" placeholder="Ex: contagem física, avaria, perda..." />
-        </div>
-        <div class="form-actions">
-          <button type="button" id="btnAjustarEstoque" class="btn btn-primary">Salvar Ajuste</button>
-        </div>
-      </div>
-
-      <div class="panel">
-        <h2>Itens da entrada</h2>
+        <h2>Itens da reposição</h2>
         <div id="listaItens">
           <div class="empty-state">Nenhum item adicionado.</div>
         </div>
@@ -77,8 +62,37 @@
           <input type="text" id="obsInput" placeholder="Ex: NF 1234, reposição semanal..." />
         </div>
         <div class="form-actions">
-          <button type="button" id="btnConfirmar" class="btn btn-success" disabled>Confirmar Entrada</button>
+          <button type="button" id="btnConfirmar" class="btn btn-success" disabled>Confirmar Reposição</button>
           <button type="button" id="btnLimpar" class="btn btn-secondary">Limpar</button>
+        </div>
+      </div>
+
+      <div class="panel panel-baixa">
+        <h2>Dar Baixa</h2>
+        <p class="subtitle" style="margin-bottom: 10px;">Registre perda, avaria ou troca — subtrai do saldo atual do SKU.</p>
+        <div class="form-grid">
+          <div class="form-group" style="grid-column: span 2;">
+            <label for="baixaSkuInput">SKU</label>
+            <input type="text" id="baixaSkuInput" placeholder="Digite o SKU e pressione Enter" />
+          </div>
+          <div class="form-group">
+            <label for="baixaQtdInput">Quantidade a dar baixa</label>
+            <input type="number" id="baixaQtdInput" min="1" step="1" placeholder="1" />
+          </div>
+          <div class="form-group">
+            <label for="baixaMotivoInput">Motivo</label>
+            <select id="baixaMotivoInput">
+              <option value="Avaria">Avaria</option>
+              <option value="Perda">Perda</option>
+              <option value="Troca/Devolução ao fornecedor">Troca/Devolução ao fornecedor</option>
+              <option value="Contagem física">Contagem física (correção de saldo)</option>
+              <option value="Outro">Outro</option>
+            </select>
+          </div>
+        </div>
+        <div id="baixaProdutoPreview" class="detalhe" style="font-size: 0.85rem; color: #475569; margin-bottom: 10px;"></div>
+        <div class="form-actions">
+          <button type="button" id="btnDarBaixa" class="btn btn-danger">Confirmar Baixa</button>
         </div>
       </div>
 
@@ -95,6 +109,7 @@
     <script src="../core/banco.js"></script>
     <script src="../core/navbar.js"></script>
     <script src="../core/formatos.js"></script>
+    <script src="../core/store.js"></script>
     <script src="./entrada.js"></script>
   </body>
 </html>

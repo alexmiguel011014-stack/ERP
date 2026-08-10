@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="../core/head.js"></script>
     <script src="../core/auth.js"></script>
-    <title>Alga ERP</title>
+    <title>ALLU ERP</title>
     <link rel="stylesheet" href="../produtos/gerenciamento-produtos.css" />
     <style>
       * {
@@ -21,6 +21,60 @@
         font-size: 14px;
         line-height: 1.5;
       }
+
+      /* ---- Barra de abas estilo navegador ----
+         Ocupa o espaço onde ficava a busca, dentro da própria .navbar (não é
+         uma barra nova) — injetada por abas.js assim que navbar.js monta a
+         navbar (a busca original de .navbar-busca é substituída no lugar). */
+      .navbar-abas {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex: 1;
+        min-width: 0;
+        overflow-x: auto;
+      }
+      .dash-tab {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 7px 12px;
+        border: 1px solid transparent;
+        border-radius: 7px;
+        background: transparent;
+        color: #64748B;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background-color 0.15s, color 0.15s;
+      }
+      .dash-tab svg { width: 15px; height: 15px; flex-shrink: 0; }
+      .dash-tab:hover { background: #F1F5F9; color: #1E293B; }
+      .dash-tab.active { background: var(--cor-primaria-fraca); color: var(--cor-primaria); border-color: var(--cor-primaria-fraca-borda); }
+      .dash-tab-fechar {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+        font-size: 0.95rem;
+        line-height: 1;
+        color: #94A3B8;
+        margin-left: 2px;
+      }
+      .dash-tab-fechar:hover { background: var(--cor-erro-fraca); color: var(--cor-erro); }
+
+      .dash-tab-panel { display: none; }
+      .dash-tab-panel.active { display: block; }
+      .dash-tab-panel-iframe.active { display: flex; height: calc(100vh - 49px); }
+      .dash-tab-iframe { display: block; width: 100%; height: 100%; border: 0; background: #F8FAFC; }
+
+      .dark-theme .dash-tab { color: #94A3B8; }
+      .dark-theme .dash-tab:hover { background: #1E293B; color: #E2E8F0; }
+      .dark-theme .dash-tab.active { background: var(--cor-primaria-fraca); color: var(--cor-primaria); border-color: var(--cor-primaria-fraca-borda); }
+
       .container {
         max-width: 1280px;
         width: 100%;
@@ -56,17 +110,26 @@
       .stat-card {
         background-color: #FFFFFF;
         border: 1px solid #E2E8F0;
-        border-radius: 14px;
+        border-radius: var(--raio);
         padding: 18px 20px;
         display: flex;
         align-items: center;
         gap: 14px;
+        box-shadow: var(--sombra-card);
         transition: box-shadow 0.2s, transform 0.15s;
       }
       .stat-card:hover {
-        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+        box-shadow: 0 1px 2px rgba(33,26,46,0.06), 0 10px 28px -12px rgba(109,40,217,0.28);
         transform: translateY(-1px);
       }
+      .stat-card.hero {
+        background: linear-gradient(155deg, var(--cor-primaria) 0%, var(--cor-primaria-forte) 100%);
+        border: none;
+        color: #FFFFFF;
+      }
+      .stat-card.hero .stat-value, .stat-card.hero .stat-label { color: #FFFFFF; }
+      .stat-card.hero .stat-label { opacity: 0.8; }
+      .stat-card.hero .stat-icon { background: rgba(255,255,255,0.18); color: #FFFFFF; }
       .stat-icon {
         display: flex;
         align-items: center;
@@ -77,15 +140,30 @@
         flex-shrink: 0;
       }
       .stat-icon svg { width: 22px; height: 22px; }
-      .stat-icon.blue { background: #EFF6FF; color: #2563EB; }
-      .stat-icon.green { background: #F0FDF4; color: #16A34A; }
-      .stat-icon.purple { background: #F5F3FF; color: #7C3AED; }
-      .stat-icon.amber { background: #FFFBEB; color: #D97706; }
-      .stat-icon.red { background: #FEF2F2; color: #DC2626; }
+      .stat-icon.blue { background: var(--cor-primaria-fraca); color: var(--cor-primaria); }
+      .stat-icon.green { background: var(--cor-sucesso-fraca); color: var(--cor-sucesso); }
+      .stat-icon.purple { background: var(--cor-primaria-fraca); color: var(--cor-primaria-forte); }
+      .stat-icon.amber { background: var(--cor-destaque-fraca); color: var(--cor-destaque); }
+      .stat-icon.red { background: var(--cor-erro-fraca); color: var(--cor-erro); }
       .stat-body { min-width: 0; }
       .stat-value { font-size: 1.35rem; font-weight: 700; color: #0F172A; line-height: 1.2; }
-      .stat-card.alert .stat-value { color: #D97706; }
+      .stat-card.alert .stat-value { color: var(--cor-destaque); }
       .stat-label { font-size: 0.72rem; color: #94A3B8; margin-top: 3px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+      .stat-trend {
+        display: none;
+        align-items: center;
+        gap: 4px;
+        margin-top: 6px;
+        font-size: 0.74rem;
+        font-weight: 700;
+        padding: 2px 8px 2px 6px;
+        border-radius: 999px;
+        width: fit-content;
+      }
+      .stat-trend.visivel { display: inline-flex; }
+      .stat-trend.up { background: var(--cor-sucesso-fraca); color: var(--cor-sucesso); }
+      .stat-trend.down { background: var(--cor-erro-fraca); color: var(--cor-erro); }
+      .stat-trend svg { width: 12px; height: 12px; }
 
       /* ---- Panels / grid ---- */
       .dash-grid {
@@ -100,8 +178,9 @@
       .panel {
         background-color: #FFFFFF;
         border: 1px solid #E2E8F0;
-        border-radius: 14px;
+        border-radius: var(--raio);
         padding: 20px 22px;
+        box-shadow: var(--sombra-card);
       }
       .panel-head {
         display: flex;
@@ -140,15 +219,15 @@
       .top-produtos-table tr:last-child td { border-bottom: none; }
       .prod-cell { display: flex; align-items: center; gap: 10px; }
       .prod-thumb {
-        width: 34px; height: 34px; border-radius: 8px; background: #EFF6FF;
-        color: #2563EB; display: flex; align-items: center; justify-content: center;
+        width: 34px; height: 34px; border-radius: 8px; background: var(--cor-primaria-fraca);
+        color: var(--cor-primaria); display: flex; align-items: center; justify-content: center;
         font-size: 0.68rem; font-weight: 700; flex-shrink: 0; background-size: cover; background-position: center;
       }
       .prod-name { font-weight: 600; color: #1E293B; }
       .prod-sku { font-size: 0.72rem; color: #94A3B8; }
       .qtd-badge {
         display: inline-block; padding: 2px 9px; border-radius: 999px;
-        background: #F0FDF4; color: #15803D; font-size: 0.72rem; font-weight: 700;
+        background: var(--cor-sucesso-fraca); color: var(--cor-sucesso); font-size: 0.72rem; font-weight: 700;
       }
 
       /* ---- Quick links (antigos "cards") ---- */
@@ -161,14 +240,14 @@
       .card {
         background-color: #FFFFFF;
         border: 1px solid #E2E8F0;
-        border-radius: 14px;
+        border-radius: var(--raio);
         padding: 22px 20px;
         cursor: pointer;
         transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
       }
       .card:hover {
-        border-color: #2563EB;
-        box-shadow: 0 8px 24px rgba(37, 99, 235, 0.1);
+        border-color: var(--cor-primaria);
+        box-shadow: 0 8px 24px rgba(109, 40, 217, 0.12);
         transform: translateY(-2px);
       }
       .card-icon {
@@ -177,15 +256,15 @@
         justify-content: center;
         width: 42px;
         height: 42px;
-        border-radius: 10px;
-        background-color: #EFF6FF;
-        color: #2563EB;
+        border-radius: var(--raio-sm);
+        background-color: var(--cor-primaria-fraca);
+        color: var(--cor-primaria);
         margin-bottom: 12px;
       }
       .card-icon svg { width: 20px; height: 20px; }
       html.dark-theme .card-icon {
         background-color: #0F172A;
-        color: #3B82F6;
+        color: var(--cor-primaria);
       }
       .card h3 {
         color: #1E293B;
@@ -211,16 +290,16 @@
         font-weight: 600;
       }
       .version-badge.current {
-        background-color: #F0FDF4;
-        color: #16A34A;
+        background-color: var(--cor-sucesso-fraca);
+        color: var(--cor-sucesso);
       }
       .version-badge.latest {
-        background-color: #EFF6FF;
-        color: #2563EB;
+        background-color: var(--cor-primaria-fraca);
+        color: var(--cor-primaria);
       }
       .version-badge.outdated {
-        background-color: #FEF2F2;
-        color: #DC2626;
+        background-color: var(--cor-erro-fraca);
+        color: var(--cor-erro);
       }
 
       /* Dark Theme */
@@ -230,28 +309,36 @@
       html.dark-theme .dash-header .subtitle { color: #64748B; }
       html.dark-theme .stat-card,
       html.dark-theme .panel,
-      html.dark-theme .card { background-color: #1E293B; border-color: #334159; color: #E2E8F0; }
+      html.dark-theme .card {
+        background-color: #1E293B;
+        border-color: #334159;
+        color: #E2E8F0;
+        box-shadow: var(--sombra-card);
+      }
       html.dark-theme .stat-value { color: #F1F5F9; }
-      html.dark-theme .stat-icon.blue { background: #0F172A; color: #60A5FA; }
-      html.dark-theme .stat-icon.green { background: #0F172A; color: #4ADE80; }
-      html.dark-theme .stat-icon.purple { background: #0F172A; color: #A78BFA; }
-      html.dark-theme .stat-icon.amber { background: #0F172A; color: #FBBF24; }
-      html.dark-theme .stat-icon.red { background: #0F172A; color: #F87171; }
+      html.dark-theme .stat-trend.up { background: var(--cor-sucesso-fraca); color: var(--cor-sucesso); }
+      html.dark-theme .stat-trend.down { background: var(--cor-erro-fraca); color: var(--cor-erro); }
+      html.dark-theme .stat-icon.blue { background: #0F172A; color: var(--cor-primaria); }
+      html.dark-theme .stat-icon.green { background: #0F172A; color: var(--cor-sucesso); }
+      html.dark-theme .stat-icon.purple { background: #0F172A; color: var(--cor-primaria-forte); }
+      html.dark-theme .stat-icon.amber { background: #0F172A; color: var(--cor-destaque); }
+      html.dark-theme .stat-icon.red { background: #0F172A; color: var(--cor-erro); }
       html.dark-theme .panel-head h3 { color: #F1F5F9; }
       html.dark-theme .panel-head .panel-sub { color: #64748B; }
       html.dark-theme .top-produtos-table th { color: #64748B; border-bottom-color: #334159; }
       html.dark-theme .top-produtos-table td { border-bottom-color: #1E293B; color: #E2E8F0; }
       html.dark-theme .prod-name { color: #F1F5F9; }
       html.dark-theme .prod-sku { color: #64748B; }
-      html.dark-theme .prod-thumb { background: #0F172A; color: #60A5FA; }
+      html.dark-theme .prod-thumb { background: #0F172A; color: var(--cor-primaria); }
       html.dark-theme .card p { color: #94A3B8; }
       html.dark-theme .card h3 { color: #F1F5F9; }
-      html.dark-theme .version-badge.current { background-color: #064E35; color: #6EE7B7; }
-      html.dark-theme .version-badge.latest { background-color: #0F172A; color: #60A5FA; }
-      html.dark-theme .version-badge.outdated { background-color: #450A0A; color: #FCA5A5; }
+      html.dark-theme .version-badge.current { background-color: var(--cor-sucesso-fraca); color: var(--cor-sucesso); }
+      html.dark-theme .version-badge.latest { background-color: #0F172A; color: var(--cor-primaria); }
+      html.dark-theme .version-badge.outdated { background-color: var(--cor-erro-fraca); color: var(--cor-erro); }
     </style>
   </head>
   <body>
+    <div class="dash-tab-panel active" id="dashPanelInicio">
     <div class="container">
       <div class="dash-header">
         <div>
@@ -266,6 +353,7 @@
           <div class="stat-body">
             <div class="stat-value" id="statVendas">--</div>
             <div class="stat-label">Vendas Hoje</div>
+            <span class="stat-trend" id="statVendasTrend"></span>
           </div>
         </div>
         <div class="stat-card">
@@ -273,6 +361,7 @@
           <div class="stat-body">
             <div class="stat-value" id="statFaturamento">--</div>
             <div class="stat-label">Faturamento Hoje</div>
+            <span class="stat-trend" id="statFaturamentoTrend"></span>
           </div>
         </div>
         <div class="stat-card">
@@ -389,7 +478,7 @@
             <div style="color:#94A3B8; font-size:0.75rem; margin-top:2px;">Backup automático diário ativado</div>
           </div>
           <div style="display: flex; gap: 8px;">
-            <button onclick="exportarBackup()" class="btn-backup" style="padding:6px 14px; background:#2563EB; color:#fff; border:none; border-radius:6px; font-size:0.8rem; font-weight:600; cursor:pointer;">Exportar Manual</button>
+            <button onclick="exportarBackup()" class="btn-backup" style="padding:6px 14px; background:var(--cor-primaria); color:#fff; border:none; border-radius:6px; font-size:0.8rem; font-weight:600; cursor:pointer;">Exportar Manual</button>
           </div>
         </div>
       </div>
@@ -401,26 +490,27 @@
         <span id="dbPathStatus" style="color:#94A3B8; font-size:0.72rem;">Banco: verificando...</span>
       </div>
     </div>
+    </div>
 
-    <section id="gerenciamentoProdutosWorkspace" class="gerenciamento-workspace" hidden>
-      <header class="gerenciamento-header">
-        <div>
-          <h2>Gerenciamento de Produtos</h2>
-          <span>Cadastro, precificação e estoque em um só lugar</span>
-        </div>
-        <button type="button" id="fecharGerenciamentoProdutos" class="gerenciamento-fechar" title="Fechar">&times;</button>
-      </header>
-      <nav class="gerenciamento-tabs" aria-label="Módulos de produtos">
-        <button type="button" class="gerenciamento-tab active" data-src="../produtos/cadastro.html?embedded=1">Produtos</button>
-        <button type="button" class="gerenciamento-tab" data-src="../precificacao/precificacao.html?embedded=1">Precificação</button>
-        <button type="button" class="gerenciamento-tab" data-src="../entrada/entrada.html?embedded=1">Estoque</button>
-        <button type="button" class="gerenciamento-tab" data-src="../entrada/estoque-lista.html?embedded=1">Lista de Estoque</button>
-      </nav>
-      <iframe id="gerenciamentoProdutosFrame" title="Gerenciamento de Produtos"></iframe>
-    </section>
+    <div class="dash-tab-panel" id="dashPanelProdutos">
+      <section id="gerenciamentoProdutosWorkspace" class="gerenciamento-workspace">
+        <nav class="gerenciamento-tabs" aria-label="Módulos de produtos">
+          <button type="button" class="gerenciamento-tab active" data-src="../produtos/cadastro.html?embedded=1">Cadastro de Produto</button>
+          <button type="button" class="gerenciamento-tab" data-src="../entrada/entrada.html?embedded=1">Estoque</button>
+          <button type="button" class="gerenciamento-tab" data-src="../precificacao/precificacao.html?embedded=1">Precificação</button>
+        </nav>
+        <!-- Não é uma aba de navegação: fica oculta e só é acionada programaticamente
+             pelo botão "Ver Lista de Estoque" dentro da aba Estoque (ver entrada.js). -->
+        <button type="button" class="gerenciamento-tab" data-src="../entrada/estoque-lista.html?embedded=1" hidden>Lista de Estoque</button>
+        <iframe id="gerenciamentoProdutosFrame" title="Gerenciamento de Produtos"></iframe>
+      </section>
+    </div>
+
+    <div id="dashPanelIframes"></div>
 
     <script src="../core/banco.js"></script>
     <script src="../core/navbar.js"></script>
+    <script src="./abas.js"></script>
     <script src="../core/vendor/chart.umd.min.js"></script>
     <script src="../produtos/gerenciamento-produtos.js"></script>
     <script>
@@ -444,6 +534,22 @@
       }
       if (window.erpAuthPromise) {
         window.erpAuthPromise.then(ocultarCardsAdmin).catch(function () { ocultarCardsAdmin(null); });
+      }
+
+      function renderizarTendencia(elId, variacao) {
+        var el = document.getElementById(elId);
+        if (!el) return;
+        if (variacao === null || variacao === undefined || !isFinite(variacao)) {
+          el.className = "stat-trend";
+          el.innerHTML = "";
+          return;
+        }
+        var subindo = variacao >= 0;
+        var seta = subindo
+          ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>'
+          : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>';
+        el.className = "stat-trend visivel " + (subindo ? "up" : "down");
+        el.innerHTML = seta + "<span>" + Math.abs(variacao).toFixed(1) + "% vs. ontem</span>";
       }
 
       function renderizarTopProdutos(lista) {
@@ -471,8 +577,10 @@
           .then(function (stats) {
             document.getElementById("statVendas").textContent =
               stats.vendasHoje || 0;
+            renderizarTendencia("statVendasTrend", stats.vendasHojeVariacao);
             document.getElementById("statFaturamento").textContent =
               "R$ " + (stats.faturamentoHoje || 0).toFixed(2);
+            renderizarTendencia("statFaturamentoTrend", stats.faturamentoHojeVariacao);
             document.getElementById("statProdutos").textContent =
               stats.totalProdutos || 0;
             document.getElementById("statEstoque").textContent =
@@ -496,8 +604,8 @@
                   datasets: [{
                     label: "Faturamento",
                     data: stats.faturamentoUltimos7Dias.map(function (d) { return d.faturamento; }),
-                    borderColor: "#2563EB",
-                    backgroundColor: "rgba(37,99,235,0.12)",
+                    borderColor: "#6D28D9",
+                    backgroundColor: "rgba(109,40,217,0.12)",
                     fill: true,
                     tension: 0.3,
                     pointRadius: 3,

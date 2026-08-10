@@ -28,6 +28,7 @@ const {
 	buscarCliente,
 	getVendas,
 	getVendasHoje,
+	importarVendasHistoricas,
 	getItensVenda,
 	getEstoqueNegativo,
 	getCategorias,
@@ -616,6 +617,15 @@ ipcMain.handle("get-vendas-hoje", async () => {
 	try {
 		exigirSessao();
 		return await getVendasHoje();
+	} catch (erro) {
+		throw erro.message;
+	}
+});
+
+ipcMain.handle("importar-vendas-historicas", async (event, linhas) => {
+	try {
+		exigirPermissao("estoque");
+		return await importarVendasHistoricas(linhas);
 	} catch (erro) {
 		throw erro.message;
 	}

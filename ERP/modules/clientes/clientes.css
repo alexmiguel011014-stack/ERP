@@ -20,6 +20,8 @@ body {
   box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 
+.container-larga { max-width: 1280px; }
+
 h1 { color: #1E293B; font-size: 1.3rem; font-weight: 600; margin-bottom: 4px; text-align: center; }
 .subtitle { color: #94A3B8; text-align: center; font-size: 0.85rem; margin-bottom: 22px; }
 
@@ -73,13 +75,13 @@ h1 { color: #1E293B; font-size: 1.3rem; font-weight: 600; margin-bottom: 4px; te
 }
 
 .form-group input:focus, .form-group select:focus {
-  border-color: #2563EB;
-  box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+  border-color: var(--cor-primaria);
+  box-shadow: 0 0 0 3px rgba(109, 40, 217, 0.1);
 }
 
 .form-group input[readonly] {
   background: #F1F5F9;
-  color: #2563EB;
+  color: var(--cor-primaria);
   font-weight: 700;
   font-family: "Consolas", "Courier New", monospace;
   cursor: default;
@@ -118,7 +120,7 @@ h1 { color: #1E293B; font-size: 1.3rem; font-weight: 600; margin-bottom: 4px; te
   transition: border-color 0.15s;
 }
 
-.busca-input:focus { border-color: #2563EB; }
+.busca-input:focus { border-color: var(--cor-primaria); }
 
 .total-badge {
   font-size: 0.78rem;
@@ -168,7 +170,7 @@ tr:hover td { background: #F8FAFC; }
 .cli-codigo {
   font-family: "Consolas", "Courier New", monospace;
   font-weight: 700;
-  color: #2563EB;
+  color: var(--cor-primaria);
   white-space: nowrap;
 }
 
@@ -188,8 +190,8 @@ tr:hover td { background: #F8FAFC; }
   white-space: nowrap;
 }
 
-.badge-academia { background: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; }
-.badge-faixa { background: #F0FDF4; color: #166534; border: 1px solid #BBF7D0; }
+.badge-academia { background: var(--cor-primaria-fraca); color: var(--cor-primaria-forte); border: 1px solid var(--cor-primaria-fraca-borda); }
+.badge-faixa { background: var(--cor-sucesso-fraca); color: var(--cor-sucesso); border: 1px solid var(--cor-sucesso-borda); }
 .badge-empty { color: #94A3B8; font-size: 0.78rem; }
 
 /* Buttons */
@@ -203,8 +205,8 @@ tr:hover td { background: #F8FAFC; }
   transition: background-color 0.15s;
 }
 
-.btn-primary { background: #2563EB; color: #FFF; }
-.btn-primary:hover { background: #1D4ED8; }
+.btn-primary { background: var(--cor-primaria); color: #FFF; }
+.btn-primary:hover { background: var(--cor-primaria-forte); }
 .btn-primary:disabled { background: #CBD5E1; cursor: not-allowed; }
 
 .btn-secondary { background: #F1F5F9; color: #64748B; }
@@ -212,11 +214,11 @@ tr:hover td { background: #F8FAFC; }
 
 .btn-small { padding: 5px 10px; font-size: 0.75rem; }
 
-.btn-editar { background: #EFF6FF; color: #2563EB; border: 1px solid #BFDBFE; }
-.btn-editar:hover { background: #2563EB; color: #FFF; border-color: #2563EB; }
+.btn-editar { background: var(--cor-primaria-fraca); color: var(--cor-primaria); border: 1px solid var(--cor-primaria-fraca-borda); }
+.btn-editar:hover { background: var(--cor-primaria); color: #FFF; border-color: var(--cor-primaria); }
 
-.btn-excluir { background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; }
-.btn-excluir:hover { background: #DC2626; color: #FFF; border-color: #DC2626; }
+.btn-excluir { background: var(--cor-erro-fraca); color: var(--cor-erro); border: 1px solid var(--cor-erro-borda); }
+.btn-excluir:hover { background: var(--cor-erro); color: #FFF; border-color: var(--cor-erro); }
 
 .acoes { display: flex; gap: 6px; align-items: center; }
 
@@ -227,8 +229,8 @@ tr:hover td { background: #F8FAFC; }
   margin-top: 15px; padding: 10px 16px; border-radius: 8px;
   text-align: center; font-weight: 500; font-size: 0.85rem; display: none;
 }
-.mensagem.success { display: block; background: #DCFCE7; color: #166534; border: 1px solid #BBF7D0; }
-.mensagem.error { display: block; background: #FEE2E2; color: #991B1B; border: 1px solid #FECACA; }
+.mensagem.success { display: block; background: var(--cor-sucesso-fraca); color: var(--cor-sucesso); border: 1px solid var(--cor-sucesso-borda); }
+.mensagem.error { display: block; background: var(--cor-erro-fraca); color: var(--cor-erro); border: 1px solid var(--cor-erro-borda); }
 
 /* Dark theme */
 .dark-theme { background: #0F172A; color: #E2E8F0; }
@@ -240,7 +242,7 @@ tr:hover td { background: #F8FAFC; }
 .dark-theme .form-section legend { color: #94A3B8; }
 .dark-theme .form-group label { color: #94A3B8; }
 .dark-theme .form-group input, .dark-theme .form-group select { background: #0F172A; border-color: #334159; color: #F1F5F9; }
-.dark-theme .form-group input[readonly] { background: #1E293B; color: #60A5FA; }
+.dark-theme .form-group input[readonly] { background: #1E293B; color: var(--cor-primaria); }
 .dark-theme .table-section { border-top-color: #334159; }
 .dark-theme .busca-input { background: #0F172A; border-color: #334159; color: #F1F5F9; }
 .dark-theme .total-badge { background: #1E293B; color: #94A3B8; }
@@ -248,13 +250,13 @@ tr:hover td { background: #F8FAFC; }
 .dark-theme th { background: #0F172A; color: #94A3B8; border-bottom-color: #334159; }
 .dark-theme td { border-bottom-color: #1E293B; color: #E2E8F0; }
 .dark-theme tr:hover td { background: #0F172A; }
-.dark-theme .cli-codigo { color: #60A5FA; }
-.dark-theme .badge-academia { background: #172554; color: #93C5FD; border-color: #1D4ED8; }
-.dark-theme .badge-faixa { background: #064E35; color: #6EE7B7; border-color: #10B981; }
-.dark-theme .btn-editar { background: #172554; color: #60A5FA; border-color: #1D4ED8; }
-.dark-theme .btn-editar:hover { background: #3B82F6; color: #FFF; border-color: #3B82F6; }
-.dark-theme .btn-excluir { background: #450A0A; color: #FCA5A5; border-color: #7F1D1D; }
-.dark-theme .btn-excluir:hover { background: #7F1D1D; color: #FFF; border-color: #DC2626; }
+.dark-theme .cli-codigo { color: var(--cor-primaria); }
+.dark-theme .badge-academia { background: var(--cor-primaria-fraca); color: var(--cor-primaria); border-color: var(--cor-primaria-forte); }
+.dark-theme .badge-faixa { background: var(--cor-sucesso-fraca); color: var(--cor-sucesso); border-color: var(--cor-sucesso); }
+.dark-theme .btn-editar { background: var(--cor-primaria-fraca); color: var(--cor-primaria); border-color: var(--cor-primaria-forte); }
+.dark-theme .btn-editar:hover { background: var(--cor-primaria); color: #FFF; border-color: var(--cor-primaria); }
+.dark-theme .btn-excluir { background: var(--cor-erro-fraca); color: var(--cor-erro); border-color: var(--cor-erro-borda); }
+.dark-theme .btn-excluir:hover { background: var(--cor-erro-borda); color: #FFF; border-color: var(--cor-erro); }
 
 @media (max-width: 640px) {
   .container { width: calc(100% - 24px); padding: 18px 14px; }

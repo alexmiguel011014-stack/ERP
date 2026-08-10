@@ -4,29 +4,46 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="../core/head.js"></script>
-    <title>Login - Alga ERP</title>
+    <title>Login - ALLU ERP</title>
     <style>
       * {
         margin: 0;
         padding: 0;
         box-sizing: border-box;
       }
+      :root {
+        --cor-primaria: #6D28D9; --cor-primaria-forte: #5B21B6; --cor-primaria-fraca: #F1EBFC; --cor-primaria-fraca-borda: #DDD0F7;
+        --cor-sucesso: #15803D; --cor-sucesso-fraca: #E9F8EE; --cor-sucesso-borda: #BEEAC9;
+        --cor-destaque: #B45309; --cor-destaque-ink: #78350F; --cor-destaque-fraca: #FEF6E4; --cor-destaque-borda: #F6DFA6; --cor-destaque-solido: #F5B301;
+        --cor-erro: #B91C1C; --cor-erro-fraca: #FDECEC; --cor-erro-borda: #F5C6C6;
+        --raio: 10px; --raio-sm: 7px;
+        --sombra-card: 0 1px 2px rgba(33,26,46,0.04), 0 8px 24px -12px rgba(33,26,46,0.12);
+      }
+      html.dark-theme {
+        --cor-primaria: #A374F2; --cor-primaria-forte: #B692F6; --cor-primaria-fraca: #2B2145; --cor-primaria-fraca-borda: #4A3B72;
+        --cor-sucesso: #4ADE80; --cor-sucesso-fraca: #17301F; --cor-sucesso-borda: #2E5D3D;
+        --cor-destaque: #F5B301; --cor-destaque-ink: #FCE1A8; --cor-destaque-fraca: #332507; --cor-destaque-borda: #5C4712; --cor-destaque-solido: #F5B301;
+        --cor-erro: #F87171; --cor-erro-fraca: #3A1C1C; --cor-erro-borda: #63302F;
+        --sombra-card: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+      }
       body {
         font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-        background: linear-gradient(135deg, #1E3A8A 0%, #0F172A 100%);
+        background:
+          radial-gradient(circle at 50% 0%, rgba(109, 40, 217, 0.08) 0%, rgba(109, 40, 217, 0) 60%),
+          #F1F5F9;
         min-height: 100vh;
         display: flex;
         align-items: center;
         justify-content: center;
-        color: #E2E8F0;
+        color: #1E293B;
       }
       .login-card {
-        background-color: #1E293B;
-        border: 1px solid #334159;
-        border-radius: 16px;
+        background-color: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: var(--raio-sm);
         padding: 40px 48px;
         width: 360px;
-        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+        box-shadow: var(--sombra-card);
       }
       .login-header {
         text-align: center;
@@ -35,16 +52,16 @@
       .login-header .logo {
         font-size: 2rem;
         font-weight: 700;
-        color: #3B82F6;
+        color: var(--cor-primaria);
         margin-bottom: 8px;
       }
       .login-header h1 {
         font-size: 1.3rem;
-        color: #F1F5F9;
+        color: #0F172A;
         font-weight: 600;
       }
       .login-header p {
-        color: #64748B;
+        color: #94A3B8;
         font-size: 0.8rem;
         margin-top: 6px;
       }
@@ -56,7 +73,7 @@
         margin-bottom: 6px;
         font-weight: 500;
         font-size: 0.8rem;
-        color: #94A3B8;
+        color: #64748B;
         text-transform: uppercase;
         letter-spacing: 0.04em;
       }
@@ -64,16 +81,16 @@
         width: 100%;
         padding: 10px 14px;
         font-size: 0.9rem;
-        border: 1px solid #334159;
-        border-radius: 8px;
-        background-color: #0F172A;
-        color: #F1F5F9;
+        border: 1px solid #E2E8F0;
+        border-radius: var(--raio-sm);
+        background-color: #FFFFFF;
+        color: #1E293B;
         outline: none;
         transition: border-color 0.2s, box-shadow 0.2s;
       }
       .form-group input:focus {
-        border-color: #3B82F6;
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        border-color: var(--cor-primaria);
+        box-shadow: 0 0 0 2px var(--cor-primaria-fraca-borda);
       }
       .btn-entrar {
         width: 100%;
@@ -81,46 +98,122 @@
         font-size: 0.9rem;
         font-weight: 600;
         color: #FFFFFF;
-        background-color: #2563EB;
+        background-color: var(--cor-primaria);
         border: none;
-        border-radius: 8px;
+        border-radius: var(--raio-sm);
+        box-shadow: none;
         cursor: pointer;
         transition: background-color 0.15s, opacity 0.15s;
       }
       .btn-entrar:hover {
-        background-color: #1D4ED8;
+        background-color: var(--cor-primaria-forte);
       }
       .btn-entrar:disabled {
-        background-color: #334159;
+        background-color: #CBD5E1;
         cursor: not-allowed;
       }
       .mensagem {
         margin-top: 14px;
         padding: 10px 16px;
-        border-radius: 8px;
+        border-radius: var(--raio-sm);
         text-align: center;
         font-size: 0.85rem;
         font-weight: 500;
       }
       .mensagem.erro {
-        background-color: #450A0A;
-        color: #FCA5A5;
-        border: 1px solid #EF4444;
+        background-color: var(--cor-erro-fraca);
+        color: var(--cor-erro);
+        border: 1px solid var(--cor-erro-borda);
       }
       .mensagem.sucesso {
-        background-color: #064E35;
-        color: #6EE7B7;
-        border: 1px solid #10B981;
+        background-color: var(--cor-sucesso-fraca);
+        color: var(--cor-sucesso);
+        border: 1px solid var(--cor-sucesso-borda);
       }
       html.dark-theme body {
-        background: linear-gradient(135deg, #1E3A8A 0%, #0F172A 100%);
+        background:
+          radial-gradient(circle at 50% 0%, rgba(163, 116, 242, 0.14) 0%, rgba(163, 116, 242, 0) 60%),
+          #0F172A;
+        color: #E2E8F0;
+      }
+      html.dark-theme .login-card {
+        background-color: #1E293B;
+        border-color: #334159;
+        box-shadow: var(--sombra-card);
+      }
+      html.dark-theme .login-header h1 { color: #F1F5F9; }
+      html.dark-theme .login-header p { color: #64748B; }
+      html.dark-theme .form-group label { color: #94A3B8; }
+      html.dark-theme .form-group input {
+        background-color: #0F172A;
+        border-color: #334159;
+        color: #F1F5F9;
+      }
+      html.dark-theme .btn-entrar:disabled { background-color: #334159; }
+      html.dark-theme .mensagem.erro {
+        background-color: var(--cor-erro-fraca);
+        color: var(--cor-erro);
+        border-color: var(--cor-erro-borda);
+      }
+      html.dark-theme .mensagem.sucesso {
+        background-color: var(--cor-sucesso-fraca);
+        color: var(--cor-sucesso);
+        border-color: var(--cor-sucesso-borda);
+      }
+
+      /* ---- Splash pós-login ----
+         Toca por 3s depois de autenticar com sucesso, antes de ir pro
+         Dashboard. Animação inteira (contínua/repetida) durante os 3s: o
+         quadrado central pulsa expandindo e retraindo em clip-path atrás do
+         logo, que permanece fixo. Fica oculto até login.js ativar. */
+      #loginSplash {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        background: #0F172A;
+        overflow: hidden;
+        display: none;
+      }
+      #loginSplash.ativo { display: block; }
+      #loginSplash.saindo { opacity: 0; transition: opacity 0.2s linear; }
+      #loginSplash .splash-logo {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: #FFFFFF;
+        font-size: 1.6rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        opacity: 0;
+        animation: loginSplashLogo 400ms ease-out forwards;
+      }
+      #loginSplash .splash-expansor {
+        position: absolute;
+        inset: 0;
+        background: #6D28D9;
+        clip-path: polygon(48% 48%, 52% 48%, 52% 52%, 48% 52%);
+        animation: loginSplashPulso 1400ms ease-in-out infinite;
+      }
+      @keyframes loginSplashLogo {
+        0% { opacity: 0; }
+        100% { opacity: 1; }
+      }
+      @keyframes loginSplashPulso {
+        0% { clip-path: polygon(48% 48%, 52% 48%, 52% 52%, 48% 52%); }
+        50% { clip-path: polygon(15% 15%, 85% 15%, 85% 85%, 15% 85%); }
+        100% { clip-path: polygon(48% 48%, 52% 48%, 52% 52%, 48% 52%); }
       }
     </style>
   </head>
   <body>
+    <div id="loginSplash">
+      <div class="splash-expansor"></div>
+      <div class="splash-logo">ALLU ERP</div>
+    </div>
     <div class="login-card">
       <div class="login-header">
-        <div class="logo">Alga ERP</div>
+        <div class="logo">ALLU ERP</div>
         <h1>Login do Sistema</h1>
         <p>Digite seu usuário e senha para continuar</p>
       </div>

@@ -41,7 +41,7 @@ jobs:
         run: |
           TAG="${{ inputs.release_tag || github.ref_name }}"
           gh release upload "$TAG" \
-            dist/Alga-ERP-Setup-*.exe \
+            dist/ALLU-ERP-Setup-*.exe \
             dist/latest.yml \
             dist/*.blockmap \
             --clobber

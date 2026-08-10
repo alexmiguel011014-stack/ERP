@@ -2,7 +2,7 @@
 
 ## Atalho na Área de Trabalho
 
-Um atalho **"Alga ERP"** foi criado automaticamente na área de trabalho durante a primeira execução.
+Um atalho **"ALLU ERP"** foi criado automaticamente na área de trabalho durante a primeira execução.
 
 ### Criar/Recriar o Atalho
 
@@ -60,7 +60,7 @@ npm start
 
 | Tipo | Caminho |
 |------|---------|
-| Atalho Desktop | `C:\Users\[Usuario]\Desktop\Alga ERP.lnk` |
+| Atalho Desktop | `C:\Users\[Usuario]\Desktop\ALLU ERP.lnk` |
 | Launcher Batch | `./ERP_Launcher.bat` |
 | Launcher VBS | `./ERP_Launcher.vbs` |
 | Script PowerShell | `./scripts/criar-atalho.ps1` |

@@ -1,5 +1,17 @@
 (() => {
 	"use strict";
+
+	// Quando esta tela roda dentro de um iframe de aba (?embedded=1), o link
+	// "Lista de Clientes" precisa preservar esse parâmetro — senão a página
+	// destino não sabe que está embutida, navbar.js monta uma sidebar/navbar
+	// completa dentro do iframe (duplicada sobre a sidebar real do Dashboard).
+	if (new URLSearchParams(window.location.search).get("embedded") === "1") {
+		var linkListaClientes = document.getElementById("linkListaClientes");
+		if (linkListaClientes) {
+			linkListaClientes.href = "./lista-clientes.html?embedded=1";
+		}
+	}
+
 	var form = document.getElementById("formCliente");
 	var nomeInput = document.getElementById("nome");
 	var codigoInput = document.getElementById("codigoCliente");

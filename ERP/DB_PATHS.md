@@ -59,7 +59,7 @@ Backup logic in `database.js`:
 | Path | Description |
 |---|---|
 | `dist/win-unpacked/resources/app.asar` | Packed app source (includes `database.js`, `main.js`, `preload.js`) |
-| `dist/Alga-ERP-Setup-1.0.4.exe` | NSIS installer |
+| `dist/ALLU-ERP-Setup-1.0.4.exe` | NSIS installer |
 
 ## 7. Gitignored Paths
 

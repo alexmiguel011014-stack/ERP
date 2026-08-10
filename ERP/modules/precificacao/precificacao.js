@@ -3,13 +3,12 @@
 	var pricingData = [];
 	var todasCategorias = [];
 	var debounceTimers = {};
-	var custoFixoConfig = { mensal: 0, volumeMensal: 0, porUnidade: 0 };
+	var custoFixoConfig = { mensal: 0, faturamentoMedioHistorico: 0, mesesConsiderados: 0, percentual: 0 };
 
 	// DOM
 	var globalMarginInput = document.getElementById("globalMargin");
 	var btnSaveGlobal = document.getElementById("btnSaveGlobal");
 	var custoFixoMensalInput = document.getElementById("custoFixoMensal");
-	var custoFixoVolumeInput = document.getElementById("custoFixoVolume");
 	var btnSaveCustoFixo = document.getElementById("btnSaveCustoFixo");
 	var custoFixoResultado = document.getElementById("custoFixoResultado");
 	var massBar = document.getElementById("massBar");
@@ -47,23 +46,29 @@
 		return Number(v || 0).toFixed(1);
 	}
 
-	/* ==================== Cálculos ==================== */
+	/* ==================== Cálculos ====================
+	   Custo fixo é diluído como % do faturamento (não R$ fixo por unidade) —
+	   ratear em R$ fixo penalizava desproporcionalmente produtos baratos.
+	   A % vem do histórico real de vendas (custoFixoConfig.percentual). */
 
-	function calcPrecoVenda(custo, impostos, margem, custoFixo) {
-		var base = Number(custo || 0) + Number(impostos || 0) + Number(custoFixo || 0);
+	function calcPrecoVenda(custo, impostos, margem, custoFixoPct) {
+		var base = Number(custo || 0) + Number(impostos || 0);
 		if (base <= 0) return 0;
-		return base * (1 + Number(margem || 0) / 100);
+		return base * (1 + Number(margem || 0) / 100) * (1 + Number(custoFixoPct || 0) / 100);
 	}
 
-	function calcMargem(custo, impostos, precoVenda, custoFixo) {
-		var base = Number(custo || 0) + Number(impostos || 0) + Number(custoFixo || 0);
+	function calcMargem(custo, impostos, precoVenda, custoFixoPct) {
+		var base = Number(custo || 0) + Number(impostos || 0);
 		if (base <= 0) return 0;
-		return (Number(precoVenda || 0) / base - 1) * 100;
+		var baseComCustoFixo = base * (1 + Number(custoFixoPct || 0) / 100);
+		if (baseComCustoFixo <= 0) return 0;
+		return (Number(precoVenda || 0) / baseComCustoFixo - 1) * 100;
 	}
 
-	function calcLucro(custo, impostos, precoVenda, custoFixo) {
-		var base = Number(custo || 0) + Number(impostos || 0) + Number(custoFixo || 0);
-		return Number(precoVenda || 0) - base;
+	function calcLucro(custo, impostos, precoVenda, custoFixoPct) {
+		var base = Number(custo || 0) + Number(impostos || 0);
+		var baseComCustoFixo = base * (1 + Number(custoFixoPct || 0) / 100);
+		return Number(precoVenda || 0) - baseComCustoFixo;
 	}
 
 	function margemEfetiva(p) {
@@ -74,7 +79,7 @@
 	}
 
 	function custoFixoDe(p) {
-		return p.aplicar_custo_fixo ? custoFixoConfig.porUnidade : 0;
+		return p.aplicar_custo_fixo ? custoFixoConfig.percentual : 0;
 	}
 
 	/* ==================== Filtros ==================== */
@@ -131,7 +136,7 @@
 			erpCategoryStore.getCategoriasFlux(),
 			window.api && window.erpBanco.precificacao.custoFixoConfig
 				? window.erpBanco.precificacao.custoFixoConfig()
-				: Promise.resolve({ mensal: 0, volumeMensal: 0, porUnidade: 0 }),
+				: Promise.resolve({ mensal: 0, faturamentoMedioHistorico: 0, mesesConsiderados: 0, percentual: 0 }),
 		];
 
 		Promise.all(promises)
@@ -140,9 +145,8 @@
 				globalMarginInput.value = globalMargin;
 				pricingData = Array.isArray(results[1]) ? results[1] : [];
 				todasCategorias = Array.isArray(results[2]) ? results[2] : [];
-				custoFixoConfig = results[3] || { mensal: 0, volumeMensal: 0, porUnidade: 0 };
+				custoFixoConfig = results[3] || { mensal: 0, faturamentoMedioHistorico: 0, mesesConsiderados: 0, percentual: 0 };
 				custoFixoMensalInput.value = custoFixoConfig.mensal || "";
-				custoFixoVolumeInput.value = custoFixoConfig.volumeMensal || "";
 				atualizarCustoFixoResultado();
 				preencherFiltroCategoria();
 				renderizar();
@@ -272,7 +276,7 @@
 			});
 			var custoFixoValor = document.createElement("span");
 			custoFixoValor.textContent = p.aplicar_custo_fixo
-				? "R$ " + fmtMoeda(custoFixoConfig.porUnidade)
+				? fmtPct(custoFixoConfig.percentual) + "%"
 				: "—";
 			custoFixoBox.appendChild(chkCustoFixo);
 			custoFixoBox.appendChild(custoFixoValor);
@@ -502,19 +506,26 @@
 	/* ==================== Custos Fixos ==================== */
 
 	function atualizarCustoFixoResultado() {
-		if (custoFixoConfig.porUnidade > 0) {
+		if (custoFixoConfig.mesesConsiderados === 0) {
+			custoFixoResultado.innerHTML =
+				'Ainda não há histórico de vendas suficiente para calcular automaticamente. ' +
+				'Cadastre vendas ou <a href="../importacao/importacao.html" style="color:var(--cor-primaria);">importe um histórico</a>.';
+			return;
+		}
+		if (custoFixoConfig.percentual > 0) {
 			custoFixoResultado.textContent =
-				"= R$ " + fmtMoeda(custoFixoConfig.porUnidade) + " por unidade vendida";
+				"Faturamento médio dos últimos " + custoFixoConfig.mesesConsiderados +
+				" mês(es): R$ " + fmtMoeda(custoFixoConfig.faturamentoMedioHistorico) +
+				" — " + fmtPct(custoFixoConfig.percentual) + "% do faturamento será diluído nos produtos marcados.";
 		} else {
-			custoFixoResultado.textContent = "Informe os dois campos para calcular o valor por unidade.";
+			custoFixoResultado.textContent = "Informe o custo fixo mensal para calcular a porcentagem.";
 		}
 	}
 
 	btnSaveCustoFixo.addEventListener("click", () => {
 		var mensal = parseFloat(custoFixoMensalInput.value) || 0;
-		var volume = parseInt(custoFixoVolumeInput.value, 10) || 0;
-		if (mensal < 0 || volume < 0) {
-			mostrarMensagem("Informe valores válidos.", "error");
+		if (mensal < 0) {
+			mostrarMensagem("Informe um valor válido.", "error");
 			return;
 		}
 		if (!window.api || !window.erpBanco.precificacao.salvarCustoFixoConfig) {
@@ -523,13 +534,10 @@
 		}
 		btnSaveCustoFixo.disabled = true;
 		window.erpBanco.precificacao
-			.salvarCustoFixoConfig(mensal, volume)
-			.then(() => {
-				custoFixoConfig = {
-					mensal: mensal,
-					volumeMensal: volume,
-					porUnidade: volume > 0 ? mensal / volume : 0,
-				};
+			.salvarCustoFixoConfig(mensal)
+			.then(() => window.erpBanco.precificacao.custoFixoConfig())
+			.then((config) => {
+				custoFixoConfig = config;
 				atualizarCustoFixoResultado();
 				renderizar();
 				mostrarMensagem("Custos fixos atualizados!", "success");

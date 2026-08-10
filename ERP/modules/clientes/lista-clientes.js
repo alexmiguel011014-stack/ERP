@@ -10,10 +10,15 @@
 	var modalClose = document.getElementById("modalClose");
 	var btnLixeiraClientes = document.getElementById("btnLixeiraClientes");
 	var btnExportarClientesCsv = document.getElementById("btnExportarClientesCsv");
+	var filtroAcademias = document.getElementById("filtroAcademias");
+	var filtroFaixas = document.getElementById("filtroFaixas");
+	var btnLimparFiltrosCliente = document.getElementById("btnLimparFiltrosCliente");
 
 	var clientes = [];
 	var clienteSelecionado = null;
 	var verLixeira = false;
+	var academiasFiltroSelecionadas = [];
+	var faixasFiltroSelecionadas = [];
 
 	function esc(t) {
 		return String(t == null ? "" : t)
@@ -33,17 +38,73 @@
 		}, 3500);
 	}
 
+	function skeletonLinhasClientes(qtd) {
+		var linha =
+			'<tr><td colspan="6"><div class="skeleton-linha">' +
+			'<span class="skeleton-box skeleton-quadrado" style="width:34px;height:34px;border-radius:50%;"></span>' +
+			'<span class="skeleton-col">' +
+			'<span class="skeleton-box skeleton-linha-texto" style="width:50%;"></span>' +
+			'<span class="skeleton-box skeleton-linha-texto" style="width:30%;"></span>' +
+			'</span></div></td></tr>';
+		return new Array(qtd || 6).fill(linha).join("");
+	}
+
+	function popularFiltrosCliente() {
+		var academias = {};
+		var faixas = {};
+		clientes.forEach((c) => {
+			if (c.academia) academias[c.academia] = true;
+			if (c.faixa) faixas[c.faixa] = true;
+		});
+		var nomesAcademias = Object.keys(academias).sort();
+		var nomesFaixas = Object.keys(faixas).sort();
+
+		filtroAcademias.innerHTML = nomesAcademias.length === 0
+			? '<div class="empty-state" style="padding:8px 0; font-size:0.78rem;">Nenhuma academia cadastrada.</div>'
+			: nomesAcademias.map((a) => {
+				var marcado = academiasFiltroSelecionadas.indexOf(a) !== -1 ? "checked" : "";
+				return '<label class="filtro-check"><input type="checkbox" data-academia-filtro="' + esc(a) + '" ' + marcado + '> ' + esc(a) + '</label>';
+			}).join("");
+		Array.prototype.forEach.call(filtroAcademias.querySelectorAll("[data-academia-filtro]"), (chk) => {
+			chk.addEventListener("change", () => {
+				var v = chk.getAttribute("data-academia-filtro");
+				var pos = academiasFiltroSelecionadas.indexOf(v);
+				if (chk.checked && pos === -1) academiasFiltroSelecionadas.push(v);
+				else if (!chk.checked && pos !== -1) academiasFiltroSelecionadas.splice(pos, 1);
+				renderizarTabela();
+			});
+		});
+
+		filtroFaixas.innerHTML = nomesFaixas.length === 0
+			? '<div class="empty-state" style="padding:8px 0; font-size:0.78rem;">Nenhuma faixa cadastrada.</div>'
+			: nomesFaixas.map((f) => {
+				var marcado = faixasFiltroSelecionadas.indexOf(f) !== -1 ? "checked" : "";
+				return '<label class="filtro-check"><input type="checkbox" data-faixa-filtro="' + esc(f) + '" ' + marcado + '> ' + esc(f) + '</label>';
+			}).join("");
+		Array.prototype.forEach.call(filtroFaixas.querySelectorAll("[data-faixa-filtro]"), (chk) => {
+			chk.addEventListener("change", () => {
+				var v = chk.getAttribute("data-faixa-filtro");
+				var pos = faixasFiltroSelecionadas.indexOf(v);
+				if (chk.checked && pos === -1) faixasFiltroSelecionadas.push(v);
+				else if (!chk.checked && pos !== -1) faixasFiltroSelecionadas.splice(pos, 1);
+				renderizarTabela();
+			});
+		});
+	}
+
 	function carregarClientes() {
 		if (!window.api || !window.erpBanco.clientes.listar) {
 			tbody.innerHTML =
 				'<tr><td colspan="6"><div class="empty-state">API indisponível.</div></td></tr>';
 			return;
 		}
+		tbody.innerHTML = skeletonLinhasClientes(6);
 		window.erpBanco.clientes
 			.listar(verLixeira)
 			.then((lista) => {
 				clientes = Array.isArray(lista) ? lista : [];
 				if (verLixeira) clientes = clientes.filter((c) => Number(c.ativo) === 0);
+				popularFiltrosCliente();
 				renderizarTabela();
 			})
 			.catch(() => {
@@ -62,11 +123,15 @@
 		tbody.innerHTML = "";
 		var q = (buscaCliente.value || "").trim().toLowerCase();
 		var filtrados = clientes.filter((c) => {
-			if (!q) return true;
-			var txt = [c.nome, c.cpf_cnpj, c.telefone, c.email || ""]
-				.join(" ")
-				.toLowerCase();
-			return txt.indexOf(q) !== -1;
+			if (q) {
+				var txt = [c.nome, c.cpf_cnpj, c.telefone, c.email || ""]
+					.join(" ")
+					.toLowerCase();
+				if (txt.indexOf(q) === -1) return false;
+			}
+			if (academiasFiltroSelecionadas.length > 0 && academiasFiltroSelecionadas.indexOf(c.academia) === -1) return false;
+			if (faixasFiltroSelecionadas.length > 0 && faixasFiltroSelecionadas.indexOf(c.faixa) === -1) return false;
+			return true;
 		});
 
 		totalClientes.textContent =
@@ -260,6 +325,16 @@
 	});
 
 	if (buscaCliente) buscaCliente.addEventListener("input", renderizarTabela);
+
+	if (btnLimparFiltrosCliente) {
+		btnLimparFiltrosCliente.addEventListener("click", () => {
+			academiasFiltroSelecionadas = [];
+			faixasFiltroSelecionadas = [];
+			buscaCliente.value = "";
+			popularFiltrosCliente();
+			renderizarTabela();
+		});
+	}
 
 	if (btnLixeiraClientes) {
 		btnLixeiraClientes.addEventListener("click", () => {

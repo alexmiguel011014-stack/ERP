@@ -1,39 +1,23 @@
 .gerenciamento-workspace {
-  position: fixed;
-  inset: 72px 18px 18px;
-  z-index: 900;
   display: flex;
   flex-direction: column;
+  height: calc(100vh - 49px);
   overflow: hidden;
   background: #F8FAFC;
-  border: 1px solid #E2E8F0;
-  border-radius: 12px;
-  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.2);
 }
 
-.gerenciamento-workspace[hidden] { display: none; }
-.gerenciamento-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; background: #FFFFFF; border-bottom: 1px solid #E2E8F0; }
-.gerenciamento-header h2 { margin: 0; color: #1E293B; font-size: 1.05rem; }
-.gerenciamento-header span { color: #64748B; font-size: 0.78rem; }
-.gerenciamento-fechar { width: 32px; height: 32px; border: 0; border-radius: 7px; background: #F1F5F9; color: #64748B; font-size: 1.4rem; line-height: 1; cursor: pointer; }
-.gerenciamento-fechar:hover { background: #FEE2E2; color: #DC2626; }
 .gerenciamento-tabs { display: flex; gap: 6px; padding: 10px 14px 0; background: #FFFFFF; border-bottom: 1px solid #E2E8F0; }
 .gerenciamento-tab { border: 0; border-bottom: 3px solid transparent; padding: 9px 16px 11px; background: transparent; color: #64748B; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
-.gerenciamento-tab:hover { color: #2563EB; }
-.gerenciamento-tab.active { color: #2563EB; border-bottom-color: #2563EB; }
+.gerenciamento-tab:hover { color: var(--cor-primaria); }
+.gerenciamento-tab.active { color: var(--cor-primaria); border-bottom-color: var(--cor-primaria); }
 .gerenciamento-workspace iframe { width: 100%; flex: 1; border: 0; background: #F8FAFC; }
 
-.dark-theme .gerenciamento-workspace { background: #0F172A; border-color: #334159; }
-.dark-theme .gerenciamento-header, .dark-theme .gerenciamento-tabs { background: #1E293B; border-color: #334159; }
-.dark-theme .gerenciamento-header h2 { color: #F1F5F9; }
-.dark-theme .gerenciamento-header span { color: #94A3B8; }
-.dark-theme .gerenciamento-fechar { background: #334159; color: #CBD5E1; }
+.dark-theme .gerenciamento-workspace { background: #0F172A; }
+.dark-theme .gerenciamento-tabs { background: #1E293B; border-color: #334159; }
 .dark-theme .gerenciamento-tab { color: #94A3B8; }
-.dark-theme .gerenciamento-tab.active { color: #60A5FA; border-bottom-color: #3B82F6; }
+.dark-theme .gerenciamento-tab.active { color: var(--cor-primaria); border-bottom-color: var(--cor-primaria); }
 
 @media (max-width: 700px) {
-  .gerenciamento-workspace { inset: 60px 8px 8px; }
-  .gerenciamento-header { padding: 12px 14px; }
   .gerenciamento-tabs { overflow-x: auto; }
   .gerenciamento-tab { white-space: nowrap; padding-inline: 12px; }
 }

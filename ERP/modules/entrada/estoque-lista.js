@@ -113,8 +113,8 @@
 
 			var tdQtd = document.createElement("td");
 			tdQtd.textContent = r.quantidade_estoque;
-			if (status === "negativo") tdQtd.style.color = "#DC2626";
-			else if (status === "baixo") tdQtd.style.color = "#D97706";
+			if (status === "negativo") tdQtd.style.color = "var(--cor-erro)";
+			else if (status === "baixo") tdQtd.style.color = "var(--cor-destaque)";
 			tr.appendChild(tdQtd);
 
 			var tdMin = document.createElement("td");
@@ -136,7 +136,7 @@
 
 			var tdValor = document.createElement("td");
 			tdValor.textContent = formatarMoeda(valor);
-			if (valor < 0) tdValor.style.color = "#DC2626";
+			if (valor < 0) tdValor.style.color = "var(--cor-erro)";
 			tr.appendChild(tdValor);
 
 			var tdStatus = document.createElement("td");
