@@ -25,3 +25,6 @@ __pycache__/
 # SO
 .DS_Store
 Thumbs.db
+
+# Segredos
+.env
