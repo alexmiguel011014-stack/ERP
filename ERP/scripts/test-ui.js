@@ -1,60 +1,78 @@
 /* Teste end-to-end da UI: sobe o app real (main.js), faz login e visita cada
    módulo, coletando erros de console e o resultado das chamadas ao banco.
    Uso: npx electron scripts/test-ui.js  (a partir da raiz do projeto) */
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
-const { app, BrowserWindow } = require('electron');
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const { app, BrowserWindow } = require("electron");
 
-const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'erp-ui-'));
-app.setPath('userData', TMP);
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "erp-ui-"));
+app.setPath("userData", TMP);
 
-const RAIZ = path.join(__dirname, '..');
-require(path.join(RAIZ, 'main.js'));
+const RAIZ = path.join(__dirname, "..");
+require(path.join(RAIZ, "main.js"));
 
 const erros = [];
 const logs = [];
-let paginaAtual = '(inicial)';
+let paginaAtual = "(inicial)";
 
 function espiar(wc) {
-  wc.on('console-message', (e, level, message, line, sourceId) => {
-    const linha = '[' + paginaAtual + '] ' + message + ' (' + String(sourceId).split('/').pop() + ':' + line + ')';
-    logs.push(linha);
-    // Avisos de CSP do próprio Electron em modo dev não são defeitos do app.
-    if (level >= 2 && message.indexOf('Electron Security Warning') === -1) erros.push(linha);
-  });
-  wc.on('did-fail-load', (e, code, desc, url) => {
-    erros.push('[' + paginaAtual + '] DID-FAIL-LOAD ' + code + ' ' + desc + ' ' + url);
-  });
+	wc.on("console-message", (e, detail) => {
+		const { level, message, lineNumber, sourceId } = detail;
+		const linha =
+			"[" +
+			paginaAtual +
+			"] " +
+			message +
+			" (" +
+			String(sourceId).split("/").pop() +
+			":" +
+			lineNumber +
+			")";
+		logs.push(linha);
+		// Avisos de CSP do próprio Electron em modo dev não são defeitos do app.
+		if (
+			(level === "error" || level === "warning") &&
+			message.indexOf("Electron Security Warning") === -1
+		)
+			erros.push(linha);
+	});
+	wc.on("did-fail-load", (e, code, desc, url) => {
+		erros.push(
+			"[" + paginaAtual + "] DID-FAIL-LOAD " + code + " " + desc + " " + url,
+		);
+	});
 }
 
 function esperar(ms) {
-  return new Promise((r) => setTimeout(r, ms));
+	return new Promise((r) => setTimeout(r, ms));
 }
 
 function aguardarCarregamento(win) {
-  return new Promise((resolve) => win.webContents.once('did-finish-load', resolve));
+	return new Promise((resolve) =>
+		win.webContents.once("did-finish-load", resolve),
+	);
 }
 
 const PAGINAS = [
-  ['Dashboard', 'modules/dashboard/index.html'],
-  ['Produtos - Cadastro', 'modules/produtos/cadastro.html'],
-  ['Produtos - Categorias', 'modules/produtos/categorias.html'],
-  ['Clientes', 'modules/clientes/clientes.html'],
-  ['Clientes - Lista', 'modules/clientes/lista-clientes.html'],
-  ['PDV', 'modules/pdv/pdv.html'],
-  ['Entrada de estoque', 'modules/entrada/entrada.html'],
-  ['Lista de estoque', 'modules/entrada/estoque-lista.html'],
-  ['Precificação', 'modules/precificacao/precificacao.html'],
-  ['Importação', 'modules/importacao/importacao.html'],
-  ['Vendas', 'modules/vendas/vendas.html'],
-  ['Fornecedores', 'modules/fornecedores/fornecedores.html'],
-  ['Compras', 'modules/compras/compras.html'],
-  ['Financeiro', 'modules/financeiro/financeiro.html'],
-  ['Relatórios', 'modules/relatorios/relatorios.html'],
-  ['Acessos', 'modules/acessos/acessos.html'],
-  ['Banco', 'modules/banco/banco.html'],
-  ['Atualização', 'modules/atualizacao/atualizacao.html'],
+	["Dashboard", "modules/dashboard/index.html"],
+	["Produtos - Cadastro", "modules/produtos/cadastro.html"],
+	["Produtos - Categorias", "modules/produtos/categorias.html"],
+	["Clientes", "modules/clientes/clientes.html"],
+	["Clientes - Lista", "modules/clientes/lista-clientes.html"],
+	["PDV", "modules/pdv/pdv.html"],
+	["Entrada de estoque", "modules/entrada/entrada.html"],
+	["Lista de estoque", "modules/entrada/estoque-lista.html"],
+	["Precificação", "modules/precificacao/precificacao.html"],
+	["Importação", "modules/importacao/importacao.html"],
+	["Vendas", "modules/vendas/vendas.html"],
+	["Fornecedores", "modules/fornecedores/fornecedores.html"],
+	["Compras", "modules/compras/compras.html"],
+	["Financeiro", "modules/financeiro/financeiro.html"],
+	["Relatórios", "modules/relatorios/relatorios.html"],
+	["Acessos", "modules/acessos/acessos.html"],
+	["Banco", "modules/banco/banco.html"],
+	["Atualização", "modules/atualizacao/atualizacao.html"],
 ];
 
 // Sonda executada em cada página: exercita a camada erpBanco de verdade.
@@ -80,7 +98,7 @@ const SONDA = `
 
 // Verificações de DOM por página: confirmam que o dado do banco chegou na tela.
 const CHECAGENS_DOM = {
-  'Produtos - Categorias': `
+	"Produtos - Categorias": `
     (async () => {
       const r = {};
       const linhas = document.querySelectorAll('#corpoCategorias tr');
@@ -92,7 +110,7 @@ const CHECAGENS_DOM = {
       return r;
     })()
   `,
-  'Produtos - Cadastro': `
+	"Produtos - Cadastro": `
     (async () => {
       const r = {};
       r.sku = document.getElementById('skuProduto').value;
@@ -109,7 +127,7 @@ const CHECAGENS_DOM = {
       return r;
     })()
   `,
-  Precificação: `
+	Precificação: `
     (async () => {
       const r = {};
       const dados = await window.erpBanco.precificacao.dados();
@@ -118,7 +136,7 @@ const CHECAGENS_DOM = {
       return r;
     })()
   `,
-  'Lista de estoque': `
+	"Lista de estoque": `
     (async () => {
       await new Promise(res => setTimeout(res, 400));
       const r = {};
@@ -127,7 +145,7 @@ const CHECAGENS_DOM = {
       return r;
     })()
   `,
-  PDV: `
+	PDV: `
     (async () => {
       const r = {};
       const achado = await window.erpBanco.produtos.buscarSKU('P0001');
@@ -142,34 +160,34 @@ const CHECAGENS_DOM = {
 };
 
 app.whenReady().then(async () => {
-  await esperar(1200);
-  const win = BrowserWindow.getAllWindows()[0];
-  if (!win) {
-    console.log('FALHA: nenhuma janela criada por main.js');
-    app.exit(2);
-    return;
-  }
-  win.hide();
-  espiar(win.webContents);
+	await esperar(1200);
+	const win = BrowserWindow.getAllWindows()[0];
+	if (!win) {
+		console.log("FALHA: nenhuma janela criada por main.js");
+		app.exit(2);
+		return;
+	}
+	win.hide();
+	espiar(win.webContents);
 
-  // 1) Login (banco novo -> primeiro usuário é semeado automaticamente)
-  await esperar(1500);
-  let url = win.webContents.getURL();
-  console.log('URL inicial:', url.split('/').slice(-2).join('/'));
-  if (url.indexOf('login.html') === -1) {
-    await win.loadFile(path.join(RAIZ, 'modules/auth/login.html'));
-    await esperar(500);
-  }
-  paginaAtual = 'login';
-  const login = await win.webContents.executeJavaScript(
-    "window.api.unlockWithProfile('admin', 'admin1234').then(r => JSON.stringify(r)).catch(e => 'ERRO: ' + e)"
-  );
-  console.log('Login:', login);
-  const loginOk = String(login).indexOf('ERRO') === -1;
+	// 1) Login (banco novo -> primeiro usuário é semeado automaticamente)
+	await esperar(1500);
+	let url = win.webContents.getURL();
+	console.log("URL inicial:", url.split("/").slice(-2).join("/"));
+	if (url.indexOf("login.html") === -1) {
+		await win.loadFile(path.join(RAIZ, "modules/auth/login.html"));
+		await esperar(500);
+	}
+	paginaAtual = "login";
+	const login = await win.webContents.executeJavaScript(
+		"window.api.unlockWithProfile('admin', 'admin1234').then(r => JSON.stringify(r)).catch(e => 'ERRO: ' + e)",
+	);
+	console.log("Login:", login);
+	const loginOk = String(login).indexOf("ERRO") === -1;
 
-  // 2) Semeia dados via IPC para as telas terem o que renderizar
-  if (loginOk) {
-    const semear = await win.webContents.executeJavaScript(`
+	// 2) Semeia dados via IPC para as telas terem o que renderizar
+	if (loginOk) {
+		const semear = await win.webContents.executeJavaScript(`
       (async () => {
         const out = [];
         try {
@@ -186,53 +204,69 @@ app.whenReady().then(async () => {
         return out.join(' | ');
       })()
     `);
-    console.log('Seed:', semear);
-  }
+		console.log("Seed:", semear);
+	}
 
-  // 3) Visita cada página
-  const relatorio = [];
-  for (const [nome, arquivo] of PAGINAS) {
-    paginaAtual = nome;
-    try {
-      const carregou = aguardarCarregamento(win);
-      await win.loadFile(path.join(RAIZ, arquivo));
-      await carregou;
-      await esperar(900);
-      const r = await win.webContents.executeJavaScript(SONDA);
-      if (CHECAGENS_DOM[nome]) {
-        try {
-          r.dom = await win.webContents.executeJavaScript(CHECAGENS_DOM[nome]);
-        } catch (e) {
-          r.dom = { erro: String(e && e.message ? e.message : e) };
-        }
-      }
-      relatorio.push({ nome, ...r });
-    } catch (e) {
-      relatorio.push({ nome, erro: String(e && e.message ? e.message : e) });
-    }
-  }
+	// 3) Visita cada página
+	const relatorio = [];
+	for (const [nome, arquivo] of PAGINAS) {
+		paginaAtual = nome;
+		try {
+			const carregou = aguardarCarregamento(win);
+			await win.loadFile(path.join(RAIZ, arquivo));
+			await carregou;
+			await esperar(900);
+			const r = await win.webContents.executeJavaScript(SONDA);
+			if (CHECAGENS_DOM[nome]) {
+				try {
+					r.dom = await win.webContents.executeJavaScript(CHECAGENS_DOM[nome]);
+				} catch (e) {
+					r.dom = { erro: String(e && e.message ? e.message : e) };
+				}
+			}
+			relatorio.push({ nome, ...r });
+		} catch (e) {
+			relatorio.push({ nome, erro: String(e && e.message ? e.message : e) });
+		}
+	}
 
-  console.log('\n================ RELATÓRIO POR PÁGINA ================');
-  let falhas = 0;
-  for (const r of relatorio) {
-    const problemas = [];
-    if (r.erro) problemas.push('load: ' + r.erro);
-    if (r.api === false) problemas.push('window.api ausente');
-    if (r.banco === false) problemas.push('window.erpBanco ausente');
-    if (r.jsErro) problemas.push('js: ' + r.jsErro);
-    Object.keys(r.chamadas || {}).forEach((k) => {
-      if (String(r.chamadas[k]).indexOf('ERRO') === 0) problemas.push(k + ' ' + r.chamadas[k]);
-    });
-    if (problemas.length) falhas++;
-    console.log((problemas.length ? 'FALHA ' : 'OK    ') + r.nome + (problemas.length ? '\n         ' + problemas.join('\n         ') : ''));
-    if (r.dom) console.log('         DOM: ' + JSON.stringify(r.dom));
-  }
+	console.log("\n================ RELATÓRIO POR PÁGINA ================");
+	let falhas = 0;
+	for (const r of relatorio) {
+		const problemas = [];
+		if (r.erro) problemas.push("load: " + r.erro);
+		if (r.api === false) problemas.push("window.api ausente");
+		if (r.banco === false) problemas.push("window.erpBanco ausente");
+		if (r.jsErro) problemas.push("js: " + r.jsErro);
+		Object.keys(r.chamadas || {}).forEach((k) => {
+			if (String(r.chamadas[k]).indexOf("ERRO") === 0)
+				problemas.push(k + " " + r.chamadas[k]);
+		});
+		if (problemas.length) falhas++;
+		console.log(
+			(problemas.length ? "FALHA " : "OK    ") +
+				r.nome +
+				(problemas.length ? "\n         " + problemas.join("\n         ") : ""),
+		);
+		if (r.dom) console.log("         DOM: " + JSON.stringify(r.dom));
+	}
 
-  console.log('\n================ ERROS DE CONSOLE ================');
-  if (!erros.length) console.log('(nenhum)');
-  erros.forEach((e) => console.log(' - ' + e));
+	console.log("\n================ ERROS DE CONSOLE ================");
+	if (!erros.length) console.log("(nenhum)");
+	erros.forEach((e) => console.log(" - " + e));
 
-  console.log('\nPáginas com problema: ' + falhas + '/' + relatorio.length + ' | erros de console: ' + erros.length);
-  try { fs.rmSync(TMP, { recursive: true, force: true }); } catch (e) { /* ignora */ }
-  app.exit(falhas || erros.length ? 1 : 0);
+	console.log(
+		"\nPáginas com problema: " +
+			falhas +
+			"/" +
+			relatorio.length +
+			" | erros de console: " +
+			erros.length,
+	);
+	try {
+		fs.rmSync(TMP, { recursive: true, force: true });
+	} catch (e) {
+		/* ignora */
+	}
+	app.exit(falhas || erros.length ? 1 : 0);
 });

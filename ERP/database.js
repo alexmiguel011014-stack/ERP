@@ -1437,7 +1437,13 @@ async function atualizarProduto(id, produto, variacoes) {
 				// muda pela aba Estoque) — só os dados descritivos são atualizados.
 				await run(
 					"UPDATE Variacoes SET tamanho = ?, cor = ?, atributos = ?, estoque_minimo = ? WHERE id = ?",
-					[tamanho, cor, JSON.stringify(v.atributos), estoqueMinimo, existente.id],
+					[
+						tamanho,
+						cor,
+						JSON.stringify(v.atributos),
+						estoqueMinimo,
+						existente.id,
+					],
 				);
 			} else {
 				// Variação nova: herda preço/custo de uma irmã já cadastrada para
@@ -1472,7 +1478,9 @@ async function atualizarProduto(id, produto, variacoes) {
 // fica recuperável na Lixeira, e vendas antigas continuam referenciando as
 // variações sem quebrar (nada em Variacoes/ItensVenda é tocado).
 async function removerProduto(id) {
-	const existente = await getAsync("SELECT id FROM Produtos WHERE id = ?", [id]);
+	const existente = await getAsync("SELECT id FROM Produtos WHERE id = ?", [
+		id,
+	]);
 	if (!existente) throw new Error("Produto não encontrado.");
 
 	await runAsync("UPDATE Produtos SET ativo = 0 WHERE id = ?", [id]);
@@ -1480,7 +1488,9 @@ async function removerProduto(id) {
 }
 
 async function restaurarProduto(id) {
-	const existente = await getAsync("SELECT id FROM Produtos WHERE id = ?", [id]);
+	const existente = await getAsync("SELECT id FROM Produtos WHERE id = ?", [
+		id,
+	]);
 	if (!existente) throw new Error("Produto não encontrado.");
 
 	await runAsync("UPDATE Produtos SET ativo = 1 WHERE id = ?", [id]);
@@ -1509,10 +1519,14 @@ async function excluirProdutoPermanente(id) {
 	await run("BEGIN TRANSACTION");
 
 	try {
-		const existente = await get("SELECT id, ativo FROM Produtos WHERE id = ?", [id]);
+		const existente = await get("SELECT id, ativo FROM Produtos WHERE id = ?", [
+			id,
+		]);
 		if (!existente) throw new Error("Produto não encontrado.");
 		if (Number(existente.ativo) === 1)
-			throw new Error("Envie o produto para a lixeira antes de excluir definitivamente.");
+			throw new Error(
+				"Envie o produto para a lixeira antes de excluir definitivamente.",
+			);
 
 		const vendido = await get(
 			`SELECT COUNT(*) AS n FROM ItensVenda iv
@@ -1558,7 +1572,9 @@ async function salvarImagemProduto(produtoId, caminhoOrigem) {
 	if (!extensoesPermitidas.includes(ext))
 		throw new Error("Formato de imagem não suportado. Use PNG, JPG ou WEBP.");
 
-	const produto = await getAsync("SELECT imagem FROM Produtos WHERE id = ?", [id]);
+	const produto = await getAsync("SELECT imagem FROM Produtos WHERE id = ?", [
+		id,
+	]);
 	if (!produto) throw new Error("Produto não encontrado.");
 
 	const dir = pastaImagensProdutos();
@@ -1566,19 +1582,36 @@ async function salvarImagemProduto(produtoId, caminhoOrigem) {
 	fs.copyFileSync(caminhoOrigem, path.join(dir, nomeArquivo));
 
 	if (produto.imagem) {
-		try { fs.unlinkSync(path.join(dir, produto.imagem)); } catch (e) { /* já não existe */ }
+		try {
+			fs.unlinkSync(path.join(dir, produto.imagem));
+		} catch (e) {
+			/* já não existe */
+		}
 	}
 
-	await runAsync("UPDATE Produtos SET imagem = ? WHERE id = ?", [nomeArquivo, id]);
-	return { success: true, imagem: nomeArquivo, caminho: path.join(dir, nomeArquivo) };
+	await runAsync("UPDATE Produtos SET imagem = ? WHERE id = ?", [
+		nomeArquivo,
+		id,
+	]);
+	return {
+		success: true,
+		imagem: nomeArquivo,
+		caminho: path.join(dir, nomeArquivo),
+	};
 }
 
 async function removerImagemProduto(produtoId) {
 	const id = Number(produtoId);
-	const produto = await getAsync("SELECT imagem FROM Produtos WHERE id = ?", [id]);
+	const produto = await getAsync("SELECT imagem FROM Produtos WHERE id = ?", [
+		id,
+	]);
 	if (!produto) throw new Error("Produto não encontrado.");
 	if (produto.imagem) {
-		try { fs.unlinkSync(path.join(pastaImagensProdutos(), produto.imagem)); } catch (e) { /* já não existe */ }
+		try {
+			fs.unlinkSync(path.join(pastaImagensProdutos(), produto.imagem));
+		} catch (e) {
+			/* já não existe */
+		}
 	}
 	await runAsync("UPDATE Produtos SET imagem = NULL WHERE id = ?", [id]);
 	return { success: true };
@@ -1724,21 +1757,30 @@ async function sincronizarPrecosPendentes() {
 	);
 	for (const p of pendentes) {
 		const base = Number(p.preco_custo || 0) + Number(p.impostos_extras || 0);
-		const custoFixoPercentual = p.aplicar_custo_fixo ? custoFixoAtual.percentual : 0;
+		const custoFixoPercentual = p.aplicar_custo_fixo
+			? custoFixoAtual.percentual
+			: 0;
 		const precoCalculado =
-			base > 0 ? base * (1 + margemGlobalAtual / 100) * (1 + custoFixoPercentual / 100) : 0;
-		if (precoCalculado > 0 && Math.abs(precoCalculado - Number(p.preco_venda || 0)) > 0.001) {
+			base > 0
+				? base * (1 + margemGlobalAtual / 100) * (1 + custoFixoPercentual / 100)
+				: 0;
+		if (
+			precoCalculado > 0 &&
+			Math.abs(precoCalculado - Number(p.preco_venda || 0)) > 0.001
+		) {
 			const conn2 = getConexao();
 			await runOn(conn2, "BEGIN TRANSACTION");
 			try {
-				await runOn(conn2, "UPDATE Precificacao SET preco_venda = ? WHERE produto_id = ?", [
-					precoCalculado,
-					p.produto_id,
-				]);
-				await runOn(conn2, "UPDATE Variacoes SET preco = ? WHERE produto_id = ?", [
-					precoCalculado,
-					p.produto_id,
-				]);
+				await runOn(
+					conn2,
+					"UPDATE Precificacao SET preco_venda = ? WHERE produto_id = ?",
+					[precoCalculado, p.produto_id],
+				);
+				await runOn(
+					conn2,
+					"UPDATE Variacoes SET preco = ? WHERE produto_id = ?",
+					[precoCalculado, p.produto_id],
+				);
 				await runOn(conn2, "COMMIT");
 			} catch (erro) {
 				await runOn(conn2, "ROLLBACK");
@@ -2246,9 +2288,7 @@ async function cancelarOrcamento(vendaId) {
 			);
 		}
 
-		await run("UPDATE Vendas SET status = 'cancelado' WHERE id = ?", [
-			vendaId,
-		]);
+		await run("UPDATE Vendas SET status = 'cancelado' WHERE id = ?", [vendaId]);
 
 		await run("COMMIT");
 		return { success: true };
@@ -2363,22 +2403,30 @@ async function registrarDevolucao(dados, usuarioId) {
 				"SELECT * FROM ItensVenda WHERE id = ? AND venda_id = ?",
 				[itemVendaId, vendaId],
 			);
-			if (!itemVenda)
-				throw new Error("Item não pertence a esta venda.");
+			if (!itemVenda) throw new Error("Item não pertence a esta venda.");
 
 			const jaDevolvido = await get(
 				"SELECT COALESCE(SUM(quantidade), 0) AS total FROM ItensDevolucao WHERE item_venda_id = ?",
 				[itemVendaId],
 			);
-			const disponivel = itemVenda.quantidade - (jaDevolvido ? jaDevolvido.total : 0);
+			const disponivel =
+				itemVenda.quantidade - (jaDevolvido ? jaDevolvido.total : 0);
 			if (quantidade > disponivel)
 				throw new Error(
-					"Quantidade maior que o disponível para devolução (" + disponivel + ").",
+					"Quantidade maior que o disponível para devolução (" +
+						disponivel +
+						").",
 				);
 
 			await run(
 				"INSERT INTO ItensDevolucao (devolucao_id, item_venda_id, variacao_id, quantidade, preco_unitario) VALUES (?, ?, ?, ?, ?)",
-				[devolucaoId, itemVendaId, itemVenda.variacao_id, quantidade, itemVenda.preco_unitario],
+				[
+					devolucaoId,
+					itemVendaId,
+					itemVenda.variacao_id,
+					quantidade,
+					itemVenda.preco_unitario,
+				],
 			);
 
 			await run(
@@ -2428,7 +2476,11 @@ async function registrarDevolucao(dados, usuarioId) {
 		}
 
 		await run("COMMIT");
-		return { success: true, devolucaoId, valorTotal: Math.round(valorTotal * 100) / 100 };
+		return {
+			success: true,
+			devolucaoId,
+			valorTotal: Math.round(valorTotal * 100) / 100,
+		};
 	} catch (erro) {
 		await run("ROLLBACK");
 		throw erro;
@@ -2437,8 +2489,7 @@ async function registrarDevolucao(dados, usuarioId) {
 
 async function getDevolucoes(filtro) {
 	filtro = filtro || {};
-	let sql =
-		`SELECT d.*, v.cliente_id, c.nome AS cliente_nome
+	let sql = `SELECT d.*, v.cliente_id, c.nome AS cliente_nome
      FROM Devolucoes d
      JOIN Vendas v ON v.id = d.venda_id
      LEFT JOIN Clientes c ON c.id = v.cliente_id`;
@@ -2526,7 +2577,11 @@ async function exportarBancoJSON() {
 		"utf8",
 	);
 
-	return { caminho: destino, tabelas: tabelas.length, registros: totalRegistros };
+	return {
+		caminho: destino,
+		tabelas: tabelas.length,
+		registros: totalRegistros,
+	};
 }
 
 async function consultarTabelaBanco(tabela, limite) {
@@ -2552,23 +2607,29 @@ async function consultarTabelaBanco(tabela, limite) {
 	};
 }
 
-function verificarSenhaAdmin(login, senha) {
+async function verificarSenhaAdmin(login, senha) {
 	const l = String(login || "")
 		.trim()
 		.toLowerCase();
-	const hash = hashSenhaUsuario(l, String(senha || ""));
-	return getAsync(
-		"SELECT senha_hash, perfil, ativo FROM Usuarios WHERE login = ? COLLATE NOCASE",
+	const s = String(senha || "");
+	const usr = await getAsync(
+		"SELECT id, senha_hash, perfil, ativo FROM Usuarios WHERE login = ? COLLATE NOCASE",
 		[l],
-	).then(
-		(usr) =>
-			!!(
-				usr &&
-				usr.perfil === "admin" &&
-				Number(usr.ativo) === 1 &&
-				usr.senha_hash === hash
-			),
 	);
+	if (!usr || usr.perfil !== "admin" || Number(usr.ativo) !== 1) return false;
+
+	const { ok, precisaMigrar } = verificarHashSenha(l, s, usr.senha_hash);
+	if (ok && precisaMigrar) {
+		try {
+			await runAsync("UPDATE Usuarios SET senha_hash = ? WHERE id = ?", [
+				hashSenhaUsuario(s),
+				usr.id,
+			]);
+		} catch (e) {
+			/* login já validado; falha ao migrar o hash não deve bloquear o acesso */
+		}
+	}
+	return ok;
 }
 
 module.exports = {
@@ -2584,6 +2645,9 @@ module.exports = {
 	consultarTabelaBanco,
 	exportarBancoJSON,
 	verificarSenhaAdmin,
+	hashSenhaUsuario,
+	hashSenhaUsuarioLegado,
+	verificarHashSenha,
 	salvarProduto,
 	atualizarProduto,
 	removerProduto,
@@ -2773,7 +2837,9 @@ async function atualizarCliente(id, dados) {
 // fica recuperável na Lixeira, e vendas antigas continuam com a referência
 // (Vendas.cliente_id não é tocado).
 async function removerCliente(id) {
-	const existente = await getAsync("SELECT id FROM Clientes WHERE id = ?", [id]);
+	const existente = await getAsync("SELECT id FROM Clientes WHERE id = ?", [
+		id,
+	]);
 	if (!existente) throw new Error("Cliente não encontrado.");
 
 	await runAsync("UPDATE Clientes SET ativo = 0 WHERE id = ?", [id]);
@@ -2781,7 +2847,9 @@ async function removerCliente(id) {
 }
 
 async function restaurarCliente(id) {
-	const existente = await getAsync("SELECT id FROM Clientes WHERE id = ?", [id]);
+	const existente = await getAsync("SELECT id FROM Clientes WHERE id = ?", [
+		id,
+	]);
 	if (!existente) throw new Error("Cliente não encontrado.");
 
 	await runAsync("UPDATE Clientes SET ativo = 1 WHERE id = ?", [id]);
@@ -2807,14 +2875,23 @@ async function excluirClientePermanente(id) {
 
 	await run("BEGIN TRANSACTION");
 	try {
-		const existente = await get("SELECT id, ativo FROM Clientes WHERE id = ?", [id]);
+		const existente = await get("SELECT id, ativo FROM Clientes WHERE id = ?", [
+			id,
+		]);
 		if (!existente) throw new Error("Cliente não encontrado.");
 		if (Number(existente.ativo) === 1)
-			throw new Error("Envie o cliente para a lixeira antes de excluir definitivamente.");
+			throw new Error(
+				"Envie o cliente para a lixeira antes de excluir definitivamente.",
+			);
 
-		const vendido = await get("SELECT COUNT(*) AS n FROM Vendas WHERE cliente_id = ?", [id]);
+		const vendido = await get(
+			"SELECT COUNT(*) AS n FROM Vendas WHERE cliente_id = ?",
+			[id],
+		);
 		if (vendido.n > 0) {
-			throw new Error("Este cliente não pode ser excluído pois possui vendas registradas.");
+			throw new Error(
+				"Este cliente não pode ser excluído pois possui vendas registradas.",
+			);
 		}
 
 		await run("DELETE FROM Clientes WHERE id = ?", [id]);
@@ -2856,7 +2933,8 @@ async function getVendas(filtro) {
 
 		// Compatibilidade: string simples filtra por data exata (frontend antigo).
 		const filtroObj = filtro && typeof filtro === "object" ? filtro : {};
-		const filtroData = typeof filtro === "string" ? filtro : filtroObj.data || null;
+		const filtroData =
+			typeof filtro === "string" ? filtro : filtroObj.data || null;
 		const filtroDataInicio = filtroObj.dataInicio || null;
 		const filtroDataFim = filtroObj.dataFim || null;
 		const filtroStatus = filtroObj.status || null;
@@ -2920,7 +2998,9 @@ async function importarVendasHistoricas(linhas) {
 	await runOn(conn, "BEGIN TRANSACTION");
 	try {
 		for (const linha of linhas) {
-			const sku = String(linha.sku || "").trim().toUpperCase();
+			const sku = String(linha.sku || "")
+				.trim()
+				.toUpperCase();
 			const quantidade = Number(linha.quantidade);
 			const valorUnitario = Number(linha.valorUnitario);
 			const data = linha.data ? String(linha.data) : null;
@@ -2935,7 +3015,10 @@ async function importarVendasHistoricas(linhas) {
 				puladas++;
 				continue;
 			}
-			const variacao = await get("SELECT id FROM Variacoes WHERE UPPER(sku) = ?", [sku]);
+			const variacao = await get(
+				"SELECT id FROM Variacoes WHERE UPPER(sku) = ?",
+				[sku],
+			);
 			if (!variacao) {
 				puladas++;
 				continue;
@@ -3047,7 +3130,9 @@ async function getDashboardStats() {
 		});
 
 	const hoje = new Date().toISOString().slice(0, 10);
-	const ontem = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+	const ontem = new Date(Date.now() - 24 * 60 * 60 * 1000)
+		.toISOString()
+		.slice(0, 10);
 
 	const totalVendas = await get(
 		"SELECT COUNT(*) AS total FROM Vendas WHERE DATE(data_venda) = ? AND status = 'finalizada'",
@@ -3073,8 +3158,14 @@ async function getDashboardStats() {
 		if (!ontemVal) return null;
 		return ((hojeVal - ontemVal) / ontemVal) * 100;
 	}
-	const vendasHojeVariacao = variacaoPercentual(totalVendas.total, totalVendasOntem.total);
-	const faturamentoHojeVariacao = variacaoPercentual(somaTotal.soma, somaTotalOntem.soma);
+	const vendasHojeVariacao = variacaoPercentual(
+		totalVendas.total,
+		totalVendasOntem.total,
+	);
+	const faturamentoHojeVariacao = variacaoPercentual(
+		somaTotal.soma,
+		somaTotalOntem.soma,
+	);
 
 	const totalProdutos = await get("SELECT COUNT(*) AS total FROM Produtos");
 
@@ -3102,10 +3193,14 @@ async function getDashboardStats() {
 		[seteDiasAtras, hoje],
 	);
 	const mapaDias = {};
-	porDiaBruto.forEach((r) => { mapaDias[r.dia] = r.faturamento; });
+	porDiaBruto.forEach((r) => {
+		mapaDias[r.dia] = r.faturamento;
+	});
 	const faturamentoUltimos7Dias = [];
 	for (let i = 6; i >= 0; i--) {
-		const dia = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+		const dia = new Date(Date.now() - i * 24 * 60 * 60 * 1000)
+			.toISOString()
+			.slice(0, 10);
 		faturamentoUltimos7Dias.push({ dia, faturamento: mapaDias[dia] || 0 });
 	}
 
@@ -3669,7 +3764,9 @@ async function salvarProdutoFornecedor(dados) {
 	if (!Number.isFinite(precoCusto) || precoCusto < 0)
 		throw new Error("Custo inválido.");
 	const prazo =
-		dados.prazo_entrega_dias !== undefined && dados.prazo_entrega_dias !== null && dados.prazo_entrega_dias !== ""
+		dados.prazo_entrega_dias !== undefined &&
+		dados.prazo_entrega_dias !== null &&
+		dados.prazo_entrega_dias !== ""
 			? Number(dados.prazo_entrega_dias)
 			: null;
 
@@ -3696,10 +3793,9 @@ async function salvarProdutoFornecedor(dados) {
 }
 
 async function removerProdutoFornecedor(id) {
-	const result = await runAsync(
-		"DELETE FROM FornecedorProdutos WHERE id = ?",
-		[id],
-	);
+	const result = await runAsync("DELETE FROM FornecedorProdutos WHERE id = ?", [
+		id,
+	]);
 	if (result.changes === 0) throw new Error("Registro não encontrado.");
 	return { success: true };
 }
@@ -3756,7 +3852,13 @@ async function salvarPrecoCliente(dados) {
 	await runAsync(
 		`INSERT OR REPLACE INTO PrecoCliente (id, cliente_id, variacao_id, preco)
      VALUES ((SELECT id FROM PrecoCliente WHERE cliente_id = ? AND variacao_id = ?), ?, ?, ?)`,
-		[clienteId, variacaoId, clienteId, variacaoId, Math.round(preco * 100) / 100],
+		[
+			clienteId,
+			variacaoId,
+			clienteId,
+			variacaoId,
+			Math.round(preco * 100) / 100,
+		],
 	);
 	return { success: true };
 }
@@ -3944,9 +4046,10 @@ async function receberPedidoCompra(pedidoId, itensRecebidos) {
 
 		for (const item of itens) {
 			const faltante = item.quantidade - item.quantidade_recebida;
-			const receberAgora = mapaRecebimento.size > 0
-				? Math.min(mapaRecebimento.get(item.id) || 0, faltante)
-				: faltante;
+			const receberAgora =
+				mapaRecebimento.size > 0
+					? Math.min(mapaRecebimento.get(item.id) || 0, faltante)
+					: faltante;
 
 			if (receberAgora <= 0) {
 				if (faltante > 0) tudoRecebido = false;
@@ -3979,7 +4082,8 @@ async function receberPedidoCompra(pedidoId, itensRecebidos) {
 					receberAgora,
 					item.custo_unitario,
 					pedidoId,
-					"Recebimento do pedido #" + pedidoId +
+					"Recebimento do pedido #" +
+						pedidoId +
 						(receberAgora < item.quantidade ? " (parcial)" : ""),
 					agora,
 				],
@@ -4004,7 +4108,9 @@ async function receberPedidoCompra(pedidoId, itensRecebidos) {
 					"SELECT prazo_pagamento_dias FROM Fornecedores WHERE id = ?",
 					[pedido.fornecedor_id],
 				);
-				prazoDias = fornecedor ? Number(fornecedor.prazo_pagamento_dias) || 0 : 0;
+				prazoDias = fornecedor
+					? Number(fornecedor.prazo_pagamento_dias) || 0
+					: 0;
 			}
 			const vencimento = new Date(
 				Date.now() + prazoDias * 24 * 60 * 60 * 1000,
@@ -4013,7 +4119,8 @@ async function receberPedidoCompra(pedidoId, itensRecebidos) {
 			await criarLancamentoInterno(run, {
 				tipo: "pagar",
 				descricao:
-					"Pedido de compra #" + pedidoId +
+					"Pedido de compra #" +
+					pedidoId +
 					(novoStatus === "parcial" ? " (recebimento parcial)" : ""),
 				valor: Math.round(valorRecebidoAgora * 100) / 100,
 				data_vencimento: vencimento,
@@ -4112,7 +4219,13 @@ async function criarLancamento(dados) {
 
 // Divide um lançamento em N parcelas mensais iguais (a última absorve o
 // arredondamento), ligadas por um grupo_id para exibição/baixa individual.
-async function criarLancamentoParcelado(dados, tipo, descricao, valor, parcelas) {
+async function criarLancamentoParcelado(
+	dados,
+	tipo,
+	descricao,
+	valor,
+	parcelas,
+) {
 	const grupoId =
 		Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 	const dataBase = dados.data_vencimento
@@ -4190,8 +4303,9 @@ async function calcularValorEsperadoCaixa(dataAbertura, dataFechamento) {
 		[dataAbertura, fim],
 	);
 	return (
-		Math.round((Number(vendas.soma || 0) - Number(devolucoes.soma || 0)) * 100) /
-		100
+		Math.round(
+			(Number(vendas.soma || 0) - Number(devolucoes.soma || 0)) * 100,
+		) / 100
 	);
 }
 
@@ -4203,7 +4317,10 @@ async function getCaixaAberto() {
 
 async function abrirCaixa(valorAbertura, usuarioId) {
 	const existente = await getCaixaAberto();
-	if (existente) throw new Error("Já existe um caixa aberto (desde " + existente.data_abertura + ").");
+	if (existente)
+		throw new Error(
+			"Já existe um caixa aberto (desde " + existente.data_abertura + ").",
+		);
 
 	const valor = Number(valorAbertura);
 	if (!Number.isFinite(valor) || valor < 0)
@@ -4259,7 +4376,10 @@ async function fecharCaixa(valorInformado, observacao, usuarioId) {
 async function getResumoCaixaAberto() {
 	const caixa = await getCaixaAberto();
 	if (!caixa) return null;
-	const vendidoEmDinheiro = await calcularValorEsperadoCaixa(caixa.data_abertura, null);
+	const vendidoEmDinheiro = await calcularValorEsperadoCaixa(
+		caixa.data_abertura,
+		null,
+	);
 	const valorEsperadoAgora =
 		Math.round((Number(caixa.valor_abertura) + vendidoEmDinheiro) * 100) / 100;
 	return {
@@ -4274,7 +4394,8 @@ async function getResumoCaixaAberto() {
 async function getHistoricoCaixa(limite) {
 	const lim = Math.max(1, Math.min(200, Number(limite) || 50));
 	return allAsync(
-		"SELECT * FROM FechamentosCaixa WHERE status = 'fechado' ORDER BY id DESC LIMIT " + lim,
+		"SELECT * FROM FechamentosCaixa WHERE status = 'fechado' ORDER BY id DESC LIMIT " +
+			lim,
 	);
 }
 
@@ -4370,10 +4491,12 @@ async function getDRE(dataInicio, dataFim) {
 		receitaLiquida,
 		cmv,
 		lucroBruto,
-		margemBrutaPercentual: receitaLiquida > 0 ? (lucroBruto / receitaLiquida) * 100 : 0,
+		margemBrutaPercentual:
+			receitaLiquida > 0 ? (lucroBruto / receitaLiquida) * 100 : 0,
 		despesas,
 		lucroLiquido,
-		margemLiquidaPercentual: receitaLiquida > 0 ? (lucroLiquido / receitaLiquida) * 100 : 0,
+		margemLiquidaPercentual:
+			receitaLiquida > 0 ? (lucroLiquido / receitaLiquida) * 100 : 0,
 	};
 }
 
@@ -4484,7 +4607,14 @@ async function getComissoes(dataInicio, dataFim) {
 // Nunca deve derrubar a ação real por causa de uma falha de log — quem chama
 // isso já está dentro de um try/catch da ação principal, então erros aqui
 // são engolidos silenciosamente (loga no console do processo principal).
-async function registrarLog(usuarioId, usuarioLogin, acao, entidade, entidadeId, detalhes) {
+async function registrarLog(
+	usuarioId,
+	usuarioLogin,
+	acao,
+	entidade,
+	entidadeId,
+	detalhes,
+) {
 	try {
 		await runAsync(
 			"INSERT INTO LogAtividades (usuario_id, usuario_login, acao, entidade, entidade_id, detalhes, data) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -4526,7 +4656,10 @@ async function getLogAtividades(filtro) {
 	var where = condicoes.length ? "WHERE " + condicoes.join(" AND ") : "";
 	var limite = Math.max(1, Math.min(500, Number(filtro.limite) || 200));
 	return allAsync(
-		"SELECT * FROM LogAtividades " + where + " ORDER BY id DESC LIMIT " + limite,
+		"SELECT * FROM LogAtividades " +
+			where +
+			" ORDER BY id DESC LIMIT " +
+			limite,
 		params,
 	);
 }
@@ -4548,11 +4681,52 @@ function derivarChaveUsuario(login, senha) {
 		.digest();
 }
 
-function hashSenhaUsuario(login, senha) {
+// Formato legado (SHA-256 sem salt por usuário) — mantido só para validar hashes
+// já gravados antes da migração para scrypt; nunca usado para gravar hash novo.
+function hashSenhaUsuarioLegado(login, senha) {
 	return crypto
 		.createHash("sha256")
 		.update("erp_usr_hash:" + String(login) + ":" + String(senha))
 		.digest("hex");
+}
+
+const SCRYPT_PARAMS = { N: 16384, r: 8, p: 1, keylen: 64 };
+
+function hashSenhaUsuario(senha) {
+	const salt = crypto.randomBytes(16);
+	const hash = crypto.scryptSync(String(senha), salt, SCRYPT_PARAMS.keylen, {
+		N: SCRYPT_PARAMS.N,
+		r: SCRYPT_PARAMS.r,
+		p: SCRYPT_PARAMS.p,
+	});
+	return "scrypt$" + salt.toString("hex") + "$" + hash.toString("hex");
+}
+
+// Verifica a senha contra o hash gravado, aceitando tanto o formato novo (scrypt)
+// quanto o legado (SHA-256), para permitir migração transparente no login.
+function verificarHashSenha(login, senha, hashArmazenado) {
+	const armazenado = String(hashArmazenado || "");
+	if (armazenado.startsWith("scrypt$")) {
+		const partes = armazenado.split("$");
+		if (partes.length !== 3) return { ok: false, precisaMigrar: false };
+		const salt = Buffer.from(partes[1], "hex");
+		const esperado = Buffer.from(partes[2], "hex");
+		const calculado = crypto.scryptSync(
+			String(senha),
+			salt,
+			SCRYPT_PARAMS.keylen,
+			{ N: SCRYPT_PARAMS.N, r: SCRYPT_PARAMS.r, p: SCRYPT_PARAMS.p },
+		);
+		const ok =
+			calculado.length === esperado.length &&
+			crypto.timingSafeEqual(calculado, esperado);
+		return { ok, precisaMigrar: false };
+	}
+	const legado = Buffer.from(hashSenhaUsuarioLegado(login, senha), "hex");
+	const atual = Buffer.from(armazenado, "hex");
+	const ok =
+		legado.length === atual.length && crypto.timingSafeEqual(legado, atual);
+	return { ok, precisaMigrar: ok };
 }
 
 function lerArquivoUsuarios() {
@@ -4652,7 +4826,7 @@ async function autenticarUsuario(login, senha) {
 				l,
 				"Administrador",
 				"admin",
-				hashSenhaUsuario(l, s),
+				hashSenhaUsuario(s),
 				new Date().toISOString(),
 			],
 		);
@@ -4731,7 +4905,9 @@ async function salvarUsuario(dados) {
 	const perfil = dados.perfil === "vendedor" ? "vendedor" : "admin";
 	const comissao = Math.max(0, Number(dados.comissao_percentual) || 0);
 	const permissoes = JSON.stringify(
-		dados.permissoes && typeof dados.permissoes === "object" ? dados.permissoes : {},
+		dados.permissoes && typeof dados.permissoes === "object"
+			? dados.permissoes
+			: {},
 	);
 
 	const inserindo = !dados.id;
@@ -4751,7 +4927,7 @@ async function salvarUsuario(dados) {
 				nome,
 				perfil,
 				dados.ativo ? 1 : 0,
-				hashSenhaUsuario(l, senha),
+				hashSenhaUsuario(senha),
 				new Date().toISOString(),
 				comissao,
 				permissoes,
@@ -4762,13 +4938,20 @@ async function salvarUsuario(dados) {
 			throw new Error("Usuário inválido.");
 		await runAsync(
 			"UPDATE Usuarios SET nome = ?, ativo = ?, perfil = ?, comissao_percentual = ?, permissoes = ? WHERE id = ?",
-			[nome, dados.ativo ? 1 : 0, perfil, comissao, permissoes, Number(dados.id)],
+			[
+				nome,
+				dados.ativo ? 1 : 0,
+				perfil,
+				comissao,
+				permissoes,
+				Number(dados.id),
+			],
 		);
 		if (senha) {
 			if (senha.length < 4)
 				throw new Error("A senha deve ter pelo menos 4 caracteres.");
 			await runAsync("UPDATE Usuarios SET senha_hash = ? WHERE id = ?", [
-				hashSenhaUsuario(l, senha),
+				hashSenhaUsuario(senha),
 				Number(dados.id),
 			]);
 		}

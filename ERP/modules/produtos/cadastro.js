@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
   var form = document.getElementById("formProduto");
   var nomeInput = document.getElementById("nome");
   var skuInput = document.getElementById("skuProduto");

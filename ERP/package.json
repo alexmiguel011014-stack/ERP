@@ -6,7 +6,10 @@
 	"scripts": {
 		"start": "electron .",
 		"build": "electron-builder build --win",
-		"dist": "electron-builder"
+		"dist": "electron-builder",
+		"rebuild": "electron-rebuild -f -w @journeyapps/sqlcipher",
+		"lint": "eslint .",
+		"test": "node --test test/integration.test.js test/senha.test.js"
 	},
 	"keywords": [],
 	"author": "Alex Miguel",
@@ -61,13 +64,22 @@
 		}
 	},
 	"devDependencies": {
-		"electron": "^33.2.1",
-		"electron-builder": "^26.15.3"
+		"@electron/rebuild": "^4.2.0",
+		"@eslint/js": "^9.0.0",
+		"electron": "^43.0.0",
+		"electron-builder": "^26.15.3",
+		"eslint": "^9.0.0",
+		"globals": "^15.0.0"
 	},
 	"dependencies": {
 		"@journeyapps/sqlcipher": "^5.3.1",
 		"chart.js": "^4.5.1",
 		"electron-updater": "^6.8.9",
 		"jspdf": "^4.2.1"
+	},
+	"allowScripts": {
+		"@journeyapps/sqlcipher@5.3.1": true,
+		"core-js@3.50.0": true,
+		"electron-winstaller@5.4.0": true
 	}
 }

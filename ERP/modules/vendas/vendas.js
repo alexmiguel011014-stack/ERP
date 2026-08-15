@@ -1,4 +1,4 @@
-﻿(() => {
+(() => {
 	var filterDataInicio = document.getElementById("filterDataInicio");
 	var filterDataFim = document.getElementById("filterDataFim");
 	var btnFilter = document.getElementById("btnFilter");

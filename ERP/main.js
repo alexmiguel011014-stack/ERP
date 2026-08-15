@@ -124,7 +124,8 @@ let downloadedUpdateExePath = null;
 let mainWindow = null;
 let sessao = null;
 
-const CAMINHO_LOG_ERRO = () => path.join(app.getPath("userData"), "erp-crash.log");
+const CAMINHO_LOG_ERRO = () =>
+	path.join(app.getPath("userData"), "erp-crash.log");
 const LIMITE_LOG_ERRO_BYTES = 2 * 1024 * 1024; // 2MB, evita crescimento indefinido
 
 // Log de erro persistente (sobrevive ao Temp ser limpo pelo SO): captura
@@ -133,10 +134,16 @@ function logErro(texto) {
 	try {
 		const caminho = CAMINHO_LOG_ERRO();
 		const fs = require("fs");
-		if (fs.existsSync(caminho) && fs.statSync(caminho).size > LIMITE_LOG_ERRO_BYTES) {
+		if (
+			fs.existsSync(caminho) &&
+			fs.statSync(caminho).size > LIMITE_LOG_ERRO_BYTES
+		) {
 			fs.writeFileSync(caminho, "");
 		}
-		fs.appendFileSync(caminho, "[" + new Date().toISOString() + "] " + texto + "\n");
+		fs.appendFileSync(
+			caminho,
+			"[" + new Date().toISOString() + "] " + texto + "\n",
+		);
 	} catch (e) {
 		// Nunca deixa uma falha de log quebrar o app.
 	}
@@ -155,7 +162,9 @@ function exigirPermissao(modulo) {
 	if (!sessao) throw new Error("Sessão encerrada. Faça login novamente.");
 	if (sessao.perfil === "admin") return;
 	if (!sessao.permissoes || sessao.permissoes[modulo] !== true) {
-		throw new Error("Seu usuário não tem acesso a este módulo. Solicite liberação ao administrador.");
+		throw new Error(
+			"Seu usuário não tem acesso a este módulo. Solicite liberação ao administrador.",
+		);
 	}
 }
 
@@ -248,16 +257,22 @@ function criarJanelaPrincipal() {
 	// Nível >=2 cobre console.error/console.warn e os erros que o script
 	// errorlog.js (carregado em toda página) reencaminha via console.error:
 	// exceções JS não tratadas (window.onerror) e promises sem catch.
-	janela.webContents.on(
-		"console-message",
-		(event, level, message, line, sourceId) => {
-			if (level >= 2) {
-				logErro(
-					"[L" + level + "] " + message + " (" + sourceId + ":" + line + ")",
-				);
-			}
-		},
-	);
+	janela.webContents.on("console-message", (event, detail) => {
+		const { level, message, lineNumber, sourceId } = detail;
+		if (level === "error" || level === "warning") {
+			logErro(
+				"[L" +
+					level +
+					"] " +
+					message +
+					" (" +
+					sourceId +
+					":" +
+					lineNumber +
+					")",
+			);
+		}
+	});
 
 	janela.webContents.on(
 		"did-fail-load",
@@ -391,10 +406,16 @@ ipcMain.handle("escolher-imagem-produto", async (event, produtoId) => {
 		const escolha = await dialog.showOpenDialog(mainWindow, {
 			title: "Escolher imagem do produto",
 			properties: ["openFile"],
-			filters: [{ name: "Imagens", extensions: ["png", "jpg", "jpeg", "webp"] }],
+			filters: [
+				{ name: "Imagens", extensions: ["png", "jpg", "jpeg", "webp"] },
+			],
 		});
-		if (escolha.canceled || !escolha.filePaths[0]) return { success: false, cancelado: true };
-		const resultado = await salvarImagemProduto(produtoId, escolha.filePaths[0]);
+		if (escolha.canceled || !escolha.filePaths[0])
+			return { success: false, cancelado: true };
+		const resultado = await salvarImagemProduto(
+			produtoId,
+			escolha.filePaths[0],
+		);
 		log("alterar-imagem-produto", "Produtos", produtoId, null);
 		return resultado;
 	} catch (erro) {
@@ -575,7 +596,12 @@ ipcMain.handle("salvar-preco-cliente", async (event, dados) => {
 	try {
 		exigirSessao("admin");
 		const resultado = await salvarPrecoCliente(dados);
-		log("salvar-preco-cliente", "PrecoCliente", dados.cliente_id, "SKU var " + dados.variacao_id);
+		log(
+			"salvar-preco-cliente",
+			"PrecoCliente",
+			dados.cliente_id,
+			"SKU var " + dados.variacao_id,
+		);
 		return resultado;
 	} catch (erro) {
 		throw erro.message;
@@ -714,14 +740,17 @@ ipcMain.handle("get-custo-fixo-config", async () => {
 	}
 });
 
-ipcMain.handle("save-custo-fixo-config", async (event, mensal, volumeMensal) => {
-	try {
-		exigirSessao("admin");
-		return await saveCustoFixoConfig(mensal, volumeMensal);
-	} catch (erro) {
-		throw erro.message;
-	}
-});
+ipcMain.handle(
+	"save-custo-fixo-config",
+	async (event, mensal, volumeMensal) => {
+		try {
+			exigirSessao("admin");
+			return await saveCustoFixoConfig(mensal, volumeMensal);
+		} catch (erro) {
+			throw erro.message;
+		}
+	},
+);
 
 ipcMain.handle("save-aplicar-custo-fixo", async (event, produtoId, aplicar) => {
 	try {
@@ -950,8 +979,16 @@ ipcMain.handle("cancelar-orcamento", async (event, vendaId) => {
 ipcMain.handle("registrar-devolucao", async (event, dados) => {
 	try {
 		exigirSessao();
-		const resultado = await registrarDevolucao(dados, sessao ? sessao.id : null);
-		log("registrar-devolucao", "Devolucoes", resultado.devolucaoId, "Venda #" + dados.venda_id);
+		const resultado = await registrarDevolucao(
+			dados,
+			sessao ? sessao.id : null,
+		);
+		log(
+			"registrar-devolucao",
+			"Devolucoes",
+			resultado.devolucaoId,
+			"Venda #" + dados.venda_id,
+		);
 		return resultado;
 	} catch (erro) {
 		throw erro.message;
@@ -1041,14 +1078,17 @@ ipcMain.handle("remover-produto-fornecedor", async (event, id) => {
 	}
 });
 
-ipcMain.handle("get-custo-fornecedor-produto", async (event, fornecedorId, variacaoId) => {
-	try {
-		exigirPermissao("fornecedores");
-		return await getCustoFornecedorProduto(fornecedorId, variacaoId);
-	} catch (erro) {
-		throw erro.message;
-	}
-});
+ipcMain.handle(
+	"get-custo-fornecedor-produto",
+	async (event, fornecedorId, variacaoId) => {
+		try {
+			exigirPermissao("fornecedores");
+			return await getCustoFornecedorProduto(fornecedorId, variacaoId);
+		} catch (erro) {
+			throw erro.message;
+		}
+	},
+);
 
 ipcMain.handle("get-cotacao-produto", async (event, variacaoId) => {
 	try {
@@ -1090,21 +1130,24 @@ ipcMain.handle("get-itens-pedido-compra", async (event, pedidoId) => {
 	}
 });
 
-ipcMain.handle("receber-pedido-compra", async (event, pedidoId, itensRecebidos) => {
-	try {
-		exigirPermissao("compras");
-		const resultado = await receberPedidoCompra(pedidoId, itensRecebidos);
-		log(
-			"receber-pedido-compra",
-			"PedidosCompra",
-			pedidoId,
-			resultado.status === "parcial" ? "recebimento parcial" : null,
-		);
-		return resultado;
-	} catch (erro) {
-		throw erro.message;
-	}
-});
+ipcMain.handle(
+	"receber-pedido-compra",
+	async (event, pedidoId, itensRecebidos) => {
+		try {
+			exigirPermissao("compras");
+			const resultado = await receberPedidoCompra(pedidoId, itensRecebidos);
+			log(
+				"receber-pedido-compra",
+				"PedidosCompra",
+				pedidoId,
+				resultado.status === "parcial" ? "recebimento parcial" : null,
+			);
+			return resultado;
+		} catch (erro) {
+			throw erro.message;
+		}
+	},
+);
 
 ipcMain.handle("cancelar-pedido-compra", async (event, pedidoId) => {
 	try {
@@ -1132,7 +1175,12 @@ ipcMain.handle("criar-lancamento", async (event, dados) => {
 	try {
 		exigirPermissao("financeiro");
 		const resultado = await criarLancamento(dados);
-		log("criar-lancamento", "LancamentosFinanceiros", resultado.lancamentoId, dados.descricao);
+		log(
+			"criar-lancamento",
+			"LancamentosFinanceiros",
+			resultado.lancamentoId,
+			dados.descricao,
+		);
 		return resultado;
 	} catch (erro) {
 		throw erro.message;
@@ -1177,8 +1225,16 @@ ipcMain.handle("get-fluxo-caixa", async (event, dataInicio, dataFim) => {
 ipcMain.handle("abrir-caixa", async (event, valorAbertura) => {
 	try {
 		exigirSessao();
-		const resultado = await abrirCaixa(valorAbertura, sessao ? sessao.id : null);
-		log("abrir-caixa", "FechamentosCaixa", resultado.caixaId, "Abertura: " + valorAbertura);
+		const resultado = await abrirCaixa(
+			valorAbertura,
+			sessao ? sessao.id : null,
+		);
+		log(
+			"abrir-caixa",
+			"FechamentosCaixa",
+			resultado.caixaId,
+			"Abertura: " + valorAbertura,
+		);
 		return resultado;
 	} catch (erro) {
 		throw erro.message;
@@ -1188,8 +1244,17 @@ ipcMain.handle("abrir-caixa", async (event, valorAbertura) => {
 ipcMain.handle("fechar-caixa", async (event, valorInformado, observacao) => {
 	try {
 		exigirSessao();
-		const resultado = await fecharCaixa(valorInformado, observacao, sessao ? sessao.id : null);
-		log("fechar-caixa", "FechamentosCaixa", null, "Diferença: " + resultado.diferenca);
+		const resultado = await fecharCaixa(
+			valorInformado,
+			observacao,
+			sessao ? sessao.id : null,
+		);
+		log(
+			"fechar-caixa",
+			"FechamentosCaixa",
+			null,
+			"Diferença: " + resultado.diferenca,
+		);
 		return resultado;
 	} catch (erro) {
 		throw erro.message;
@@ -1352,7 +1417,12 @@ ipcMain.handle("salvar-usuario", async (event, dados) => {
 	try {
 		exigirSessao("admin");
 		const resultado = await salvarUsuario(dados);
-		log(dados.id ? "editar-usuario" : "criar-usuario", "Usuarios", dados.id || null, dados.login);
+		log(
+			dados.id ? "editar-usuario" : "criar-usuario",
+			"Usuarios",
+			dados.id || null,
+			dados.login,
+		);
 		return resultado;
 	} catch (erro) {
 		throw erro.message;
