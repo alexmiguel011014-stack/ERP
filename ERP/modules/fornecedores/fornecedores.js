@@ -33,10 +33,6 @@
 		return [p.tamanho, p.cor].filter(Boolean).join(" / ") || "---";
 	}
 
-	function formatarMoeda(v) {
-		return "R$ " + (Number(v) || 0).toFixed(2);
-	}
-
 	function limparFormProdutoFornecedor() {
 		produtoFornecedorAtual = null;
 		pfSku.value = "";

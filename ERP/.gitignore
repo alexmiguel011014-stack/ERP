@@ -1,6 +1,7 @@
 # Node
 node_modules/
 dist/
+dist_locked/
 
 # Dados locais (dev)
 data/
@@ -10,6 +11,8 @@ data/
 
 # Repos de referencia (baixados pelo bootstrap)
 external/
+mcp-servers/
+servers/
 
 # Grafo de conhecimento
 graphify-out/

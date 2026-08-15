@@ -23,16 +23,6 @@
 	var linhaExpandidaId = null;
 	var itensCache = {}; // vendaId -> itens (evita re-buscar ao reabrir a mesma linha)
 
-	function formatarData(dataISO) {
-		if (!dataISO) return "---";
-		var partes = dataISO.split("T")[0].split("-");
-		return partes[2] + "/" + partes[1] + "/" + partes[0];
-	}
-
-	function formatarMoeda(valor) {
-		return "R$ " + (valor || 0).toFixed(2);
-	}
-
 	var vendasCache = [];
 	var vendaDaURLAberta = false;
 	var detalheAtualCache = null;

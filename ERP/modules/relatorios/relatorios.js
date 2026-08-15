@@ -41,16 +41,6 @@
 		}, 4000);
 	}
 
-	function formatarMoeda(v) {
-		return "R$ " + (Number(v) || 0).toFixed(2);
-	}
-
-	function formatarData(iso) {
-		if (!iso) return "---";
-		var p = iso.split("T")[0].split("-");
-		return p[2] + "/" + p[1] + "/" + p[0];
-	}
-
 	var ICONES_STAT = {
 		vendas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M7 15h4"/></svg>',
 		faturamento: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',

@@ -26,10 +26,6 @@
 		}, 4500);
 	}
 
-	function formatarMoeda(v) {
-		return "R$ " + (Number(v) || 0).toFixed(2);
-	}
-
 	function detalhesDe(p) {
 		if (window.formatarAtributos)
 			return window.formatarAtributos(p.atributos, p.tamanho, p.cor);

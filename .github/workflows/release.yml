@@ -27,14 +27,14 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: ERP_house_kimono/package-lock.json
+          cache-dependency-path: ERP/package-lock.json
 
       - name: Install dependencies
-        working-directory: ERP_house_kimono
+        working-directory: ERP
         run: npm ci
 
       - name: Build installer
-        working-directory: ERP_house_kimono
+        working-directory: ERP
         run: npm run build -- --publish never
 
       - name: Upload release assets
@@ -44,7 +44,7 @@ jobs:
         run: |
           TAG="${{ inputs.release_tag || github.ref_name }}"
           gh release upload "$TAG" \
-            ERP_house_kimono/dist/Alga-ERP-Setup-*.exe \
-            ERP_house_kimono/dist/latest.yml \
-            ERP_house_kimono/dist/*.blockmap \
+            ERP/dist/ALLU-ERP-Setup-*.exe \
+            ERP/dist/latest.yml \
+            ERP/dist/*.blockmap \
             --clobber

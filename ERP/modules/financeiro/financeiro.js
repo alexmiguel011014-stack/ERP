@@ -32,16 +32,6 @@
 		}, 4500);
 	}
 
-	function formatarMoeda(v) {
-		return "R$ " + (Number(v) || 0).toFixed(2);
-	}
-
-	function formatarData(iso) {
-		if (!iso) return "---";
-		var p = iso.split("T")[0].split("-");
-		return p[2] + "/" + p[1] + "/" + p[0];
-	}
-
 	/* ---------- Abas ---------- */
 
 	tabBtns.forEach((btn) => {
