@@ -17,6 +17,8 @@ module.exports = [
 		files: [
 			"main.js",
 			"database.js",
+			"db/**/*.js",
+			"ipc/**/*.js",
 			"scripts/**/*.js",
 			"test/**/*.js",
 			"eslint.config.js",

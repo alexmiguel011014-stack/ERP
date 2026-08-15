@@ -20,7 +20,7 @@ Stack: Electron.js + Node.js + SQLite + HTML/CSS/JS puro.
 Paleta visual: Tatame Clean (clara: `#F8FAFC`, `#FFFFFF`, `#1E293B`, `#2563EB`, `#16A34A`, `#E2E8F0`; dark: `#0F172A`, `#1E293B`, `#3B82F6`, `#E2E8F0`).
 
 Repositório: `https://github.com/alexmiguel011014-stack/ERP.git` (branch `main`, push via HTTPS).
-Release `v1.0.0` publicada no GitHub Releases.
+Versão atual: `v1.0.5` (`package.json`). Releases publicadas no GitHub Releases.
 
 ## Comandos Essenciais
 
@@ -28,6 +28,9 @@ Release `v1.0.0` publicada no GitHub Releases.
 npm install           # Instalar dependências
 npm start             # Rodar o Electron (dev)
 npm run build         # Gerar .exe instalador (NSIS)
+
+npm test              # Testes automatizados (test/: integration + senha)
+npm run lint          # ESLint (eslint.config.js)
 
 node scripts/test-db.js          # CRUD produtos/categorias em banco temporário
 node scripts/test-migracao.js    # Abre um banco de schema antigo e valida a migração
@@ -41,10 +44,11 @@ node scripts/corrigir-encoding.js [--aplicar]   # Detecta/corrige mojibake (UTF-
 
 ```
 ERP/
-├── package.json
+├── package.json / package-lock.json
 ├── main.js                          -- Processo principal Electron
 ├── preload.js                       -- Ponte IPC (contextBridge)
-├── database.js                      -- SQLite + CRUD + transações + backup
+├── database.js                      -- Fachada de compatibilidade: re-exporta db/
+├── eslint.config.js                 -- Lint (npm run lint)
 ├── ERP_Launcher.bat                 -- Lançador (chama o .vbs)
 ├── ERP_Launcher.vbs                 -- Lançador silencioso (sem console)
 ├── rules.md                         -- Regras operacionais (base_project)
@@ -58,28 +62,35 @@ ERP/
 │
 ├── build/                           -- Ícone do .exe e assets de empacotamento
 ├── data/                            -- DB dev + backups automáticos (gitignored)
+├── docs/                            -- DB_PATHS.md, SHORTCUTS.md
+│
+├── db/                              -- Camada de dados por domínio (conexao, schema, usuarios,
+│                                      produtos, vendas, estoque, financeiro, etc.)
+├── ipc/                             -- Handlers ipcMain por domínio (auth, vendas, estoque, ...)
 │
 ├── modules/                         -- Módulos organizados por funcionalidade
-│   ├── core/                        -- Shared: auth.js, head.js, navbar.js, store.js, formatos.js, modulos.css
-│   ├── dashboard/                   -- Dashboard principal
-│   ├── pdv/                         -- Frente de Caixa + recibo
-│   ├── produtos/                    -- Cadastro de produtos + categorias + gerenciamento
-│   ├── clientes/                    -- Cadastro de clientes + lista
-│   ├── fornecedores/                -- CRUD de fornecedores
-│   ├── compras/                     -- Pedidos e recebimento de mercadorias
-│   ├── entrada/                     -- Entrada de estoque + estoque negativo
-│   ├── vendas/                      -- Histórico + exportação CSV
-│   ├── financeiro/                  -- Contas a pagar/receber + fluxo de caixa
-│   ├── precificacao/                -- Precificação e margens
-│   ├── relatorios/                  -- Vendas por período + Curva ABC
+│   ├── core/                        -- Shared: auth.js, banco.js, formatos.js, head.js,
+│   │                                  loading.js, navbar.js, store.js, modulos.css
+│   ├── acessos/                     -- Gerenciar usuários/acessos (admin)
 │   ├── atualizacao/                 -- Página de atualizações
-│   └── auth/                        -- Tela de login
-├── main.js                          -- Processo principal Electron
-├── preload.js                       -- Ponte IPC (contextBridge)
-├── database.js                      -- SQLite + CRUD + transações + backup
-├── ERP_HouseKimono_Launcher.bat        -- Lançador (chama o .vbs)
-├── ERP_HouseKimono_Launcher.vbs        -- Lançador silencioso (sem console)
-    └── atualizacao.js               -- Verificação/instalação de updates
+│   ├── auth/                        -- Tela de login
+│   ├── banco/                       -- Inspeção crua das tabelas (admin)
+│   ├── clientes/                    -- Cadastro de clientes + lista
+│   ├── compras/                     -- Pedidos e recebimento de mercadorias
+│   ├── dashboard/                   -- Dashboard principal (abas via iframe)
+│   ├── entrada/                     -- Entrada de estoque + estoque negativo
+│   ├── financeiro/                  -- Contas a pagar/receber + fluxo de caixa
+│   ├── fornecedores/                -- CRUD de fornecedores
+│   ├── importacao/                  -- Importação de dados
+│   ├── pdv/                         -- Frente de Caixa + recibo
+│   ├── precificacao/                -- Precificação e margens
+│   ├── produtos/                    -- Cadastro de produtos + categorias + gerenciamento
+│   ├── relatorios/                  -- Vendas por período + Curva ABC
+│   └── vendas/                      -- Histórico + exportação CSV
+│
+├── scripts/                         -- Utilitários manuais: test-db.js, test-migracao.js,
+│                                      test-ui.js, corrigir-encoding.js, criar-atalho.*
+└── test/                            -- Testes automatizados (npm test): integration.test.js, senha.test.js
 ```
 
 ## Banco de Dados
