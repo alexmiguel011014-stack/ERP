@@ -9,13 +9,16 @@
 	var modalMovimentacoes = document.getElementById("modalMovimentacoes");
 	var modalClose = document.getElementById("modalClose");
 	var btnLixeiraClientes = document.getElementById("btnLixeiraClientes");
-	var btnExportarClientesCsv = document.getElementById("btnExportarClientesCsv");
+	var btnExportarClientesCsv = document.getElementById(
+		"btnExportarClientesCsv",
+	);
 	var filtroAcademias = document.getElementById("filtroAcademias");
 	var filtroFaixas = document.getElementById("filtroFaixas");
-	var btnLimparFiltrosCliente = document.getElementById("btnLimparFiltrosCliente");
+	var btnLimparFiltrosCliente = document.getElementById(
+		"btnLimparFiltrosCliente",
+	);
 
 	var clientes = [];
-	var clienteSelecionado = null;
 	var verLixeira = false;
 	var academiasFiltroSelecionadas = [];
 	var faixasFiltroSelecionadas = [];
@@ -45,7 +48,7 @@
 			'<span class="skeleton-col">' +
 			'<span class="skeleton-box skeleton-linha-texto" style="width:50%;"></span>' +
 			'<span class="skeleton-box skeleton-linha-texto" style="width:30%;"></span>' +
-			'</span></div></td></tr>';
+			"</span></div></td></tr>";
 		return new Array(qtd || 6).fill(linha).join("");
 	}
 
@@ -59,37 +62,69 @@
 		var nomesAcademias = Object.keys(academias).sort();
 		var nomesFaixas = Object.keys(faixas).sort();
 
-		filtroAcademias.innerHTML = nomesAcademias.length === 0
-			? '<div class="empty-state" style="padding:8px 0; font-size:0.78rem;">Nenhuma academia cadastrada.</div>'
-			: nomesAcademias.map((a) => {
-				var marcado = academiasFiltroSelecionadas.indexOf(a) !== -1 ? "checked" : "";
-				return '<label class="filtro-check"><input type="checkbox" data-academia-filtro="' + esc(a) + '" ' + marcado + '> ' + esc(a) + '</label>';
-			}).join("");
-		Array.prototype.forEach.call(filtroAcademias.querySelectorAll("[data-academia-filtro]"), (chk) => {
-			chk.addEventListener("change", () => {
-				var v = chk.getAttribute("data-academia-filtro");
-				var pos = academiasFiltroSelecionadas.indexOf(v);
-				if (chk.checked && pos === -1) academiasFiltroSelecionadas.push(v);
-				else if (!chk.checked && pos !== -1) academiasFiltroSelecionadas.splice(pos, 1);
-				renderizarTabela();
-			});
-		});
+		filtroAcademias.innerHTML =
+			nomesAcademias.length === 0
+				? '<div class="empty-state" style="padding:8px 0; font-size:0.78rem;">Nenhuma academia cadastrada.</div>'
+				: nomesAcademias
+						.map((a) => {
+							var marcado =
+								academiasFiltroSelecionadas.indexOf(a) !== -1 ? "checked" : "";
+							return (
+								'<label class="filtro-check"><input type="checkbox" data-academia-filtro="' +
+								esc(a) +
+								'" ' +
+								marcado +
+								"> " +
+								esc(a) +
+								"</label>"
+							);
+						})
+						.join("");
+		Array.prototype.forEach.call(
+			filtroAcademias.querySelectorAll("[data-academia-filtro]"),
+			(chk) => {
+				chk.addEventListener("change", () => {
+					var v = chk.getAttribute("data-academia-filtro");
+					var pos = academiasFiltroSelecionadas.indexOf(v);
+					if (chk.checked && pos === -1) academiasFiltroSelecionadas.push(v);
+					else if (!chk.checked && pos !== -1)
+						academiasFiltroSelecionadas.splice(pos, 1);
+					renderizarTabela();
+				});
+			},
+		);
 
-		filtroFaixas.innerHTML = nomesFaixas.length === 0
-			? '<div class="empty-state" style="padding:8px 0; font-size:0.78rem;">Nenhuma faixa cadastrada.</div>'
-			: nomesFaixas.map((f) => {
-				var marcado = faixasFiltroSelecionadas.indexOf(f) !== -1 ? "checked" : "";
-				return '<label class="filtro-check"><input type="checkbox" data-faixa-filtro="' + esc(f) + '" ' + marcado + '> ' + esc(f) + '</label>';
-			}).join("");
-		Array.prototype.forEach.call(filtroFaixas.querySelectorAll("[data-faixa-filtro]"), (chk) => {
-			chk.addEventListener("change", () => {
-				var v = chk.getAttribute("data-faixa-filtro");
-				var pos = faixasFiltroSelecionadas.indexOf(v);
-				if (chk.checked && pos === -1) faixasFiltroSelecionadas.push(v);
-				else if (!chk.checked && pos !== -1) faixasFiltroSelecionadas.splice(pos, 1);
-				renderizarTabela();
-			});
-		});
+		filtroFaixas.innerHTML =
+			nomesFaixas.length === 0
+				? '<div class="empty-state" style="padding:8px 0; font-size:0.78rem;">Nenhuma faixa cadastrada.</div>'
+				: nomesFaixas
+						.map((f) => {
+							var marcado =
+								faixasFiltroSelecionadas.indexOf(f) !== -1 ? "checked" : "";
+							return (
+								'<label class="filtro-check"><input type="checkbox" data-faixa-filtro="' +
+								esc(f) +
+								'" ' +
+								marcado +
+								"> " +
+								esc(f) +
+								"</label>"
+							);
+						})
+						.join("");
+		Array.prototype.forEach.call(
+			filtroFaixas.querySelectorAll("[data-faixa-filtro]"),
+			(chk) => {
+				chk.addEventListener("change", () => {
+					var v = chk.getAttribute("data-faixa-filtro");
+					var pos = faixasFiltroSelecionadas.indexOf(v);
+					if (chk.checked && pos === -1) faixasFiltroSelecionadas.push(v);
+					else if (!chk.checked && pos !== -1)
+						faixasFiltroSelecionadas.splice(pos, 1);
+					renderizarTabela();
+				});
+			},
+		);
 	}
 
 	function carregarClientes() {
@@ -103,7 +138,8 @@
 			.listar(verLixeira)
 			.then((lista) => {
 				clientes = Array.isArray(lista) ? lista : [];
-				if (verLixeira) clientes = clientes.filter((c) => Number(c.ativo) === 0);
+				if (verLixeira)
+					clientes = clientes.filter((c) => Number(c.ativo) === 0);
 				popularFiltrosCliente();
 				renderizarTabela();
 			})
@@ -129,8 +165,16 @@
 					.toLowerCase();
 				if (txt.indexOf(q) === -1) return false;
 			}
-			if (academiasFiltroSelecionadas.length > 0 && academiasFiltroSelecionadas.indexOf(c.academia) === -1) return false;
-			if (faixasFiltroSelecionadas.length > 0 && faixasFiltroSelecionadas.indexOf(c.faixa) === -1) return false;
+			if (
+				academiasFiltroSelecionadas.length > 0 &&
+				academiasFiltroSelecionadas.indexOf(c.academia) === -1
+			)
+				return false;
+			if (
+				faixasFiltroSelecionadas.length > 0 &&
+				faixasFiltroSelecionadas.indexOf(c.faixa) === -1
+			)
+				return false;
 			return true;
 		});
 
@@ -184,7 +228,9 @@
 				btnExcluirDef.type = "button";
 				btnExcluirDef.className = "btn btn-small btn-excluir";
 				btnExcluirDef.textContent = "Excluir definitivo";
-				btnExcluirDef.addEventListener("click", () => excluirClientePermanente(c));
+				btnExcluirDef.addEventListener("click", () =>
+					excluirClientePermanente(c),
+				);
 				acoesDiv.appendChild(btnExcluirDef);
 			} else {
 				var btnEditar = document.createElement("button");
@@ -222,7 +268,13 @@
 
 	function excluirCliente(c) {
 		if (!window.erpBanco.clientes.remover) return;
-		if (!confirm('Enviar o cliente "' + c.nome + '" para a lixeira? Ele para de aparecer nas buscas e no PDV, mas pode ser restaurado depois.'))
+		if (
+			!confirm(
+				'Enviar o cliente "' +
+					c.nome +
+					'" para a lixeira? Ele para de aparecer nas buscas e no PDV, mas pode ser restaurado depois.',
+			)
+		)
 			return;
 		window.erpBanco.clientes
 			.remover(c.id)
@@ -246,7 +298,13 @@
 
 	function excluirClientePermanente(c) {
 		if (!window.erpBanco.clientes.excluirPermanente) return;
-		if (!confirm('Excluir definitivamente o cliente "' + c.nome + '"? Esta ação não pode ser desfeita.'))
+		if (
+			!confirm(
+				'Excluir definitivamente o cliente "' +
+					c.nome +
+					'"? Esta ação não pode ser desfeita.',
+			)
+		)
 			return;
 		window.erpBanco.clientes
 			.excluirPermanente(c.id)
@@ -259,7 +317,6 @@
 
 	function abrirMovimentacoes(c) {
 		if (!window.api || !window.erpBanco.clientes.movimentacoes) return;
-		clienteSelecionado = c;
 		modalNome.textContent = c.nome;
 		modalMovimentacoes.innerHTML = '<p class="subtitle">Carregando...</p>';
 		modal.style.display = "flex";
@@ -354,10 +411,19 @@
 				mostrarMensagem("Nenhum cliente para exportar.", "error");
 				return;
 			}
-			var cabecalho = "Codigo,Nome,CPF/CNPJ,Telefone,Email,Endereco,Academia,Faixa";
+			var cabecalho =
+				"Codigo,Nome,CPF/CNPJ,Telefone,Email,Endereco,Academia,Faixa";
 			var linhas = clientes.map((c) =>
-				[csvCampo(c.codigo), csvCampo(c.nome), csvCampo(c.cpf_cnpj), csvCampo(c.telefone),
-					csvCampo(c.email), csvCampo(c.endereco), csvCampo(c.academia), csvCampo(c.faixa)].join(","),
+				[
+					csvCampo(c.codigo),
+					csvCampo(c.nome),
+					csvCampo(c.cpf_cnpj),
+					csvCampo(c.telefone),
+					csvCampo(c.email),
+					csvCampo(c.endereco),
+					csvCampo(c.academia),
+					csvCampo(c.faixa),
+				].join(","),
 			);
 			var csv = cabecalho + "\n" + linhas.join("\n");
 			var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });

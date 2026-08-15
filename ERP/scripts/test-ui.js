@@ -265,7 +265,7 @@ app.whenReady().then(async () => {
 	);
 	try {
 		fs.rmSync(TMP, { recursive: true, force: true });
-	} catch (e) {
+	} catch {
 		/* ignora */
 	}
 	app.exit(falhas || erros.length ? 1 : 0);

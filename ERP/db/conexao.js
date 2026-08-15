@@ -11,7 +11,6 @@ function setDBPath(basePath) {
 
 let db = null;
 let currentKey = null;
-const dbReady = Promise.resolve();
 
 function derivarChave(senha) {
 	return crypto
@@ -92,7 +91,7 @@ async function migrarParaCriptografado(key) {
 		if (fs.existsSync(tmpPath)) {
 			try {
 				fs.unlinkSync(tmpPath);
-			} catch (e) {
+			} catch {
 				/* ignora */
 			}
 		}
@@ -106,17 +105,17 @@ async function desbloquearBanco(senha) {
 	const key = derivarChave(senha);
 	try {
 		db = await abrirBanco(key);
-	} catch (e1) {
+	} catch {
 		// Banco pode ser plaintext (dev/testing). Tenta abrir sem chave.
 		try {
 			db = await abrirBanco(null);
 			currentKey = null;
-		} catch (e1b) {
+		} catch {
 			// Tenta migrar banco antigo em texto plano
 			try {
 				await migrarParaCriptografado(key);
 				db = await abrirBanco(key);
-			} catch (e2) {
+			} catch {
 				db = null;
 				throw new Error("Senha incorreta ou banco de dados ilegível.");
 			}

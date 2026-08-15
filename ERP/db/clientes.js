@@ -6,6 +6,9 @@ const {
 	normalizarBusca,
 } = require("./conexao");
 
+// Código morto herdado do database.js original (nunca era chamado nem exportado ali).
+// Mantido sem exportar — mesmo critério usado para buscarProdutosPDV02/finalizarVendaPDV02.
+// eslint-disable-next-line no-unused-vars
 async function buscarClientesPDV02(termo) {
 	const conn = getConexao();
 	const texto = String(termo || "").trim();

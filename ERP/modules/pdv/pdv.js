@@ -17,7 +17,6 @@
 	var btnBuscarProduto = document.getElementById("btnBuscarProduto");
 
 	var carrinho = [];
-	var buscando = false;
 	var imagemCache = {};
 	var carrinhoItemAberto = -1; // índice do card expandido; -1 = nenhum
 
@@ -108,7 +107,10 @@
 			)
 			.join("");
 		clienteResultados.querySelectorAll(".cliente-item").forEach((el, i) => {
-			el.addEventListener("mouseenter", () => (el.style.background = "#F1F5F9"));
+			el.addEventListener(
+				"mouseenter",
+				() => (el.style.background = "#F1F5F9"),
+			);
 			el.addEventListener("mouseleave", () => (el.style.background = ""));
 			el.addEventListener("click", () => escolherCliente(achados[i]));
 		});
@@ -117,7 +119,8 @@
 
 	function escolherCliente(c) {
 		clienteSelect.value = c.id;
-		clienteEscolhidoNome.textContent = (c.codigo ? c.codigo + " - " : "") + c.nome;
+		clienteEscolhidoNome.textContent =
+			(c.codigo ? c.codigo + " - " : "") + c.nome;
 		clienteEscolhido.style.display = "flex";
 		clienteBusca.value = "";
 		clienteBusca.style.display = "none";
@@ -208,10 +211,12 @@
 	}
 
 	function atualizarTotal() {
-		totalValue.textContent = "R$ " + totalCarrinho().toLocaleString("pt-BR", {
-			minimumFractionDigits: 2,
-			maximumFractionDigits: 2,
-		});
+		totalValue.textContent =
+			"R$ " +
+			totalCarrinho().toLocaleString("pt-BR", {
+				minimumFractionDigits: 2,
+				maximumFractionDigits: 2,
+			});
 		if (typeof atualizarTroco === "function") atualizarTroco();
 	}
 
@@ -239,11 +244,19 @@
 		if (troco < 0) {
 			trocoResultado.style.color = "var(--cor-erro)";
 			trocoResultado.textContent =
-				"Falta R$ " + Math.abs(troco).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+				"Falta R$ " +
+				Math.abs(troco).toLocaleString("pt-BR", {
+					minimumFractionDigits: 2,
+					maximumFractionDigits: 2,
+				});
 		} else {
 			trocoResultado.style.color = "var(--cor-sucesso)";
 			trocoResultado.textContent =
-				"Troco: R$ " + troco.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+				"Troco: R$ " +
+				troco.toLocaleString("pt-BR", {
+					minimumFractionDigits: 2,
+					maximumFractionDigits: 2,
+				});
 		}
 	}
 
@@ -318,9 +331,10 @@
 			tr.addEventListener("click", () => {
 				selecionarProdutoLista(i);
 			});
-			var precoCel = Number(p.preco || 0) > 0
-				? Number(p.preco).toFixed(2)
-				: '<span style="color:var(--cor-erro);font-weight:600;">Sem preço</span>';
+			var precoCel =
+				Number(p.preco || 0) > 0
+					? Number(p.preco).toFixed(2)
+					: '<span style="color:var(--cor-erro);font-weight:600;">Sem preço</span>';
 			var disponivelCel = Number.isFinite(Number(p.quantidade_disponivel))
 				? Number(p.quantidade_disponivel)
 				: p.quantidade_estoque || 0;
@@ -371,8 +385,7 @@
 		var minimo = Number.isFinite(Number(produto.estoque_minimo))
 			? Number(produto.estoque_minimo)
 			: 5;
-		if (disponivel <= minimo)
-			mostrarAlertaEstoque(produto, "Estoque Baixo");
+		if (disponivel <= minimo) mostrarAlertaEstoque(produto, "Estoque Baixo");
 
 		var existente = carrinho.find((item) => item.variacao_id === produto.id);
 
@@ -547,115 +560,9 @@
 		}
 	}
 
-	function buscarESku(sku) {
-		if (buscando) return;
-		if (typeof window.api === "undefined") {
-			alert("DEBUG: window.api é undefined. preload.js não carregou?");
-			return;
-		}
-		if (!window.erpBanco.produtos.buscarSKU) {
-			alert(
-				"DEBUG: window.erpBanco.produtos.buscarSKU é undefined. preload.js desatualizado?",
-			);
-			return;
-		}
-
-		buscando = true;
-		mostrarLoading(true);
-		skuInput.disabled = true;
-
-		window.api
-			.buscarSKU(sku)
-			.then((produto) => {
-				buscando = false;
-				mostrarLoading(false);
-				skuInput.disabled = false;
-
-				if (!produto) {
-					mostrarMensagem("SKU não encontrado: " + sku, "erro");
-					skuInput.value = "";
-					skuInput.focus();
-					return;
-				}
-
-				if (!(Number(produto.preco) > 0)) {
-					mostrarAlertaPreco(produto);
-					skuInput.value = "";
-					skuInput.focus();
-					return;
-				}
-
-				var disponivel = Number.isFinite(Number(produto.quantidade_disponivel))
-					? Number(produto.quantidade_disponivel)
-					: produto.quantidade_estoque;
-				if (disponivel <= 0) {
-					mostrarAlertaEstoque(produto, "Sem estoque");
-					skuInput.value = "";
-					skuInput.focus();
-					return;
-				}
-
-				var minimo = Number.isFinite(Number(produto.estoque_minimo))
-					? Number(produto.estoque_minimo)
-					: 5;
-				if (disponivel <= minimo) {
-					mostrarAlertaEstoque(produto, "Estoque Baixo");
-				}
-
-				var existente = carrinho.find(
-					(item) => item.variacao_id === produto.id,
-				);
-
-				if (existente) {
-					if (existente.quantidade >= disponivel) {
-						mostrarMensagem(
-							"Estoque insuficiente para " + produto.nome,
-							"erro",
-						);
-						skuInput.value = "";
-						skuInput.focus();
-						return;
-					}
-					existente.quantidade += 1;
-					carrinhoItemAberto = carrinho.indexOf(existente);
-				} else {
-					carrinho.push({
-						variacao_id: produto.id,
-						nome: produto.nome,
-						detalhes: formatarAtributos(
-							produto.atributos,
-							produto.tamanho,
-							produto.cor,
-						),
-						tamanho: produto.tamanho,
-						cor: produto.cor,
-						preco_unitario: produto.preco,
-						quantidade: 1,
-						estoque: disponivel,
-						imagem: produto.imagem || null,
-					});
-					carrinhoItemAberto = carrinho.length - 1;
-				}
-
-				aplicarPrecoCliente(carrinho[carrinho.length - 1] || existente, produto.id);
-				salvarCarrinho();
-				renderizarCarrinho();
-				skuInput.value = "";
-				skuInput.focus();
-			})
-			.catch((err) => {
-				buscando = false;
-				mostrarLoading(false);
-				skuInput.disabled = false;
-				skuInput.value = "";
-				mostrarMensagem("Erro ao buscar SKU: " + err, "erro");
-				console.error("buscarSKU error:", err);
-				skuInput.focus();
-			});
-	}
-
 	function mostrarAlertaEstoque(produto, tipo) {
-		var cor = tipo === "Sem estoque" ? "var(--cor-erro)" : "var(--cor-destaque-solido)";
+		var cor =
+			tipo === "Sem estoque" ? "var(--cor-erro)" : "var(--cor-destaque-solido)";
 		var mensagemTexto =
 			tipo === "Sem estoque"
 				? "Sem estoque para: " + produto.nome
@@ -706,7 +613,9 @@
 	// passar de graça, e deixa claro qual é o próximo passo.
 	function mostrarAlertaPreco(produto) {
 		mostrarMensagem(
-			"Preço não definido para: " + produto.nome + ". Configure em Precificação antes de vender.",
+			"Preço não definido para: " +
+				produto.nome +
+				". Configure em Precificação antes de vender.",
 			"erro",
 		);
 
@@ -747,21 +656,21 @@
 		}
 
 		carrinhoVazio.style.display = "none";
-		var total = 0;
 
 		carrinho.forEach((item, index) => {
 			var subtotal = item.preco_unitario * item.quantidade;
-			total += subtotal;
 			var minimoItem = Number.isFinite(Number(item.estoque_minimo))
 				? Number(item.estoque_minimo)
 				: 5;
 			var estoqueBaixo =
 				item.estoque !== undefined && item.estoque <= minimoItem;
 			var detalhesTexto =
-				item.detalhes || formatarAtributos(item.atributos, item.tamanho, item.cor);
+				item.detalhes ||
+				formatarAtributos(item.atributos, item.tamanho, item.cor);
 
 			var card = document.createElement("div");
-			card.className = "carrinho-item" + (index === carrinhoItemAberto ? " open" : "");
+			card.className =
+				"carrinho-item" + (index === carrinhoItemAberto ? " open" : "");
 
 			var header = document.createElement("button");
 			header.type = "button";
@@ -777,26 +686,33 @@
 			header.appendChild(thumb);
 			if (item.imagem) {
 				if (imagemCache[item.imagem]) {
-					thumb.style.backgroundImage = "url('" + imagemCache[item.imagem] + "')";
+					thumb.style.backgroundImage =
+						"url('" + imagemCache[item.imagem] + "')";
 				} else if (window.erpBanco.produtos.imagem) {
-					window.erpBanco.produtos.imagem(item.imagem).then((dataUrl) => {
-						if (dataUrl) {
-							imagemCache[item.imagem] = dataUrl;
-							thumb.style.backgroundImage = "url('" + dataUrl + "')";
-						}
-					}).catch(() => {});
+					window.erpBanco.produtos
+						.imagem(item.imagem)
+						.then((dataUrl) => {
+							if (dataUrl) {
+								imagemCache[item.imagem] = dataUrl;
+								thumb.style.backgroundImage = "url('" + dataUrl + "')";
+							}
+						})
+						.catch(() => {});
 				}
 			}
 
 			var resumo = document.createElement("span");
 			resumo.className = "carrinho-item-resumo";
 			var nomeSpan = document.createElement("span");
-			nomeSpan.className = "carrinho-item-nome" + (estoqueBaixo ? " estoque-baixo" : "");
+			nomeSpan.className =
+				"carrinho-item-nome" + (estoqueBaixo ? " estoque-baixo" : "");
 			nomeSpan.textContent = item.nome;
-			if (estoqueBaixo) header.title = "Estoque baixo: " + item.estoque + " unidades";
+			if (estoqueBaixo)
+				header.title = "Estoque baixo: " + item.estoque + " unidades";
 			var subSpan = document.createElement("span");
 			subSpan.className = "carrinho-item-sub";
-			subSpan.textContent = (detalhesTexto || "") + " \u00b7 Qtd: " + item.quantidade;
+			subSpan.textContent =
+				(detalhesTexto || "") + " \u00b7 Qtd: " + item.quantidade;
 			resumo.appendChild(nomeSpan);
 			resumo.appendChild(subSpan);
 			header.appendChild(resumo);
@@ -828,7 +744,10 @@
 			btnMenos.className = "btn-qtd";
 			btnMenos.textContent = "\u2212";
 			btnMenos.title = "Diminuir 1";
-			btnMenos.addEventListener("click", (e) => { e.stopPropagation(); diminuirQtd(index); });
+			btnMenos.addEventListener("click", (e) => {
+				e.stopPropagation();
+				diminuirQtd(index);
+			});
 			var spanQtd = document.createElement("span");
 			spanQtd.textContent = " " + item.quantidade + " ";
 			var btnMais = document.createElement("button");
@@ -836,21 +755,28 @@
 			btnMais.className = "btn-qtd";
 			btnMais.textContent = "+";
 			btnMais.title = "Adicionar 1";
-			btnMais.addEventListener("click", (e) => { e.stopPropagation(); aumentarQtd(index); });
+			btnMais.addEventListener("click", (e) => {
+				e.stopPropagation();
+				aumentarQtd(index);
+			});
 			qtdControle.appendChild(btnMenos);
 			qtdControle.appendChild(spanQtd);
 			qtdControle.appendChild(btnMais);
 
 			var precoUnit = document.createElement("span");
 			precoUnit.className = "carrinho-item-preco";
-			precoUnit.textContent = "Unit\u00e1rio: R$ " + item.preco_unitario.toFixed(2);
+			precoUnit.textContent =
+				"Unit\u00e1rio: R$ " + item.preco_unitario.toFixed(2);
 
 			var btnRemover = document.createElement("button");
 			btnRemover.type = "button";
 			btnRemover.className = "btn-remover";
 			btnRemover.textContent = "Remover";
 			btnRemover.title = "Remover item";
-			btnRemover.addEventListener("click", (e) => { e.stopPropagation(); removerItem(index); });
+			btnRemover.addEventListener("click", (e) => {
+				e.stopPropagation();
+				removerItem(index);
+			});
 
 			bodyInner.appendChild(qtdControle);
 			bodyInner.appendChild(precoUnit);
@@ -971,7 +897,10 @@
 			"Pagamento: " +
 			pagamento +
 			(pagamento === "Dinheiro"
-				? "\nRecebido: R$ " + recebido.toFixed(2) + "\nTroco: R$ " + (recebido - total).toFixed(2)
+				? "\nRecebido: R$ " +
+					recebido.toFixed(2) +
+					"\nTroco: R$ " +
+					(recebido - total).toFixed(2)
 				: "") +
 			(pagamento === "Fiado"
 				? "\n\nAtenção: será gerada uma conta a receber."
@@ -1034,7 +963,10 @@
 						cliente_nome: clienteSelect.value
 							? clienteEscolhidoNome.textContent
 							: null,
-						valorRecebido: dados.forma_pagamento === "Dinheiro" ? Number(valorRecebidoInput.value) || 0 : null,
+						valorRecebido:
+							dados.forma_pagamento === "Dinheiro"
+								? Number(valorRecebidoInput.value) || 0
+								: null,
 						data: new Date().toISOString(),
 					};
 					mostrarRecibo(dadosRecibo);
@@ -1072,7 +1004,6 @@
 
 	function mostrarRecibo(dados) {
 		var overlay = document.getElementById("receiptOverlay");
-		var content = document.getElementById("receiptContent");
 		var htmlEl = document.getElementById("receiptHTML");
 
 		if (!overlay || !htmlEl) return;
@@ -1191,7 +1122,9 @@
 	var devolucaoOverlay = document.getElementById("devolucaoOverlay");
 	var btnAbrirDevolucao = document.getElementById("btnAbrirDevolucao");
 	var btnFecharDevolucao = document.getElementById("btnFecharDevolucao");
-	var btnBuscarVendaDevolucao = document.getElementById("btnBuscarVendaDevolucao");
+	var btnBuscarVendaDevolucao = document.getElementById(
+		"btnBuscarVendaDevolucao",
+	);
 	var btnConfirmarDevolucao = document.getElementById("btnConfirmarDevolucao");
 	var devVendaId = document.getElementById("devVendaId");
 	var devMotivo = document.getElementById("devMotivo");
@@ -1217,8 +1150,10 @@
 		devolucaoOverlay.style.display = "none";
 	}
 
-	if (btnAbrirDevolucao) btnAbrirDevolucao.addEventListener("click", abrirDevolucao);
-	if (btnFecharDevolucao) btnFecharDevolucao.addEventListener("click", fecharDevolucao);
+	if (btnAbrirDevolucao)
+		btnAbrirDevolucao.addEventListener("click", abrirDevolucao);
+	if (btnFecharDevolucao)
+		btnFecharDevolucao.addEventListener("click", fecharDevolucao);
 
 	function buscarVendaParaDevolucao() {
 		var vendaId = parseInt(devVendaId.value, 10);
@@ -1254,12 +1189,18 @@
 							'">' +
 							'<span style="flex:1; font-size:0.85rem;">' +
 							esc(i.produto_nome || i.nome || "Item") +
-							" (" + i.quantidade + "x " + Number(i.preco_unitario).toFixed(2) + ")" +
+							" (" +
+							i.quantidade +
+							"x " +
+							Number(i.preco_unitario).toFixed(2) +
+							")" +
 							(i.quantidade_devolvida > 0
 								? " — já devolvido: " + i.quantidade_devolvida
 								: "") +
 							"</span>" +
-							'<input type="number" min="0" max="' + disponivel + '" step="1" value="0" class="qtd-devolver" style="width:60px;" ' +
+							'<input type="number" min="0" max="' +
+							disponivel +
+							'" step="1" value="0" class="qtd-devolver" style="width:60px;" ' +
 							(disponivel <= 0 ? "disabled" : "") +
 							"/>" +
 							"</div>"
@@ -1299,7 +1240,13 @@
 				devMsg("Informe ao menos uma quantidade a devolver.");
 				return;
 			}
-			if (!confirm("Confirmar devolução de " + itensSelecionados.length + " item(ns)? O estoque será estornado."))
+			if (
+				!confirm(
+					"Confirmar devolução de " +
+						itensSelecionados.length +
+						" item(ns)? O estoque será estornado.",
+				)
+			)
 				return;
 
 			btnConfirmarDevolucao.disabled = true;
@@ -1311,7 +1258,8 @@
 				})
 				.then((r) => {
 					mostrarMensagem(
-						"Devolução registrada! Valor: R$ " + Number(r.valorTotal).toFixed(2),
+						"Devolução registrada! Valor: R$ " +
+							Number(r.valorTotal).toFixed(2),
 						"sucesso",
 					);
 					fecharDevolucao();
@@ -1332,11 +1280,17 @@
 	var caixaFechadoBox = document.getElementById("caixaFechadoBox");
 	var caixaAbertoBox = document.getElementById("caixaAbertoBox");
 	var caixaValorAbertura = document.getElementById("caixaValorAbertura");
-	var btnConfirmarAbrirCaixa = document.getElementById("btnConfirmarAbrirCaixa");
+	var btnConfirmarAbrirCaixa = document.getElementById(
+		"btnConfirmarAbrirCaixa",
+	);
 	var caixaResumoInfo = document.getElementById("caixaResumoInfo");
 	var caixaValorFechamento = document.getElementById("caixaValorFechamento");
-	var caixaObservacaoFechamento = document.getElementById("caixaObservacaoFechamento");
-	var btnConfirmarFecharCaixa = document.getElementById("btnConfirmarFecharCaixa");
+	var caixaObservacaoFechamento = document.getElementById(
+		"caixaObservacaoFechamento",
+	);
+	var btnConfirmarFecharCaixa = document.getElementById(
+		"btnConfirmarFecharCaixa",
+	);
 	var caixaMensagem = document.getElementById("caixaMensagem");
 
 	function caixaMsg(texto, cor) {
@@ -1345,7 +1299,12 @@
 	}
 
 	function formatarMoedaCaixa(v) {
-		return "R$ " + Number(v || 0).toFixed(2).replace(".", ",");
+		return (
+			"R$ " +
+			Number(v || 0)
+				.toFixed(2)
+				.replace(".", ",")
+		);
 	}
 
 	function atualizarBadgeCaixa() {
@@ -1381,10 +1340,18 @@
 					return window.erpBanco.caixa.resumo().then((resumo) => {
 						if (!resumo) return;
 						caixaResumoInfo.innerHTML =
-							"Aberto em: " + new Date(resumo.data_abertura).toLocaleString("pt-BR") + "<br>" +
-							"Valor de abertura: " + formatarMoedaCaixa(resumo.valor_abertura) + "<br>" +
-							"Vendido em dinheiro: " + formatarMoedaCaixa(resumo.vendido_em_dinheiro) + "<br>" +
-							"<strong>Esperado no caixa agora: " + formatarMoedaCaixa(resumo.valor_esperado_agora) + "</strong>";
+							"Aberto em: " +
+							new Date(resumo.data_abertura).toLocaleString("pt-BR") +
+							"<br>" +
+							"Valor de abertura: " +
+							formatarMoedaCaixa(resumo.valor_abertura) +
+							"<br>" +
+							"Vendido em dinheiro: " +
+							formatarMoedaCaixa(resumo.vendido_em_dinheiro) +
+							"<br>" +
+							"<strong>Esperado no caixa agora: " +
+							formatarMoedaCaixa(resumo.valor_esperado_agora) +
+							"</strong>";
 					});
 				} else {
 					caixaFechadoBox.style.display = "block";
@@ -1400,7 +1367,8 @@
 	}
 
 	if (btnCaixa) btnCaixa.addEventListener("click", abrirCaixaModal);
-	if (btnFecharCaixaOverlay) btnFecharCaixaOverlay.addEventListener("click", fecharCaixaModal);
+	if (btnFecharCaixaOverlay)
+		btnFecharCaixaOverlay.addEventListener("click", fecharCaixaModal);
 	caixaOverlay.addEventListener("click", (e) => {
 		if (e.target === caixaOverlay) fecharCaixaModal();
 	});
@@ -1434,16 +1402,24 @@
 				caixaMsg("Informe o valor contado no caixa.");
 				return;
 			}
-			if (!confirm("Confirmar fechamento do caixa com " + formatarMoedaCaixa(valor) + "?"))
+			if (
+				!confirm(
+					"Confirmar fechamento do caixa com " +
+						formatarMoedaCaixa(valor) +
+						"?",
+				)
+			)
 				return;
 			btnConfirmarFecharCaixa.disabled = true;
 			window.erpBanco.caixa
 				.fechar(valor, caixaObservacaoFechamento.value.trim())
 				.then((r) => {
-					var diffTexto = r.diferenca === 0
-						? "Caixa fechado sem diferença."
-						: "Caixa fechado. Diferença: " + formatarMoedaCaixa(r.diferenca) +
-							(r.diferenca < 0 ? " (faltou)" : " (sobrou)");
+					var diffTexto =
+						r.diferenca === 0
+							? "Caixa fechado sem diferença."
+							: "Caixa fechado. Diferença: " +
+								formatarMoedaCaixa(r.diferenca) +
+								(r.diferenca < 0 ? " (faltou)" : " (sobrou)");
 					mostrarMensagem(diffTexto, r.diferenca === 0 ? "sucesso" : "erro");
 					atualizarBadgeCaixa();
 					fecharCaixaModal();

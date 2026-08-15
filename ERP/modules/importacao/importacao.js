@@ -16,13 +16,18 @@
 	}
 
 	function validarFormato(dados) {
-		if (!Array.isArray(dados)) return "O arquivo precisa conter uma lista (array) de vendas.";
+		if (!Array.isArray(dados))
+			return "O arquivo precisa conter uma lista (array) de vendas.";
 		if (dados.length === 0) return "A lista está vazia.";
 		for (var i = 0; i < dados.length; i++) {
 			var l = dados[i];
 			if (!l || typeof l !== "object") return "Linha " + (i + 1) + " inválida.";
 			if (!l.sku || !l.quantidade || l.valorUnitario === undefined || !l.data) {
-				return "Linha " + (i + 1) + " está com campos faltando (sku, quantidade, valorUnitario, data).";
+				return (
+					"Linha " +
+					(i + 1) +
+					" está com campos faltando (sku, quantidade, valorUnitario, data)."
+				);
 			}
 		}
 		return null;
@@ -40,7 +45,7 @@
 			var dados;
 			try {
 				dados = JSON.parse(leitor.result);
-			} catch (e) {
+			} catch {
 				mostrarMensagem("Arquivo não é um JSON válido.", "erro");
 				return;
 			}
@@ -51,7 +56,8 @@
 			}
 			linhasCarregadas = dados;
 			previaResultado.textContent =
-				dados.length + " linha(s) reconhecida(s) no arquivo. Linhas com SKU não cadastrado serão puladas na importação.";
+				dados.length +
+				" linha(s) reconhecida(s) no arquivo. Linhas com SKU não cadastrado serão puladas na importação.";
 			btnImportar.disabled = false;
 		};
 		leitor.onerror = () => {
@@ -64,7 +70,9 @@
 		if (!linhasCarregadas) return;
 		if (
 			!confirm(
-				"Importar " + linhasCarregadas.length + " linha(s) de venda histórica? Essa ação não altera o estoque atual.",
+				"Importar " +
+					linhasCarregadas.length +
+					" linha(s) de venda histórica? Essa ação não altera o estoque atual.",
 			)
 		)
 			return;
@@ -78,8 +86,13 @@
 			.importarHistorico(linhasCarregadas)
 			.then((resultado) => {
 				mostrarMensagem(
-					"Importação concluída: " + resultado.importadas + " venda(s) importada(s), " +
-						resultado.puladas + " pulada(s) de " + resultado.total + " linha(s) no total.",
+					"Importação concluída: " +
+						resultado.importadas +
+						" venda(s) importada(s), " +
+						resultado.puladas +
+						" pulada(s) de " +
+						resultado.total +
+						" linha(s) no total.",
 					"sucesso",
 				);
 				linhasCarregadas = null;

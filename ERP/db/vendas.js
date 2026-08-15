@@ -1,11 +1,7 @@
-const {
-	getConexao,
-	allAsync,
-	runOn,
-	normalizarBusca,
-} = require("./conexao");
+const { getConexao, allAsync, runOn, normalizarBusca } = require("./conexao");
 const { criarLancamentoInterno } = require("./financeiro");
 
+// eslint-disable-next-line no-unused-vars
 async function finalizarVendaPDV02(dados) {
 	const conn = getConexao();
 	const run = (sql, params = []) =>

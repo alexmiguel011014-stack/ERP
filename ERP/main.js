@@ -34,7 +34,7 @@ function logErro(texto) {
 			caminho,
 			"[" + new Date().toISOString() + "] " + texto + "\n",
 		);
-	} catch (e) {
+	} catch {
 		// Nunca deixa uma falha de log quebrar o app.
 	}
 }

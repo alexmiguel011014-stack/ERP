@@ -9,8 +9,6 @@ const {
 const { colunasDaTabela } = require("./schema");
 const { verificarHashSenha, hashSenhaUsuario } = require("./usuarios");
 
-const TABELAS_VISIVEIS = null;
-
 async function listarTabelasBanco() {
 	const conn = getConexao();
 	return new Promise((resolver, rejeitar) => {
@@ -114,7 +112,7 @@ async function verificarSenhaAdmin(login, senha) {
 				hashSenhaUsuario(s),
 				usr.id,
 			]);
-		} catch (e) {
+		} catch {
 			/* login já validado; falha ao migrar o hash não deve bloquear o acesso */
 		}
 	}

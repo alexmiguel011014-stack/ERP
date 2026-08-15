@@ -87,7 +87,7 @@ function lerArquivoUsuarios() {
 		if (!fs.existsSync(caminho)) return {};
 		const dados = JSON.parse(fs.readFileSync(caminho, "utf8"));
 		return dados && typeof dados === "object" ? dados : {};
-	} catch (e) {
+	} catch {
 		return {};
 	}
 }
@@ -125,7 +125,7 @@ function desembrulharChave(entrada, loginKey) {
 			decipher.update(Buffer.from(entrada.dados, "hex")),
 			decipher.final(),
 		]).toString("utf8");
-	} catch (e) {
+	} catch {
 		return null;
 	}
 }
@@ -160,7 +160,7 @@ async function autenticarUsuario(login, senha) {
 				throw new Error("chave alterada");
 			}
 			desbloqueado = true;
-		} catch (e) {
+		} catch {
 			desbloqueado = false;
 		}
 	}
@@ -196,7 +196,7 @@ async function autenticarUsuario(login, senha) {
 		try {
 			arquivo[l] = embrulharChave(l, s);
 			gravarArquivoUsuarios(arquivo);
-		} catch (e) {
+		} catch {
 			/* ignora: login continua funcionando pela chave-mestre */
 		}
 	}
@@ -232,7 +232,7 @@ function parsePermissoes(texto) {
 	try {
 		const obj = JSON.parse(texto || "{}");
 		return obj && typeof obj === "object" ? obj : {};
-	} catch (e) {
+	} catch {
 		return {};
 	}
 }

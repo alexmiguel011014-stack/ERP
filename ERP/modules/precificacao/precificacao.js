@@ -3,7 +3,12 @@
 	var pricingData = [];
 	var todasCategorias = [];
 	var debounceTimers = {};
-	var custoFixoConfig = { mensal: 0, faturamentoMedioHistorico: 0, mesesConsiderados: 0, percentual: 0 };
+	var custoFixoConfig = {
+		mensal: 0,
+		faturamentoMedioHistorico: 0,
+		mesesConsiderados: 0,
+		percentual: 0,
+	};
 
 	// DOM
 	var globalMarginInput = document.getElementById("globalMargin");
@@ -31,10 +36,6 @@
 			.replace(/'/g, "&#39;");
 	}
 
-	function fmtCodigo(id) {
-		return "#" + String(id).padStart(4, "0");
-	}
-
 	function fmtMoeda(v) {
 		return Number(v || 0).toLocaleString("pt-BR", {
 			minimumFractionDigits: 2,
@@ -54,7 +55,11 @@
 	function calcPrecoVenda(custo, impostos, margem, custoFixoPct) {
 		var base = Number(custo || 0) + Number(impostos || 0);
 		if (base <= 0) return 0;
-		return base * (1 + Number(margem || 0) / 100) * (1 + Number(custoFixoPct || 0) / 100);
+		return (
+			base *
+			(1 + Number(margem || 0) / 100) *
+			(1 + Number(custoFixoPct || 0) / 100)
+		);
 	}
 
 	function calcMargem(custo, impostos, precoVenda, custoFixoPct) {
@@ -124,7 +129,8 @@
 
 	function carregar() {
 		if (aviso) aviso.style.display = "none";
-		if (window.erpSkeletonLinhas) tbody.innerHTML = window.erpSkeletonLinhas(5, 11, false);
+		if (window.erpSkeletonLinhas)
+			tbody.innerHTML = window.erpSkeletonLinhas(5, 11, false);
 
 		var promises = [
 			window.api && window.erpBanco.precificacao.margemGlobal
@@ -136,7 +142,12 @@
 			erpCategoryStore.getCategoriasFlux(),
 			window.api && window.erpBanco.precificacao.custoFixoConfig
 				? window.erpBanco.precificacao.custoFixoConfig()
-				: Promise.resolve({ mensal: 0, faturamentoMedioHistorico: 0, mesesConsiderados: 0, percentual: 0 }),
+				: Promise.resolve({
+						mensal: 0,
+						faturamentoMedioHistorico: 0,
+						mesesConsiderados: 0,
+						percentual: 0,
+					}),
 		];
 
 		Promise.all(promises)
@@ -145,7 +156,12 @@
 				globalMarginInput.value = globalMargin;
 				pricingData = Array.isArray(results[1]) ? results[1] : [];
 				todasCategorias = Array.isArray(results[2]) ? results[2] : [];
-				custoFixoConfig = results[3] || { mensal: 0, faturamentoMedioHistorico: 0, mesesConsiderados: 0, percentual: 0 };
+				custoFixoConfig = results[3] || {
+					mensal: 0,
+					faturamentoMedioHistorico: 0,
+					mesesConsiderados: 0,
+					percentual: 0,
+				};
 				custoFixoMensalInput.value = custoFixoConfig.mensal || "";
 				atualizarCustoFixoResultado();
 				preencherFiltroCategoria();
@@ -189,8 +205,18 @@
 			var precoCalculado =
 				Number(p.preco_venda || 0) > 0
 					? Number(p.preco_venda)
-					: calcPrecoVenda(p.preco_custo, p.impostos_extras, margemReal, custoFixoAplicado);
-			var lucro = calcLucro(p.preco_custo, p.impostos_extras, precoCalculado, custoFixoAplicado);
+					: calcPrecoVenda(
+							p.preco_custo,
+							p.impostos_extras,
+							margemReal,
+							custoFixoAplicado,
+						);
+			var lucro = calcLucro(
+				p.preco_custo,
+				p.impostos_extras,
+				precoCalculado,
+				custoFixoAplicado,
+			);
 
 			var tr = document.createElement("tr");
 
@@ -289,7 +315,12 @@
 			var inpMarg = criarInputNumero(
 				margemReal,
 				(val) => {
-					var novoPreco = calcPrecoVenda(p.preco_custo, p.impostos_extras, val, custoFixoAplicado);
+					var novoPreco = calcPrecoVenda(
+						p.preco_custo,
+						p.impostos_extras,
+						val,
+						custoFixoAplicado,
+					);
 					p.margem_percentual = val;
 					p.preco_venda = novoPreco;
 					debounceSalvarMargemPreco(p.produto_id, val, novoPreco);
@@ -309,7 +340,12 @@
 			var inpPreco = criarInputNumero(
 				precoCalculado,
 				(val) => {
-					var novaMargem = calcMargem(p.preco_custo, p.impostos_extras, val, custoFixoAplicado);
+					var novaMargem = calcMargem(
+						p.preco_custo,
+						p.impostos_extras,
+						val,
+						custoFixoAplicado,
+					);
 					p.margem_percentual = novaMargem;
 					p.preco_venda = val;
 					debounceSalvarMargemPreco(p.produto_id, novaMargem, val);
@@ -509,17 +545,22 @@
 	function atualizarCustoFixoResultado() {
 		if (custoFixoConfig.mesesConsiderados === 0) {
 			custoFixoResultado.innerHTML =
-				'Ainda não há histórico de vendas suficiente para calcular automaticamente. ' +
+				"Ainda não há histórico de vendas suficiente para calcular automaticamente. " +
 				'Cadastre vendas ou <a href="../importacao/importacao.html" style="color:var(--cor-primaria);">importe um histórico</a>.';
 			return;
 		}
 		if (custoFixoConfig.percentual > 0) {
 			custoFixoResultado.textContent =
-				"Faturamento médio dos últimos " + custoFixoConfig.mesesConsiderados +
-				" mês(es): R$ " + fmtMoeda(custoFixoConfig.faturamentoMedioHistorico) +
-				" — " + fmtPct(custoFixoConfig.percentual) + "% do faturamento será diluído nos produtos marcados.";
+				"Faturamento médio dos últimos " +
+				custoFixoConfig.mesesConsiderados +
+				" mês(es): R$ " +
+				fmtMoeda(custoFixoConfig.faturamentoMedioHistorico) +
+				" — " +
+				fmtPct(custoFixoConfig.percentual) +
+				"% do faturamento será diluído nos produtos marcados.";
 		} else {
-			custoFixoResultado.textContent = "Informe o custo fixo mensal para calcular a porcentagem.";
+			custoFixoResultado.textContent =
+				"Informe o custo fixo mensal para calcular a porcentagem.";
 		}
 	}
 

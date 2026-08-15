@@ -1,14 +1,12 @@
-const {registrarPagamento, listarPagamentos, pagarPagamento, listarPagamentosPendentes} = require("../db/pagamentos");
+const {
+	registrarPagamento,
+	listarPagamentos,
+	pagarPagamento,
+	listarPagamentosPendentes,
+} = require("../db/pagamentos");
 
 function registrar(ipcMain, deps) {
-	const { getSessao } = deps;
-
-	const exigirSessao = (perfil = "usuario") => {
-		const sessao = getSessao();
-		if (sessao && sessao.perfil !== "admin") {
-			throw new Error("Sessão administrativa necessária");
-		}
-	};
+	const { exigirSessao } = deps;
 
 	ipcMain.handle("listar-pagamentos", async (event, metodo) => {
 		try {

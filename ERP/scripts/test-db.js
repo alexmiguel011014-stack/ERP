@@ -372,7 +372,7 @@ async function esperaErro(nome, fn, trechoEsperado) {
 	}
 	try {
 		fs.rmSync(TMP, { recursive: true, force: true });
-	} catch (e) {
+	} catch {
 		/* ignora */
 	}
 	process.exit(fail ? 1 : 0);
@@ -380,7 +380,7 @@ async function esperaErro(nome, fn, trechoEsperado) {
 	console.error("\nERRO FATAL NO HARNESS:", e && e.stack ? e.stack : e);
 	try {
 		fs.rmSync(TMP, { recursive: true, force: true });
-	} catch (er) {
+	} catch {
 		/* ignora */
 	}
 	process.exit(2);

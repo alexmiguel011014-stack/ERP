@@ -279,6 +279,27 @@ async function iniciarBanco() {
   `,
 	);
 
+	// Recebimentos (Pix/Boleto/etc.) vinculados a uma venda.
+	await runOn(
+		conexao,
+		`
+    CREATE TABLE IF NOT EXISTS Pagamentos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      venda_id INTEGER,
+      cliente_id INTEGER,
+      metodo TEXT,
+      numero_identificador TEXT,
+      data_recebimento TEXT,
+      valor_recebido REAL NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'pendente',
+      observacao TEXT,
+      criado_em TEXT,
+      FOREIGN KEY (venda_id) REFERENCES Vendas(id) ON DELETE SET NULL,
+      FOREIGN KEY (cliente_id) REFERENCES Clientes(id) ON DELETE SET NULL
+    )
+  `,
+	);
+
 	// Devolução/troca: estorna item(ns) de uma venda finalizada de volta ao estoque.
 	await runOn(
 		conexao,

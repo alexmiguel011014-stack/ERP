@@ -10,7 +10,9 @@
 	var grupoComissao = document.getElementById("grupoComissao");
 	var comissao = document.getElementById("comissao");
 	var grupoPermissoes = document.getElementById("grupoPermissoes");
-	var checksPermissoes = Array.prototype.slice.call(document.querySelectorAll(".perm-modulo"));
+	var checksPermissoes = Array.prototype.slice.call(
+		document.querySelectorAll(".perm-modulo"),
+	);
 	var btnSalvar = document.getElementById("btnSalvar");
 	var btnLimpar = document.getElementById("btnLimpar");
 	var btnCancelarEdicao = document.getElementById("btnCancelarEdicao");
@@ -38,7 +40,9 @@
 		comissao.value = "0";
 		grupoComissao.style.display = "none";
 		grupoPermissoes.style.display = "none";
-		checksPermissoes.forEach((c) => { c.checked = false; });
+		checksPermissoes.forEach((c) => {
+			c.checked = false;
+		});
 		senha.required = true;
 		senhaHint.style.display = "none";
 		btnSalvar.textContent = "Salvar Usuário";
@@ -127,8 +131,14 @@
 					grupoComissao.style.display = ehVendedor ? "block" : "none";
 					grupoPermissoes.style.display = ehVendedor ? "block" : "none";
 					var permissoesUsuario = {};
-					try { permissoesUsuario = JSON.parse(u.permissoes || "{}") || {}; } catch (e) { permissoesUsuario = {}; }
-					checksPermissoes.forEach((c) => { c.checked = permissoesUsuario[c.value] === true; });
+					try {
+						permissoesUsuario = JSON.parse(u.permissoes || "{}") || {};
+					} catch {
+						permissoesUsuario = {};
+					}
+					checksPermissoes.forEach((c) => {
+						c.checked = permissoesUsuario[c.value] === true;
+					});
 					senha.value = "";
 					confirmar.value = "";
 					senha.required = false;
@@ -147,7 +157,11 @@
 				btnAlternar.addEventListener("click", () => {
 					var novoEstado = Number(u.ativo) === 1 ? 0 : 1;
 					var permissoesAtuais = {};
-					try { permissoesAtuais = JSON.parse(u.permissoes || "{}") || {}; } catch (e) { permissoesAtuais = {}; }
+					try {
+						permissoesAtuais = JSON.parse(u.permissoes || "{}") || {};
+					} catch {
+						permissoesAtuais = {};
+					}
 					window.erpBanco.usuarios
 						.salvar({
 							id: u.id,
@@ -229,7 +243,9 @@
 		}
 
 		var permissoesSelecionadas = {};
-		checksPermissoes.forEach((c) => { if (c.checked) permissoesSelecionadas[c.value] = true; });
+		checksPermissoes.forEach((c) => {
+			if (c.checked) permissoesSelecionadas[c.value] = true;
+		});
 
 		var dados = {
 			login: loginVal,
@@ -258,7 +274,10 @@
 			sessaoUsuario.id === dados.id &&
 			dados.perfil !== "admin"
 		) {
-			mostrarMensagem("Você não pode remover o próprio acesso de admin.", "erro");
+			mostrarMensagem(
+				"Você não pode remover o próprio acesso de admin.",
+				"erro",
+			);
 			return;
 		}
 
@@ -291,14 +310,29 @@
 	var listaLog = document.getElementById("listaLog");
 
 	var ACOES_LOG = [
-		"login", "criar-produto", "editar-produto", "excluir-produto",
-		"restaurar-produto", "excluir-produto-permanente",
-		"alterar-preco", "finalizar-venda", "criar-orcamento",
-		"excluir-cliente", "restaurar-cliente", "excluir-cliente-permanente",
-		"criar-pedido-compra", "receber-pedido-compra", "cancelar-pedido-compra",
-		"criar-lancamento", "baixar-lancamento", "excluir-lancamento",
-		"abrir-caixa", "fechar-caixa",
-		"criar-usuario", "editar-usuario", "excluir-usuario",
+		"login",
+		"criar-produto",
+		"editar-produto",
+		"excluir-produto",
+		"restaurar-produto",
+		"excluir-produto-permanente",
+		"alterar-preco",
+		"finalizar-venda",
+		"criar-orcamento",
+		"excluir-cliente",
+		"restaurar-cliente",
+		"excluir-cliente-permanente",
+		"criar-pedido-compra",
+		"receber-pedido-compra",
+		"cancelar-pedido-compra",
+		"criar-lancamento",
+		"baixar-lancamento",
+		"excluir-lancamento",
+		"abrir-caixa",
+		"fechar-caixa",
+		"criar-usuario",
+		"editar-usuario",
+		"excluir-usuario",
 	];
 
 	function preencherFiltrosLog() {
@@ -322,7 +356,7 @@
 		if (!iso) return "---";
 		try {
 			return new Date(iso).toLocaleString("pt-BR");
-		} catch (e) {
+		} catch {
 			return iso;
 		}
 	}
@@ -333,26 +367,35 @@
 			return;
 		}
 		var filtro = {
-			usuarioId: filtroLogUsuario.value ? Number(filtroLogUsuario.value) : undefined,
+			usuarioId: filtroLogUsuario.value
+				? Number(filtroLogUsuario.value)
+				: undefined,
 			acao: filtroLogAcao.value || undefined,
 		};
-		listaLog.innerHTML = window.erpSkeletonCards ? window.erpSkeletonCards(4) : '<div class="empty-state">Carregando...</div>';
+		listaLog.innerHTML = window.erpSkeletonCards
+			? window.erpSkeletonCards(4)
+			: '<div class="empty-state">Carregando...</div>';
 		window.erpBanco.banco
 			.logAtividades(filtro)
 			.then((linhas) => {
 				listaLog.innerHTML = "";
 				if (!linhas || linhas.length === 0) {
-					listaLog.innerHTML = '<div class="empty-state">Nenhuma atividade registrada.</div>';
+					listaLog.innerHTML =
+						'<div class="empty-state">Nenhuma atividade registrada.</div>';
 					return;
 				}
 				linhas.forEach((l) => {
 					var div = document.createElement("div");
 					div.className = "item-lista";
-					div.innerHTML = '<div class="info"><div class="titulo"></div><div class="detalhe"></div></div>';
+					div.innerHTML =
+						'<div class="info"><div class="titulo"></div><div class="detalhe"></div></div>';
 					div.querySelector(".titulo").textContent =
 						(l.usuario_login || "sistema") + " — " + l.acao;
 					var partes = [formatarDataHora(l.data)];
-					if (l.entidade) partes.push(l.entidade + (l.entidade_id ? " #" + l.entidade_id : ""));
+					if (l.entidade)
+						partes.push(
+							l.entidade + (l.entidade_id ? " #" + l.entidade_id : ""),
+						);
 					if (l.detalhes) partes.push(l.detalhes);
 					div.querySelector(".detalhe").textContent = partes.join(" | ");
 					listaLog.appendChild(div);

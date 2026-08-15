@@ -82,6 +82,7 @@ ERP/
 │   ├── financeiro/                  -- Contas a pagar/receber + fluxo de caixa
 │   ├── fornecedores/                -- CRUD de fornecedores
 │   ├── importacao/                  -- Importação de dados
+│   ├── pagamentos/                  -- Recebimentos (Pix/Boleto/etc.) vinculados a vendas
 │   ├── pdv/                         -- Frente de Caixa + recibo
 │   ├── precificacao/                -- Precificação e margens
 │   ├── produtos/                    -- Cadastro de produtos + categorias + gerenciamento
@@ -114,7 +115,7 @@ ERP/
 - Checkout de estoque com guarda atômica: `UPDATE ... WHERE id=? AND quantidade_estoque >= ?`; rollback na falha contendo o SKU do item com saldo insuficiente.
 - Auth via sessão no processo principal (`get-auth-session` → `getAuthSession` no preload); perfil atual `erp_perfil` = admin.
 - Login exigido apenas na entrada do app (`modules/core/auth.js` redireciona para `modules/auth/login.html` se não autenticado). Usuários são gerenciados em `modules/acessos/` (acessível pela sidebar: "Gerenciar Acessos", admin).
-- Perfil admin tem acesso total via `exigirSessao('admin')` nos IPC; por enquanto o único perfil é `admin`.
+- Dois perfis: `admin` (acesso total) e `vendedor` (restrito por `permissoes` JSON, gerenciado em `modules/acessos/`). Admin sempre passa em `exigirPermissao(modulo)` independente de `permissoes`. `main.js:exigirPermissao` já gate 11 domínios IPC (produtos, categorias, clientes, vendas, estoque, fornecedores, compras, precificacao, financeiro, caixa, relatorios); `pagamentos`, `dashboard`, `usuarios`, `banco-admin`, `sistema` e `auth` ainda usam só `exigirSessao('admin')`.
 - Atualização automática: `electron-updater` + GitHub Releases.
 - **Camada central de acesso**: `modules/core/banco.js` expõe `window.erpBanco` (agrupado por domínio: produtos, categorias, clientes, vendas, estoque, precificacao, fornecedores, compras, financeiro, relatorios, dashboard, usuarios, sistema). Incluído em todas as páginas via `<script src="../core/banco.js">`. Módulos novos devem usar `window.erpBanco.*`; `window.api.*` permanece disponível para código legado.
 - **Módulo banco** (`modules/banco/banco.html` + `banco.js`): inspeção crua das tabelas via sidebar (admin). Exige sessão admin (`exigirSessao('admin')`) nos IPC `listar-tabelas-banco` / `consultar-tabela-banco` e confirmação de senha do admin (`verificar-senha-admin`). Cadastros do dia a dia NÃO exigem senha extra (a sessão já autentica).
@@ -139,6 +140,8 @@ Setup Electron seguro · SQLite 8 tabelas + extensões · SQLCipher (criptografi
 1. **Testar o instalador** (.exe NSIS) em uma máquina limpa.
 2. **Melhorias finais de UI/UX**: ícones vetoriais, tipografia refinada.
 3. **NFC-e**: avaliar ACBr/biblioteca de emissão como evolução futura.
-4. Push pendente para o GitHub (mudanças locais não commitadas).
 
-Backlog restante: troco automático no PDV · busca de cliente no PDV · imagens nos produtos · log de erros em arquivo · window.onerror global.
+Backlog restante: troco automático no PDV · busca de cliente no PDV · imagens nos produtos.
+Log de erros em arquivo + `window.onerror` global já implementados (`main.js:logErro`/`CAMINHO_LOG_ERRO`).
+
+Ver `GOALS.md` para o plano completo (o que falta, por área) e o que já foi corrigido nesta rodada.

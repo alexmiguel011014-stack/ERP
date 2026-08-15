@@ -322,6 +322,9 @@ function validarVariacao(v) {
 	return { sku, preco, precoCusto, estoque, atributos };
 }
 
+// Código morto herdado do database.js original (nunca era chamado nem exportado ali).
+// Mantido sem exportar — mesmo critério usado para buscarClientesPDV02/finalizarVendaPDV02.
+// eslint-disable-next-line no-unused-vars
 async function buscarProdutosPDV02(termo) {
 	const conn = getConexao();
 	const texto = String(termo || "").trim();
@@ -753,7 +756,7 @@ async function salvarImagemProduto(produtoId, caminhoOrigem) {
 	if (produto.imagem) {
 		try {
 			fs.unlinkSync(path.join(dir, produto.imagem));
-		} catch (e) {
+		} catch {
 			/* já não existe */
 		}
 	}
@@ -778,7 +781,7 @@ async function removerImagemProduto(produtoId) {
 	if (produto.imagem) {
 		try {
 			fs.unlinkSync(path.join(pastaImagensProdutos(), produto.imagem));
-		} catch (e) {
+		} catch {
 			/* já não existe */
 		}
 	}

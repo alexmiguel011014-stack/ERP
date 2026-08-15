@@ -68,7 +68,7 @@
   // Popular vendas do banco (apenas admin)
   async function popularVendas() {
     try {
-      const vendas = await window.api.listarPagamentos(); // lista todas; filtramos no cliente
+      const vendas = await window.api.getVendas();
       vendaSelect.innerHTML = "";
       clienteSelect.innerHTML = "<option value=''>-- Selecione uma venda --</option>";
 
@@ -76,7 +76,7 @@
         const optV = document.createElement("option");
         optV.value = v.id;
         // Formato: "Venda ${id} - ${formatacao do total}"
-        const totalFormatado = v.valor_recebido ? formatarMoeda(v.valor_recebido) : "—";
+        const totalFormatado = v.total ? formatarMoeda(v.total) : "—";
         optV.textContent = `Venda ${v.id} (Cliente ${v.cliente_nome || "—"} - ${totalFormatado})`;
         vendaSelect.appendChild(optV);
       });
