@@ -123,8 +123,8 @@
 	/* ==================== Carregar dados ==================== */
 
 	function carregar() {
-		if (aviso) aviso.style.display = "block";
-		aviso.innerHTML = "Carregando...";
+		if (aviso) aviso.style.display = "none";
+		if (window.erpSkeletonLinhas) tbody.innerHTML = window.erpSkeletonLinhas(5, 11, false);
 
 		var promises = [
 			window.api && window.erpBanco.precificacao.margemGlobal
@@ -153,6 +153,7 @@
 				aviso.style.display = "none";
 			})
 			.catch((err) => {
+				if (aviso) aviso.style.display = "block";
 				aviso.innerHTML = "Erro ao carregar: " + esc(err);
 			});
 	}

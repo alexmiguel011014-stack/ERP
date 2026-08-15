@@ -58,6 +58,7 @@
 			lista.innerHTML = '<div class="empty-state">API indisponível.</div>';
 			return;
 		}
+		if (window.erpSkeletonCards) lista.innerHTML = window.erpSkeletonCards(4);
 		window.api
 			.getAuthSession()
 			.then((s) => {
@@ -335,7 +336,7 @@
 			usuarioId: filtroLogUsuario.value ? Number(filtroLogUsuario.value) : undefined,
 			acao: filtroLogAcao.value || undefined,
 		};
-		listaLog.innerHTML = '<div class="empty-state">Carregando...</div>';
+		listaLog.innerHTML = window.erpSkeletonCards ? window.erpSkeletonCards(4) : '<div class="empty-state">Carregando...</div>';
 		window.erpBanco.banco
 			.logAtividades(filtro)
 			.then((linhas) => {

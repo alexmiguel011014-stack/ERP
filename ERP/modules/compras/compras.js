@@ -331,6 +331,7 @@
 				'<div class="empty-state">API indisponível.</div>';
 			return;
 		}
+		if (window.erpSkeletonCards) listaPedidos.innerHTML = window.erpSkeletonCards(4);
 		window.erpBanco.compras
 			.pedidos()
 			.then((rows) => {

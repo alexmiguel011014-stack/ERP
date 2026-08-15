@@ -68,12 +68,28 @@
 
       .dash-tab-panel { display: none; }
       .dash-tab-panel.active { display: block; }
+      .dash-tab-panel-iframe { position: relative; }
       .dash-tab-panel-iframe.active { display: flex; height: calc(100vh - 49px); }
       .dash-tab-iframe { display: block; width: 100%; height: 100%; border: 0; background: #F8FAFC; }
+      .dash-tab-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: #F8FAFC; z-index: 2; }
 
       .dark-theme .dash-tab { color: #94A3B8; }
       .dark-theme .dash-tab:hover { background: #1E293B; color: #E2E8F0; }
       .dark-theme .dash-tab.active { background: var(--cor-primaria-fraca); color: var(--cor-primaria); border-color: var(--cor-primaria-fraca-borda); }
+      .dark-theme .dash-tab-iframe, .dark-theme .dash-tab-loading { background: #0F172A; }
+
+      /* Skeleton (shimmer) — normalmente vem de modulos.css, que esta
+         página não importa (tem seu próprio <style> completo). Só as regras
+         usadas no dashboard (stat cards + tabela de mais vendidos). */
+      .skeleton-box { display: inline-block; position: relative; overflow: hidden; background-color: #E2E8F0; border-radius: 4px; }
+      .skeleton-box::after { content: ""; position: absolute; top: 0; right: 0; bottom: 0; left: 0; transform: translateX(-100%); background-image: linear-gradient(90deg, rgba(255,255,255,0) 0, rgba(255,255,255,0.5) 20%, rgba(255,255,255,0.8) 60%, rgba(255,255,255,0)); animation: skeleton-shimmer 1.6s infinite; }
+      @keyframes skeleton-shimmer { 100% { transform: translateX(100%); } }
+      .dark-theme .skeleton-box { background-color: #334159; }
+      .dark-theme .skeleton-box::after { background-image: linear-gradient(90deg, rgba(255,255,255,0) 0, rgba(255,255,255,0.08) 20%, rgba(255,255,255,0.16) 60%, rgba(255,255,255,0)); }
+      .skeleton-linha { display: flex; align-items: center; gap: 12px; padding: 10px 8px; }
+      .skeleton-linha .skeleton-box.skeleton-quadrado { width: 34px; height: 34px; border-radius: 8px; flex-shrink: 0; }
+      .skeleton-linha .skeleton-col { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+      .skeleton-linha .skeleton-box.skeleton-linha-texto { height: 12px; }
 
       .container {
         max-width: 1280px;
@@ -351,7 +367,7 @@
         <div class="stat-card">
           <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M7 15h4"/></svg></div>
           <div class="stat-body">
-            <div class="stat-value" id="statVendas">--</div>
+            <div class="stat-value" id="statVendas"><span class="skeleton-box skeleton-linha-texto" style="width:40px;display:inline-block;height:18px;border-radius:4px;"></span></div>
             <div class="stat-label">Vendas Hoje</div>
             <span class="stat-trend" id="statVendasTrend"></span>
           </div>
@@ -359,7 +375,7 @@
         <div class="stat-card">
           <div class="stat-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
           <div class="stat-body">
-            <div class="stat-value" id="statFaturamento">--</div>
+            <div class="stat-value" id="statFaturamento"><span class="skeleton-box skeleton-linha-texto" style="width:64px;display:inline-block;height:18px;border-radius:4px;"></span></div>
             <div class="stat-label">Faturamento Hoje</div>
             <span class="stat-trend" id="statFaturamentoTrend"></span>
           </div>
@@ -367,28 +383,28 @@
         <div class="stat-card">
           <div class="stat-icon purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/></svg></div>
           <div class="stat-body">
-            <div class="stat-value" id="statProdutos">--</div>
+            <div class="stat-value" id="statProdutos"><span class="skeleton-box skeleton-linha-texto" style="width:32px;display:inline-block;height:18px;border-radius:4px;"></span></div>
             <div class="stat-label">Produtos</div>
           </div>
         </div>
         <div class="stat-card alert" id="statEstoqueBaixo">
           <div class="stat-icon amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
           <div class="stat-body">
-            <div class="stat-value" id="statEstoque">--</div>
+            <div class="stat-value" id="statEstoque"><span class="skeleton-box skeleton-linha-texto" style="width:32px;display:inline-block;height:18px;border-radius:4px;"></span></div>
             <div class="stat-label">Estoque Baixo</div>
           </div>
         </div>
         <div class="stat-card" onclick="window.location.href='../financeiro/financeiro.html';" style="cursor:pointer;">
           <div class="stat-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
           <div class="stat-body">
-            <div class="stat-value" id="statAReceber">--</div>
+            <div class="stat-value" id="statAReceber"><span class="skeleton-box skeleton-linha-texto" style="width:64px;display:inline-block;height:18px;border-radius:4px;"></span></div>
             <div class="stat-label">A Receber</div>
           </div>
         </div>
         <div class="stat-card alert" onclick="window.location.href='../financeiro/financeiro.html';" style="cursor:pointer;">
           <div class="stat-icon red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
           <div class="stat-body">
-            <div class="stat-value" id="statAPagar">--</div>
+            <div class="stat-value" id="statAPagar"><span class="skeleton-box skeleton-linha-texto" style="width:64px;display:inline-block;height:18px;border-radius:4px;"></span></div>
             <div class="stat-label">A Pagar</div>
           </div>
         </div>
@@ -413,7 +429,9 @@
               <tr><th>Produto</th><th>Qtd.</th><th>Receita</th></tr>
             </thead>
             <tbody id="corpoTopProdutos">
-              <tr><td colspan="3" style="text-align:center; color:#94A3B8; padding:18px 0;">Carregando...</td></tr>
+              <tr><td colspan="3"><div class="skeleton-linha"><span class="skeleton-col"><span class="skeleton-box skeleton-linha-texto" style="width:70%;"></span></span></div></td></tr>
+              <tr><td colspan="3"><div class="skeleton-linha"><span class="skeleton-col"><span class="skeleton-box skeleton-linha-texto" style="width:55%;"></span></span></div></td></tr>
+              <tr><td colspan="3"><div class="skeleton-linha"><span class="skeleton-col"><span class="skeleton-box skeleton-linha-texto" style="width:65%;"></span></span></div></td></tr>
             </tbody>
           </table>
         </div>
@@ -510,6 +528,7 @@
 
     <script src="../core/banco.js"></script>
     <script src="../core/navbar.js"></script>
+    <script src="../core/loading.js"></script>
     <script src="./abas.js"></script>
     <script src="../core/vendor/chart.umd.min.js"></script>
     <script src="../produtos/gerenciamento-produtos.js"></script>

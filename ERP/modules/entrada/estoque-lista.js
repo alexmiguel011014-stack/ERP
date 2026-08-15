@@ -164,6 +164,7 @@
 				'<tr><td colspan="8"><div class="empty-state">API indisponível.</div></td></tr>';
 			return;
 		}
+		if (window.erpSkeletonLinhas) corpoEstoque.innerHTML = window.erpSkeletonLinhas(5, 8);
 		window.erpBanco.estoque
 			.visaoGeral()
 			.then((rows) => {

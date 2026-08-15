@@ -68,7 +68,7 @@
   }
 
   function carregarCategorias() {
-    if (avisoCategorias) avisoCategorias.innerHTML = "Carregando...";
+    if (window.erpSkeletonLinhas) tbody.innerHTML = window.erpSkeletonLinhas(5, 5, false);
     erpCategoryStore.getCategoriasFlux().then(function (lista) {
       categoriasCarregadas = Array.isArray(lista) ? lista : [];
       preencherSelectPai(categoriasCarregadas);

@@ -164,6 +164,7 @@
 			lista.innerHTML = '<div class="empty-state">API indisponível.</div>';
 			return;
 		}
+		if (window.erpSkeletonCards) lista.innerHTML = window.erpSkeletonCards(4);
 		window.erpBanco.fornecedores
 			.listar()
 			.then((rows) => {

@@ -250,6 +250,11 @@ tr:last-child td { border-bottom: none; }
 .skeleton-linha .skeleton-col { flex: 1; display: flex; flex-direction: column; gap: 6px; }
 .skeleton-linha .skeleton-box.skeleton-linha-texto { height: 12px; }
 
+/* Loader canvas (window.erpCriarLoader, modules/core/loading.js) — usado em
+   transições de tela cheia (troca de aba/módulo), não em listas/tabelas. */
+.erp-loader-wrap { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+.erp-loader-canvas { display: block; }
+
 .item-lista {
   display: flex;
   align-items: center;

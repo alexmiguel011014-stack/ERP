@@ -199,6 +199,7 @@
 
 	function carregarPrecosEspeciais(clienteId) {
 		if (!window.erpBanco.clientes.precos) return;
+		if (window.erpSkeletonCards) listaPrecosEspeciais.innerHTML = window.erpSkeletonCards(2);
 		window.erpBanco.clientes
 			.precos(clienteId)
 			.then((rows) => {

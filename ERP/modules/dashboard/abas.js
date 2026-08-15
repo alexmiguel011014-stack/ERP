@@ -117,10 +117,25 @@
 
     var painel = document.createElement("div");
     painel.className = "dash-tab-panel dash-tab-panel-iframe";
+
+    var loading = document.createElement("div");
+    loading.className = "dash-tab-loading";
+    var loaderWrap = document.createElement("div");
+    loaderWrap.className = "erp-loader-wrap";
+    loading.appendChild(loaderWrap);
+    var loader = window.erpCriarLoader ? window.erpCriarLoader(loaderWrap, { tamanho: 64 }) : null;
+    painel.appendChild(loading);
+
     var iframe = document.createElement("iframe");
     iframe.className = "dash-tab-iframe";
     iframe.src = src;
     iframe.title = titulo;
+    // O canvas do loader roda em rAF contínuo — precisa ser destruído ao
+    // terminar o carregamento, senão fica animando escondido para sempre.
+    iframe.addEventListener("load", function () {
+      if (loader) loader.destruir();
+      if (loading.parentNode) loading.parentNode.removeChild(loading);
+    });
     painel.appendChild(iframe);
     painelIframes.appendChild(painel);
 

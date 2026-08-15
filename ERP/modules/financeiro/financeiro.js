@@ -77,7 +77,7 @@
 				'<div class="empty-state">API indisponível.</div>';
 			return;
 		}
-		listaFechamentos.innerHTML = '<div class="empty-state">Carregando...</div>';
+		listaFechamentos.innerHTML = window.erpSkeletonCards ? window.erpSkeletonCards(4) : '<div class="empty-state">Carregando...</div>';
 		window.erpBanco.caixa
 			.historico(100)
 			.then((linhas) => {
@@ -117,6 +117,7 @@
 				'<div class="empty-state">API indisponível.</div>';
 			return;
 		}
+		if (window.erpSkeletonCards) listaLancamentos.innerHTML = window.erpSkeletonCards(4);
 		window.erpBanco.financeiro
 			.lancamentos({ tipo: abaAtual })
 			.then((rows) => {
@@ -296,6 +297,7 @@
 			listaFluxo.innerHTML = '<div class="empty-state">API indisponível.</div>';
 			return;
 		}
+		if (window.erpSkeletonCards) listaFluxo.innerHTML = window.erpSkeletonCards(4);
 		window.erpBanco.financeiro
 			.fluxoCaixa(fluxoInicio.value || null, fluxoFim.value || null)
 			.then((r) => {

@@ -362,6 +362,7 @@
 			listaMov.innerHTML = '<div class="empty-state">API indisponível.</div>';
 			return;
 		}
+		if (window.erpSkeletonCards) listaMov.innerHTML = window.erpSkeletonCards(4);
 		window.erpBanco.estoque
 			.movimentacoes(30)
 			.then((rows) => {

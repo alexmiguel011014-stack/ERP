@@ -311,7 +311,7 @@
 			return;
 		}
 
-		tbodyVendas.innerHTML = '<tr><td colspan="7"><div class="empty-state">Carregando...</div></td></tr>';
+		tbodyVendas.innerHTML = window.erpSkeletonLinhas ? window.erpSkeletonLinhas(5, 7) : '<tr><td colspan="7"><div class="empty-state">Carregando...</div></td></tr>';
 
 		window.api
 			.getVendas(filtro || {})

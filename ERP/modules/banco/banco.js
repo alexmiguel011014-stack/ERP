@@ -105,7 +105,7 @@
   }
 
   function carregarResumo() {
-    resumoTabelas.innerHTML = '<div class="empty-state">Carregando...</div>';
+    resumoTabelas.innerHTML = window.erpSkeletonCards ? window.erpSkeletonCards(6) : '<div class="empty-state">Carregando...</div>';
     window.erpBanco.banco
       .resumoTabelas()
       .then(function (linhas) {
