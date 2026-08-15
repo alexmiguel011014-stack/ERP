@@ -88,35 +88,43 @@ async function getRelatorioVendas(dataInicio, dataFim) {
 	};
 }
 
-// Curva ABC por receita: A até 80% acumulado, B até 95%, C o restante.
+// Curva ABC por lucro (receita menos custo): A até 80% acumulado de lucro, B até 95%, C o resto.
 async function getCurvaABC(dataInicio, dataFim) {
 	const hoje = new Date().toISOString().slice(0, 10);
 	const inicio = dataInicio || hoje.slice(0, 8) + "01";
 	const fim = dataFim || hoje;
 
 	const linhas = await allAsync(
-		`SELECT p.nome AS produto_nome, SUM(iv.quantidade) AS quantidade, SUM(iv.quantidade * iv.preco_unitario) AS receita
-     FROM ItensVenda iv
-     JOIN Vendas v ON v.id = iv.venda_id
-     JOIN Variacoes var ON var.id = iv.variacao_id
-     JOIN Produtos p ON p.id = var.produto_id
-     WHERE v.status = 'finalizada' AND DATE(v.data_venda) BETWEEN ? AND ?
-     GROUP BY p.id
-     ORDER BY receita DESC`,
+		`SELECT p.nome AS produto_nome, SUM(iv.quantidade) AS quantidade,
+   SUM(iv.quantidade * var.preco_custo) AS custo_total,
+   SUM(iv.quantidade * (iv.preco_unitario - var.preco_custo)) AS lucro_total,
+   SUM(iv.quantidade * iv.preco_unitario) AS receita
+   FROM ItensVenda iv
+   JOIN Vendas v ON v.id = iv.venda_id
+   JOIN Variacoes var ON var.id = iv.variacao_id
+   JOIN Produtos p ON p.id = var.produto_id
+   WHERE v.status = 'finalizada' AND DATE(v.data_venda) BETWEEN ? AND ?
+   GROUP BY p.id
+   ORDER BY receita DESC`,
 		[inicio, fim],
 	);
 
-	const total = linhas.reduce((a, l) => a + (Number(l.receita) || 0), 0);
+	const total = linhas.reduce((a, l) => a + (Number(l.lucro_total) || 0), 0);
 	let acumulado = 0;
 
 	return linhas.map((l) => {
 		const receita = Number(l.receita) || 0;
-		const percentual = total > 0 ? (receita / total) * 100 : 0;
+		const custo = Number(l.custo_total) || 0;
+		const lucro = Number(l.lucro_total) || 0;
+		const percentual = total > 0 ? (lucro / total) * 100 : 0;
 		acumulado += percentual;
 		return {
 			produto_nome: l.produto_nome,
 			quantidade: Number(l.quantidade) || 0,
 			receita,
+			custo,
+			lucro,
+			margem: receita > 0 ? (lucro / receita) * 100 : 0,
 			percentual,
 			acumulado,
 			classe: acumulado <= 80 ? "A" : acumulado <= 95 ? "B" : "C",

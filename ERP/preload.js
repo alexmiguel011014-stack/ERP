@@ -147,6 +147,10 @@ contextBridge.exposeInMainWorld("api", {
 		ipcRenderer.invoke("get-curva-abc", inicio, fim),
 	getComissoes: (inicio, fim) =>
 		ipcRenderer.invoke("get-comissoes", inicio, fim),
+	listarPagamentos: (metodo) => ipcRenderer.invoke("listar-pagamentos", metodo),
+	registrarPagamento: (dados) => ipcRenderer.invoke("registrar-pagamento", dados),
+	pagarPagamento: (id) => ipcRenderer.invoke("pagar-pagamento", id),
+	listarPagamentosPendentes: () => ipcRenderer.invoke("listar-pagamentos-pendentes"),
 	unlockWithProfile: (login, senha) =>
 		ipcRenderer.invoke("unlock-with-profile", login, senha),
 	listarUsuarios: () => ipcRenderer.invoke("listar-usuarios"),

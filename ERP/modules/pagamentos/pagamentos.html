@@ -1,0 +1,117 @@
+<div class="page">
+  <div class="table-actions">
+    <input type="text" id="filtroMetodo" placeholder="Filtrar por método (pix/boleto/dinheiro/...)"/>
+    <button class="btn-secondary" onclick="limparFiltro()">Limpar filtro</button>
+  </div>
+
+  <h2>Recebimentos</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Venda</th>
+        <th>Cliente</th>
+        <th>Método</th>
+        <th>Identificador</th>
+        <th>Data</th>
+        <th>Valor</th>
+        <th>Status</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody id="corpoTabela"></tbody>
+  </table>
+</div>
+
+<script>
+  // Inicializa carregando todos os recebimentos
+  carregarLista();
+
+  const inputFiltro = document.getElementById("filtroMetodo");
+  inputFiltro.addEventListener("input", (e) => {
+    carregarLista(e.target.value);
+  });
+});
+
+async function carregarLista(metodoFiltro = "") {
+  const api = window.api || {};
+  const invocar = (nome) => {
+    var metodoAPI = api[nome];
+    if (typeof metodoAPI !== "function") {
+      document.getElementById("corpoTabela").innerHTML = "<tr><td colspan='8' class='erro'>API indisponível: " + nome + "</td></tr>";
+      return;
+    }
+    var args = Array.prototype.slice.call(arguments, 1);
+    return metodoAPI.apply(api, args);
+  };
+
+  const dados = await invocar("listarPagamentos", metodoFiltro);
+  const tbody = document.getElementById("corpoTabela");
+  tbody.innerHTML = "";
+
+  if (!dados || dados.length === 0) {
+    tbody.innerHTML = "<tr><td colspan='8' class='empty-state'>Nenhum recebimento encontrado.</td></tr>";
+    return;
+  }
+
+  dados.forEach((p) => {
+    const tr = document.createElement("tr");
+    const statusClass = p.status === "recebido" ? "badge-sucesso" : "badge-alert";
+    const statusText = p.status || "pendente";
+
+    tr.innerHTML =
+      `<td>${p.numero_venda || "—"}</td>` +
+      `<td>${p.cliente_nome || "—"}</td>` +
+      `<td>${p.metodo || "—"}</td>` +
+      `<td>${p.numero_identificador || "—"}</td>` +
+      `<td>${p.data_recebimento || "—"}</td>` +
+      `<td>${formatarMoeda(p.valor_recebido)}</td>` +
+      `<td><span class="badge ${statusClass}">${statusText}</span></td>` +
+      `<td>
+        <button class="btn-acoes" onclick="marcarComoRecebido(${p.id})">Receber</button>
+        <button class="btn-acoes" onclick="excluirPagamento(${p.id})">Excluir</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function limparFiltro() {
+  document.getElementById("filtroMetodo").value = "";
+  carregarLista();
+}
+
+// Funções de ação (chamadas via IPC)
+async function marcarComoRecebido(id) {
+  if (confirm("Marcar este pagamento como recebido?")) {
+    await window.api.pagarPagamento(id);
+    carregarLista();
+  }
+}
+
+async function excluirPagamento(id) {
+  if (confirm("Tem certeza que deseja excluir este recebimento?")) {
+    // Nota: não há handler de excluir no IPC atual; manter como placeholder
+    alert("Funcionalidade de exclusão não implementada neste release.");
+  }
+}
+</script>
+
+<style>
+  /* Estilos inclusos diretamente para garantir carregamento */
+  .page { padding: 1rem; }
+  .table-actions { margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+  .table-actions input { flex: 1; padding: 0.5rem; border: 1px solid #CBD5E1; border-radius: 4px; }
+  .table-actions button { padding: 0.5rem 1rem; background: #3B82F6; color: white; border: none; border-radius: 4px; cursor: pointer; }
+  .table-actions button:hover { background: #2563EB; }
+  table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+  th, td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid #E5E7EB; }
+  th { background-color: #F8FAFC; }
+  td { border-width: 1px 0; }
+  tbody tr:hover { background-color: #F1F5F9; }
+  .empty-state { padding: 2rem; text-align: center; color: #6B7280; }
+  .badge { padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.8rem; font-weight: 600; margin-left: 0.5rem; }
+  .badge-sucesso { background: #10B981; color: white; }
+  .badge-alert { background: #F87171; color: white; }
+  .btn-acoes { margin-left: 0.25rem; padding: 0.3rem 0.6rem; background: #E5E7EB; color: #1F2937; border: none; border-radius: 4px; font-size: 0.75rem; cursor: pointer; }
+  .btn-acoes:hover { background: #D1D5DB; }
+</style>

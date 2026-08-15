@@ -247,6 +247,7 @@ require("./ipc/banco-admin").registrar(ipcMain, deps);
 require("./ipc/sistema").registrar(ipcMain, deps);
 require("./ipc/usuarios").registrar(ipcMain, deps);
 require("./ipc/auth").registrar(ipcMain, deps);
+require("./ipc/pagamentos").registrar(ipcMain, deps);
 
 app.on("before-quit", () => {
 	if (sessao) {

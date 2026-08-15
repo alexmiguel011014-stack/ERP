@@ -166,12 +166,15 @@
       comissoes: function (inicio, fim) { return invocar("getComissoes", inicio, fim); },
     },
 
-    /* ===== Dashboard ===== */
-    dashboard: {
-      stats: function () { return invocar("dashboardStats"); },
+/* ===== Pagamentos ===== */
+    pagamentos: {
+      listar: function (metodo) { return invocar("listarPagamentos", metodo); },
+      registrar: function (dados) { return invocar("registrarPagamento", dados); },
+      pagar: function (id) { return invocar("pagarPagamento", id); },
+      listarPendentes: function () { return invocar("listarPagamentosPendentes"); },
     },
 
-    /* ===== Busca global ===== */
+    /* ===== Dashboard ===== */
     busca: {
       global: function (termo) { return invocar("buscaGlobal", termo); },
     },

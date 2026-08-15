@@ -1,0 +1,166 @@
+<div class="page">
+  <h2>Lançar Novo Pagamento</h2>
+
+  <form id="formPagamento">
+    <div class="campo">
+      <label>Venda</label>
+      <select id="vendaSelect" required disabled>
+        <option value="">Carregando vendas...</option>
+      </select>
+    </div>
+
+    <div class="campo">
+      <label>Cliente</label>
+      <select id="clienteSelect" disabled>
+        <option value="">Selecione uma venda primeiro</option>
+      </select>
+    </div>
+
+    <div class="campo">
+      <label>Método</label>
+      <select id="metodoSelect" required>
+        <option value="pix">Pix</option>
+        <option value="boleto">Boleto</option>
+        <option value="dinheiro">Dinheiro</option>
+        <option value="cartão">Cartão</option>
+        <option value="outro">Outro</option>
+      </select>
+    </div>
+
+    <div class="campo">
+      <label>Número/Identificador</label>
+      <input type="text" id="numeroIdentificador" placeholder="TXID Pix ou Nº do Boleto" required />
+    </div>
+
+    <div class="campo">
+      <label>Data Recebimento</label>
+      <input type="date" id="dataRecebimento" required />
+    </div>
+
+    <div class="campo">
+      <label>Valor Recebido</label>
+      <input type="number" id="valorRecebido" step="0.01" min="0.01" required />
+    </div>
+
+    <div class="campo">
+      <label>Observação</label>
+      <textarea id="observacao" rows="3" placeholder="Observações sobre o recebimento"></textarea>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem;">
+      <button type="button" class="btn-secondary" onclick="fecharModal()">Cancelar</button>
+      <button type="submit" class="btn-primary">Gravar Pagamento</button>
+    </div>
+  </form>
+</div>
+
+<script>
+  // Elementos do DOM
+  const vendaSelect = document.getElementById("vendaSelect");
+  const clienteSelect = document.getElementById("clienteSelect");
+  const metodoSelect = document.getElementById("metodoSelect");
+  const numeroIdentificador = document.getElementById("numeroIdentificador");
+  const dataRecebimento = document.getElementById("dataRecebimento");
+  const valorRecebido = document.getElementById("valorRecebido");
+  const observacao = document.getElementById("observacao");
+  const formPagamento = document.getElementById("formPagamento");
+
+  // Popular vendas do banco (apenas admin)
+  async function popularVendas() {
+    try {
+      const vendas = await window.api.listarPagamentos(); // lista todas; filtramos no cliente
+      vendaSelect.innerHTML = "";
+      clienteSelect.innerHTML = "<option value=''>-- Selecione uma venda --</option>";
+
+      vendas.forEach((v) => {
+        const optV = document.createElement("option");
+        optV.value = v.id;
+        // Formato: "Venda ${id} - ${formatacao do total}"
+        const totalFormatado = v.valor_recebido ? formatarMoeda(v.valor_recebido) : "—";
+        optV.textContent = `Venda ${v.id} (Cliente ${v.cliente_nome || "—"} - ${totalFormatado})`;
+        vendaSelect.appendChild(optV);
+      });
+    } catch (erro) {
+      console.error("Erro ao popular vendas:", erro);
+      vendaSelect.innerHTML = "<option value=''>Erro ao carregar vendas</option>";
+    }
+  }
+
+  // Ao selecionar uma venda, tentar inferir o cliente (usando dado da venda)
+  vendaSelect.addEventListener("change", async (e) => {
+    const vendaId = parseInt(e.target.value);
+    if (!vendaId) {
+      clienteSelect.disabled = true;
+      clienteSelect.innerHTML = "<option value=''>Selecione uma venda primeiro</option>";
+      return;
+    }
+    // Aqui poderíamos buscar o cliente da venda via API, mas para simplificar:
+    // Vamos apenas habilitar o campo e permitir edição manual.
+    clienteSelect.disabled = false;
+    clienteSelect.innerHTML = "<option value=''>Inferir do cadastro do cliente</option>";
+  });
+
+  // Submit do formulário
+  formPagamento.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const dados = {
+      venda_id: parseInt(vendaSelect.value),
+      cliente_id: null, // pode ser preenchido depois ou deixar nulo
+      metodo: metodoSelect.value,
+      numero_identificador: numeroIdentificador.value.trim(),
+      data_recebimento: dataRecebimento.value,
+      valor_recebido: parseFloat(valorRecebido.value),
+      status: "pendente",
+      observacao: observacao.value.trim(),
+    };
+
+    // Validações básicas
+    if (!dados.venda_id) {
+      alert("Selecione uma venda primeiro.");
+      return;
+    }
+    if (!dados.numero_identificador) {
+      alert("Informe o identificador (TXID Pix ou número do boleto).");
+      return;
+    }
+    if (!dados.valor_recebido || dados.valor_recebido <= 0) {
+      alert("Informe um valor válido maior que zero.");
+      return;
+    }
+
+    try {
+      await window.api.registrarPagamento(dados);
+      alert("Pagamento registrado com sucesso!");
+      fecharModal();
+      // Recarregar a lista na página principal
+      //window.api.listarPagamentos() // poderia recarregar, mas o usuário pode fechar este modal
+    } catch (erro) {
+      alert("Erro ao registrar pagamento: " + erro.message);
+    }
+  });
+
+  // Função para fechar (simular modal close)
+  window.fecharModal = function() {
+    // Em um ambiente real, isso teria um botão de fechar ou o próprio evento de fechamento
+    // Aqui apenas limpamos o formulário e retornamos
+    formPagamento.reset();
+    vendaSelect.innerHTML = "<option value=''>Carregando vendas...</option>";
+    clienteSelect.innerHTML = "<option value=''>Selecione uma venda primeiro</option>";
+    popularVendas();
+  };
+
+  // Inicialização
+  popularVendas();
+</script>
+
+<style>
+  .campo { margin-bottom: 1rem; }
+  .campo label { display: block; margin-bottom: 0.5rem; font-weight: 600; }
+  .campo select, .campo input, .campo textarea { width: 100%; padding: 0.5rem; border: 1px solid #CBD5E1; border-radius: 4px; box-sizing: border-box; }
+  .campo textarea { min-height: 60px; }
+  .btn-primary { background: #2563EB; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-weight: 600; }
+  .btn-primary:hover { background: #1D4ED8; }
+  .btn-secondary { background: #6B7280; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
+  .btn-secondary:hover { background: #4B5563; }
+</style>

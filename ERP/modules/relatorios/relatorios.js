@@ -187,62 +187,76 @@
 						if (graficos.graficoAbc) { graficos.graficoAbc.destroy(); delete graficos.graficoAbc; }
 						return;
 					}
-					var t = document.createElement("table");
-					t.innerHTML =
-						"<thead><tr><th>#</th><th>Produto</th><th style='text-align:center;'>Qtd</th><th style='text-align:right;'>Receita</th><th style='text-align:right;'>%</th><th style='min-width:120px;'>Acumulado</th><th style='text-align:center;'>Classe</th></tr></thead><tbody></tbody>";
-					var tb = t.querySelector("tbody");
-					abcCache.forEach((l, i) => {
-						var badge =
-							l.classe === "A"
-								? "badge-verde"
-								: l.classe === "B"
-									? "badge-amarela"
-									: "badge-cinza";
-						var tr = document.createElement("tr");
-						tr.innerHTML =
-							"<td>" +
-							(i + 1) +
-							"</td>" +
-							"<td></td>" +
-							"<td style='text-align:center;'>" +
-							l.quantidade +
-							"</td>" +
-							"<td style='text-align:right; color:var(--cor-sucesso); font-weight:600;'>" +
-							formatarMoeda(l.receita) +
-							"</td>" +
-							"<td style='text-align:right;'>" +
-							l.percentual.toFixed(1) +
-							"%</td>" +
-							"<td><div class='barra-abc'><div style='width:" +
-							Math.min(100, l.acumulado).toFixed(1) +
-							"%'></div></div></td>" +
-							"<td style='text-align:center;'><span class='badge " +
-							badge +
-							"'>" +
-							l.classe +
-							"</span></td>";
-						tr.children[1].textContent = l.produto_nome;
-						tb.appendChild(tr);
-					});
-					listaAbc.appendChild(t);
+var t = document.createElement("table");
+				t.innerHTML =
+					"<thead><tr><th>#</th><th>Produto</th><th style='text-align:center;'>Qtd</th><th style='text-align:right;'>Receita</th><th style='text-align:right;'>Custo</th><th style='text-align:right;'>Lucro</th><th style='text-align:right;'>Margem %</th><th style='min-width:120px;'>Acumulado</th><th style='text-align:center;'>Classe</th></tr></thead><tbody></tbody>";
+				var tb = t.querySelector("tbody");
+				abcCache.forEach((l, i) => {
+					var badge =
+						l.classe === "A"
+							? "badge-verde"
+							: l.classe === "B"
+								? "badge-amarela"
+								: "badge-cinza";
+					var tr = document.createElement("tr");
+					tr.innerHTML =
+						"<td>" +
+						(i + 1) +
+						"</td>" +
+						"<td>" +
+						l.produto_nome +
+						"</td>" +
+						"<td style='text-align:center;'>" +
+						l.quantidade +
+						"</td>" +
+						"<td style='text-align:right; color:var(--cor-sucesso); font-weight:600;'>" +
+						formatarMoeda(l.receita) +
+						"</td>" +
+						"<td style='text-align:right;'>" +
+						formatarMoeda(l.custo) +
+						"</td>" +
+						"<td style='text-align:right;'>" +
+						formatarMoeda(l.lucro) +
+						"</td>" +
+						"<td style='text-align:right;'>" +
+						l.margem.toFixed(1) +
+						"%</td>" +
+						"<td><div class='barra-abc'><div style='width:" +
+						Math.min(100, l.acumulado).toFixed(1) +
+						"%'></div></div></td>" +
+						"<td style='text-align:center;'><span class='badge " +
+						badge +
+						"'>" +
+						l.classe +
+						"</span></td>";
+					tr.children[1].textContent = l.produto_nome;
+					tb.appendChild(tr);
+				});
+				listaAbc.appendChild(t);
 
-					var receitaPorClasse = { A: 0, B: 0, C: 0 };
-					abcCache.forEach((l) => { receitaPorClasse[l.classe] += l.receita; });
-					renderizarGrafico("graficoAbc", {
-						type: "pie",
-						data: {
-							labels: ["Classe A", "Classe B", "Classe C"],
-							datasets: [{
-								data: [receitaPorClasse.A, receitaPorClasse.B, receitaPorClasse.C],
-								backgroundColor: [CORES.verde, CORES.amarelo, CORES.cinza],
-							}],
-						},
-						options: {
-							responsive: true,
-							maintainAspectRatio: false,
-							plugins: { legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 10 } } } },
-						},
-					});
+				var receitaPorClasse = { A: 0, B: 0, C: 0 };
+				var custoPorClasse = { A: 0, B: 0, C: 0 };
+				var lucroPorClasse = { A: 0, B: 0, C: 0 };
+				abcCache.forEach((l) => {
+					receitaPorClasse[l.classe] += l.receita;
+					custoPorClasse[l.classe] += l.custo;
+					lucroPorClasse[l.classe] += l.lucro;
+				});
+				renderizarGrafico("graficoAbc", {
+					type: "pie",
+					data: {
+						labels: ["Classe A", "Classe B", "Classe C"],
+						datasets: [{
+							data: [receitaPorClasse.A, receitaPorClasse.B, receitaPorClasse.C],
+							backgroundColor: [CORES.verde, CORES.amarelo, CORES.cinza],
+						}],
+					},
+					options: {
+						responsive: true,
+						maintainAspectRatio: false,
+						plugins: { legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 10 } } } },
+					},
+				});
 				})
 				.catch((err) => {
 					mostrarMensagem("Erro na Curva ABC: " + err, "erro");
@@ -502,19 +516,64 @@
 			);
 		}
 
-		if (abcCache.length > 0) {
-			titulo("Curva ABC (por receita)");
+		if (relatorioCache.comissoes && relatorioCache.comissoes.length > 0) {
+			titulo("Comissões por vendedor");
 			tabela(
-				["#", "Produto", "Qtd", "Receita", "% Acum.", "Classe"],
+				["Vendedor", "Vendas", "Total vendido", "Comissão %", "Comissão R$"],
+				relatorioCache.comissoes.map((l) => [
+					l.nome || l.login,
+					String(l.vendas),
+					formatarMoeda(l.total_vendido),
+					l.comissao_percentual.toFixed(1) + "%",
+					formatarMoeda(l.comissao_valor),
+				]),
+				[140, 60, 100, 80, 100],
+			);
+		}
+
+		if (abcCache.length > 0) {
+			titulo("Curva ABC (por lucro)");
+			tabela(
+				["#", "Produto", "Qtd", "Receita", "Custo", "Lucro", "Margem %", "Acumulado", "Classe"],
 				abcCache.map((l, i) => [
 					String(i + 1),
-					String(l.produto_nome).slice(0, 32),
-					String(l.quantidade),
+					l.produto_nome.length > 32 ? l.produto_nome.slice(0, 32) + "..." : l.produto_nome,
+					l.quantidade,
 					formatarMoeda(l.receita),
+					formatarMoeda(l.custo),
+					formatarMoeda(l.lucro),
+					l.margem.toFixed(1) + "%",
 					l.acumulado.toFixed(1) + "%",
 					l.classe,
 				]),
-				[25, 220, 50, 90, 70, 50],
+				[25, 220, 50, 90, 60, 60, 70, 70, 50],
+			);
+		}
+
+		if (relatorioCache.resumo && relatorioCache.resumo.porDia) {
+			titulo("Vendas por Dia");
+			tabela(
+				["Data", "Vendas", "Faturamento", "Descontos"],
+				relatorioCache.resumo.porDia.map((d) => [
+					formatarData(d.dia),
+					d.vendas,
+					formatarMoeda(d.faturamento),
+					formatarMoeda(d.descontos),
+				]),
+				[80, 50, 110, 80],
+			);
+		}
+
+		if (relatorioCache.resumo && relatorioCache.resumo.porPagamento) {
+			titulo("Faturamento por Forma de Pagamento");
+			tabela(
+				["Forma de Pagamento", "Vendas", "Faturamento"],
+				relatorioCache.resumo.porPagamento.map((p) => [
+					p.forma_pagamento,
+					String(p.vendas),
+					formatarMoeda(p.faturamento),
+				]),
+				[180, 50, 130],
 			);
 		}
 
