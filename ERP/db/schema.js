@@ -406,6 +406,15 @@ async function iniciarBanco() {
 			"subcategoria_id INTEGER REFERENCES Categorias(id) ON DELETE SET NULL",
 		imagem: "imagem TEXT",
 		ativo: "ativo INTEGER NOT NULL DEFAULT 1",
+		// Dados fiscais para emissão de nota (NF-e/NFC-e) — nenhum valor é
+		// inventado aqui: ficam vazios/com default neutro até o contador ou o
+		// dono confirmar os códigos corretos por produto. csosn é o campo certo
+		// pro Simples Nacional/MEI (não cst, que é do regime normal).
+		ncm: "ncm TEXT",
+		cfop_padrao: "cfop_padrao TEXT",
+		csosn: "csosn TEXT",
+		unidade_fiscal: "unidade_fiscal TEXT NOT NULL DEFAULT 'UN'",
+		origem_mercadoria: "origem_mercadoria TEXT NOT NULL DEFAULT '0'",
 	});
 	await migrarColunas(conexao, "Variacoes", {
 		preco_custo: "preco_custo REAL NOT NULL DEFAULT 0",
@@ -431,6 +440,15 @@ async function iniciarBanco() {
 		status: "status TEXT NOT NULL DEFAULT 'finalizada'",
 		usuario_id: "usuario_id INTEGER REFERENCES Usuarios(id) ON DELETE SET NULL",
 		origem: "origem TEXT NOT NULL DEFAULT 'pdv'",
+		// Rastreamento fiscal. nota_status: 'nao_emitida' | 'emitida_externa'
+		// (emitida por fora do ERP, ex.: sistema do contador — funciona hoje,
+		// sem nenhuma integração) | 'emitida_erp' (via integracoes/fiscal/) |
+		// 'erro' | 'cancelada'.
+		nota_status: "nota_status TEXT NOT NULL DEFAULT 'nao_emitida'",
+		nota_numero: "nota_numero TEXT",
+		nota_chave_acesso: "nota_chave_acesso TEXT",
+		nota_provedor: "nota_provedor TEXT",
+		nota_erro: "nota_erro TEXT",
 	});
 	await migrarColunas(conexao, "Precificacao", {
 		aplicar_custo_fixo: "aplicar_custo_fixo INTEGER NOT NULL DEFAULT 1",

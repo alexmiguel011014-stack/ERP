@@ -43,13 +43,13 @@ contextBridge.exposeInMainWorld("api", {
 		ipcRenderer.invoke("listar-precos-cliente", clienteId),
 	salvarPrecoCliente: (dados) =>
 		ipcRenderer.invoke("salvar-preco-cliente", dados),
-	removerPrecoCliente: (id) =>
-		ipcRenderer.invoke("remover-preco-cliente", id),
+	removerPrecoCliente: (id) => ipcRenderer.invoke("remover-preco-cliente", id),
 	getPrecoCliente: (clienteId, variacaoId) =>
 		ipcRenderer.invoke("get-preco-cliente", clienteId, variacaoId),
 	getVendas: (filtro) => ipcRenderer.invoke("get-vendas", filtro),
 	getVendasHoje: () => ipcRenderer.invoke("get-vendas-hoje"),
-	importarVendasHistoricas: (linhas) => ipcRenderer.invoke("importar-vendas-historicas", linhas),
+	importarVendasHistoricas: (linhas) =>
+		ipcRenderer.invoke("importar-vendas-historicas", linhas),
 	getItensVenda: (vendaId) => ipcRenderer.invoke("get-itens-venda", vendaId),
 	getEstoqueNegativo: () => ipcRenderer.invoke("get-estoque-negativo"),
 	getCategorias: () => ipcRenderer.invoke("get-categorias"),
@@ -104,6 +104,12 @@ contextBridge.exposeInMainWorld("api", {
 	getDevolucoes: (filtro) => ipcRenderer.invoke("get-devolucoes", filtro),
 	getItensDevolucao: (devolucaoId) =>
 		ipcRenderer.invoke("get-itens-devolucao", devolucaoId),
+	atualizarNotaFiscal: (vendaId, dados) =>
+		ipcRenderer.invoke("atualizar-nota-fiscal", vendaId, dados),
+	emitirNotaFiscal: (vendaId, formaPagamento) =>
+		ipcRenderer.invoke("emitir-nota-fiscal", vendaId, formaPagamento),
+	consultarNotaFiscal: (ref) =>
+		ipcRenderer.invoke("consultar-nota-fiscal", ref),
 	getFornecedores: () => ipcRenderer.invoke("get-fornecedores"),
 	salvarFornecedor: (dados) => ipcRenderer.invoke("salvar-fornecedor", dados),
 	atualizarFornecedor: (id, dados) =>
@@ -116,7 +122,11 @@ contextBridge.exposeInMainWorld("api", {
 	removerProdutoFornecedor: (id) =>
 		ipcRenderer.invoke("remover-produto-fornecedor", id),
 	getCustoFornecedorProduto: (fornecedorId, variacaoId) =>
-		ipcRenderer.invoke("get-custo-fornecedor-produto", fornecedorId, variacaoId),
+		ipcRenderer.invoke(
+			"get-custo-fornecedor-produto",
+			fornecedorId,
+			variacaoId,
+		),
 	getCotacaoProduto: (variacaoId) =>
 		ipcRenderer.invoke("get-cotacao-produto", variacaoId),
 	criarPedidoCompra: (dados) =>
@@ -134,12 +144,14 @@ contextBridge.exposeInMainWorld("api", {
 	excluirLancamento: (id) => ipcRenderer.invoke("excluir-lancamento", id),
 	getFluxoCaixa: (inicio, fim) =>
 		ipcRenderer.invoke("get-fluxo-caixa", inicio, fim),
-	abrirCaixa: (valorAbertura) => ipcRenderer.invoke("abrir-caixa", valorAbertura),
+	abrirCaixa: (valorAbertura) =>
+		ipcRenderer.invoke("abrir-caixa", valorAbertura),
 	fecharCaixa: (valorInformado, observacao) =>
 		ipcRenderer.invoke("fechar-caixa", valorInformado, observacao),
 	getCaixaAberto: () => ipcRenderer.invoke("get-caixa-aberto"),
 	getResumoCaixaAberto: () => ipcRenderer.invoke("get-resumo-caixa-aberto"),
-	getHistoricoCaixa: (limite) => ipcRenderer.invoke("get-historico-caixa", limite),
+	getHistoricoCaixa: (limite) =>
+		ipcRenderer.invoke("get-historico-caixa", limite),
 	getDRE: (inicio, fim) => ipcRenderer.invoke("get-dre", inicio, fim),
 	getRelatorioVendas: (inicio, fim) =>
 		ipcRenderer.invoke("get-relatorio-vendas", inicio, fim),
@@ -148,9 +160,14 @@ contextBridge.exposeInMainWorld("api", {
 	getComissoes: (inicio, fim) =>
 		ipcRenderer.invoke("get-comissoes", inicio, fim),
 	listarPagamentos: (metodo) => ipcRenderer.invoke("listar-pagamentos", metodo),
-	registrarPagamento: (dados) => ipcRenderer.invoke("registrar-pagamento", dados),
+	registrarPagamento: (dados) =>
+		ipcRenderer.invoke("registrar-pagamento", dados),
 	pagarPagamento: (id) => ipcRenderer.invoke("pagar-pagamento", id),
-	listarPagamentosPendentes: () => ipcRenderer.invoke("listar-pagamentos-pendentes"),
+	listarPagamentosPendentes: () =>
+		ipcRenderer.invoke("listar-pagamentos-pendentes"),
+	gerarQrCodePix: (dados) => ipcRenderer.invoke("gerar-qrcode-pix", dados),
+	consultarPagamentoPix: (txid) =>
+		ipcRenderer.invoke("consultar-pagamento-pix", txid),
 	unlockWithProfile: (login, senha) =>
 		ipcRenderer.invoke("unlock-with-profile", login, senha),
 	listarUsuarios: () => ipcRenderer.invoke("listar-usuarios"),
@@ -160,7 +177,8 @@ contextBridge.exposeInMainWorld("api", {
 	logout: () => ipcRenderer.invoke("logout"),
 	listarTabelasBanco: () => ipcRenderer.invoke("listar-tabelas-banco"),
 	resumoTabelasBanco: () => ipcRenderer.invoke("resumo-tabelas-banco"),
-	getLogAtividades: (filtro) => ipcRenderer.invoke("get-log-atividades", filtro),
+	getLogAtividades: (filtro) =>
+		ipcRenderer.invoke("get-log-atividades", filtro),
 	consultarTabelaBanco: (tabela, limite) =>
 		ipcRenderer.invoke("consultar-tabela-banco", tabela, limite),
 	exportarBancoJSON: () => ipcRenderer.invoke("exportar-banco-json"),

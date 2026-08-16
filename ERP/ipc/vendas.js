@@ -9,6 +9,7 @@ const {
 	registrarDevolucao,
 	getDevolucoes,
 	getItensDevolucao,
+	atualizarNotaFiscal,
 } = require("../database");
 
 function registrar(ipcMain, deps) {
@@ -124,6 +125,19 @@ function registrar(ipcMain, deps) {
 		try {
 			exigirSessao();
 			return await getItensDevolucao(devolucaoId);
+		} catch (erro) {
+			throw erro.message;
+		}
+	});
+
+	/* ============ Rastreamento fiscal ============ */
+
+	ipcMain.handle("atualizar-nota-fiscal", async (event, vendaId, dados) => {
+		try {
+			exigirSessao();
+			const resultado = await atualizarNotaFiscal(vendaId, dados);
+			log("atualizar-nota-fiscal", "Vendas", vendaId, dados && dados.status);
+			return resultado;
 		} catch (erro) {
 			throw erro.message;
 		}

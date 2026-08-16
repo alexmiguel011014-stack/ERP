@@ -3,6 +3,16 @@ const path = require("path");
 const { autoUpdater } = require("electron-updater");
 const { setDBPath, registrarLog, backupAutomatico } = require("./database");
 
+// Carrega .env (chaves Pix/NF-e etc.) se existir — nunca obrigatório, o app
+// funciona normalmente sem ele (integrações opcionais caem no fallback
+// manual). Só cobre modo dev (.env na raiz do app); produção empacotada
+// ainda não tem um local definido pra isso — ver GOALS.md.
+try {
+	process.loadEnvFile(path.join(__dirname, ".env"));
+} catch {
+	/* sem .env: segue com as integrações opcionais desligadas */
+}
+
 const instanciaUnica = app.requestSingleInstanceLock();
 if (!instanciaUnica) {
 	app.quit();
@@ -248,6 +258,8 @@ require("./ipc/sistema").registrar(ipcMain, deps);
 require("./ipc/usuarios").registrar(ipcMain, deps);
 require("./ipc/auth").registrar(ipcMain, deps);
 require("./ipc/pagamentos").registrar(ipcMain, deps);
+require("./ipc/pix").registrar(ipcMain, deps);
+require("./ipc/fiscal").registrar(ipcMain, deps);
 
 app.on("before-quit", () => {
 	if (sessao) {

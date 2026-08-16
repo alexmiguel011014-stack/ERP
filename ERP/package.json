@@ -9,7 +9,7 @@
 		"dist": "electron-builder",
 		"rebuild": "electron-rebuild -f -w @journeyapps/sqlcipher",
 		"lint": "eslint .",
-		"test": "node --test test/integration.test.js test/senha.test.js test/negocio.test.js"
+		"test": "node --test test/integration.test.js test/senha.test.js test/negocio.test.js test/pix-payload.test.js test/pix-provider.test.js test/fiscal.test.js test/fiscal-provider.test.js"
 	},
 	"keywords": [],
 	"author": "Alex Miguel",
@@ -76,7 +76,8 @@
 	"dependencies": {
 		"@journeyapps/sqlcipher": "^5.3.1",
 		"electron-updater": "^6.8.9",
-		"jspdf": "^4.2.1"
+		"jspdf": "^4.2.1",
+		"qrcode": "^1.5.4"
 	},
 	"allowScripts": {
 		"@journeyapps/sqlcipher@5.3.1": true,

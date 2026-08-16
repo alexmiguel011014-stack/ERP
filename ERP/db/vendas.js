@@ -1,4 +1,10 @@
-const { getConexao, allAsync, runOn, normalizarBusca } = require("./conexao");
+const {
+	getConexao,
+	allAsync,
+	runAsync,
+	runOn,
+	normalizarBusca,
+} = require("./conexao");
 const { criarLancamentoInterno } = require("./financeiro");
 
 // eslint-disable-next-line no-unused-vars
@@ -654,7 +660,7 @@ async function getVendas(filtro) {
 	const conn = getConexao();
 	return new Promise((resolver, rejeitar) => {
 		let sql =
-			"SELECT v.id, v.total, v.forma_pagamento, v.data_venda, v.desconto, v.observacao, v.status, c.nome AS cliente_nome FROM Vendas v LEFT JOIN Clientes c ON c.id = v.cliente_id";
+			"SELECT v.id, v.total, v.forma_pagamento, v.data_venda, v.desconto, v.observacao, v.status, v.nota_status, v.nota_numero, c.nome AS cliente_nome FROM Vendas v LEFT JOIN Clientes c ON c.id = v.cliente_id";
 		const params = [];
 		const where = [];
 
@@ -791,6 +797,7 @@ async function getItensVenda(vendaId) {
 	return new Promise((resolver, rejeitar) => {
 		const sql =
 			"SELECT iv.id, iv.variacao_id, p.nome AS produto_nome, v.tamanho, v.cor, v.atributos, v.sku, iv.quantidade, iv.preco_unitario, (iv.quantidade * iv.preco_unitario) AS subtotal, " +
+			"p.ncm, p.cfop_padrao, p.csosn, p.unidade_fiscal, p.origem_mercadoria, " +
 			"(SELECT COALESCE(SUM(idv.quantidade), 0) FROM ItensDevolucao idv WHERE idv.item_venda_id = iv.id) AS quantidade_devolvida " +
 			"FROM ItensVenda iv JOIN Variacoes v ON v.id = iv.variacao_id JOIN Produtos p ON p.id = v.produto_id WHERE iv.venda_id = ? ORDER BY iv.id";
 		conn.all(sql, [vendaId], (erro, linhas) => {
@@ -799,6 +806,37 @@ async function getItensVenda(vendaId) {
 		});
 	});
 }
+const STATUS_NOTA_VALIDOS = [
+	"nao_emitida",
+	"emitida_externa",
+	"emitida_erp",
+	"erro",
+	"cancelada",
+];
+
+// Atualiza o rastreamento fiscal de uma venda. Funciona hoje sem nenhuma
+// integração — "emitida_externa" é pra marcar que a nota já foi emitida por
+// fora do ERP (ex.: sistema do contador), evitando emissão duplicada quando
+// a integração de verdade (integracoes/fiscal/) entrar em uso.
+async function atualizarNotaFiscal(vendaId, dados) {
+	const status = STATUS_NOTA_VALIDOS.includes(dados && dados.status)
+		? dados.status
+		: "nao_emitida";
+	const resultado = await runAsync(
+		"UPDATE Vendas SET nota_status = ?, nota_numero = ?, nota_chave_acesso = ?, nota_provedor = ?, nota_erro = ? WHERE id = ?",
+		[
+			status,
+			(dados && dados.numero) || null,
+			(dados && dados.chaveAcesso) || null,
+			(dados && dados.provedor) || null,
+			(dados && dados.erro) || null,
+			vendaId,
+		],
+	);
+	if (resultado.changes === 0) throw new Error("Venda não encontrada.");
+	return { success: true };
+}
+
 module.exports = {
 	finalizarVenda,
 	converterOrcamento,
@@ -811,6 +849,7 @@ module.exports = {
 	registrarDevolucao,
 	getDevolucoes,
 	getItensDevolucao,
+	atualizarNotaFiscal,
 };
 // finalizarVendaPDV02 é código morto herdado do database.js original (nunca
 // era chamado nem exportado ali). Mantido sem exportar, mesmo critério usado

@@ -67,6 +67,9 @@ ERP/
 ├── db/                              -- Camada de dados por domínio (conexao, schema, usuarios,
 │                                      produtos, vendas, estoque, financeiro, etc.)
 ├── ipc/                             -- Handlers ipcMain por domínio (auth, vendas, estoque, ...)
+├── integracoes/                     -- Adapters de provedor externo (Pix, fiscal) — ver seção própria abaixo
+│   ├── pix/                         -- payload.js (QR genérico), qrimage.js, provider.js, providers/efi.js
+│   └── fiscal/                      -- provider.js, providers/focusnfe.js
 │
 ├── modules/                         -- Módulos organizados por funcionalidade
 │   ├── core/                        -- Shared: auth.js, banco.js, formatos.js, head.js,
@@ -102,6 +105,34 @@ ERP/
 - `PRAGMA foreign_keys = ON`; FKs com `ON DELETE CASCADE/RESTRICT`.
 - **Criptografia**: ao fazer login, a senha do app deriva a chave (SHA-256) que destrava o banco via SQLCipher. Banco em texto plano é migrado automaticamente no primeiro login. Troca de senha usa `PRAGMA rekey`. Backups são cópias do arquivo criptografado. Cada usuário do sistema tem login+senha; a chave-mestre é embrulhada por login/senha via AES-256-GCM (`erp_usuarios.json` ao lado do DB), permitindo vários usuários de acesso.
 - Backups automáticos diários em `data/backups/` (dev) ou `userData/backups/` (produção).
+
+## Integrações Externas (Pix / Fiscal)
+
+Estrutura genérica pronta, aguardando credenciais reais (loja não é do desenvolvedor;
+certificado A1 e conta em provedor de pagamento ainda pendentes de acesso — ver `GOALS.md`).
+
+- **Padrão adapter**: `integracoes/<pix|fiscal>/provider.js` lê `PIX_PROVIDER`/`FISCAL_PROVIDER`
+  do `.env` e devolve o adapter concreto (`integracoes/<pix|fiscal>/providers/*.js`) já
+  configurado, ou `null` se não houver credenciais — nenhuma tela trava por falta de provedor.
+  Trocar de provedor é escrever um novo arquivo em `providers/`, sem tocar o resto do app.
+- **Pix — sem provedor configurado**: `integracoes/pix/payload.js` gera um QR Code Pix
+  "Copia e Cola" (padrão BR Code/EMV do Bacen) genérico, que funciona com a chave Pix de
+  qualquer banco, sem conta em lugar nenhum. Confirmação de recebimento fica manual (como
+  já era antes desta integração).
+- **Pix — com `PIX_PROVIDER=efi`**: usa a API Pix da Efí (mTLS + OAuth2) pra gerar cobrança
+  vinculada e permitir confirmação automática depois. Ver `.env.example` pras variáveis.
+- **Fiscal — sem provedor configurado**: emissão pelo ERP fica indisponível; a tela de Vendas
+  tem um campo manual (`nota_status`/`nota_numero` em `Vendas`) pra marcar "emitida por fora"
+  quando a nota sai por outro sistema (ex.: contador) — evita emissão duplicada.
+- **Fiscal — com `FISCAL_PROVIDER=focusnfe`**: emite NFC-e via Focus NFe. Exige que os produtos
+  tenham `ncm`/`csosn` preenchidos (`Produtos`); sem isso, `ipc/fiscal.js` recusa a emissão com
+  mensagem clara em vez de mandar uma nota incompleta pra SEFAZ.
+- **`.env`**: carregado em `main.js` via `process.loadEnvFile()` (Node 20.6+, nativo, sem
+  dependência). Só cobre modo dev (`.env` na raiz do app) — produção empacotada (`.exe`) ainda
+  não tem um local definido pra guardar as credenciais reais; decidir isso quando as
+  credenciais existirem.
+- **Nada disso foi testado contra API real** — payloads seguem a documentação pública de cada
+  provedor, mas o primeiro teste de verdade só acontece quando houver certificado/token reais.
 
 ## Decisões Arquiteturais
 

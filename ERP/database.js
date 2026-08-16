@@ -130,6 +130,7 @@ module.exports = {
 	registrarDevolucao: vendas.registrarDevolucao,
 	getDevolucoes: vendas.getDevolucoes,
 	getItensDevolucao: vendas.getItensDevolucao,
+	atualizarNotaFiscal: vendas.atualizarNotaFiscal,
 	getCotacaoProduto: fornecedores.getCotacaoProduto,
 	listarPrecosCliente: clientes.listarPrecosCliente,
 	salvarPrecoCliente: clientes.salvarPrecoCliente,

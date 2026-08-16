@@ -36,17 +36,30 @@
 		if (vendasCache.some((v) => v.id === vendaId)) {
 			mostrarDetalhesVenda(vendaId);
 		} else {
-			mostrarMensagem("Venda #" + vendaId + " não encontrada na lista atual.", "erro");
+			mostrarMensagem(
+				"Venda #" + vendaId + " não encontrada na lista atual.",
+				"erro",
+			);
 		}
 	}
 
 	function montarLegendas() {
 		if (legendPagamento) {
-			var extras = FORMAS_PAGAMENTO.map((f) =>
-				'<button type="button" class="legend-btn" data-pagamento="' + f + '">' + f +
-				' <span class="count-badge" id="cntPag' + f.replace(/[^a-zA-Z]/g, "") + '">0</span></button>'
+			var extras = FORMAS_PAGAMENTO.map(
+				(f) =>
+					'<button type="button" class="legend-btn" data-pagamento="' +
+					f +
+					'">' +
+					f +
+					' <span class="count-badge" id="cntPag' +
+					f.replace(/[^a-zA-Z]/g, "") +
+					'">0</span></button>',
 			).join("");
-			legendPagamento.querySelectorAll(".legend-btn[data-pagamento]:not([data-pagamento=''])").forEach((b) => b.remove());
+			legendPagamento
+				.querySelectorAll(
+					".legend-btn[data-pagamento]:not([data-pagamento=''])",
+				)
+				.forEach((b) => b.remove());
 			legendPagamento.insertAdjacentHTML("beforeend", extras);
 		}
 	}
@@ -54,14 +67,21 @@
 
 	function matchesBusca(v) {
 		if (!buscaQuery) return true;
-		var alvo = (String(v.id) + " " + (v.cliente_nome || "") + " " + (v.forma_pagamento || "")).toLowerCase();
+		var alvo = (
+			String(v.id) +
+			" " +
+			(v.cliente_nome || "") +
+			" " +
+			(v.forma_pagamento || "")
+		).toLowerCase();
 		return alvo.indexOf(buscaQuery) !== -1;
 	}
 
 	function getFiltradas() {
 		return vendasCache.filter((v) => {
 			var matchStatus = !statusFiltro || v.status === statusFiltro;
-			var matchPagamento = !pagamentoFiltro || v.forma_pagamento === pagamentoFiltro;
+			var matchPagamento =
+				!pagamentoFiltro || v.forma_pagamento === pagamentoFiltro;
 			return matchStatus && matchPagamento && matchesBusca(v);
 		});
 	}
@@ -71,8 +91,10 @@
 		var key = sortState.key;
 		var dir = sortState.dir;
 		return lista.slice().sort((a, b) => {
-			if (key === "total" || key === "id") return ((a[key] || 0) - (b[key] || 0)) * dir;
-			if (key === "data_venda") return (new Date(a.data_venda) - new Date(b.data_venda)) * dir;
+			if (key === "total" || key === "id")
+				return ((a[key] || 0) - (b[key] || 0)) * dir;
+			if (key === "data_venda")
+				return (new Date(a.data_venda) - new Date(b.data_venda)) * dir;
 			var va = String(a[key] || "").toLowerCase();
 			var vb = String(b[key] || "").toLowerCase();
 			return va.localeCompare(vb) * dir;
@@ -80,28 +102,51 @@
 	}
 
 	function atualizarIconesSort() {
-		["id", "cliente_nome", "status", "data_venda", "forma_pagamento", "total"].forEach((k) => {
+		[
+			"id",
+			"cliente_nome",
+			"status",
+			"data_venda",
+			"forma_pagamento",
+			"total",
+		].forEach((k) => {
 			var icon = document.getElementById("sortIcon-" + k);
 			if (!icon) return;
-			icon.textContent = sortState.key === k ? (sortState.dir > 0 ? "▲" : "▼") : "";
+			icon.textContent =
+				sortState.key === k ? (sortState.dir > 0 ? "▲" : "▼") : "";
 		});
 	}
 
 	function atualizarContadores() {
-		var semStatus = vendasCache.filter((v) => (!pagamentoFiltro || v.forma_pagamento === pagamentoFiltro) && matchesBusca(v));
+		var semStatus = vendasCache.filter(
+			(v) =>
+				(!pagamentoFiltro || v.forma_pagamento === pagamentoFiltro) &&
+				matchesBusca(v),
+		);
 		var elTodas = document.getElementById("cntStatusTodas");
 		var elFin = document.getElementById("cntStatusFinalizada");
 		var elOrc = document.getElementById("cntStatusOrcamento");
 		if (elTodas) elTodas.textContent = semStatus.length;
-		if (elFin) elFin.textContent = semStatus.filter((v) => v.status === "finalizada").length;
-		if (elOrc) elOrc.textContent = semStatus.filter((v) => v.status === "orcamento").length;
+		if (elFin)
+			elFin.textContent = semStatus.filter(
+				(v) => v.status === "finalizada",
+			).length;
+		if (elOrc)
+			elOrc.textContent = semStatus.filter(
+				(v) => v.status === "orcamento",
+			).length;
 
-		var semPagamento = vendasCache.filter((v) => (!statusFiltro || v.status === statusFiltro) && matchesBusca(v));
+		var semPagamento = vendasCache.filter(
+			(v) => (!statusFiltro || v.status === statusFiltro) && matchesBusca(v),
+		);
 		var elPagTodas = document.getElementById("cntPagTodas");
 		if (elPagTodas) elPagTodas.textContent = semPagamento.length;
 		FORMAS_PAGAMENTO.forEach((f) => {
 			var el = document.getElementById("cntPag" + f.replace(/[^a-zA-Z]/g, ""));
-			if (el) el.textContent = semPagamento.filter((v) => v.forma_pagamento === f).length;
+			if (el)
+				el.textContent = semPagamento.filter(
+					(v) => v.forma_pagamento === f,
+				).length;
 		});
 	}
 
@@ -109,22 +154,39 @@
 		if (!itens || itens.length === 0) {
 			return '<div class="empty-state" style="padding:12px 0;">Nenhum item encontrado.</div>';
 		}
-		var linhas = itens.map((item) => {
-			var subtotal = (item.preco_unitario || 0) * (item.quantidade || 1);
-			var detalhes = formatarAtributos(item.atributos, item.tamanho, item.cor);
-			var nomeCell = (item.produto_nome || "---") + (detalhes !== "---" ? " (" + detalhes + ")" : "");
-			return (
-				"<tr><td>" + nomeCell + "</td><td>" + (item.sku || "---") +
-				'</td><td class="col-num">' + (item.quantidade || 1) +
-				'</td><td class="col-num">' + formatarMoeda(item.preco_unitario) +
-				'</td><td class="col-num" style="font-weight:600; color:var(--cor-sucesso);">' + formatarMoeda(subtotal) + "</td></tr>"
-			);
-		}).join("");
+		var linhas = itens
+			.map((item) => {
+				var subtotal = (item.preco_unitario || 0) * (item.quantidade || 1);
+				var detalhes = formatarAtributos(
+					item.atributos,
+					item.tamanho,
+					item.cor,
+				);
+				var nomeCell =
+					(item.produto_nome || "---") +
+					(detalhes !== "---" ? " (" + detalhes + ")" : "");
+				return (
+					"<tr><td>" +
+					nomeCell +
+					"</td><td>" +
+					(item.sku || "---") +
+					'</td><td class="col-num">' +
+					(item.quantidade || 1) +
+					'</td><td class="col-num">' +
+					formatarMoeda(item.preco_unitario) +
+					'</td><td class="col-num" style="font-weight:600; color:var(--cor-sucesso);">' +
+					formatarMoeda(subtotal) +
+					"</td></tr>"
+				);
+			})
+			.join("");
 		return (
 			'<table class="row-details-itens"><thead><tr><th>Produto</th><th>SKU</th><th class="col-num">Qtd</th><th class="col-num">Unit.</th><th class="col-num">Subtotal</th></tr></thead><tbody>' +
 			linhas +
 			"</tbody></table>" +
-			'<div class="row-details-acoes"><button type="button" class="btn btn-small btn-ver-detalhes" data-venda-id="' + vendaId + '">Ver detalhes completos</button></div>'
+			'<div class="row-details-acoes"><button type="button" class="btn btn-small btn-ver-detalhes" data-venda-id="' +
+			vendaId +
+			'">Ver detalhes completos</button></div>'
 		);
 	}
 
@@ -134,7 +196,8 @@
 			td.innerHTML = linhaDetalhesHtml(vendaId, itensCache[vendaId]);
 			return;
 		}
-		td.innerHTML = '<div class="empty-state" style="padding:12px 0;">Carregando itens...</div>';
+		td.innerHTML =
+			'<div class="empty-state" style="padding:12px 0;">Carregando itens...</div>';
 		if (!window.api || !window.erpBanco.vendas.itens) return;
 		window.api
 			.getItensVenda(vendaId)
@@ -143,7 +206,8 @@
 				td.innerHTML = linhaDetalhesHtml(vendaId, itensCache[vendaId]);
 			})
 			.catch((err) => {
-				td.innerHTML = '<div class="empty-state">Erro ao carregar itens: ' + err + "</div>";
+				td.innerHTML =
+					'<div class="empty-state">Erro ao carregar itens: ' + err + "</div>";
 			});
 	}
 
@@ -159,9 +223,14 @@
 			var cls = "";
 			if (opts.ativo) cls = " ativo";
 			return (
-				'<button type="button"' + (opts.disabled ? " disabled" : "") +
+				'<button type="button"' +
+				(opts.disabled ? " disabled" : "") +
 				(pagina != null ? ' data-pagina="' + pagina + '"' : "") +
-				' class="' + cls.trim() + '">' + label + "</button>"
+				' class="' +
+				cls.trim() +
+				'">' +
+				label +
+				"</button>"
 			);
 		}
 		var html = "";
@@ -170,11 +239,21 @@
 		var inicio = Math.max(1, paginaAtual - Math.floor(janela / 2));
 		var fim = Math.min(totalPaginas, inicio + janela - 1);
 		inicio = Math.max(1, fim - janela + 1);
-		for (var p = inicio; p <= fim; p++) html += btn(String(p), p, { ativo: p === paginaAtual });
-		html += btn("Próxima", paginaAtual + 1, { disabled: paginaAtual === totalPaginas });
+		for (var p = inicio; p <= fim; p++)
+			html += btn(String(p), p, { ativo: p === paginaAtual });
+		html += btn("Próxima", paginaAtual + 1, {
+			disabled: paginaAtual === totalPaginas,
+		});
 		var comeco = total === 0 ? 0 : (paginaAtual - 1) * linhasPorPagina + 1;
 		var fimIntervalo = Math.min(paginaAtual * linhasPorPagina, total);
-		html += '<span class="pager-info">' + comeco + "–" + fimIntervalo + " de " + total + "</span>";
+		html +=
+			'<span class="pager-info">' +
+			comeco +
+			"–" +
+			fimIntervalo +
+			" de " +
+			total +
+			"</span>";
 		pager.innerHTML = html;
 		pager.querySelectorAll("button[data-pagina]").forEach((b) => {
 			b.addEventListener("click", () => {
@@ -215,23 +294,48 @@
 				: '<span class="badge-status finalizada"><span class="dot"></span>Finalizada</span>';
 
 			html +=
-				'<tr class="row-main' + (i % 2 === 1 ? " even" : "") + (expandida ? " expandida" : "") + '" data-venda-id="' + v.id + '">' +
+				'<tr class="row-main' +
+				(i % 2 === 1 ? " even" : "") +
+				(expandida ? " expandida" : "") +
+				'" data-venda-id="' +
+				v.id +
+				'">' +
 				'<td class="col-expandir"><span class="expandir-toggle">›</span></td>' +
-				'<td class="venda-numero">#' + v.id + "</td>" +
-				'<td class="venda-cliente">' + (v.cliente_nome || "Cliente não informado") + "</td>" +
-				"<td>" + badgeStatus + "</td>" +
-				"<td>" + formatarData(v.data_venda) + "</td>" +
-				"<td>" + (v.forma_pagamento || "---") + "</td>" +
-				'<td class="col-valor"><span class="venda-total' + (ehOrcamento ? " orcamento" : "") + '">' + formatarMoeda(v.total) + "</span></td>" +
+				'<td class="venda-numero">#' +
+				v.id +
+				"</td>" +
+				'<td class="venda-cliente">' +
+				(v.cliente_nome || "Cliente não informado") +
+				"</td>" +
+				"<td>" +
+				badgeStatus +
+				"</td>" +
+				"<td>" +
+				formatarData(v.data_venda) +
+				"</td>" +
+				"<td>" +
+				(v.forma_pagamento || "---") +
+				"</td>" +
+				'<td class="col-valor"><span class="venda-total' +
+				(ehOrcamento ? " orcamento" : "") +
+				'">' +
+				formatarMoeda(v.total) +
+				"</span></td>" +
 				"</tr>";
 			html +=
-				'<tr class="row-details' + (expandida ? "" : " hidden") + '" data-detalhes-id="' + v.id + '">' +
+				'<tr class="row-details' +
+				(expandida ? "" : " hidden") +
+				'" data-detalhes-id="' +
+				v.id +
+				'">' +
 				'<td colspan="7"></td></tr>';
 		});
 		tbodyVendas.innerHTML = html;
 
 		if (linhaExpandidaId != null) {
-			var trDet = tbodyVendas.querySelector('.row-details[data-detalhes-id="' + linhaExpandidaId + '"]');
+			var trDet = tbodyVendas.querySelector(
+				'.row-details[data-detalhes-id="' + linhaExpandidaId + '"]',
+			);
 			if (trDet) popularLinhaDetalhes(linhaExpandidaId, trDet);
 		}
 
@@ -261,7 +365,9 @@
 	if (legendStatus) {
 		legendStatus.querySelectorAll(".legend-btn").forEach((btn) => {
 			btn.addEventListener("click", () => {
-				legendStatus.querySelectorAll(".legend-btn").forEach((b) => b.classList.remove("active"));
+				legendStatus
+					.querySelectorAll(".legend-btn")
+					.forEach((b) => b.classList.remove("active"));
 				btn.classList.add("active");
 				statusFiltro = btn.getAttribute("data-status") || "";
 				paginaAtual = 1;
@@ -273,7 +379,9 @@
 		legendPagamento.addEventListener("click", (e) => {
 			var btn = e.target.closest(".legend-btn");
 			if (!btn) return;
-			legendPagamento.querySelectorAll(".legend-btn").forEach((b) => b.classList.remove("active"));
+			legendPagamento
+				.querySelectorAll(".legend-btn")
+				.forEach((b) => b.classList.remove("active"));
 			btn.classList.add("active");
 			pagamentoFiltro = btn.getAttribute("data-pagamento") || "";
 			paginaAtual = 1;
@@ -297,11 +405,14 @@
 
 	function carregarVendas(filtro) {
 		if (!window.api || !window.erpBanco.vendas.listar) {
-			tbodyVendas.innerHTML = '<tr><td colspan="7"><div class="empty-state">API indisponível.</div></td></tr>';
+			tbodyVendas.innerHTML =
+				'<tr><td colspan="7"><div class="empty-state">API indisponível.</div></td></tr>';
 			return;
 		}
 
-		tbodyVendas.innerHTML = window.erpSkeletonLinhas ? window.erpSkeletonLinhas(5, 7) : '<tr><td colspan="7"><div class="empty-state">Carregando...</div></td></tr>';
+		tbodyVendas.innerHTML = window.erpSkeletonLinhas
+			? window.erpSkeletonLinhas(5, 7)
+			: '<tr><td colspan="7"><div class="empty-state">Carregando...</div></td></tr>';
 
 		window.api
 			.getVendas(filtro || {})
@@ -323,18 +434,102 @@
 				if (btnExportCsv) btnExportCsv.disabled = false;
 
 				var totalVendas = vendasCache.length;
-				var totalFaturado = vendasCache.reduce((acc, v) => acc + (v.total || 0), 0);
+				var totalFaturado = vendasCache.reduce(
+					(acc, v) => acc + (v.total || 0),
+					0,
+				);
 				statsVendas.innerHTML =
-					'<div class="stat-card"><div class="stat-value">' + totalVendas +
+					'<div class="stat-card"><div class="stat-value">' +
+					totalVendas +
 					'</div><div class="stat-label">Registros</div></div>' +
-					'<div class="stat-card"><div class="stat-value">' + formatarMoeda(totalFaturado) +
+					'<div class="stat-card"><div class="stat-value">' +
+					formatarMoeda(totalFaturado) +
 					'</div><div class="stat-label">Total</div></div>';
 
 				renderizarTabela();
 			})
 			.catch((err) => {
-				tbodyVendas.innerHTML = '<tr><td colspan="7"><div class="empty-state">Erro ao carregar vendas: ' + err + "</div></td></tr>";
+				tbodyVendas.innerHTML =
+					'<tr><td colspan="7"><div class="empty-state">Erro ao carregar vendas: ' +
+					err +
+					"</div></td></tr>";
 			});
+	}
+
+	var ROTULOS_NOTA_FISCAL = {
+		nao_emitida: "Não emitida",
+		emitida_externa: "Emitida por fora",
+		emitida_erp: "Emitida pelo ERP",
+		erro: "Erro na emissão",
+		cancelada: "Cancelada",
+	};
+
+	// Rastreamento fiscal manual da venda (funciona sem nenhuma integração —
+	// só marca que a nota já foi emitida por fora, ou pelo provedor quando
+	// configurado). Construído via DOM, não string HTML, pra não precisar
+	// escapar o número da nota digitado pelo usuário.
+	function montarAreaNotaFiscal(vendaId, venda) {
+		var area = document.getElementById("notaFiscalArea");
+		if (!area || !venda) return;
+
+		var rotulo = document.createElement("span");
+		rotulo.style.color = "#64748B";
+		rotulo.style.fontSize = "0.8rem";
+		rotulo.textContent = "Nota fiscal";
+
+		var controles = document.createElement("span");
+		controles.style.display = "flex";
+		controles.style.gap = "6px";
+		controles.style.alignItems = "center";
+
+		var select = document.createElement("select");
+		select.style.fontSize = "0.8rem";
+		Object.keys(ROTULOS_NOTA_FISCAL).forEach((chave) => {
+			var opt = document.createElement("option");
+			opt.value = chave;
+			opt.textContent = ROTULOS_NOTA_FISCAL[chave];
+			if ((venda.nota_status || "nao_emitida") === chave) opt.selected = true;
+			select.appendChild(opt);
+		});
+
+		var input = document.createElement("input");
+		input.type = "text";
+		input.placeholder = "nº da nota";
+		input.style.width = "100px";
+		input.style.fontSize = "0.8rem";
+		input.value = venda.nota_numero || "";
+
+		var btnSalvar = document.createElement("button");
+		btnSalvar.textContent = "Salvar";
+		btnSalvar.style.padding = "4px 8px";
+		btnSalvar.style.fontSize = "0.75rem";
+		btnSalvar.addEventListener("click", () => {
+			if (!window.erpBanco.vendas.atualizarNotaFiscal) {
+				mostrarMensagem("API indisponível.", "erro");
+				return;
+			}
+			btnSalvar.disabled = true;
+			window.erpBanco.vendas
+				.atualizarNotaFiscal(vendaId, {
+					status: select.value,
+					numero: input.value.trim(),
+				})
+				.then(() => {
+					venda.nota_status = select.value;
+					venda.nota_numero = input.value.trim();
+					mostrarMensagem("Rastreamento fiscal atualizado.", "sucesso");
+				})
+				.catch((err) => mostrarMensagem("Erro ao salvar: " + err, "erro"))
+				.finally(() => {
+					btnSalvar.disabled = false;
+				});
+		});
+
+		controles.appendChild(select);
+		controles.appendChild(input);
+		controles.appendChild(btnSalvar);
+		area.appendChild(rotulo);
+		area.appendChild(controles);
 	}
 
 	function mostrarDetalhesVenda(vendaId) {
@@ -348,7 +543,11 @@
 		window.api
 			.getItensVenda(vendaId)
 			.then((itens) => {
-				detalheAtualCache = { vendaId: vendaId, venda: venda, itens: itens || [] };
+				detalheAtualCache = {
+					vendaId: vendaId,
+					venda: venda,
+					itens: itens || [],
+				};
 				var html = "";
 				html += '<div style="max-width:600px;">';
 				html +=
@@ -403,12 +602,14 @@
 						html += "</div>";
 					}
 					html +=
-						"<div style='display:flex; justify-content:space-between; padding:6px 0 12px; border-bottom:1px solid #E2E8F0;'>";
+						"<div style='display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #E2E8F0;'>";
 					html +=
 						"<span style='color:#64748B; font-size:0.8rem;'>Total</span><span style='color:var(--cor-sucesso); font-weight:700; font-size:1rem;'>" +
 						formatarMoeda(venda.total) +
 						"</span>";
 					html += "</div>";
+					html +=
+						"<div id='notaFiscalArea' style='display:flex; justify-content:space-between; align-items:center; gap:6px; padding:6px 0 12px; border-bottom:1px solid #E2E8F0;' class='no-print'></div>";
 				}
 				html +=
 					"<table style='width:100%; border-collapse:collapse; margin-bottom:12px;'>";
@@ -462,6 +663,8 @@
 				var modalContent = document.getElementById("modalDetalhesContent");
 				modalContent.innerHTML = html;
 				modal.style.display = "flex";
+
+				montarAreaNotaFiscal(vendaId, venda);
 
 				var btnConverter = document.getElementById("btnConverterOrcamento");
 				if (btnConverter) {
@@ -562,7 +765,9 @@
 		doc.setFontSize(15);
 		doc.setFont(undefined, "bold");
 		doc.text(
-			(venda && venda.status === "orcamento" ? "Orçamento" : "Venda") + " #" + detalheAtualCache.vendaId,
+			(venda && venda.status === "orcamento" ? "Orçamento" : "Venda") +
+				" #" +
+				detalheAtualCache.vendaId,
 			margem,
 			y,
 		);
@@ -574,7 +779,11 @@
 			y += 14;
 			doc.text("Pagamento: " + (venda.forma_pagamento || "---"), margem, y);
 			y += 14;
-			doc.text("Cliente: " + (venda.cliente_nome || "Não informado"), margem, y);
+			doc.text(
+				"Cliente: " + (venda.cliente_nome || "Não informado"),
+				margem,
+				y,
+			);
 			y += 14;
 			if (venda.observacao) {
 				doc.text("Observação: " + venda.observacao, margem, y);
@@ -588,41 +797,66 @@
 		var colunas = ["Produto", "SKU", "Qtd", "Unit.", "Total"];
 		var larguras = [220, 90, 50, 80, 80];
 		var x = margem;
-		colunas.forEach((c, i) => { doc.text(c, x, y); x += larguras[i]; });
+		colunas.forEach((c, i) => {
+			doc.text(c, x, y);
+			x += larguras[i];
+		});
 		y += 10;
 		doc.setDrawColor(200);
-		doc.line(margem, y - 7, margem + larguras.reduce((a, b) => a + b, 0), y - 7);
+		doc.line(
+			margem,
+			y - 7,
+			margem + larguras.reduce((a, b) => a + b, 0),
+			y - 7,
+		);
 		y += 4;
 		doc.setFont(undefined, "normal");
 
 		itens.forEach((item) => {
-			if (y > 780) { doc.addPage(); y = margem; }
+			if (y > 780) {
+				doc.addPage();
+				y = margem;
+			}
 			var subtotal = (item.preco_unitario || 0) * (item.quantidade || 1);
 			var detalhes = formatarAtributos(item.atributos, item.tamanho, item.cor);
-			var nomeLinha = item.produto_nome + (detalhes !== "---" ? " (" + detalhes + ")" : "");
+			var nomeLinha =
+				item.produto_nome + (detalhes !== "---" ? " (" + detalhes + ")" : "");
 			x = margem;
-			doc.text(nomeLinha.slice(0, 38), x, y); x += larguras[0];
-			doc.text(String(item.sku || "---"), x, y); x += larguras[1];
-			doc.text(String(item.quantidade), x, y); x += larguras[2];
-			doc.text(formatarMoeda(item.preco_unitario), x, y); x += larguras[3];
+			doc.text(nomeLinha.slice(0, 38), x, y);
+			x += larguras[0];
+			doc.text(String(item.sku || "---"), x, y);
+			x += larguras[1];
+			doc.text(String(item.quantidade), x, y);
+			x += larguras[2];
+			doc.text(formatarMoeda(item.preco_unitario), x, y);
+			x += larguras[3];
 			doc.text(formatarMoeda(subtotal), x, y);
 			y += 13;
 		});
 
 		y += 10;
 		if (venda && venda.desconto > 0) {
-			doc.text("Subtotal: " + formatarMoeda(venda.total + venda.desconto), margem + 300, y);
+			doc.text(
+				"Subtotal: " + formatarMoeda(venda.total + venda.desconto),
+				margem + 300,
+				y,
+			);
 			y += 14;
 			doc.text("Desconto: -" + formatarMoeda(venda.desconto), margem + 300, y);
 			y += 14;
 		}
 		doc.setFont(undefined, "bold");
 		doc.setFontSize(11);
-		doc.text("Total: " + formatarMoeda(venda ? venda.total : 0), margem + 300, y);
+		doc.text(
+			"Total: " + formatarMoeda(venda ? venda.total : 0),
+			margem + 300,
+			y,
+		);
 
 		doc.save(
 			(venda && venda.status === "orcamento" ? "orcamento_" : "venda_") +
-				detalheAtualCache.vendaId + ".pdf",
+				detalheAtualCache.vendaId +
+				".pdf",
 		);
 	};
 
@@ -651,13 +885,21 @@
 			buscaQuery = "";
 			if (buscaVendas) buscaVendas.value = "";
 			if (legendStatus) {
-				legendStatus.querySelectorAll(".legend-btn").forEach((b) => b.classList.remove("active"));
-				var todasStatus = legendStatus.querySelector('.legend-btn[data-status=""]');
+				legendStatus
+					.querySelectorAll(".legend-btn")
+					.forEach((b) => b.classList.remove("active"));
+				var todasStatus = legendStatus.querySelector(
+					'.legend-btn[data-status=""]',
+				);
 				if (todasStatus) todasStatus.classList.add("active");
 			}
 			if (legendPagamento) {
-				legendPagamento.querySelectorAll(".legend-btn").forEach((b) => b.classList.remove("active"));
-				var todasPag = legendPagamento.querySelector('.legend-btn[data-pagamento=""]');
+				legendPagamento
+					.querySelectorAll(".legend-btn")
+					.forEach((b) => b.classList.remove("active"));
+				var todasPag = legendPagamento.querySelector(
+					'.legend-btn[data-pagamento=""]',
+				);
 				if (todasPag) todasPag.classList.add("active");
 			}
 			paginaAtual = 1;
