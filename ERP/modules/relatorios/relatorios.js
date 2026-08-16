@@ -13,7 +13,12 @@
 	var mensagem = document.getElementById("mensagem");
 
 	var abcCache = [];
-	var relatorioCache = { resumo: null, comissoes: [], dre: null, periodo: { inicio: null, fim: null } };
+	var relatorioCache = {
+		resumo: null,
+		comissoes: [],
+		dre: null,
+		periodo: { inicio: null, fim: null },
+	};
 	var graficos = {};
 
 	var CORES = {
@@ -22,7 +27,15 @@
 		vermelho: "#B91C1C",
 		amarelo: "#B45309",
 		cinza: "#64748B",
-		paleta: ["#6D28D9", "#15803D", "#F5B301", "#B91C1C", "#8B5CF6", "#0891B2", "#DB2777"],
+		paleta: [
+			"#6D28D9",
+			"#15803D",
+			"#F5B301",
+			"#B91C1C",
+			"#8B5CF6",
+			"#0891B2",
+			"#DB2777",
+		],
 	};
 
 	function renderizarGrafico(canvasId, config) {
@@ -42,22 +55,39 @@
 	}
 
 	var ICONES_STAT = {
-		vendas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M7 15h4"/></svg>',
-		faturamento: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
-		ticket: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/></svg>',
-		descontos: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2.59 12.6A2 2 0 0 1 2 11.17V4a2 2 0 0 1 2-2h7.17a2 2 0 0 1 1.42.59l7.99 7.99a2 2 0 0 1 .01 2.83z"/><line x1="7.5" y1="7.5" x2="7.51" y2="7.5"/></svg>',
+		vendas:
+			'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M7 15h4"/></svg>',
+		faturamento:
+			'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+		ticket:
+			'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/></svg>',
+		descontos:
+			'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2.59 12.6A2 2 0 0 1 2 11.17V4a2 2 0 0 1 2-2h7.17a2 2 0 0 1 1.42.59l7.99 7.99a2 2 0 0 1 .01 2.83z"/><line x1="7.5" y1="7.5" x2="7.51" y2="7.5"/></svg>',
 	};
 
 	function cardStatV2(cor, icone, valor, label, progresso) {
-		var barra = progresso == null ? "" :
-			'<div class="stat-v2-progress"><div style="width:' + Math.max(0, Math.min(100, progresso)).toFixed(1) + '%"></div></div>';
+		var barra =
+			progresso == null
+				? ""
+				: '<div class="stat-v2-progress"><div style="width:' +
+					Math.max(0, Math.min(100, progresso)).toFixed(1) +
+					'%"></div></div>';
 		return (
-			'<div class="stat-card-v2 ' + cor + '">' +
+			'<div class="stat-card-v2 ' +
+			cor +
+			'">' +
 			'<div class="stat-v2-row">' +
-			'<div><div class="stat-v2-value">' + valor + '</div><div class="stat-v2-label">' + label + '</div></div>' +
-			'<div class="stat-v2-icon">' + icone + '</div>' +
-			'</div>' + barra +
-			'</div>'
+			'<div><div class="stat-v2-value">' +
+			valor +
+			'</div><div class="stat-v2-label">' +
+			label +
+			"</div></div>" +
+			'<div class="stat-v2-icon">' +
+			icone +
+			"</div>" +
+			"</div>" +
+			barra +
+			"</div>"
 		);
 	}
 
@@ -71,14 +101,33 @@
 				.vendasPeriodo(inicio, fim)
 				.then((r) => {
 					relatorioCache.resumo = r;
-					var percentualDesconto = r.resumo.faturamento > 0
-						? (r.resumo.descontos / (r.resumo.faturamento + r.resumo.descontos)) * 100
-						: 0;
+					var percentualDesconto =
+						r.resumo.faturamento > 0
+							? (r.resumo.descontos /
+									(r.resumo.faturamento + r.resumo.descontos)) *
+								100
+							: 0;
 					statsResumo.innerHTML =
 						cardStatV2("azul", ICONES_STAT.vendas, r.resumo.vendas, "Vendas") +
-						cardStatV2("verde", ICONES_STAT.faturamento, formatarMoeda(r.resumo.faturamento), "Faturamento") +
-						cardStatV2("azul", ICONES_STAT.ticket, formatarMoeda(r.resumo.ticketMedio), "Ticket médio") +
-						cardStatV2("vermelho", ICONES_STAT.descontos, formatarMoeda(r.resumo.descontos), "Descontos dados", percentualDesconto);
+						cardStatV2(
+							"verde",
+							ICONES_STAT.faturamento,
+							formatarMoeda(r.resumo.faturamento),
+							"Faturamento",
+						) +
+						cardStatV2(
+							"azul",
+							ICONES_STAT.ticket,
+							formatarMoeda(r.resumo.ticketMedio),
+							"Ticket médio",
+						) +
+						cardStatV2(
+							"vermelho",
+							ICONES_STAT.descontos,
+							formatarMoeda(r.resumo.descontos),
+							"Descontos dados",
+							percentualDesconto,
+						);
 
 					listaPorDia.innerHTML = "";
 					if (!r.porDia || r.porDia.length === 0) {
@@ -113,12 +162,14 @@
 						type: "bar",
 						data: {
 							labels: (r.porDia || []).map((d) => formatarData(d.dia)),
-							datasets: [{
-								label: "Faturamento",
-								data: (r.porDia || []).map((d) => d.faturamento),
-								backgroundColor: CORES.azul,
-								borderRadius: 4,
-							}],
+							datasets: [
+								{
+									label: "Faturamento",
+									data: (r.porDia || []).map((d) => d.faturamento),
+									backgroundColor: CORES.azul,
+									borderRadius: 4,
+								},
+							],
 						},
 						options: {
 							responsive: true,
@@ -158,15 +209,22 @@
 						type: "doughnut",
 						data: {
 							labels: (r.porPagamento || []).map((p) => p.forma_pagamento),
-							datasets: [{
-								data: (r.porPagamento || []).map((p) => p.faturamento),
-								backgroundColor: CORES.paleta,
-							}],
+							datasets: [
+								{
+									data: (r.porPagamento || []).map((p) => p.faturamento),
+									backgroundColor: CORES.paleta,
+								},
+							],
 						},
 						options: {
 							responsive: true,
 							maintainAspectRatio: false,
-							plugins: { legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 10 } } } },
+							plugins: {
+								legend: {
+									position: "bottom",
+									labels: { boxWidth: 12, font: { size: 10 } },
+								},
+							},
 						},
 					});
 				})
@@ -184,79 +242,93 @@
 					if (abcCache.length === 0) {
 						listaAbc.innerHTML =
 							'<div class="empty-state">Sem produtos vendidos no período.</div>';
-						if (graficos.graficoAbc) { graficos.graficoAbc.destroy(); delete graficos.graficoAbc; }
+						if (graficos.graficoAbc) {
+							graficos.graficoAbc.destroy();
+							delete graficos.graficoAbc;
+						}
 						return;
 					}
-var t = document.createElement("table");
-				t.innerHTML =
-					"<thead><tr><th>#</th><th>Produto</th><th style='text-align:center;'>Qtd</th><th style='text-align:right;'>Receita</th><th style='text-align:right;'>Custo</th><th style='text-align:right;'>Lucro</th><th style='text-align:right;'>Margem %</th><th style='min-width:120px;'>Acumulado</th><th style='text-align:center;'>Classe</th></tr></thead><tbody></tbody>";
-				var tb = t.querySelector("tbody");
-				abcCache.forEach((l, i) => {
-					var badge =
-						l.classe === "A"
-							? "badge-verde"
-							: l.classe === "B"
-								? "badge-amarela"
-								: "badge-cinza";
-					var tr = document.createElement("tr");
-					tr.innerHTML =
-						"<td>" +
-						(i + 1) +
-						"</td>" +
-						"<td>" +
-						l.produto_nome +
-						"</td>" +
-						"<td style='text-align:center;'>" +
-						l.quantidade +
-						"</td>" +
-						"<td style='text-align:right; color:var(--cor-sucesso); font-weight:600;'>" +
-						formatarMoeda(l.receita) +
-						"</td>" +
-						"<td style='text-align:right;'>" +
-						formatarMoeda(l.custo) +
-						"</td>" +
-						"<td style='text-align:right;'>" +
-						formatarMoeda(l.lucro) +
-						"</td>" +
-						"<td style='text-align:right;'>" +
-						l.margem.toFixed(1) +
-						"%</td>" +
-						"<td><div class='barra-abc'><div style='width:" +
-						Math.min(100, l.acumulado).toFixed(1) +
-						"%'></div></div></td>" +
-						"<td style='text-align:center;'><span class='badge " +
-						badge +
-						"'>" +
-						l.classe +
-						"</span></td>";
-					tr.children[1].textContent = l.produto_nome;
-					tb.appendChild(tr);
-				});
-				listaAbc.appendChild(t);
+					var t = document.createElement("table");
+					t.innerHTML =
+						"<thead><tr><th>#</th><th>Produto</th><th style='text-align:center;'>Qtd</th><th style='text-align:right;'>Receita</th><th style='text-align:right;'>Custo</th><th style='text-align:right;'>Lucro</th><th style='text-align:right;'>Margem %</th><th style='min-width:120px;'>Acumulado</th><th style='text-align:center;'>Classe</th></tr></thead><tbody></tbody>";
+					var tb = t.querySelector("tbody");
+					abcCache.forEach((l, i) => {
+						var badge =
+							l.classe === "A"
+								? "badge-verde"
+								: l.classe === "B"
+									? "badge-amarela"
+									: "badge-cinza";
+						var tr = document.createElement("tr");
+						tr.innerHTML =
+							"<td>" +
+							(i + 1) +
+							"</td>" +
+							"<td>" +
+							l.produto_nome +
+							"</td>" +
+							"<td style='text-align:center;'>" +
+							l.quantidade +
+							"</td>" +
+							"<td style='text-align:right; color:var(--cor-sucesso); font-weight:600;'>" +
+							formatarMoeda(l.receita) +
+							"</td>" +
+							"<td style='text-align:right;'>" +
+							formatarMoeda(l.custo) +
+							"</td>" +
+							"<td style='text-align:right;'>" +
+							formatarMoeda(l.lucro) +
+							"</td>" +
+							"<td style='text-align:right;'>" +
+							l.margem.toFixed(1) +
+							"%</td>" +
+							"<td><div class='barra-abc'><div style='width:" +
+							Math.min(100, l.acumulado).toFixed(1) +
+							"%'></div></div></td>" +
+							"<td style='text-align:center;'><span class='badge " +
+							badge +
+							"'>" +
+							l.classe +
+							"</span></td>";
+						tr.children[1].textContent = l.produto_nome;
+						tb.appendChild(tr);
+					});
+					listaAbc.appendChild(t);
 
-				var receitaPorClasse = { A: 0, B: 0, C: 0 };
-				var custoPorClasse = { A: 0, B: 0, C: 0 };
-				var lucroPorClasse = { A: 0, B: 0, C: 0 };
-				abcCache.forEach((l) => {
-					receitaPorClasse[l.classe] += l.receita;
-					custoPorClasse[l.classe] += l.custo;
-					lucroPorClasse[l.classe] += l.lucro;
-				});
-				renderizarGrafico("graficoAbc", {
-					type: "pie",
-					data: {
-						labels: ["Classe A", "Classe B", "Classe C"],
-						datasets: [{
-							data: [receitaPorClasse.A, receitaPorClasse.B, receitaPorClasse.C],
-							backgroundColor: [CORES.verde, CORES.amarelo, CORES.cinza],
-						}],
-					},
-					options: {
-						responsive: true,
-						maintainAspectRatio: false,
-						plugins: { legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 10 } } } },
-					},
-				});
+					var receitaPorClasse = { A: 0, B: 0, C: 0 };
+					var custoPorClasse = { A: 0, B: 0, C: 0 };
+					var lucroPorClasse = { A: 0, B: 0, C: 0 };
+					abcCache.forEach((l) => {
+						receitaPorClasse[l.classe] += l.receita;
+						custoPorClasse[l.classe] += l.custo;
+						lucroPorClasse[l.classe] += l.lucro;
+					});
+					renderizarGrafico("graficoAbc", {
+						type: "pie",
+						data: {
+							labels: ["Classe A", "Classe B", "Classe C"],
+							datasets: [
+								{
+									data: [
+										receitaPorClasse.A,
+										receitaPorClasse.B,
+										receitaPorClasse.C,
+									],
+									backgroundColor: [CORES.verde, CORES.amarelo, CORES.cinza],
+								},
+							],
+						},
+						options: {
+							responsive: true,
+							maintainAspectRatio: false,
+							plugins: {
+								legend: {
+									position: "bottom",
+									labels: { boxWidth: 12, font: { size: 10 } },
+								},
+							},
+						},
+					});
 				})
 				.catch((err) => {
 					mostrarMensagem("Erro na Curva ABC: " + err, "erro");
@@ -317,8 +389,16 @@ var t = document.createElement("table");
 							"<div style='display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid #F1F5F9; font-size:" +
 							(opts.destaque ? "0.95rem" : "0.85rem") +
 							";'>" +
-							"<span style='color:#475569;'>" + label + "</span>" +
-							"<span style='color:" + cor + "; font-weight:" + peso + ";'>" + formatarMoeda(valor) + "</span>" +
+							"<span style='color:#475569;'>" +
+							label +
+							"</span>" +
+							"<span style='color:" +
+							cor +
+							"; font-weight:" +
+							peso +
+							";'>" +
+							formatarMoeda(valor) +
+							"</span>" +
 							"</div>"
 						);
 					};
@@ -326,28 +406,51 @@ var t = document.createElement("table");
 						linha("Receita Bruta (" + d.vendas + " venda(s))", d.receitaBruta) +
 						linha("(-) Descontos", -d.descontos, { cor: "var(--cor-erro)" }) +
 						linha("(=) Receita Líquida", d.receitaLiquida, { destaque: true }) +
-						linha("(-) CMV (custo da mercadoria vendida)", -d.cmv, { cor: "var(--cor-erro)" }) +
+						linha("(-) CMV (custo da mercadoria vendida)", -d.cmv, {
+							cor: "var(--cor-erro)",
+						}) +
 						linha(
 							"(=) Lucro Bruto (" + d.margemBrutaPercentual.toFixed(1) + "%)",
 							d.lucroBruto,
-							{ destaque: true, cor: d.lucroBruto >= 0 ? "var(--cor-sucesso)" : "var(--cor-erro)" },
+							{
+								destaque: true,
+								cor:
+									d.lucroBruto >= 0 ? "var(--cor-sucesso)" : "var(--cor-erro)",
+							},
 						) +
-						linha("(-) Despesas pagas no período", -d.despesas, { cor: "var(--cor-erro)" }) +
+						linha("(-) Despesas pagas no período", -d.despesas, {
+							cor: "var(--cor-erro)",
+						}) +
 						linha(
-							"(=) Lucro Líquido (" + d.margemLiquidaPercentual.toFixed(1) + "%)",
+							"(=) Lucro Líquido (" +
+								d.margemLiquidaPercentual.toFixed(1) +
+								"%)",
 							d.lucroLiquido,
-							{ destaque: true, cor: d.lucroLiquido >= 0 ? "var(--cor-sucesso)" : "var(--cor-erro)" },
+							{
+								destaque: true,
+								cor:
+									d.lucroLiquido >= 0
+										? "var(--cor-sucesso)"
+										: "var(--cor-erro)",
+							},
 						);
 
 					renderizarGrafico("graficoDre", {
 						type: "bar",
 						data: {
 							labels: ["Receita Líquida", "CMV", "Despesas", "Lucro Líquido"],
-							datasets: [{
-								data: [d.receitaLiquida, -d.cmv, -d.despesas, d.lucroLiquido],
-								backgroundColor: [CORES.azul, CORES.vermelho, CORES.vermelho, d.lucroLiquido >= 0 ? CORES.verde : CORES.vermelho],
-								borderRadius: 4,
-							}],
+							datasets: [
+								{
+									data: [d.receitaLiquida, -d.cmv, -d.despesas, d.lucroLiquido],
+									backgroundColor: [
+										CORES.azul,
+										CORES.vermelho,
+										CORES.vermelho,
+										d.lucroLiquido >= 0 ? CORES.verde : CORES.vermelho,
+									],
+									borderRadius: 4,
+								},
+							],
 						},
 						options: {
 							indexAxis: "y",
@@ -467,7 +570,9 @@ var t = document.createElement("table");
 		}
 
 		var periodoTxt =
-			(relatorioCache.periodo.inicio || "início") + " a " + (relatorioCache.periodo.fim || "hoje");
+			(relatorioCache.periodo.inicio || "início") +
+			" a " +
+			(relatorioCache.periodo.fim || "hoje");
 
 		doc.setFontSize(16);
 		doc.setFont(undefined, "bold");
@@ -475,7 +580,14 @@ var t = document.createElement("table");
 		y += 20;
 		doc.setFontSize(9);
 		doc.setFont(undefined, "normal");
-		doc.text("Período: " + periodoTxt + " | Gerado em: " + new Date().toLocaleString("pt-BR"), margem, y);
+		doc.text(
+			"Período: " +
+				periodoTxt +
+				" | Gerado em: " +
+				new Date().toLocaleString("pt-BR"),
+			margem,
+			y,
+		);
 		y += 24;
 
 		if (relatorioCache.resumo && relatorioCache.resumo.resumo) {
@@ -491,13 +603,32 @@ var t = document.createElement("table");
 		if (relatorioCache.dre) {
 			var d = relatorioCache.dre;
 			titulo("DRE — Demonstrativo de Resultado");
-			linhaTexto("Receita Bruta (" + d.vendas + " venda(s)): " + formatarMoeda(d.receitaBruta));
+			linhaTexto(
+				"Receita Bruta (" +
+					d.vendas +
+					" venda(s)): " +
+					formatarMoeda(d.receitaBruta),
+			);
 			linhaTexto("(-) Descontos: " + formatarMoeda(d.descontos));
-			linhaTexto("(=) Receita Líquida: " + formatarMoeda(d.receitaLiquida), { negrito: true });
+			linhaTexto("(=) Receita Líquida: " + formatarMoeda(d.receitaLiquida), {
+				negrito: true,
+			});
 			linhaTexto("(-) CMV: " + formatarMoeda(d.cmv));
-			linhaTexto("(=) Lucro Bruto (" + d.margemBrutaPercentual.toFixed(1) + "%): " + formatarMoeda(d.lucroBruto), { negrito: true });
+			linhaTexto(
+				"(=) Lucro Bruto (" +
+					d.margemBrutaPercentual.toFixed(1) +
+					"%): " +
+					formatarMoeda(d.lucroBruto),
+				{ negrito: true },
+			);
 			linhaTexto("(-) Despesas pagas: " + formatarMoeda(d.despesas));
-			linhaTexto("(=) Lucro Líquido (" + d.margemLiquidaPercentual.toFixed(1) + "%): " + formatarMoeda(d.lucroLiquido), { negrito: true });
+			linhaTexto(
+				"(=) Lucro Líquido (" +
+					d.margemLiquidaPercentual.toFixed(1) +
+					"%): " +
+					formatarMoeda(d.lucroLiquido),
+				{ negrito: true },
+			);
 			y += 10;
 		}
 
@@ -534,10 +665,22 @@ var t = document.createElement("table");
 		if (abcCache.length > 0) {
 			titulo("Curva ABC (por lucro)");
 			tabela(
-				["#", "Produto", "Qtd", "Receita", "Custo", "Lucro", "Margem %", "Acumulado", "Classe"],
+				[
+					"#",
+					"Produto",
+					"Qtd",
+					"Receita",
+					"Custo",
+					"Lucro",
+					"Margem %",
+					"Acumulado",
+					"Classe",
+				],
 				abcCache.map((l, i) => [
 					String(i + 1),
-					l.produto_nome.length > 32 ? l.produto_nome.slice(0, 32) + "..." : l.produto_nome,
+					l.produto_nome.length > 32
+						? l.produto_nome.slice(0, 32) + "..."
+						: l.produto_nome,
 					l.quantidade,
 					formatarMoeda(l.receita),
 					formatarMoeda(l.custo),
@@ -579,6 +722,40 @@ var t = document.createElement("table");
 
 		doc.save("relatorio_" + new Date().toISOString().slice(0, 10) + ".pdf");
 		mostrarMensagem("PDF exportado!", "sucesso");
+	}
+
+	/* ---------- Aba Vendas (histórico embutido, só admin) ---------- */
+
+	var tabBtns = document.querySelectorAll(".tab-btn");
+	var abaAnalises = document.getElementById("abaAnalises");
+	var abaVendas = document.getElementById("abaVendas");
+	var tabVendas = document.getElementById("tabVendas");
+	var frameVendas = document.getElementById("frameVendas");
+
+	tabBtns.forEach((btn) => {
+		btn.addEventListener("click", () => {
+			tabBtns.forEach((b) => b.classList.remove("active"));
+			btn.classList.add("active");
+			var aba = btn.getAttribute("data-aba");
+			abaAnalises.style.display = aba === "analises" ? "block" : "none";
+			abaVendas.style.display = aba === "vendas" ? "block" : "none";
+			if (aba === "vendas" && !frameVendas.getAttribute("src")) {
+				frameVendas.src = "../vendas/vendas.html?embedded=1";
+			}
+		});
+	});
+
+	// A aba só existe pra admin — Relatórios em si exige só a permissão
+	// "relatorios" (um vendedor pode ter), mas Vendas continua mais restrito.
+	// Segunda camada de defesa: vendas.html tem data-requer-admin="1" e checa
+	// a sessão do documento pai quando embutida — mesmo forçando o botão a
+	// aparecer, a página de destino recusa sozinha.
+	if (window.erpAuthPromise) {
+		window.erpAuthPromise
+			.then((sessao) => {
+				if (sessao && sessao.perfil === "admin") tabVendas.style.display = "";
+			})
+			.catch(() => {});
 	}
 
 	gerar();

@@ -4,6 +4,8 @@
 	var abaLancamentos = document.getElementById("abaLancamentos");
 	var abaFluxo = document.getElementById("abaFluxo");
 	var abaFechamentos = document.getElementById("abaFechamentos");
+	var abaPagamentos = document.getElementById("abaPagamentos");
+	var framePagamentos = document.getElementById("framePagamentos");
 	var listaFechamentos = document.getElementById("listaFechamentos");
 	var tituloLista = document.getElementById("tituloLista");
 	var listaLancamentos = document.getElementById("listaLancamentos");
@@ -44,12 +46,18 @@
 			abaLancamentos.style.display = "none";
 			abaFluxo.style.display = "none";
 			abaFechamentos.style.display = "none";
+			abaPagamentos.style.display = "none";
 			if (abaAtual === "fluxo") {
 				abaFluxo.style.display = "block";
 				carregarFluxo();
 			} else if (abaAtual === "fechamentos") {
 				abaFechamentos.style.display = "block";
 				carregarFechamentos();
+			} else if (abaAtual === "pagamentos") {
+				abaPagamentos.style.display = "block";
+				if (!framePagamentos.getAttribute("src")) {
+					framePagamentos.src = "../pagamentos/pagamentos.html?embedded=1";
+				}
 			} else {
 				abaLancamentos.style.display = "block";
 				tituloLista.textContent =
@@ -62,12 +70,18 @@
 	/* ---------- Fechamentos de caixa ---------- */
 
 	function carregarFechamentos() {
-		if (!window.api || !window.erpBanco.caixa || !window.erpBanco.caixa.historico) {
+		if (
+			!window.api ||
+			!window.erpBanco.caixa ||
+			!window.erpBanco.caixa.historico
+		) {
 			listaFechamentos.innerHTML =
 				'<div class="empty-state">API indisponível.</div>';
 			return;
 		}
-		listaFechamentos.innerHTML = window.erpSkeletonCards ? window.erpSkeletonCards(4) : '<div class="empty-state">Carregando...</div>';
+		listaFechamentos.innerHTML = window.erpSkeletonCards
+			? window.erpSkeletonCards(4)
+			: '<div class="empty-state">Carregando...</div>';
 		window.erpBanco.caixa
 			.historico(100)
 			.then((linhas) => {
@@ -80,15 +94,34 @@
 					'<table class="modal-table"><thead><tr><th>Abertura</th><th>Fechamento</th>' +
 					"<th>Valor abertura</th><th>Esperado</th><th>Informado</th><th>Diferença</th><th>Obs.</th></tr></thead><tbody>";
 				linhas.forEach((f) => {
-					var corDiff = Number(f.diferenca) === 0 ? "var(--cor-sucesso)" : "var(--cor-erro)";
+					var corDiff =
+						Number(f.diferenca) === 0
+							? "var(--cor-sucesso)"
+							: "var(--cor-erro)";
 					html +=
-						"<tr><td>" + formatarData(f.data_abertura) + "</td>" +
-						"<td>" + formatarData(f.data_fechamento) + "</td>" +
-						"<td>" + formatarMoeda(f.valor_abertura) + "</td>" +
-						"<td>" + formatarMoeda(f.valor_esperado) + "</td>" +
-						"<td>" + formatarMoeda(f.valor_informado) + "</td>" +
-						'<td style="color:' + corDiff + '; font-weight:600;">' + formatarMoeda(f.diferenca) + "</td>" +
-						"<td>" + (f.observacao || "---") + "</td></tr>";
+						"<tr><td>" +
+						formatarData(f.data_abertura) +
+						"</td>" +
+						"<td>" +
+						formatarData(f.data_fechamento) +
+						"</td>" +
+						"<td>" +
+						formatarMoeda(f.valor_abertura) +
+						"</td>" +
+						"<td>" +
+						formatarMoeda(f.valor_esperado) +
+						"</td>" +
+						"<td>" +
+						formatarMoeda(f.valor_informado) +
+						"</td>" +
+						'<td style="color:' +
+						corDiff +
+						'; font-weight:600;">' +
+						formatarMoeda(f.diferenca) +
+						"</td>" +
+						"<td>" +
+						(f.observacao || "---") +
+						"</td></tr>";
 				});
 				html += "</tbody></table>";
 				listaFechamentos.innerHTML = html;
@@ -107,7 +140,8 @@
 				'<div class="empty-state">API indisponível.</div>';
 			return;
 		}
-		if (window.erpSkeletonCards) listaLancamentos.innerHTML = window.erpSkeletonCards(4);
+		if (window.erpSkeletonCards)
+			listaLancamentos.innerHTML = window.erpSkeletonCards(4);
 		window.erpBanco.financeiro
 			.lancamentos({ tipo: abaAtual })
 			.then((rows) => {
@@ -287,7 +321,8 @@
 			listaFluxo.innerHTML = '<div class="empty-state">API indisponível.</div>';
 			return;
 		}
-		if (window.erpSkeletonCards) listaFluxo.innerHTML = window.erpSkeletonCards(4);
+		if (window.erpSkeletonCards)
+			listaFluxo.innerHTML = window.erpSkeletonCards(4);
 		window.erpBanco.financeiro
 			.fluxoCaixa(fluxoInicio.value || null, fluxoFim.value || null)
 			.then((r) => {
