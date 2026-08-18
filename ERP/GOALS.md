@@ -191,12 +191,115 @@ repeated here — see `AGENTS.md` §"Funcionalidades Implementadas" for that lis
 - [x] No secrets committed; app needs no runtime `.env` (fully offline, DB key comes from the
       user's own login password) — `.env.example` from `project-standards.md` doesn't apply
       here for the same reason.
+      **Superseded by the Payment Processor Integration section below**: once a Pix/adquirente
+      provider is wired in, this stops being true — that integration *does* need a runtime
+      `.env`. Keep this line as a historical note, not current fact, once that work starts.
 - [x] DB key derivation — see **Database** above; verified sound (SQLCipher's own 256k-iteration
       PBKDF2 governs it), not the gap it first looked like.
 - [ ] `modules/banco/` (raw table inspection) already requires admin session + password
       re-confirmation — good pattern; apply the same "admin + password re-confirm" gate to any
       future feature that can export or display bulk customer PII (e.g. a future full-database
       export/report feature), not just raw table browsing.
+
+---
+
+## Payment Processor Integration (Ton / Stone / alternatives) — open decision, paused
+
+**Status as of 2026-08-17: paused, waiting on the owner's decision.** Do not start building
+against any specific provider, and do not contact any bank/processor on the owner's behalf,
+until they say which way to go. This section was written before the `Pagamentos` /
+`integracoes/pix/` (Efí provider) / `integracoes/fiscal/` (FocusNFe provider) work above
+existed in this file's history — read that work first, since it changes what's actually left
+to decide here.
+
+### What already exists (don't rebuild this)
+- `db/pagamentos.js` / `ipc/pagamentos.js` — manual recebimento tracking (Pix/Boleto/Dinheiro/
+  Cartão) linked to a venda. This is bookkeeping, not a live bank/processor connection.
+- `integracoes/pix/provider.js` + `integracoes/pix/providers/efi.js` — a real, working Pix
+  provider integration already built against **Efí (ex-Gerencianet)**, with
+  `test/pix-payload.test.js` + `test/pix-provider.test.js` covering it. Efí is a legitimate,
+  well-documented, self-service Brazilian Pix API (no partnership-approval gate, unlike
+  Stone/Ton) — this may already solve the "get live Pix receipt data into the ERP" problem
+  the research below was chasing.
+- `integracoes/fiscal/provider.js` + `integracoes/fiscal/providers/focusnfe.js` — NF-e issuance
+  via FocusNFe, with `test/fiscal.test.js` + `test/fiscal-provider.test.js`. Note: `AGENTS.md`'s
+  "Fora de escopo (decidido)" line about NF-e is now stale — this was started. Reconcile that
+  doc when this section's decision resolves.
+
+### Research findings (still true, provider-choice research)
+
+**"Banco TON" is not an independent bank — it's a brand of Grupo Stone**, positioned for
+autonomous workers / MEI: a free digital account with Pix, a debit card, and card-machine
+("maquininha") hardware. Sources: [Stone launches new Ton machine with Pix QR
+Code](https://conteudo.stone.com.br/apostando-no-crescimento-do-mei-no-brasil-stone-reforca-marca-ton-e-lanca-nova-maquininha-com-pix-qr-code/),
+[Sobre o Ton — Ton Help
+Center](https://ajuda.ton.com.br/pt_BR/conta-e-transfer%C3%AAncia/sobre-o-ton),
+[Stone e Ton são a mesma coisa?](https://conteudo.stone.com.br/stone-e-ton-sao-a-mesma-coisa/).
+
+**No public TON developer API was found.** Ton's own help center mentions only Pix, payments,
+transfers, and phone recharge — no API/webhook/export for third-party systems.
+
+**Stone (the parent brand) does run a real, fairly complete banking API** — Stone OpenBank
+(`docs.openbank.stone.com.br`): balance, transaction history, transfers, Pix, boletos, payment
+links. Two things block using it today:
+1. **Account-type eligibility unconfirmed.** Docs only reference `user_id` (PF) and
+   `organization_id` (PJ) accounts, never "Ton." Ton and Stone have different eligibility rules
+   as products (Stone: CNPJ + R$15k/month min revenue; Ton: CPF or CNPJ, no minimum) — a real
+   signal they may not share the same backend ledger. Source:
+   [maquininhacerta.com.br comparison](https://maquininhacerta.com.br/ton-ou-stone/).
+2. **Access is not self-service.** Generate an SSH keypair → send the public key to Stone via
+   their integration form → Stone issues a ClientID → test in
+   `https://sandbox-api.openbank.stone.com.br` → email
+   **`parcerias@openbank.stone.com.br`** for production access
+   (`https://api.openbank.stone.com.br`) → homologation process. Sources:
+   [STONE BANKING API guide](https://docs.openbank.stone.com.br/docs/guias/stone-open-banking/),
+   [APROVAÇÃO](https://docs.openbank.stone.com.br/docs/guias/aprovacao/),
+   [TOKEN DE ACESSO](https://docs.openbank.stone.com.br/sandbox/docs/guias/token-de-acesso/).
+
+**Self-service alternatives with no commercial-approval gate**, compared on API access + MEI
+card-machine rates:
+
+| Processor | API access | Débito | Crédito 12x | Pix |
+|---|---|---|---|---|
+| **Mercado Pago** | Fully self-service — create an application in the [developer portal](https://www.mercadopago.com.br/developers/pt), test credentials instantly, production via website URL + T&C + recaptcha. Full REST API (orders, Pix, webhooks) + Point machine SDK. | ~0.74% (drops with revenue tier) | mid-range | ~0.74% |
+| **PagBank** | Fully self-service — [developer.pagbank.com.br](https://developer.pagbank.com.br/), sandbox with test cards/simulator. Full REST API (orders/payments, checkout, Connect). | ~0.58% (lowest found) | 22.59% (highest of the three) | varies |
+| **InfinitePay** | Self-service via [dashboard](https://www.infinitepay.io/desenvolvedores) — simpler API (checkout links + a webhook per sale), not a full account/statement API. | ~0.75% | 12.40% (lowest of the three) | free |
+| **Efí (already integrated for Pix)** | Already wired in this codebase (`integracoes/pix/providers/efi.js`) — self-service, no approval gate. | N/A — not a card acquirer | N/A | already live |
+
+**Recommendation if a card-machine/adquirente switch is chosen: Mercado Pago** — strong on both
+API access and rates, and covers online sales on the same account if that ever happens. PagBank
+wins on raw debit rate if the store's mix is mostly debit/à-vista. InfinitePay wins on cheap
+installments. None of the three overlap with Efí's role (Efí ≈ Pix/banking API, these three
+≈ card-machine/adquirente) — this may end up being "keep Efí for Pix, separately pick one of
+these three (or stay on Ton) for card payments," not an either/or.
+
+Real switching cost to weigh, not just rate math: new machine, Ton's existing sales history
+doesn't move automatically, staff has to learn a new machine. Not this file's call to make.
+
+### Open decision
+- [ ] User decides, informed by what's already built above: (a) is Efí's existing Pix
+      integration already enough, making the whole adquirente question moot for now; (b) if a
+      card-machine/adquirente integration is still wanted, stay on Ton/Stone (→ email
+      `parcerias@openbank.stone.com.br` to ask if the Ton account is eligible) or switch to
+      Mercado Pago / PagBank / InfinitePay; (c) reconcile `AGENTS.md`'s stale "NF-e fora de
+      escopo" line now that FocusNFe integration exists, regardless of (a)/(b).
+- [ ] Whichever processor (if any) is chosen, the security checklist below applies to its
+      credentials exactly as it already should apply to Efí's and FocusNFe's (verify those two
+      already follow it — this section was written before they existed, so that check is
+      itself still open):
+      - Credential read from `process.env`, sourced from a local `.env` at the project root
+        (gitignored — confirm `grep -n '^\.env$' .gitignore` still holds).
+      - `.env.example` with variable **names** only, never a real or realistic-looking value.
+      - Never log a raw credential — mask tokens/secrets in any request/response logging and
+        in `logErro()`/`erp-crash.log`.
+      - If a token must be persisted, store it inside the SQLCipher-encrypted DB (reuse
+        `db/conexao.js`'s existing key machinery), never as a plaintext file.
+      - Manual `git diff --staged` read + `node ~/.claude/base_project/scripts/scan-skill.js .`
+        before the first commit touching any of this — the risk is a human pasting a real key
+        into a comment or test fixture, which no automated check reliably catches.
+      - Module naming: avoid `modules/banco/` (already means "raw DB table inspector" per
+        `AGENTS.md`) for anything bank-related — use `conciliacao-ton/` or similar if Ton/Stone
+        statement reconciliation is still built.
 
 ---
 
@@ -224,3 +327,5 @@ repeated here — see `AGENTS.md` §"Funcionalidades Implementadas" for that lis
    `banco-admin`, `sistema`, `auth`) to `exigirPermissao` like the other 11 — only if the owner
    confirms a `vendedor` should reach any of them. **Still open**, needs an answer from you,
    not a technical decision.
+8. Payment Processor Integration decision (see section above) — **paused, open**, needs an
+   answer from the owner before any code or outreach happens.
