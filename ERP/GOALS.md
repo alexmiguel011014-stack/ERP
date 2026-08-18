@@ -205,12 +205,48 @@ repeated here — see `AGENTS.md` §"Funcionalidades Implementadas" for that lis
 
 ## Payment Processor Integration (Ton / Stone / alternatives) — open decision, paused
 
-**Status as of 2026-08-17: paused, waiting on the owner's decision.** Do not start building
-against any specific provider, and do not contact any bank/processor on the owner's behalf,
-until they say which way to go. This section was written before the `Pagamentos` /
-`integracoes/pix/` (Efí provider) / `integracoes/fiscal/` (FocusNFe provider) work above
-existed in this file's history — read that work first, since it changes what's actually left
-to decide here.
+**Status as of 2026-08-18: the "is there an API path for Ton" question is now answered —
+no.** Confirmed directly from Stone's own help center
+([Conhecendo o Open Finance](https://ajuda.stone.com.br/open-finance/conhecendo-o-open-finance)),
+verbatim: *"Não. Por enquanto, você só vai poder compartilhar dados da sua Conta Stone."*
+("No. For now, you can only share data from your Stone Account.") — Ton accounts are
+explicitly excluded from Open Finance data-sharing today, even though Stone Pagamentos S.A.
+itself is a certified Open Finance participant (certified 2023-02-15) — the certification
+covers Stone Account, not Ton. This closes the loop on yesterday's "unconfirmed" eligibility
+question from both directions: not via Stone's commercial OpenBank API (still unconfirmed but
+structurally unlikely), and not via the regulated Open Finance channel either (explicitly
+confirmed no) — which also rules out third-party Open Finance aggregators (Pluggy, Belvo,
+Tecnospeed, etc.), since they all pull from the same regulated channel Stone just said Ton
+isn't part of yet. No further "email support to ask" step is needed — this is a real dead end
+for a Ton account as it exists today, not a temporarily-unknown one.
+
+**What is confirmed possible today, self-service, no API/credential at all:** the Ton app's
+own "Extrato" screen exports transactions as an **Excel (.xlsx) file** — self-service,
+available right now, no partnership/approval needed (unlike an OFX file with a stable
+`FITID`, which Ton does not appear to offer — several Reclame Aqui complaints exist from
+users wanting a native PDF/OFX and being told Excel is the only export format). This means
+Phase 1 below should target **.xlsx**, not OFX as originally scoped — deduplication needs a
+composite key (date + valor + descrição) instead of a stable transaction ID, and re-imports
+should warn on ambiguous near-duplicates rather than silently trusting a FITID that doesn't
+exist for this source.
+
+**A path that wasn't on the table yesterday: upgrade Ton → Conta Stone PJ.** Since Stone
+Account *can* do Open Finance today (and is the more likely candidate for OpenBank API
+eligibility too), if the store's revenue now clears Stone's CNPJ + R$15k/month minimum, this
+is a real option — same corporate group, likely smoother transition than a full switch to
+Mercado Pago/PagBank, and it directly unlocks both Open Finance and a plausible path to the
+OpenBank API. This is a business decision (revenue threshold, whether the store wants a
+CNPJ-tier account), not a technical one — flagged here, not decided.
+
+**Status: still paused, waiting on the owner.** Do not start building against any specific
+provider, and do not contact Stone/Ton support, until the owner picks a direction from the
+three real options now on the table: (1) Excel-import reconciliation against Ton as-is
+(buildable today, Phase 1 below), (2) upgrade to Conta Stone PJ if revenue qualifies, unlocking
+Open Finance/OpenBank, or (3) switch adquirente entirely (Mercado Pago/PagBank/InfinitePay,
+compared below). This section was written before the `Pagamentos` / `integracoes/pix/` (Efí
+provider) / `integracoes/fiscal/` (FocusNFe provider) work existed in this file's history —
+read that work first, since it already covers live Pix, separately from this adquirente/
+statement question.
 
 ### What already exists (don't rebuild this)
 - `db/pagamentos.js` / `ipc/pagamentos.js` — manual recebimento tracking (Pix/Boleto/Dinheiro/
@@ -276,13 +312,55 @@ these three (or stay on Ton) for card payments," not an either/or.
 Real switching cost to weigh, not just rate math: new machine, Ton's existing sales history
 doesn't move automatically, staff has to learn a new machine. Not this file's call to make.
 
+### Phase 1 — buildable today regardless of the owner's decision: Ton .xlsx import + reconciliation
+
+No credential needed — this is option (1) from the three above, and stays useful even if (2)
+or (3) is later chosen too (a store rarely wants to lose the ability to reconcile its own
+historical Ton statements). Not started yet — paused with the rest of this section.
+
+- [ ] New table `ExtratoTon` in `db/schema.js` (`IF NOT EXISTS`, matching the other 21
+      tables): `id INTEGER PRIMARY KEY AUTOINCREMENT`, `data_transacao TEXT NOT NULL`,
+      `descricao TEXT`, `valor REAL NOT NULL` (sign = entrada/saída), `tipo TEXT`, `chave_dedup
+      TEXT NOT NULL` (composite: `date + '|' + valor + '|' + descricao`, hashed or raw — Ton's
+      xlsx export has no stable transaction ID to dedupe on, unlike OFX's `FITID`), `UNIQUE
+      (chave_dedup)`, `lancamento_id INTEGER` (nullable FK → `LancamentosFinanceiros.id`),
+      `status TEXT NOT NULL DEFAULT 'pendente'`, `importado_em TEXT NOT NULL`.
+- [ ] New file `db/ton.js` (mirror the one-file-per-domain convention every other `db/*.js`
+      already follows) + `ipc/ton.js`, gated `exigirSessao("admin")` like `ipc/banco-admin.js`.
+- [ ] Parsing the `.xlsx` needs a real dependency — Node has no built-in Excel parser (unlike
+      the OFX plan, which was simple enough to hand-parse). Evaluate `xlsx` (SheetJS) or
+      `exceljs` against the actual column layout of a real exported file before picking one —
+      don't guess the column order/headers without seeing one.
+- [ ] `importarExtratoTon(caminhoArquivo)` via Electron's native file dialog (mirror whatever
+      IPC pattern `exportBackup`/restore already uses in `main.js` for file pickers). Returns
+      `{ inseridos, duplicados, total }`; a near-duplicate (same date+valor, different
+      descrição) should surface as a warning to review, not a silent skip or silent insert.
+- [ ] `sugerirConciliacao()` / `confirmarConciliacao()` / `marcarIgnorado()` — same shape as
+      `db/pagamentos.js`'s existing pattern (register → list → mark received), matching
+      `LancamentosFinanceiros` rows by amount + date proximity, user-confirmed only, never
+      auto-committed.
+- [ ] UI at `modules/conciliacao-ton/` (not `modules/banco-ton/` — `modules/banco/` already
+      means "raw DB inspector," would collide). Add to `modules/core/navbar.js` and
+      `window.erpBanco` per the existing convention.
+- [ ] `test/ton-extrato.test.js` (node:test, mirror `test/pix-payload.test.js`'s style): a
+      small fixture (inline test data standing in for a real exported row set, not a real
+      downloaded statement) covering parse → insert → re-import is a no-op (dedup) →
+      near-duplicate surfaces a warning → `sugerirConciliacao` matches the expected pair →
+      `confirmarConciliacao` flips both statuses. Add to the explicit file list in
+      `package.json`'s `test` script (already a hardcoded list, not `node --test`'s directory
+      scan — see that script's own history for why).
+
 ### Open decision
-- [ ] User decides, informed by what's already built above: (a) is Efí's existing Pix
-      integration already enough, making the whole adquirente question moot for now; (b) if a
-      card-machine/adquirente integration is still wanted, stay on Ton/Stone (→ email
-      `parcerias@openbank.stone.com.br` to ask if the Ton account is eligible) or switch to
-      Mercado Pago / PagBank / InfinitePay; (c) reconcile `AGENTS.md`'s stale "NF-e fora de
-      escopo" line now that FocusNFe integration exists, regardless of (a)/(b).
+- [ ] User decides, informed by what's already built/confirmed above: (a) is Efí's existing
+      Pix integration already enough, making the card-machine/adquirente question moot for
+      now; (b) build Phase 1 (.xlsx import/reconciliation against Ton as-is — works today, no
+      account change needed); (c) look into upgrading Ton → Conta Stone PJ if revenue now
+      clears the R$15k/month minimum (unlocks Open Finance today, plausibly OpenBank API
+      later — a business/eligibility question, not something to start technically until the
+      owner confirms revenue qualifies); (d) switch adquirente entirely to Mercado Pago /
+      PagBank / InfinitePay; (e) reconcile `AGENTS.md`'s stale "NF-e fora de escopo" line now
+      that FocusNFe integration exists, regardless of (a)–(d). No email to Stone/Ton support is
+      needed for (b) or (d) — only relevant if (c) is chosen, to confirm the upgrade path.
 - [ ] Whichever processor (if any) is chosen, the security checklist below applies to its
       credentials exactly as it already should apply to Efí's and FocusNFe's (verify those two
       already follow it — this section was written before they existed, so that check is
