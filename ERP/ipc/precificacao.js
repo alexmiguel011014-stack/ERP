@@ -10,6 +10,8 @@ const {
 	saveProductCost,
 	saveProductTaxes,
 	massUpdateMargem,
+	getTaxaAdquirente,
+	saveTaxaAdquirente,
 } = require("../database");
 
 function registrar(ipcMain, deps) {
@@ -117,6 +119,24 @@ function registrar(ipcMain, deps) {
 		try {
 			exigirPermissao("produtos");
 			return await massUpdateMargem(produtoIds, margem);
+		} catch (erro) {
+			throw erro.message;
+		}
+	});
+
+	ipcMain.handle("get-taxa-adquirente", async () => {
+		try {
+			exigirSessao("admin");
+			return await getTaxaAdquirente();
+		} catch (erro) {
+			throw erro.message;
+		}
+	});
+
+	ipcMain.handle("save-taxa-adquirente", async (event, valor) => {
+		try {
+			exigirSessao("admin");
+			return await saveTaxaAdquirente(valor);
 		} catch (erro) {
 			throw erro.message;
 		}

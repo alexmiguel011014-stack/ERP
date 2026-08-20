@@ -36,14 +36,14 @@
                 style="flex:1;"
                 autofocus
               />
-              <button type="button" id="btnBuscarProduto" title="Buscar produto" style="padding:6px 10px; font-size:0.8rem; cursor:pointer;">ðŸ”</button>
+              <button type="button" id="btnBuscarProduto" title="Buscar produto" style="padding:6px 10px; font-size:0.8rem; cursor:pointer; display:flex; align-items:center; justify-content:center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></button>
             </div>
             <span class="scan-hint">Enter = buscar | Esc = limpar carrinho | F2 = cadastro</span>
           </div>
 
-          <div id="produtosEncontrados" style="display:none; max-height:160px; overflow-y:auto; border:1px solid #E2E8F0; border-radius:6px;">
+          <div id="produtosEncontrados" class="produtos-encontrados-box" style="display:none;">
             <table id="tabelaProdutosEncontrados" style="width:100%; border-collapse:collapse; font-size:0.8rem;">
-               <thead style="position:sticky; top:0; background:#F8FAFC;"><tr><th align="left">SKU</th><th align="left">Produto</th><th align="right">Preço</th><th align="right">Estoq</th></tr></thead>
+               <thead class="produtos-encontrados-thead"><tr><th align="left">SKU</th><th align="left">Produto</th><th align="right">Preço</th><th align="right">Estoq</th></tr></thead>
               <tbody></tbody>
             </table>
           </div>
@@ -63,10 +63,10 @@
               <label for="clienteBusca">Cliente</label>
               <input type="text" id="clienteBusca" placeholder="Buscar por nome ou código..." autocomplete="off" />
               <input type="hidden" id="clienteSelect" value="" />
-              <div id="clienteResultados" style="display:none; max-height:140px; overflow-y:auto; border:1px solid #E2E8F0; border-radius:6px; margin-top:4px; background:#fff; position:relative; z-index:5;"></div>
-              <div id="clienteEscolhido" style="display:none; margin-top:6px; font-size:0.85rem; background:#EFF6FF; border:1px solid #BFDBFE; border-radius:6px; padding:6px 8px; display:flex; align-items:center; justify-content:space-between;">
+              <div id="clienteResultados" class="cliente-resultados-box" style="display:none;"></div>
+              <div id="clienteEscolhido" class="cliente-escolhido-box" style="display:none;">
                 <span id="clienteEscolhidoNome"></span>
-                <button type="button" id="btnLimparCliente" style="border:none; background:none; color:#DC2626; cursor:pointer; font-weight:600;">x</button>
+                <button type="button" id="btnLimparCliente" class="btn-limpar-cliente">x</button>
               </div>
             </div>
 
@@ -125,18 +125,18 @@
       <div id="mensagemPDV" class="mensagem-pdv"></div>
     </div>
 
-    <div id="devolucaoOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; z-index: 10001;">
-      <div style="background: #FFFFFF; border-radius: 8px; padding: 20px; max-width: 440px; width: 92%; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
-        <h2 style="margin: 0 0 4px; font-size: 1.05rem; color:#1E293B;">Devolução / Troca</h2>
-        <p style="margin: 0 0 12px; font-size: 0.8rem; color:#64748B;">Informe o número da venda para localizar os itens.</p>
+    <div id="devolucaoOverlay" class="pdv-modal-overlay" style="display: none;">
+      <div class="pdv-modal-box">
+        <h2>Devolução / Troca</h2>
+        <p>Informe o número da venda para localizar os itens.</p>
         <div style="display:flex; gap:6px; margin-bottom:10px;">
-          <input type="number" id="devVendaId" placeholder="Nº da venda" style="flex:1; padding:8px; border:1px solid #CBD5E1; border-radius:6px;" />
+          <input type="number" id="devVendaId" placeholder="Nº da venda" class="pdv-modal-input" style="flex:1;" />
           <button type="button" id="btnBuscarVendaDevolucao" style="padding:8px 14px; background:#2563EB; color:#fff; border:none; border-radius:6px; cursor:pointer;">Buscar</button>
         </div>
         <div id="devMensagem" style="font-size:0.8rem; margin-bottom:8px;"></div>
         <div id="devItens"></div>
         <div style="display:flex; gap:6px; margin-top:14px;">
-          <input type="text" id="devMotivo" placeholder="Motivo (opcional)" style="flex:1; padding:8px; border:1px solid #CBD5E1; border-radius:6px;" />
+          <input type="text" id="devMotivo" placeholder="Motivo (opcional)" class="pdv-modal-input" style="flex:1;" />
         </div>
         <div style="display: flex; gap: 10px; margin-top: 14px;">
           <button type="button" id="btnConfirmarDevolucao" disabled style="flex: 1; padding: 8px; background: #DC2626; color: #fff; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Confirmar devolução</button>
@@ -145,28 +145,28 @@
       </div>
     </div>
 
-    <div id="caixaOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; z-index: 10001;">
-      <div style="background: #FFFFFF; border-radius: 8px; padding: 20px; max-width: 400px; width: 92%; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
-        <h2 style="margin: 0 0 12px; font-size: 1.05rem; color:#1E293B;">Caixa</h2>
+    <div id="caixaOverlay" class="pdv-modal-overlay" style="display: none;">
+      <div class="pdv-modal-box pdv-modal-box--sm">
+        <h2 style="margin: 0 0 12px;">Caixa</h2>
 
         <div id="caixaFechadoBox">
-          <p style="margin: 0 0 10px; font-size: 0.85rem; color:#64748B;">Nenhum caixa aberto. Informe o valor inicial (troco) para abrir.</p>
+          <p style="margin: 0 0 10px;">Nenhum caixa aberto. Informe o valor inicial (troco) para abrir.</p>
           <div style="margin-bottom:10px;">
-            <label style="font-size:0.8rem; display:block; margin-bottom:4px;">Valor de abertura (R$)</label>
-            <input type="number" id="caixaValorAbertura" min="0" step="0.01" value="0" style="width:100%; padding:8px; border:1px solid #CBD5E1; border-radius:6px;" />
+            <label class="pdv-modal-label">Valor de abertura (R$)</label>
+            <input type="number" id="caixaValorAbertura" min="0" step="0.01" value="0" class="pdv-modal-input" style="width:100%;" />
           </div>
           <button type="button" id="btnConfirmarAbrirCaixa" style="width:100%; padding:8px; background:#16A34A; color:#fff; border:none; border-radius:6px; font-size:0.85rem; font-weight:600; cursor:pointer;">Abrir caixa</button>
         </div>
 
         <div id="caixaAbertoBox" style="display:none;">
-          <div id="caixaResumoInfo" style="font-size:0.85rem; color:#334155; margin-bottom:12px; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:6px; padding:10px;"></div>
+          <div id="caixaResumoInfo" class="pdv-modal-info-box"></div>
           <div style="margin-bottom:10px;">
-            <label style="font-size:0.8rem; display:block; margin-bottom:4px;">Valor contado no caixa (R$)</label>
-            <input type="number" id="caixaValorFechamento" min="0" step="0.01" placeholder="0,00" style="width:100%; padding:8px; border:1px solid #CBD5E1; border-radius:6px;" />
+            <label class="pdv-modal-label">Valor contado no caixa (R$)</label>
+            <input type="number" id="caixaValorFechamento" min="0" step="0.01" placeholder="0,00" class="pdv-modal-input" style="width:100%;" />
           </div>
           <div style="margin-bottom:10px;">
-            <label style="font-size:0.8rem; display:block; margin-bottom:4px;">Observação (opcional)</label>
-            <input type="text" id="caixaObservacaoFechamento" style="width:100%; padding:8px; border:1px solid #CBD5E1; border-radius:6px;" />
+            <label class="pdv-modal-label">Observação (opcional)</label>
+            <input type="text" id="caixaObservacaoFechamento" class="pdv-modal-input" style="width:100%;" />
           </div>
           <button type="button" id="btnConfirmarFecharCaixa" style="width:100%; padding:8px; background:#DC2626; color:#fff; border:none; border-radius:6px; font-size:0.85rem; font-weight:600; cursor:pointer;">Fechar caixa</button>
         </div>
@@ -176,8 +176,8 @@
       </div>
     </div>
 
-    <div id="receiptOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; z-index: 10001;">
-      <div id="receiptContent" style="background: #FFFFFF; border-radius: 8px; padding: 24px; max-width: 320px; width: 90%; font-family: 'Courier New', monospace; font-size: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+    <div id="receiptOverlay" class="pdv-modal-overlay" style="display: none;">
+      <div id="receiptContent" class="pdv-modal-box pdv-modal-box--receipt">
         <div id="receiptHTML"></div>
         <div style="display: flex; gap: 10px; margin-top: 16px;">
           <button onclick="imprimirRecibo()" style="flex: 1; padding: 8px; background: #2563EB; color: #fff; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Imprimir</button>

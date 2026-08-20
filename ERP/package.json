@@ -9,7 +9,7 @@
 		"dist": "electron-builder",
 		"rebuild": "electron-rebuild -f -w @journeyapps/sqlcipher",
 		"lint": "eslint .",
-		"test": "node --test test/integration.test.js test/senha.test.js test/negocio.test.js test/pix-payload.test.js test/pix-provider.test.js test/fiscal.test.js test/fiscal-provider.test.js"
+		"test": "node --test test/integration.test.js test/senha.test.js test/negocio.test.js test/pix-payload.test.js test/pix-provider.test.js test/fiscal.test.js test/fiscal-provider.test.js test/backup.test.js test/relatorios-financeiro.test.js"
 	},
 	"keywords": [],
 	"author": "Alex Miguel",

@@ -1,6 +1,20 @@
 const { getConexao, runOn } = require("./conexao");
 const { criarVariacoesPadrao } = require("./produtos");
 
+// Marcador de versão do schema (PRAGMA user_version, nativo do SQLite — não
+// precisa de tabela própria). Incremente manualmente sempre que uma migração
+// nova for adicionada acima, para que código futuro possa checar "este banco
+// é anterior à feature X" sem depender só de IF NOT EXISTS/colunas presentes.
+const VERSAO_SCHEMA = 1;
+
+function obterVersaoSchema(conn) {
+	return new Promise((resolver) => {
+		(conn || getConexao()).get("PRAGMA user_version", [], (erro, linha) => {
+			resolver(erro || !linha ? 0 : linha.user_version);
+		});
+	});
+}
+
 function colunasDaTabela(conn, tabela) {
 	return new Promise((resolver, rejeitar) => {
 		conn.all("PRAGMA table_info(" + tabela + ")", [], (erro, linhas) => {
@@ -477,9 +491,17 @@ async function iniciarBanco() {
 		quantidade_recebida: "quantidade_recebida INTEGER NOT NULL DEFAULT 0",
 	});
 	await criarVariacoesPadrao(conexao);
+
+	// Grava a versão do schema por último, só depois de toda migração acima
+	// já ter rodado com sucesso — se `iniciarBanco` falhar no meio, o marcador
+	// não avança, então uma nova tentativa no próximo start ainda vê a versão
+	// antiga (comportamento correto: as migrações acima já são idempotentes).
+	await runOn(conexao, "PRAGMA user_version = " + VERSAO_SCHEMA);
 }
 module.exports = {
 	iniciarBanco,
 	colunasDaTabela,
 	migrarColunas,
+	obterVersaoSchema,
+	VERSAO_SCHEMA,
 };

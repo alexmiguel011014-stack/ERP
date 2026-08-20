@@ -1,4 +1,5 @@
 const { allAsync, getAsync } = require("./conexao");
+const { getTaxaAdquirente, getCustoFixoConfig } = require("./precificacao");
 
 /* ============ Relatórios ============ */
 
@@ -165,9 +166,152 @@ async function getComissoes(dataInicio, dataFim) {
 		};
 	});
 }
+// Margem de contribuição: distinta da margem bruta do DRE (que só desconta o
+// CMV) e da margem por produto da Precificação (que só desconta custo+impostos).
+// Aqui desconta TODOS os custos variáveis por unidade: CMV + comissão do
+// vendedor + taxa média de adquirente + impostos sobre a venda — é o número
+// que realmente sobra pra pagar custo fixo e gerar lucro (ver REPERTOIRE.md).
+async function getMargemContribuicao(dataInicio, dataFim) {
+	const hoje = new Date().toISOString().slice(0, 10);
+	const inicio = dataInicio || hoje.slice(0, 8) + "01";
+	const fim = dataFim || hoje;
+
+	const taxaAdquirente = await getTaxaAdquirente();
+
+	const linhas = await allAsync(
+		`SELECT p.id AS produto_id, p.nome AS produto_nome,
+   SUM(iv.quantidade) AS quantidade,
+   SUM(iv.quantidade * iv.preco_unitario) AS receita,
+   SUM(iv.quantidade * var.preco_custo) AS cmv,
+   COALESCE(pr.impostos_extras, 0) AS impostos_extras,
+   COALESCE(v.comissao_percentual, 0) AS comissao_percentual
+   FROM ItensVenda iv
+   JOIN Vendas v2 ON v2.id = iv.venda_id
+   JOIN Variacoes var ON var.id = iv.variacao_id
+   JOIN Produtos p ON p.id = var.produto_id
+   LEFT JOIN Precificacao pr ON pr.produto_id = p.id
+   LEFT JOIN Usuarios v ON v.id = v2.usuario_id
+   WHERE v2.status = 'finalizada' AND DATE(v2.data_venda) BETWEEN ? AND ?
+   GROUP BY p.id`,
+		[inicio, fim],
+	);
+
+	let margemTotal = 0;
+	let receitaTotal = 0;
+	let quantidadeTotal = 0;
+
+	const porProduto = linhas.map((l) => {
+		const receita = Number(l.receita) || 0;
+		const cmv = Number(l.cmv) || 0;
+		const quantidade = Number(l.quantidade) || 0;
+		const comissaoValor =
+			(receita * (Number(l.comissao_percentual) || 0)) / 100;
+		const taxaValor = (receita * taxaAdquirente) / 100;
+		const impostos = (Number(l.impostos_extras) || 0) * quantidade;
+		const margemContribuicao =
+			receita - cmv - comissaoValor - taxaValor - impostos;
+
+		margemTotal += margemContribuicao;
+		receitaTotal += receita;
+		quantidadeTotal += quantidade;
+
+		return {
+			produto_id: l.produto_id,
+			produto_nome: l.produto_nome,
+			quantidade,
+			receita,
+			margemContribuicao,
+			margemContribuicaoUnitaria:
+				quantidade > 0 ? margemContribuicao / quantidade : 0,
+			margemContribuicaoPercentual:
+				receita > 0 ? (margemContribuicao / receita) * 100 : 0,
+		};
+	});
+
+	return {
+		periodo: { inicio, fim },
+		taxaAdquirenteUsada: taxaAdquirente,
+		porProduto,
+		margemContribuicaoTotal: margemTotal,
+		margemContribuicaoUnitariaMedia:
+			quantidadeTotal > 0 ? margemTotal / quantidadeTotal : 0,
+		margemContribuicaoPercentualMedia:
+			receitaTotal > 0 ? (margemTotal / receitaTotal) * 100 : 0,
+	};
+}
+
+// Ponto de equilíbrio: em quantidade = custo fixo mensal ÷ margem de
+// contribuição unitária média (unidades de produto); em faturamento = custo
+// fixo mensal ÷ margem de contribuição percentual média (não quantidade ×
+// ticket médio — ticket médio é R$/venda, quantidadeNecessaria é unidades de
+// produto, misturar as duas unidades dava um faturamentoNecessario errado).
+// Não é um simulador de "e se eu subir o preço" — só o equilíbrio atual.
+async function getPontoDeEquilibrio(dataInicio, dataFim) {
+	const custoFixo = await getCustoFixoConfig();
+	const margem = await getMargemContribuicao(dataInicio, dataFim);
+
+	const quantidadeNecessaria =
+		margem.margemContribuicaoUnitariaMedia > 0
+			? custoFixo.mensal / margem.margemContribuicaoUnitariaMedia
+			: null;
+	const faturamentoNecessario =
+		margem.margemContribuicaoPercentualMedia > 0
+			? custoFixo.mensal / (margem.margemContribuicaoPercentualMedia / 100)
+			: null;
+
+	return {
+		periodo: margem.periodo,
+		custoFixoMensal: custoFixo.mensal,
+		margemContribuicaoUnitariaMedia: margem.margemContribuicaoUnitariaMedia,
+		margemContribuicaoPercentualMedia: margem.margemContribuicaoPercentualMedia,
+		quantidadeNecessaria,
+		faturamentoNecessario,
+	};
+}
+
+// Giro de estoque: aproximação por estoque ATUAL (não médio do período) —
+// mesma simplificação que getDRE já documenta usar pro CMV (custo atual, não
+// histórico). Uma média de período real exigiria snapshots de estoque que não
+// existem hoje; documentado aqui como limitação conhecida, não passado como exato.
+async function getGiroEstoque(dataInicio, dataFim) {
+	const hoje = new Date().toISOString().slice(0, 10);
+	const inicio = dataInicio || hoje.slice(0, 8) + "01";
+	const fim = dataFim || hoje;
+
+	const linhas = await allAsync(
+		`SELECT p.id AS produto_id, p.nome AS produto_nome,
+   SUM(iv.quantidade) AS quantidade_vendida,
+   var.quantidade_estoque AS estoque_atual
+   FROM ItensVenda iv
+   JOIN Vendas v ON v.id = iv.venda_id
+   JOIN Variacoes var ON var.id = iv.variacao_id
+   JOIN Produtos p ON p.id = var.produto_id
+   WHERE v.status = 'finalizada' AND DATE(v.data_venda) BETWEEN ? AND ?
+   GROUP BY p.id`,
+		[inicio, fim],
+	);
+
+	return linhas.map((l) => {
+		const vendida = Number(l.quantidade_vendida) || 0;
+		const estoque = Number(l.estoque_atual) || 0;
+		const giro = estoque > 0 ? vendida / estoque : null;
+		return {
+			produto_id: l.produto_id,
+			produto_nome: l.produto_nome,
+			quantidadeVendida: vendida,
+			estoqueAtual: estoque,
+			giro,
+			diasParaReposicao: giro && giro > 0 ? 365 / giro : null,
+		};
+	});
+}
+
 module.exports = {
 	getDRE,
 	getRelatorioVendas,
 	getCurvaABC,
 	getComissoes,
+	getMargemContribuicao,
+	getPontoDeEquilibrio,
+	getGiroEstoque,
 };

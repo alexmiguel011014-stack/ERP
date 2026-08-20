@@ -33,6 +33,14 @@
           <span class="config-hint">Aluguel, salários e outras despesas fixas, diluídas como % do faturamento (calculada automaticamente pelo histórico de vendas, não por um volume estimado). Marque "Custo Fixo" por produto — deixe destravado nas revendas de margem apertada.</span>
           <div id="custoFixoResultado" class="custo-fixo-resultado"></div>
         </div>
+        <div class="config-item">
+          <label for="taxaAdquirente">Taxa Média de Adquirente (%)</label>
+          <div class="config-input-row">
+            <input type="number" id="taxaAdquirente" min="0" max="100" step="0.01" placeholder="Ex: 3" />
+            <button type="button" id="btnSaveTaxaAdquirente" class="btn btn-primary btn-sm">Salvar</button>
+          </div>
+          <span class="config-hint">Taxa média de cartão/Pix cobrada pela maquininha ou gateway, usada no cálculo de Margem de Contribuição (tela de Relatórios). Sem valor cadastrado, entra como 0%.</span>
+        </div>
       </div>
 
       <!-- Filtros -->

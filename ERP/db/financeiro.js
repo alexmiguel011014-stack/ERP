@@ -1,4 +1,4 @@
-const { runAsync, allAsync } = require("./conexao");
+const { runAsync, allAsync, getAsync } = require("./conexao");
 
 /* ============ Financeiro (contas a pagar/receber + fluxo de caixa) ============ */
 
@@ -178,6 +178,45 @@ async function getFluxoCaixa(dataInicio, dataFim) {
 		saldo,
 	};
 }
+// Alíquota de provisão de DAS, % owner-informado — a faixa/anexo/Fator R real
+// do Simples Nacional é decisão do contador do dono, não algo que este app
+// deveria adivinhar. Mesmo padrão manual de custo_fixo_mensal/taxa_adquirente_media.
+async function getAliquotaDAS() {
+	const row = await getAsync(
+		"SELECT valor FROM Configuracao WHERE chave = 'aliquota_das_provisao'",
+	);
+	return row ? parseFloat(row.valor) || 0 : 0;
+}
+
+async function saveAliquotaDAS(valor) {
+	const v = Number(valor);
+	if (!Number.isFinite(v) || v < 0) throw new Error("Alíquota inválida.");
+	await runAsync(
+		"INSERT OR REPLACE INTO Configuracao (chave, valor) VALUES ('aliquota_das_provisao', ?)",
+		[String(v)],
+	);
+	return { success: true };
+}
+
+// Provisão de DAS no regime de caixa: aplica a alíquota sobre o que
+// getFluxoCaixa() já mostra como RECEBIDO no período (não faturado) — é essa
+// distinção que evita o erro real documentado (provisionar contra Vendas.total
+// faturado, pagando DAS antes do dinheiro efetivamente ter caído na conta).
+async function getProvisaoDAS(dataInicio, dataFim) {
+	const aliquota = await getAliquotaDAS();
+	const fluxo = await getFluxoCaixa(dataInicio, dataFim);
+	const valorProvisionado = (fluxo.totalEntradas * aliquota) / 100;
+	return {
+		periodo: {
+			inicio: dataInicio || fluxo.dias[0]?.dia || null,
+			fim: dataFim || null,
+		},
+		totalRecebido: fluxo.totalEntradas,
+		aliquota,
+		valorProvisionado,
+	};
+}
+
 module.exports = {
 	criarLancamentoInterno,
 	getLancamentos,
@@ -186,4 +225,7 @@ module.exports = {
 	baixarLancamento,
 	excluirLancamento,
 	getFluxoCaixa,
+	getAliquotaDAS,
+	saveAliquotaDAS,
+	getProvisaoDAS,
 };

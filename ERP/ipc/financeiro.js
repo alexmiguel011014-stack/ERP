@@ -4,10 +4,13 @@ const {
 	baixarLancamento,
 	excluirLancamento,
 	getFluxoCaixa,
+	getAliquotaDAS,
+	saveAliquotaDAS,
+	getProvisaoDAS,
 } = require("../database");
 
 function registrar(ipcMain, deps) {
-	const { exigirPermissao, log } = deps;
+	const { exigirPermissao, exigirSessao, log } = deps;
 
 	ipcMain.handle("get-lancamentos", async (event, filtro) => {
 		try {
@@ -60,6 +63,33 @@ function registrar(ipcMain, deps) {
 		try {
 			exigirPermissao("financeiro");
 			return await getFluxoCaixa(dataInicio || null, dataFim || null);
+		} catch (erro) {
+			throw erro.message;
+		}
+	});
+
+	ipcMain.handle("get-aliquota-das", async () => {
+		try {
+			exigirSessao("admin");
+			return await getAliquotaDAS();
+		} catch (erro) {
+			throw erro.message;
+		}
+	});
+
+	ipcMain.handle("save-aliquota-das", async (event, valor) => {
+		try {
+			exigirSessao("admin");
+			return await saveAliquotaDAS(valor);
+		} catch (erro) {
+			throw erro.message;
+		}
+	});
+
+	ipcMain.handle("get-provisao-das", async (event, dataInicio, dataFim) => {
+		try {
+			exigirPermissao("financeiro");
+			return await getProvisaoDAS(dataInicio || null, dataFim || null);
 		} catch (erro) {
 			throw erro.message;
 		}

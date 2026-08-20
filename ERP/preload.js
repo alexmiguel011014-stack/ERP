@@ -61,6 +61,9 @@ contextBridge.exposeInMainWorld("api", {
 	getCustoFixoConfig: () => ipcRenderer.invoke("get-custo-fixo-config"),
 	saveCustoFixoConfig: (mensal, volumeMensal) =>
 		ipcRenderer.invoke("save-custo-fixo-config", mensal, volumeMensal),
+	getTaxaAdquirente: () => ipcRenderer.invoke("get-taxa-adquirente"),
+	saveTaxaAdquirente: (valor) =>
+		ipcRenderer.invoke("save-taxa-adquirente", valor),
 	saveAplicarCustoFixo: (produtoId, aplicar) =>
 		ipcRenderer.invoke("save-aplicar-custo-fixo", produtoId, aplicar),
 	saveProductMargin: (produtoId, margem) =>
@@ -144,6 +147,10 @@ contextBridge.exposeInMainWorld("api", {
 	excluirLancamento: (id) => ipcRenderer.invoke("excluir-lancamento", id),
 	getFluxoCaixa: (inicio, fim) =>
 		ipcRenderer.invoke("get-fluxo-caixa", inicio, fim),
+	getAliquotaDAS: () => ipcRenderer.invoke("get-aliquota-das"),
+	saveAliquotaDAS: (valor) => ipcRenderer.invoke("save-aliquota-das", valor),
+	getProvisaoDAS: (inicio, fim) =>
+		ipcRenderer.invoke("get-provisao-das", inicio, fim),
 	abrirCaixa: (valorAbertura) =>
 		ipcRenderer.invoke("abrir-caixa", valorAbertura),
 	fecharCaixa: (valorInformado, observacao) =>
@@ -159,6 +166,12 @@ contextBridge.exposeInMainWorld("api", {
 		ipcRenderer.invoke("get-curva-abc", inicio, fim),
 	getComissoes: (inicio, fim) =>
 		ipcRenderer.invoke("get-comissoes", inicio, fim),
+	getMargemContribuicao: (inicio, fim) =>
+		ipcRenderer.invoke("get-margem-contribuicao", inicio, fim),
+	getPontoDeEquilibrio: (inicio, fim) =>
+		ipcRenderer.invoke("get-ponto-equilibrio", inicio, fim),
+	getGiroEstoque: (inicio, fim) =>
+		ipcRenderer.invoke("get-giro-estoque", inicio, fim),
 	listarPagamentos: (metodo) => ipcRenderer.invoke("listar-pagamentos", metodo),
 	registrarPagamento: (dados) =>
 		ipcRenderer.invoke("registrar-pagamento", dados),

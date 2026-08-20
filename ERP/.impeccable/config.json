@@ -1,0 +1,23 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "bounce-easing",
+        "value": "cubic-bezier(0.34, 1.56, 0.64, 1)",
+        "createdAt": "2026-08-19T22:07:23.134Z",
+        "reason": "pre-existing dark-mode toggle-switch knob animation (modules/core/navbar.js), not authored this session; a small overshoot on a physical-looking toggle knob is an intentional skeuomorphic micro-interaction, not AI-slop bounce"
+      },
+      {
+        "rule": "layout-transition",
+        "value": "*",
+        "files": [
+          "modules/core/navbar.js"
+        ],
+        "createdAt": "2026-08-20T02:00:42.686Z",
+        "reason": "body padding-left and .sidebar width (desktop collapse, 264px<->68px) genuinely change reflow width/content layout, not just position — transform:scale would distort children (icons/text), and the collapsed state re-lays-out content (hidden labels, centered icons) rather than just scaling the same content, so there's no transform-only equivalent. Low-frequency, user-initiated toggle (not scroll-linked/continuous), so the perf cost the rule guards against doesn't really apply here. Already fixed the two other layout-transition instances in this file (mobile drawer left->transform, admin submenu max-height->grid-template-rows) — these two are the confirmed remainder, not an unreviewed skip."
+      }
+    ]
+  }
+}

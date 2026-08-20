@@ -20,3 +20,5 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
+      - run: npx electron scripts/test-ui.js
+        name: E2E (login + visita todas as páginas, coleta erros de console)

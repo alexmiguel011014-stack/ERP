@@ -24,6 +24,9 @@
 	var btnFiltrarFluxo = document.getElementById("btnFiltrarFluxo");
 	var statsFluxo = document.getElementById("statsFluxo");
 	var listaFluxo = document.getElementById("listaFluxo");
+	var aliquotaDASInput = document.getElementById("aliquotaDAS");
+	var btnSaveAliquotaDAS = document.getElementById("btnSaveAliquotaDAS");
+	var provisaoDASResultado = document.getElementById("provisaoDASResultado");
 
 	function mostrarMensagem(texto, tipo) {
 		mensagem.textContent = texto;
@@ -50,6 +53,7 @@
 			if (abaAtual === "fluxo") {
 				abaFluxo.style.display = "block";
 				carregarFluxo();
+				carregarProvisaoDAS();
 			} else if (abaAtual === "fechamentos") {
 				abaFechamentos.style.display = "block";
 				carregarFechamentos();
@@ -378,7 +382,73 @@
 			});
 	}
 
-	btnFiltrarFluxo.addEventListener("click", carregarFluxo);
+	btnFiltrarFluxo.addEventListener("click", () => {
+		carregarFluxo();
+		carregarProvisaoDAS();
+	});
+
+	/* ---------- Provisão de DAS (regime de caixa) ---------- */
+
+	function carregarProvisaoDAS() {
+		if (!window.api || !window.erpBanco.financeiro.provisaoDAS) {
+			provisaoDASResultado.textContent = "API indisponível.";
+			return;
+		}
+		Promise.all([
+			window.erpBanco.financeiro.aliquotaDAS
+				? window.erpBanco.financeiro.aliquotaDAS()
+				: Promise.resolve(0),
+			window.erpBanco.financeiro.provisaoDAS(
+				fluxoInicio.value || null,
+				fluxoFim.value || null,
+			),
+		])
+			.then((results) => {
+				var aliquota = Number(results[0]) || 0;
+				var provisao = results[1];
+				aliquotaDASInput.value = aliquota || "";
+				if (!aliquota) {
+					provisaoDASResultado.textContent =
+						"Informe a alíquota de provisão para calcular.";
+					return;
+				}
+				provisaoDASResultado.textContent =
+					"Recebido no período: " +
+					formatarMoeda(provisao.totalRecebido) +
+					" — DAS provisionado (" +
+					aliquota +
+					"%): " +
+					formatarMoeda(provisao.valorProvisionado);
+			})
+			.catch((err) => {
+				provisaoDASResultado.textContent = "Erro: " + err;
+			});
+	}
+
+	btnSaveAliquotaDAS.addEventListener("click", () => {
+		var aliquota = parseFloat(aliquotaDASInput.value) || 0;
+		if (aliquota < 0) {
+			mostrarMensagem("Informe um valor válido.", "error");
+			return;
+		}
+		if (!window.api || !window.erpBanco.financeiro.salvarAliquotaDAS) {
+			mostrarMensagem("API indisponível.", "error");
+			return;
+		}
+		btnSaveAliquotaDAS.disabled = true;
+		window.erpBanco.financeiro
+			.salvarAliquotaDAS(aliquota)
+			.then(() => carregarProvisaoDAS())
+			.then(() => {
+				mostrarMensagem("Alíquota de DAS atualizada!", "success");
+			})
+			.catch((err) => {
+				mostrarMensagem("Erro: " + err, "error");
+			})
+			.then(() => {
+				btnSaveAliquotaDAS.disabled = false;
+			});
+	});
 
 	lancVencimento.value = new Date().toISOString().slice(0, 10);
 	carregarLancamentos();

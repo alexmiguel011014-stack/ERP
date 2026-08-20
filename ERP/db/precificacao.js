@@ -207,6 +207,26 @@ async function saveCustoFixoConfig(mensal) {
 	return { success: true };
 }
 
+// Taxa média de adquirente (cartão/Pix), % owner-informado — nenhuma taxa por
+// transação é rastreada hoje (nem Pix nem cartão têm um gateway com fee real
+// integrado), então isso é uma média manual, mesmo padrão de custo_fixo_mensal.
+async function getTaxaAdquirente() {
+	const row = await getAsync(
+		"SELECT valor FROM Configuracao WHERE chave = 'taxa_adquirente_media'",
+	);
+	return row ? parseFloat(row.valor) || 0 : 0;
+}
+
+async function saveTaxaAdquirente(valor) {
+	const v = Number(valor);
+	if (!Number.isFinite(v) || v < 0) throw new Error("Taxa inválida.");
+	await runAsync(
+		"INSERT OR REPLACE INTO Configuracao (chave, valor) VALUES ('taxa_adquirente_media', ?)",
+		[String(v)],
+	);
+	return { success: true };
+}
+
 async function saveAplicarCustoFixo(produtoId, aplicar) {
 	await runAsync(
 		"UPDATE Precificacao SET aplicar_custo_fixo = ? WHERE produto_id = ?",
@@ -316,6 +336,8 @@ module.exports = {
 	getFaturamentoMedioHistorico,
 	getCustoFixoConfig,
 	saveCustoFixoConfig,
+	getTaxaAdquirente,
+	saveTaxaAdquirente,
 	saveAplicarCustoFixo,
 	saveProductMargin,
 	saveProductPrice,

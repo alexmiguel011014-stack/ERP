@@ -16,6 +16,8 @@
 	var custoFixoMensalInput = document.getElementById("custoFixoMensal");
 	var btnSaveCustoFixo = document.getElementById("btnSaveCustoFixo");
 	var custoFixoResultado = document.getElementById("custoFixoResultado");
+	var taxaAdquirenteInput = document.getElementById("taxaAdquirente");
+	var btnSaveTaxaAdquirente = document.getElementById("btnSaveTaxaAdquirente");
 	var massBar = document.getElementById("massBar");
 	var massCount = document.getElementById("massCount");
 	var massMargin = document.getElementById("massMargin");
@@ -148,6 +150,9 @@
 						mesesConsiderados: 0,
 						percentual: 0,
 					}),
+			window.api && window.erpBanco.precificacao.taxaAdquirente
+				? window.erpBanco.precificacao.taxaAdquirente()
+				: Promise.resolve(0),
 		];
 
 		Promise.all(promises)
@@ -163,6 +168,7 @@
 					percentual: 0,
 				};
 				custoFixoMensalInput.value = custoFixoConfig.mensal || "";
+				taxaAdquirenteInput.value = Number(results[4]) || "";
 				atualizarCustoFixoResultado();
 				preencherFiltroCategoria();
 				renderizar();
@@ -589,6 +595,30 @@
 			})
 			.then(() => {
 				btnSaveCustoFixo.disabled = false;
+			});
+	});
+
+	btnSaveTaxaAdquirente.addEventListener("click", () => {
+		var taxa = parseFloat(taxaAdquirenteInput.value) || 0;
+		if (taxa < 0) {
+			mostrarMensagem("Informe um valor válido.", "error");
+			return;
+		}
+		if (!window.api || !window.erpBanco.precificacao.salvarTaxaAdquirente) {
+			mostrarMensagem("API indisponível.", "error");
+			return;
+		}
+		btnSaveTaxaAdquirente.disabled = true;
+		window.erpBanco.precificacao
+			.salvarTaxaAdquirente(taxa)
+			.then(() => {
+				mostrarMensagem("Taxa de adquirente atualizada!", "success");
+			})
+			.catch((err) => {
+				mostrarMensagem("Erro: " + err, "error");
+			})
+			.then(() => {
+				btnSaveTaxaAdquirente.disabled = false;
 			});
 	});
 

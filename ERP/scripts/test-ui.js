@@ -85,7 +85,7 @@ const SONDA = `
       sessao: () => window.erpBanco.auth.sessao(),
       categorias: () => window.erpBanco.categorias.comUso(),
       produtos: () => window.erpBanco.produtos.detalhados(),
-      dashboard: () => window.erpBanco.dashboard.stats(),
+      dashboard: () => window.api.dashboardStats(),
     };
     for (const k of Object.keys(testes)) {
       try { const v = await testes[k](); r.chamadas[k] = Array.isArray(v) ? 'array(' + v.length + ')' : 'ok'; }

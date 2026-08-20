@@ -10,6 +10,13 @@
 	var listaAbc = document.getElementById("listaAbc");
 	var listaComissoes = document.getElementById("listaComissoes");
 	var dreResultado = document.getElementById("dreResultado");
+	var margemContribuicaoResumo = document.getElementById(
+		"margemContribuicaoResumo",
+	);
+	var listaMargemContribuicao = document.getElementById(
+		"listaMargemContribuicao",
+	);
+	var listaGiroEstoque = document.getElementById("listaGiroEstoque");
 	var mensagem = document.getElementById("mensagem");
 
 	var abcCache = [];
@@ -462,6 +469,123 @@
 				})
 				.catch((err) => {
 					mostrarMensagem("Erro no DRE: " + err, "erro");
+				});
+		}
+
+		if (window.api && window.erpBanco.relatorios.pontoDeEquilibrio) {
+			window.erpBanco.relatorios
+				.pontoDeEquilibrio(inicio, fim)
+				.then((pe) => {
+					if (!pe.quantidadeNecessaria) {
+						margemContribuicaoResumo.textContent =
+							"Sem dados suficientes no período pra calcular o ponto de equilíbrio.";
+						return;
+					}
+					margemContribuicaoResumo.textContent =
+						"Ponto de equilíbrio: " +
+						Math.ceil(pe.quantidadeNecessaria) +
+						" unidade(s)/período (" +
+						formatarMoeda(pe.faturamentoNecessario) +
+						" de faturamento) para cobrir " +
+						formatarMoeda(pe.custoFixoMensal) +
+						" de custo fixo mensal.";
+				})
+				.catch((err) => {
+					margemContribuicaoResumo.textContent = "Erro: " + err;
+				});
+		}
+
+		if (window.api && window.erpBanco.relatorios.margemContribuicao) {
+			window.erpBanco.relatorios
+				.margemContribuicao(inicio, fim)
+				.then((m) => {
+					listaMargemContribuicao.innerHTML = "";
+					if (!m.porProduto || m.porProduto.length === 0) {
+						listaMargemContribuicao.innerHTML =
+							'<div class="empty-state">Sem vendas no período.</div>';
+						return;
+					}
+					var t = document.createElement("table");
+					t.innerHTML =
+						"<thead><tr><th>Produto</th><th style='text-align:center;'>Qtd</th><th style='text-align:right;'>Margem contrib.</th><th style='text-align:right;'>Por unidade</th><th style='text-align:right;'>%</th></tr></thead><tbody></tbody>";
+					var tb = t.querySelector("tbody");
+					m.porProduto
+						.slice()
+						.sort((a, b) => b.margemContribuicao - a.margemContribuicao)
+						.forEach((l) => {
+							var tr = document.createElement("tr");
+							tr.innerHTML =
+								"<td></td>" +
+								"<td style='text-align:center;'>" +
+								l.quantidade +
+								"</td>" +
+								"<td style='text-align:right; color:" +
+								(l.margemContribuicao >= 0
+									? "var(--cor-sucesso)"
+									: "var(--cor-erro)") +
+								"; font-weight:600;'>" +
+								formatarMoeda(l.margemContribuicao) +
+								"</td>" +
+								"<td style='text-align:right;'>" +
+								formatarMoeda(l.margemContribuicaoUnitaria) +
+								"</td>" +
+								"<td style='text-align:right;'>" +
+								l.margemContribuicaoPercentual.toFixed(1) +
+								"%</td>";
+							tr.children[0].textContent = l.produto_nome;
+							tb.appendChild(tr);
+						});
+					listaMargemContribuicao.appendChild(t);
+				})
+				.catch((err) => {
+					listaMargemContribuicao.innerHTML =
+						'<div class="empty-state">Erro: ' + err + "</div>";
+				});
+		}
+
+		if (window.api && window.erpBanco.relatorios.giroEstoque) {
+			window.erpBanco.relatorios
+				.giroEstoque(inicio, fim)
+				.then((linhas) => {
+					listaGiroEstoque.innerHTML = "";
+					if (!linhas || linhas.length === 0) {
+						listaGiroEstoque.innerHTML =
+							'<div class="empty-state">Sem vendas no período.</div>';
+						return;
+					}
+					var t = document.createElement("table");
+					t.innerHTML =
+						"<thead><tr><th>Produto</th><th style='text-align:center;'>Vendido</th><th style='text-align:center;'>Estoque atual</th><th style='text-align:center;'>Giro</th><th style='text-align:center;'>Dias p/ reposição</th></tr></thead><tbody></tbody>";
+					var tb = t.querySelector("tbody");
+					linhas
+						.slice()
+						.sort((a, b) => (b.giro || 0) - (a.giro || 0))
+						.forEach((l) => {
+							var tr = document.createElement("tr");
+							tr.innerHTML =
+								"<td></td>" +
+								"<td style='text-align:center;'>" +
+								l.quantidadeVendida +
+								"</td>" +
+								"<td style='text-align:center;'>" +
+								l.estoqueAtual +
+								"</td>" +
+								"<td style='text-align:center;'>" +
+								(l.giro !== null ? l.giro.toFixed(2) : "—") +
+								"</td>" +
+								"<td style='text-align:center;'>" +
+								(l.diasParaReposicao !== null
+									? Math.round(l.diasParaReposicao)
+									: "—") +
+								"</td>";
+							tr.children[0].textContent = l.produto_nome;
+							tb.appendChild(tr);
+						});
+					listaGiroEstoque.appendChild(t);
+				})
+				.catch((err) => {
+					listaGiroEstoque.innerHTML =
+						'<div class="empty-state">Erro: ' + err + "</div>";
 				});
 		}
 	}

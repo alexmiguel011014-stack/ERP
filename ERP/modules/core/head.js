@@ -1,26 +1,34 @@
 (function () {
-	// Design tokens (paleta roxo/verde/amarelo) injetados aqui, não em
-	// navbar.js: toda página do app carrega head.js (inclusive login.html e
-	// qualquer módulo aberto como aba com ?embedded=1), mas navbar.js sai fora
-	// logo na primeira linha quando embedded=1 — então botões/cards dentro de
-	// abas ficavam com var(--cor-primaria) etc. nunca definida, resultando em
+	// Design tokens (ver DESIGN.md na raiz — paleta "livro-razão", genérica,
+	// sem tema de vertical de cliente) injetados aqui, não em navbar.js: toda
+	// página do app carrega head.js (inclusive login.html e qualquer módulo
+	// aberto como aba com ?embedded=1), mas navbar.js sai fora logo na
+	// primeira linha quando embedded=1 — então botões/cards dentro de abas
+	// ficavam com var(--cor-primaria) etc. nunca definida, resultando em
 	// fundo transparente e texto branco invisível sobre fundo branco.
+	//
+	// --cor-primaria usa o verde "razão" (livro-razão contábil), não o
+	// carimbo vermelho do DESIGN.md — vermelho já é --cor-erro neste app;
+	// usar vermelho pra "botão normal" E "erro" ao mesmo tempo confundiria o
+	// usuário (um botão principal não deveria parecer um estado de perigo).
+	// --cor-erro passa a usar o próprio tom de carimbo — combina bem com o
+	// significado (carimbo de atenção), sem colidir com a cor de marca.
 	var estiloTokens = document.createElement("style");
 	estiloTokens.textContent =
 		":root {\n" +
-		"  --cor-primaria: #6D28D9; --cor-primaria-forte: #5B21B6; --cor-primaria-fraca: #F1EBFC; --cor-primaria-fraca-borda: #DDD0F7;\n" +
-		"  --cor-sucesso: #15803D; --cor-sucesso-fraca: #E9F8EE; --cor-sucesso-borda: #BEEAC9;\n" +
-		"  --cor-destaque: #B45309; --cor-destaque-ink: #78350F; --cor-destaque-fraca: #FEF6E4; --cor-destaque-borda: #F6DFA6; --cor-destaque-solido: #F5B301;\n" +
-		"  --cor-erro: #B91C1C; --cor-erro-fraca: #FDECEC; --cor-erro-borda: #F5C6C6;\n" +
-		"  --raio: 10px; --raio-sm: 7px;\n" +
-		"  --sombra-card: 0 1px 2px rgba(33,26,46,0.04), 0 8px 24px -12px rgba(33,26,46,0.12);\n" +
+		"  --cor-primaria: #2F5233; --cor-primaria-forte: #223D26; --cor-primaria-fraca: #E8EFE7; --cor-primaria-fraca-borda: #C9DAC8;\n" +
+		"  --cor-sucesso: #3D8B4A; --cor-sucesso-fraca: #E9F5EA; --cor-sucesso-borda: #BEE0C3;\n" +
+		"  --cor-destaque: #9C6B1F; --cor-destaque-ink: #5C3E12; --cor-destaque-fraca: #FBF1DE; --cor-destaque-borda: #E9CE97; --cor-destaque-solido: #C08A2E;\n" +
+		"  --cor-erro: #8B2E2E; --cor-erro-fraca: #F7E9E8; --cor-erro-borda: #E4BFBD;\n" +
+		"  --raio: 6px; --raio-sm: 4px;\n" +
+		"  --sombra-card: 0 1px 2px rgba(34,31,26,0.05), 0 8px 20px -12px rgba(34,31,26,0.1);\n" +
 		"}\n" +
 		"html.dark-theme {\n" +
-		"  --cor-primaria: #A374F2; --cor-primaria-forte: #B692F6; --cor-primaria-fraca: #2B2145; --cor-primaria-fraca-borda: #4A3B72;\n" +
-		"  --cor-sucesso: #4ADE80; --cor-sucesso-fraca: #17301F; --cor-sucesso-borda: #2E5D3D;\n" +
-		"  --cor-destaque: #F5B301; --cor-destaque-ink: #FCE1A8; --cor-destaque-fraca: #332507; --cor-destaque-borda: #5C4712; --cor-destaque-solido: #F5B301;\n" +
-		"  --cor-erro: #F87171; --cor-erro-fraca: #3A1C1C; --cor-erro-borda: #63302F;\n" +
-		"  --sombra-card: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);\n" +
+		"  --cor-primaria: #6FA378; --cor-primaria-forte: #8CBB94; --cor-primaria-fraca: #1E2B20; --cor-primaria-fraca-borda: #35472F;\n" +
+		"  --cor-sucesso: #6FA378; --cor-sucesso-fraca: #1B2C1E; --cor-sucesso-borda: #2E4A32;\n" +
+		"  --cor-destaque: #D6A94A; --cor-destaque-ink: #F0DBA6; --cor-destaque-fraca: #332507; --cor-destaque-borda: #5C4712; --cor-destaque-solido: #D6A94A;\n" +
+		"  --cor-erro: #C2645F; --cor-erro-fraca: #3A2321; --cor-erro-borda: #63403D;\n" +
+		"  --sombra-card: 0 1px 2px rgba(0,0,0,0.3), 0 8px 20px -12px rgba(0,0,0,0.5);\n" +
 		"}\n";
 	(document.head || document.documentElement).appendChild(estiloTokens);
 

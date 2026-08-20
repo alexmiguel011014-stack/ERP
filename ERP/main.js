@@ -167,7 +167,7 @@ function criarJanelaPrincipal() {
 		webPreferences: {
 			nodeIntegration: false,
 			contextIsolation: true,
-			nodeIntegrationInSubFrames: false,
+			nodeIntegrationInSubFrames: true,
 			preload: path.join(__dirname, "preload.js"),
 		},
 	});

@@ -22,6 +22,26 @@ Paleta visual: Tatame Clean (clara: `#F8FAFC`, `#FFFFFF`, `#1E293B`, `#2563EB`, 
 Repositório: `https://github.com/alexmiguel011014-stack/ERP.git` (branch `main`, push via HTTPS).
 Versão atual: `v1.0.5` (`package.json`). Releases publicadas no GitHub Releases.
 
+### Processo de release (checado em 2026-08-19, era conhecimento tribal até aqui)
+
+`npm run build`/`npm run dist` (`electron-builder`) só geram o `.exe` em `dist/` — **não**
+publicam sozinhos, apesar do bloco `"publish"` já configurado em `package.json` (provider
+`github`, repo `alexmiguel011014-stack/ERP`). CI (`.github/workflows/ci.yml`) roda só
+lint+test, nunca build/publish — releases são feitas manualmente, do computador de quem for
+publicar:
+
+```powershell
+$env:GH_TOKEN = "<personal access token com escopo repo>"
+npx electron-builder --publish always
+```
+
+`GH_TOKEN` é lido automaticamente pelo `electron-builder` (convenção própria dele) — nunca
+colocar em `.env`, `package.json` ou qualquer arquivo versionado; é uma variável de ambiente
+da sessão de quem publica, igual a qualquer outro token deste projeto (ver seção de Segurança
+sobre credenciais de integração). Gerar o token em github.com → Settings → Developer settings
+→ Personal access tokens, escopo `repo` (ou o fine-grained equivalente com permissão de
+Contents: Read and write no repositório `ERP`).
+
 ## Comandos Essenciais
 
 ```powershell
@@ -160,7 +180,7 @@ certificado A1 e conta em provedor de pagamento ainda pendentes de acesso — ve
 
 ## Funcionalidades Implementadas (resumo)
 
-Setup Electron seguro · SQLite 8 tabelas + extensões · SQLCipher (criptografia por senha) + migração automática plaintext→cipher · Migração de colunas (`migrarColunas`) · Cadastro de produtos c/ variações + SKU auto + estoque_mínimo · Clientes CRUD (CPF/CNPJ, e-mail, endereço) · Fornecedores CRUD · PDV (leitor SKU, carrinho, cliente, desconto, observação, fiado, orçamento, transação atômica com guarda de estoque, recibo) · Orçamentos (salvar → converter em venda; não movimenta estoque até conversão) · Histórico de vendas (filtro data+status, badge, detalhes modal, conversão de orçamento, CSV) · Entrada de mercadorias (custo médio ponderado, ledger `MovimentacoesEstoque`) · Alerta de estoque mínimo (dashboard, PDV, página de entrada) · Pedidos de compra (criar/receber/cancelar; recebimento gera conta a pagar) · Financeiro (contas a pagar/receber, baixa, fluxo de caixa por dia) · Relatórios (vendas por período, por pagamento, ticket médio, Curva ABC A/B/C + CSV) · Dashboard (vendas/faturamento/estoque/hoje + a receber e a pagar hoje) · Navbar por perfil · Tema escuro · Login multi-usuário (admin) + Gerenciar Acessos · Backup/Restore + automático diário · Auto-update · Build NSIS v1.0.0 · Janela maximizada · Launcher silencioso (VBS)
+Setup Electron seguro · SQLite 8 tabelas + extensões · SQLCipher (criptografia por senha) + migração automática plaintext→cipher · Migração de colunas (`migrarColunas`) · Cadastro de produtos c/ variações + SKU auto + estoque_mínimo · Clientes CRUD (CPF/CNPJ, e-mail, endereço) · Fornecedores CRUD · PDV (leitor SKU, carrinho, cliente, desconto, observação, fiado, orçamento, transação atômica com guarda de estoque, recibo) · Orçamentos (salvar → converter em venda; não movimenta estoque até conversão) · Histórico de vendas (filtro data+status, badge, detalhes modal, conversão de orçamento, CSV) · Entrada de mercadorias (custo médio ponderado, ledger `MovimentacoesEstoque`) · Alerta de estoque mínimo (dashboard, PDV, página de entrada) · Pedidos de compra (criar/receber/cancelar; recebimento gera conta a pagar) · Financeiro (contas a pagar/receber, baixa, fluxo de caixa por dia, provisão de DAS por regime de caixa) · Relatórios (vendas por período, por pagamento, ticket médio, Curva ABC A/B/C + CSV, DRE, margem de contribuição, ponto de equilíbrio, giro de estoque) · Dashboard (vendas/faturamento/estoque/hoje + a receber e a pagar hoje) · Navbar por perfil · Tema escuro · Login multi-usuário (admin) + Gerenciar Acessos · Backup/Restore + automático diário · Auto-update · Build NSIS v1.0.0 · Janela maximizada · Launcher silencioso (VBS)
 
 ## Fora de escopo (decidido)
 
@@ -172,7 +192,11 @@ Setup Electron seguro · SQLite 8 tabelas + extensões · SQLCipher (criptografi
 2. **Melhorias finais de UI/UX**: ícones vetoriais, tipografia refinada.
 3. **NFC-e**: avaliar ACBr/biblioteca de emissão como evolução futura.
 
-Backlog restante: troco automático no PDV · busca de cliente no PDV · imagens nos produtos.
+~~Backlog restante: troco automático no PDV · busca de cliente no PDV · imagens nos produtos.~~
+Esta linha estava desatualizada (checado em 2026-08-19, via GOALS.md): os três já existem e
+funcionam — troco automático (`modules/pdv/pdv.js:atualizarTroco()`), busca de cliente no PDV
+(`modules/pdv/pdv.js`, campo `clienteBusca` com dropdown de resultados) e imagens de produto
+(`modules/produtos/cadastro.js`, `escolherImagem`/`removerImagem`/preview).
 Log de erros em arquivo + `window.onerror` global já implementados (`main.js:logErro`/`CAMINHO_LOG_ERRO`).
 
 Ver `GOALS.md` para o plano completo (o que falta, por área) e o que já foi corrigido nesta rodada.

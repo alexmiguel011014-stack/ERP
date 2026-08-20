@@ -80,6 +80,18 @@
             <div class="empty-state">Carregando...</div>
           </div>
         </div>
+        <div class="panel">
+          <h2>Provisão de DAS (regime de caixa)</h2>
+          <p class="subtitle" style="margin-bottom: 10px;">Estimativa baseada no que foi efetivamente recebido no período acima — não no valor faturado. Não substitui o cálculo real do contador (alíquota/anexo/Fator R do Simples Nacional).</p>
+          <div class="config-item">
+            <label for="aliquotaDAS">Alíquota de provisão (%)</label>
+            <div class="config-input-row">
+              <input type="number" id="aliquotaDAS" min="0" max="100" step="0.01" placeholder="Ex: 6" />
+              <button type="button" id="btnSaveAliquotaDAS" class="btn btn-primary btn-sm">Salvar</button>
+            </div>
+          </div>
+          <div id="provisaoDASResultado" class="resultado-destaque"></div>
+        </div>
       </div>
 
       <div id="abaFechamentos" style="display: none;">

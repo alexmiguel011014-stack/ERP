@@ -3,6 +3,9 @@ const {
 	getRelatorioVendas,
 	getCurvaABC,
 	getComissoes,
+	getMargemContribuicao,
+	getPontoDeEquilibrio,
+	getGiroEstoque,
 } = require("../database");
 
 function registrar(ipcMain, deps) {
@@ -39,6 +42,36 @@ function registrar(ipcMain, deps) {
 		try {
 			exigirPermissao("relatorios");
 			return await getComissoes(dataInicio || null, dataFim || null);
+		} catch (erro) {
+			throw erro.message;
+		}
+	});
+
+	ipcMain.handle(
+		"get-margem-contribuicao",
+		async (event, dataInicio, dataFim) => {
+			try {
+				exigirPermissao("relatorios");
+				return await getMargemContribuicao(dataInicio || null, dataFim || null);
+			} catch (erro) {
+				throw erro.message;
+			}
+		},
+	);
+
+	ipcMain.handle("get-ponto-equilibrio", async (event, dataInicio, dataFim) => {
+		try {
+			exigirPermissao("relatorios");
+			return await getPontoDeEquilibrio(dataInicio || null, dataFim || null);
+		} catch (erro) {
+			throw erro.message;
+		}
+	});
+
+	ipcMain.handle("get-giro-estoque", async (event, dataInicio, dataFim) => {
+		try {
+			exigirPermissao("relatorios");
+			return await getGiroEstoque(dataInicio || null, dataFim || null);
 		} catch (erro) {
 			throw erro.message;
 		}

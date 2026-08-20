@@ -255,6 +255,12 @@
 			aplicarMargemEmLote: function (produtoIds, margem) {
 				return invocar("massUpdateMargem", produtoIds, margem);
 			},
+			taxaAdquirente: function () {
+				return invocar("getTaxaAdquirente");
+			},
+			salvarTaxaAdquirente: function (valor) {
+				return invocar("saveTaxaAdquirente", valor);
+			},
 		},
 
 		/* ===== Fornecedores ===== */
@@ -324,6 +330,15 @@
 			fluxoCaixa: function (inicio, fim) {
 				return invocar("getFluxoCaixa", inicio, fim);
 			},
+			aliquotaDAS: function () {
+				return invocar("getAliquotaDAS");
+			},
+			salvarAliquotaDAS: function (valor) {
+				return invocar("saveAliquotaDAS", valor);
+			},
+			provisaoDAS: function (inicio, fim) {
+				return invocar("getProvisaoDAS", inicio, fim);
+			},
 		},
 
 		/* ===== Fechamento de caixa (PDV) ===== */
@@ -358,6 +373,15 @@
 			},
 			comissoes: function (inicio, fim) {
 				return invocar("getComissoes", inicio, fim);
+			},
+			margemContribuicao: function (inicio, fim) {
+				return invocar("getMargemContribuicao", inicio, fim);
+			},
+			pontoDeEquilibrio: function (inicio, fim) {
+				return invocar("getPontoDeEquilibrio", inicio, fim);
+			},
+			giroEstoque: function (inicio, fim) {
+				return invocar("getGiroEstoque", inicio, fim);
 			},
 		},
 

@@ -63,6 +63,39 @@ async function importBackup(caminhoArquivo) {
 	});
 }
 
+// Quantos dias de backup automático diário manter. Sem poda, backupAutomatico
+// (chamado todo login + a cada 24h) acumula 1 arquivo/dia indefinidamente —
+// 30 dias dá um mês de granularidade diária sem crescer sem limite. Só se
+// aplica aos backups automáticos (nome com data ISO); um backup manual via
+// exportBackup (nome com timestamp epoch) nunca é apagado por esta rotina —
+// é uma cópia que o dono pediu explicitamente, não algo pra remover sozinho.
+const RETENCAO_BACKUP_AUTOMATICO_DIAS = 30;
+const PADRAO_BACKUP_AUTOMATICO = /^backup_(\d{4}-\d{2}-\d{2})\.sqlite$/;
+
+function podarBackupsAutomaticosAntigos(backupDir) {
+	const fs = require("fs");
+	let arquivos;
+	try {
+		arquivos = fs.readdirSync(backupDir);
+	} catch {
+		return;
+	}
+	const limite =
+		Date.now() - RETENCAO_BACKUP_AUTOMATICO_DIAS * 24 * 60 * 60 * 1000;
+	for (const nome of arquivos) {
+		const m = nome.match(PADRAO_BACKUP_AUTOMATICO);
+		if (!m) continue;
+		const dataArquivo = new Date(m[1] + "T00:00:00").getTime();
+		if (!Number.isNaN(dataArquivo) && dataArquivo < limite) {
+			try {
+				fs.unlinkSync(path.join(backupDir, nome));
+			} catch {
+				/* falha ao remover um backup antigo não deve interromper o app */
+			}
+		}
+	}
+}
+
 function backupAutomatico() {
 	const fs = require("fs");
 	const origem = getDBPath();
@@ -76,11 +109,11 @@ function backupAutomatico() {
 	const dataHoje = new Date().toISOString().slice(0, 10);
 	const destino = path.join(backupDir, "backup_" + dataHoje + ".sqlite");
 
-	if (fs.existsSync(destino)) {
-		return destino;
+	if (!fs.existsSync(destino)) {
+		fs.copyFileSync(origem, destino);
 	}
 
-	fs.copyFileSync(origem, destino);
+	podarBackupsAutomaticosAntigos(backupDir);
 	return destino;
 }
 
@@ -88,4 +121,6 @@ module.exports = {
 	exportBackup,
 	importBackup,
 	backupAutomatico,
+	podarBackupsAutomaticosAntigos,
+	RETENCAO_BACKUP_AUTOMATICO_DIAS,
 };

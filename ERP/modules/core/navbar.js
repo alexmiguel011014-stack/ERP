@@ -78,9 +78,11 @@
 			"@media (max-width: 880px) { body { padding-left: 0 !important; } }\n" +
 			".sidebar-backdrop { position: fixed; inset: 0; background: rgba(2,6,23,0.55); z-index: 1999; display: none; }\n" +
 			"@media (max-width: 880px) { .sidebar-backdrop.open { display: block; } }\n" +
-			".sidebar { position: fixed; top: 0; left: 0; width: var(--sidebar-w); height: 100%; z-index: 2000; background: #1A1626; border-right: 1px solid #2A2340; transition: left 0.2s ease, width 0.2s ease; display: flex; flex-direction: column; overflow: hidden; }\n" +
+			".sidebar { position: fixed; top: 0; left: 0; width: var(--sidebar-w); height: 100%; z-index: 2000; background: #1A1626; border-right: 1px solid #2A2340; transition: transform 0.2s cubic-bezier(0.16,1,0.3,1), width 0.2s ease; display: flex; flex-direction: column; overflow: hidden; }\n" +
 			"body.sidebar-collapsed .sidebar { width: var(--sidebar-w-collapsed); }\n" +
-			"@media (max-width: 880px) { .sidebar { left: -300px; width: 280px !important; box-shadow: 4px 0 24px rgba(0,0,0,0.35); } .sidebar.open { left: 0; } }\n" +
+			// left:-300px→0 animava `left` (propriedade de layout, força reflow);
+			// troquei por transform:translateX, que só compõe (GPU), sem reflow.
+			"@media (max-width: 880px) { .sidebar { transform: translateX(-100%); width: 280px !important; box-shadow: 4px 0 24px rgba(0,0,0,0.35); } .sidebar.open { transform: translateX(0); } }\n" +
 			".sidebar-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 16px; border-bottom: 1px solid #2A2340; flex-shrink: 0; }\n" +
 			"body.sidebar-collapsed .sidebar-header { padding: 18px 8px 16px; flex-direction: column; gap: 10px; }\n" +
 			".sidebar-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.05rem; color: #F8FAFC; white-space: nowrap; overflow: hidden; }\n" +
@@ -107,13 +109,18 @@
 			"body.sidebar-collapsed .sidebar-section-label span.label-text { display: none; }\n" +
 			".sidebar-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 20px; margin: 1px 10px; border-radius: 8px; border: none; background: none; color: #CBD5E1; font-size: 0.85rem; font-weight: 500; cursor: pointer; text-align: left; text-decoration: none; transition: background 0.12s, color 0.12s; white-space: nowrap; width: calc(100% - 20px); }\n" +
 			".sidebar-item:hover { background: #2A2340; color: #F8FAFC; }\n" +
-			".sidebar-item.current { background: linear-gradient(90deg, rgba(163,116,242,0.22), rgba(163,116,242,0.05)); color: #D8C6FA; border-left: 3px solid var(--cor-primaria); padding-left: 17px; }\n" +
+			// Trocado o border-left sólido (o "tell" nº1 de UI gerada por IA,
+			// segundo a pesquisa em DESIGN.md) por uma marca de contagem — o
+			// mesmo risco usado em qualquer planilha de estoque física — como
+			// indicador do item ativo, sobreposta sem empurrar ícone/texto.
+			".sidebar-item.current { background: rgba(111,163,120,0.14); color: #D9EEDC; position: relative; }\n" +
+			".sidebar-item.current::before { content: \"\"; position: absolute; left: 7px; top: 50%; width: 12px; height: 11px; transform: translateY(-50%); background-repeat: no-repeat; background-size: contain; background-image: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 16' fill='none' stroke='%236FA378' stroke-width='2' stroke-linecap='round'%3E%3Cline x1='2' y1='1' x2='2' y2='15'/%3E%3Cline x1='6' y1='1' x2='6' y2='15'/%3E%3Cline x1='10' y1='1' x2='10' y2='15'/%3E%3Cline x1='14' y1='1' x2='14' y2='15'/%3E%3Cline x1='0.5' y1='14' x2='16' y2='2'/%3E%3C/svg%3E\"); }\n" +
 			".sidebar-item svg, .sidebar-icon { width: 18px; height: 18px; flex-shrink: 0; }\n" +
 			".sidebar-badge { display: inline-flex; align-items: center; justify-content: center; padding: 1px 6px; border-radius: 4px; background: #3B2A5E; color: #E4D6FA; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.03em; line-height: 1.6; flex-shrink: 0; min-width: 26px; text-align: center; }\n" +
 			".sidebar-item .item-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n" +
 			"body.sidebar-collapsed .sidebar-item .item-label, body.sidebar-collapsed .sidebar-item .sidebar-badge { display: none; }\n" +
 			"body.sidebar-collapsed .sidebar-item { justify-content: center; padding: 10px; margin: 1px 12px; width: calc(100% - 24px); }\n" +
-			"body.sidebar-collapsed .sidebar-item.current { padding-left: 9px; }\n" +
+			"body.sidebar-collapsed .sidebar-item.current::before { display: none; }\n" +
 			".sidebar-item.disabled { color: #475569; cursor: default; }\n" +
 			".sidebar-item.disabled:hover { background: none; }\n" +
 			".sidebar-divider { height: 1px; background: #2A2340; margin: 8px 16px; }\n" +
@@ -121,8 +128,12 @@
 			".sidebar-item.danger:hover { background: #450A0A; color: #FECACA; }\n" +
 			".sidebar-group-chevron { margin-left: auto; width: 14px; height: 14px; flex-shrink: 0; transition: transform 0.15s; }\n" +
 			".sidebar-group-toggle.expanded .sidebar-group-chevron { transform: rotate(90deg); }\n" +
-			".sidebar-group { overflow: hidden; max-height: 0; transition: max-height 0.2s ease; }\n" +
-			".sidebar-group.expanded { max-height: 300px; }\n" +
+			// max-height:0→300px animava layout (força reflow a cada frame);
+			// grid-template-rows:0fr→1fr anima só o track do grid, sem reflow —
+			// precisa do wrapper .sidebar-group-inner (overflow:hidden) por dentro.
+			".sidebar-group { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.2s ease; }\n" +
+			".sidebar-group.expanded { grid-template-rows: 1fr; }\n" +
+			".sidebar-group-inner { overflow: hidden; min-height: 0; }\n" +
 			"body.sidebar-collapsed .sidebar-group-toggle .sidebar-group-chevron { display: none; }\n" +
 			".sidebar-tooltip { position: fixed; left: calc(var(--sidebar-w-collapsed) + 10px); background: #FFFFFF; color: #1E293B; font-size: 0.78rem; font-weight: 600; padding: 7px 12px; border-radius: 7px; white-space: nowrap; box-shadow: 0 4px 16px rgba(15,23,42,0.18); z-index: 2100; pointer-events: none; display: none; }\n" +
 			".sidebar-tooltip.show { display: block; }\n" +
@@ -206,6 +217,21 @@
 			".dark-theme .pdv-header h1 { color: #F1F5F9; }\n" +
 			".dark-theme .pdv-header .pdv-date { color: #64748B; }\n" +
 			".dark-theme .pdv-left { background-color: #1E293B; border-right-color: #334159; }\n" +
+			".dark-theme .pdv-right { background-color: #1E293B; }\n" +
+			".dark-theme .forma-pagamento label { color: #94A3B8; }\n" +
+			".dark-theme .forma-pagamento select, .dark-theme .forma-pagamento input { background-color: #0F172A; border-color: #334159; color: #F1F5F9; }\n" +
+			".dark-theme .btn-orcamento { background-color: #332507; border-color: #5C4712; color: #FCE1A8; }\n" +
+			".dark-theme .btn-orcamento:hover { background-color: var(--cor-destaque-solido); color: #1E293B; }\n" +
+			".dark-theme .btn-orcamento:disabled { background-color: #334159; color: #64748B; border-color: #334159; }\n" +
+			".dark-theme .produtos-encontrados-box { border-color: #334159; }\n" +
+			".dark-theme .produtos-encontrados-thead { background: #0F172A; color: #E2E8F0; }\n" +
+			".dark-theme .cliente-resultados-box { background: #1E293B; border-color: #334159; }\n" +
+			".dark-theme .cliente-escolhido-box { background: #1E3A5F; border-color: #2C5282; color: #E2E8F0; }\n" +
+			".dark-theme .pdv-modal-box { background-color: #1E293B; color: #E2E8F0; }\n" +
+			".dark-theme .pdv-modal-box p { color: #94A3B8; }\n" +
+			".dark-theme .pdv-modal-label { color: #94A3B8; }\n" +
+			".dark-theme .pdv-modal-info-box { background: #0F172A; border-color: #334159; color: #CBD5E1; }\n" +
+			".dark-theme .pdv-modal-input { background: #0F172A; border-color: #334159; color: #F1F5F9; }\n" +
 			".dark-theme .scan-area input { background-color: #0F172A; border-color: #334159; color: #F1F5F9; }\n" +
 			".dark-theme .scan-hint { color: #475569; }\n" +
 			".dark-theme .cart-area h2, .dark-theme .resumo h2 { color: #E2E8F0; }\n" +
@@ -310,9 +336,6 @@
 			'<a href="../pdv/pdv.html" class="sidebar-item' +
 			itemAtivo("pdv.html") +
 			'" data-tip="Frente de Caixa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M7 15h4"/></svg><span class="item-label">Frente de Caixa</span></a>' +
-			'<a href="../clientes/clientes.html" class="sidebar-item' +
-			itemAtivo("clientes.html") +
-			'" data-tip="Clientes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="item-label">Clientes</span></a>' +
 			(podeModulo("produtos") ||
 			podeModulo("compras") ||
 			podeModulo("financeiro") ||
@@ -335,6 +358,9 @@
 					itemAtivo("fornecedores.html") +
 					'" data-tip="Fornecedores"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.752 11.168l-2.66-4.29a1 1 0 0 0 0 1.2L14 15l-4 4a1 1 0 0 0 1 1.5l7-7a1 1 0 0 0-.2-1.6z"/></svg><span class="item-label">Fornecedores</span></a>'
 				: "") +
+			'<a href="../clientes/clientes.html" class="sidebar-item' +
+			itemAtivo("clientes.html") +
+			'" data-tip="Clientes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="item-label">Clientes</span></a>' +
 			(podeModulo("financeiro")
 				? '<a href="../financeiro/financeiro.html" class="sidebar-item' +
 					itemAtivo("financeiro.html") +
@@ -351,7 +377,7 @@
 					'" id="sidebarAdminToggle" data-tip="Administração"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="item-label">Administração</span><svg class="sidebar-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></button>' +
 					'<div class="sidebar-group' +
 					(grupoAdminAberto ? " expanded" : "") +
-					'" id="sidebarGroupAdmin">' +
+					'" id="sidebarGroupAdmin"><div class="sidebar-group-inner">' +
 					(isAdmin
 						? '<a href="../acessos/acessos.html" class="sidebar-item' +
 							itemAtivo("acessos.html") +
@@ -370,7 +396,7 @@
 					'<a href="../atualizacao/atualizacao.html" class="sidebar-item' +
 					itemAtivo("atualizacao.html") +
 					'" data-tip="Atualizações"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg><span class="item-label">Atualizações</span></a>' +
-					"</div>"
+					"</div></div>"
 				: "") +
 			(autenticado
 				? '<a href="#" class="sidebar-item sidebar-logout danger" id="sidebarLogoutItem" data-tip="Sair"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><span class="item-label">Logout</span></a>'
