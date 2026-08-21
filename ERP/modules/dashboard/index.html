@@ -99,29 +99,29 @@
       }
       .dash-header {
         display: flex;
-        justify-content: space-between;
-        align-items: flex-end;
+        align-items: baseline;
+        gap: 10px;
         margin-bottom: 22px;
         flex-wrap: wrap;
-        gap: 10px;
       }
       .dash-header h1 {
         color: #0F172A;
-        font-size: 1.4rem;
+        font-size: 1.25rem;
         font-weight: 700;
       }
       .dash-header .subtitle {
         color: #94A3B8;
-        font-size: 0.85rem;
-        margin-top: 2px;
+        font-size: 0.82rem;
       }
 
       /* ---- Metric cards ---- */
       .stats {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-        gap: 16px;
-        margin-bottom: 20px;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+      }
+      @media (max-width: 480px) {
+        .stats { grid-template-columns: 1fr; }
       }
       .stat-card {
         background-color: #FFFFFF;
@@ -135,7 +135,7 @@
         transition: box-shadow 0.2s, transform 0.15s;
       }
       .stat-card:hover {
-        box-shadow: 0 1px 2px rgba(33,26,46,0.06), 0 10px 28px -12px rgba(109,40,217,0.28);
+        box-shadow: 0 1px 2px rgba(33,26,46,0.06), 0 10px 28px -12px rgba(33,26,46,0.28);
         transform: translateY(-1px);
       }
       .stat-card.hero {
@@ -150,17 +150,17 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        width: 46px;
-        height: 46px;
-        border-radius: 12px;
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
         flex-shrink: 0;
       }
-      .stat-icon svg { width: 22px; height: 22px; }
-      .stat-icon.blue { background: var(--cor-primaria-fraca); color: var(--cor-primaria); }
-      .stat-icon.green { background: var(--cor-sucesso-fraca); color: var(--cor-sucesso); }
-      .stat-icon.purple { background: var(--cor-primaria-fraca); color: var(--cor-primaria-forte); }
-      .stat-icon.amber { background: var(--cor-destaque-fraca); color: var(--cor-destaque); }
-      .stat-icon.red { background: var(--cor-erro-fraca); color: var(--cor-erro); }
+      .stat-icon svg { width: 16px; height: 16px; }
+      .stat-icon.blue { background: var(--cor-primaria); color: #FFFFFF; }
+      .stat-icon.green { background: var(--cor-sucesso); color: #FFFFFF; }
+      .stat-icon.purple { background: var(--cor-primaria-forte); color: #FFFFFF; }
+      .stat-icon.amber { background: var(--cor-destaque-solido); color: #FFFFFF; }
+      .stat-icon.red { background: var(--cor-erro); color: #FFFFFF; }
       .stat-body { min-width: 0; }
       .stat-value { font-size: 1.35rem; font-weight: 700; color: #0F172A; line-height: 1.2; }
       .stat-card.alert .stat-value { color: var(--cor-destaque); }
@@ -248,12 +248,13 @@
 
       /* ---- Quick links (antigos "cards") ---- */
       .cards {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        display: flex;
+        flex-wrap: wrap;
         gap: 14px;
         margin-bottom: 16px;
       }
       .card {
+        flex: 1 1 220px;
         background-color: #FFFFFF;
         border: 1px solid #E2E8F0;
         border-radius: var(--raio);
@@ -263,7 +264,7 @@
       }
       .card:hover {
         border-color: var(--cor-primaria);
-        box-shadow: 0 8px 24px rgba(109, 40, 217, 0.12);
+        box-shadow: 0 8px 24px rgba(33, 26, 46, 0.12);
         transform: translateY(-2px);
       }
       .card-icon {
@@ -318,6 +319,19 @@
         color: var(--cor-erro);
       }
 
+      /* ---- Rodapé (backup / versão / caminho do banco) ---- */
+      .dash-footer {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 10px 0 4px;
+        color: #94A3B8;
+        font-size: 0.72rem;
+      }
+      .dash-footer-dot { opacity: 0.6; }
+
       /* Dark Theme */
       html.dark-theme { background-color: #0F172A; }
       html.dark-theme body { background-color: #0F172A; color: #E2E8F0; }
@@ -334,11 +348,11 @@
       html.dark-theme .stat-value { color: #F1F5F9; }
       html.dark-theme .stat-trend.up { background: var(--cor-sucesso-fraca); color: var(--cor-sucesso); }
       html.dark-theme .stat-trend.down { background: var(--cor-erro-fraca); color: var(--cor-erro); }
-      html.dark-theme .stat-icon.blue { background: #0F172A; color: var(--cor-primaria); }
-      html.dark-theme .stat-icon.green { background: #0F172A; color: var(--cor-sucesso); }
-      html.dark-theme .stat-icon.purple { background: #0F172A; color: var(--cor-primaria-forte); }
-      html.dark-theme .stat-icon.amber { background: #0F172A; color: var(--cor-destaque); }
-      html.dark-theme .stat-icon.red { background: #0F172A; color: var(--cor-erro); }
+      html.dark-theme .stat-icon.blue { background: var(--cor-primaria); color: #0F172A; }
+      html.dark-theme .stat-icon.green { background: var(--cor-sucesso); color: #0F172A; }
+      html.dark-theme .stat-icon.purple { background: var(--cor-primaria-forte); color: #0F172A; }
+      html.dark-theme .stat-icon.amber { background: var(--cor-destaque-solido); color: #0F172A; }
+      html.dark-theme .stat-icon.red { background: var(--cor-erro); color: #0F172A; }
       html.dark-theme .panel-head h3 { color: #F1F5F9; }
       html.dark-theme .panel-head .panel-sub { color: #64748B; }
       html.dark-theme .top-produtos-table th { color: #64748B; border-bottom-color: #334159; }
@@ -351,18 +365,18 @@
       html.dark-theme .version-badge.current { background-color: var(--cor-sucesso-fraca); color: var(--cor-sucesso); }
       html.dark-theme .version-badge.latest { background-color: #0F172A; color: var(--cor-primaria); }
       html.dark-theme .version-badge.outdated { background-color: var(--cor-erro-fraca); color: var(--cor-erro); }
+      html.dark-theme .dash-footer { color: #64748B; }
     </style>
   </head>
   <body>
     <div class="dash-tab-panel active" id="dashPanelInicio">
     <div class="container">
       <div class="dash-header">
-        <div>
-          <h1>Dashboard</h1>
-          <div class="subtitle">Visão geral da loja — hoje, <span id="dashDataHoje"></span></div>
-        </div>
+        <h1>Dashboard</h1>
+        <div class="subtitle">Visão geral da loja — hoje, <span id="dashDataHoje"></span></div>
       </div>
 
+      <div class="dash-grid">
       <div class="stats" id="statsContainer">
         <div class="stat-card">
           <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M7 15h4"/></svg></div>
@@ -410,16 +424,7 @@
         </div>
       </div>
 
-      <div class="dash-grid">
-        <div class="panel">
-          <div class="panel-head">
-            <h3>Faturamento — últimos 7 dias</h3>
-            <span class="panel-sub">Vendas finalizadas</span>
-          </div>
-          <div style="max-height:220px;"><canvas id="graficoFaturamento7d"></canvas></div>
-        </div>
-
-        <div class="panel">
+      <div class="panel dash-vendidos">
           <div class="panel-head">
             <h3>Mais vendidos</h3>
             <span class="panel-sub">Últimos 30 dias</span>
@@ -434,7 +439,15 @@
               <tr><td colspan="3"><div class="skeleton-linha"><span class="skeleton-col"><span class="skeleton-box skeleton-linha-texto" style="width:65%;"></span></span></div></td></tr>
             </tbody>
           </table>
+      </div>
+      </div>
+
+      <div class="panel" style="margin-bottom:16px;">
+        <div class="panel-head">
+          <h3>Faturamento — últimos 7 dias</h3>
+          <span class="panel-sub">Vendas finalizadas</span>
         </div>
+        <div style="max-height:220px;"><canvas id="graficoFaturamento7d"></canvas></div>
       </div>
 
       <div class="cards">
@@ -489,23 +502,12 @@
         </div>
       </div>
 
-      <div class="panel" style="margin-bottom:14px;">
-        <div style="display:flex; justify-content: space-between; align-items: center;">
-          <div>
-            <strong style="color:#64748B; font-size:0.8rem;">Backup</strong>
-            <div style="color:#94A3B8; font-size:0.75rem; margin-top:2px;">Backup automático diário ativado</div>
-          </div>
-          <div style="display: flex; gap: 8px;">
-            <button onclick="exportarBackup()" class="btn-backup" style="padding:6px 14px; background:var(--cor-primaria); color:#fff; border:none; border-radius:6px; font-size:0.8rem; font-weight:600; cursor:pointer;">Exportar Manual</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="panel" style="text-align:center; margin-bottom:12px;">
+      <div class="dash-footer">
+        <span>Backup automático diário ativado</span>
+        <span class="dash-footer-dot">·</span>
         <span class="version-badge current" id="appVersion">v--</span>
-      </div>
-      <div class="panel" style="text-align:center;">
-        <span id="dbPathStatus" style="color:#94A3B8; font-size:0.72rem;">Banco: verificando...</span>
+        <span class="dash-footer-dot">·</span>
+        <span id="dbPathStatus">Banco: verificando...</span>
       </div>
     </div>
     </div>
@@ -655,21 +657,6 @@
         window.api.getDBPath().then(function (dbPath) {
           document.getElementById("dbPathStatus").textContent = "Banco ativo: " + dbPath;
         }).catch(function () {});
-      }
-
-      function exportarBackup() {
-        if (!window.api || !window.api.backupAutomatico) {
-          alert("API indisponível.");
-          return;
-        }
-        window.api
-          .backupAutomatico()
-          .then(function (result) {
-            alert("Backup exportado com sucesso!");
-          })
-          .catch(function (err) {
-            alert("Erro no backup: " + err);
-          });
       }
     </script>
   </body>
