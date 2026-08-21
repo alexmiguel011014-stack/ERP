@@ -1,7 +1,30 @@
-const { app, BrowserWindow, ipcMain, Menu } = require("electron");
+const {
+	app,
+	BrowserWindow,
+	ipcMain,
+	Menu,
+	protocol,
+	net,
+} = require("electron");
 const path = require("path");
+const { pathToFileURL } = require("url");
 const { autoUpdater } = require("electron-updater");
 const { setDBPath, registrarLog, backupAutomatico } = require("./database");
+
+// Fase 0 (spike) do novo frontend Next.js/React — ver plano de migração.
+// Protocolo customizado, não servidor HTTP local: zero porta escutando na
+// máquina do cliente (evita falso-positivo de antivírus numa loja sem TI
+// dedicado) e resolve os caminhos raiz-absolutos (/_next/...) que o export
+// estático do Next gera, o que file:// não consegue (sem origin). Precisa
+// ser registrado antes de app.whenReady().
+protocol.registerSchemesAsPrivileged([
+	{
+		scheme: "app",
+		privileges: { standard: true, secure: true, supportFetchAPI: true },
+	},
+]);
+const CARREGAR_FRONTEND_NOVO = process.env.ERP_SPIKE_FRONTEND === "1";
+const DIR_FRONTEND_NOVO = path.join(__dirname, "frontend", "out");
 
 // Carrega .env (chaves Pix/NF-e etc.) se existir — nunca obrigatório, o app
 // funciona normalmente sem ele (integrações opcionais caem no fallback
@@ -207,18 +230,55 @@ function criarJanelaPrincipal() {
 
 	janela.webContents.on(
 		"did-fail-load",
-		(event, errorCode, errorDescription) => {
-			logErro("DID-FAIL-LOAD " + errorCode + " " + errorDescription);
+		(event, errorCode, errorDescription, validatedURL) => {
+			logErro(
+				"DID-FAIL-LOAD " +
+					errorCode +
+					" " +
+					errorDescription +
+					" url=" +
+					validatedURL,
+			);
 		},
 	);
 
-	janela.loadFile("modules/dashboard/index.html");
+	if (CARREGAR_FRONTEND_NOVO) {
+		janela.loadURL("app://renderer/");
+	} else {
+		janela.loadFile("modules/dashboard/index.html");
+	}
+}
+
+// Serve o export estático do Next.js (frontend/out/) via app://renderer/...
+// — mesma técnica de pacotes como electron-serve. Só registrado quando o
+// spike está ligado; o app antigo (file://) nunca passa por aqui.
+function registrarProtocoloFrontendNovo() {
+	protocol.handle("app", (request) => {
+		const url = new URL(request.url);
+		let caminhoRelativo = decodeURIComponent(url.pathname);
+		if (caminhoRelativo === "" || caminhoRelativo.endsWith("/")) {
+			caminhoRelativo += "index.html";
+		}
+		const caminhoArquivo = path.join(DIR_FRONTEND_NOVO, caminhoRelativo);
+		// Nunca resolver fora de DIR_FRONTEND_NOVO (bloqueia path traversal via ../).
+		if (
+			!caminhoArquivo.startsWith(DIR_FRONTEND_NOVO + path.sep) &&
+			caminhoArquivo !== DIR_FRONTEND_NOVO
+		) {
+			return new Response("Forbidden", { status: 403 });
+		}
+		return net.fetch(pathToFileURL(caminhoArquivo).toString());
+	});
 }
 
 app.whenReady().then(async () => {
 	Menu.setApplicationMenu(null);
 
 	setDBPath(app.getPath("userData"));
+
+	if (CARREGAR_FRONTEND_NOVO) {
+		registrarProtocoloFrontendNovo();
+	}
 
 	criarJanelaPrincipal();
 

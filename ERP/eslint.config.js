@@ -10,6 +10,10 @@ module.exports = [
 			"data/**",
 			"modules/core/vendor/**",
 			"servers/**",
+			// frontend/ é um projeto Next.js separado (próprio package.json,
+			// própria config), com lint via `next lint` dentro dele — não pelo
+			// ESLint da raiz, que não conhece globals de browser/React/build.
+			"frontend/**",
 		],
 	},
 	js.configs.recommended,
