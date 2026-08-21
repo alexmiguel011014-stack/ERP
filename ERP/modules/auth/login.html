@@ -12,24 +12,24 @@
         box-sizing: border-box;
       }
       :root {
-        --cor-primaria: #6D28D9; --cor-primaria-forte: #5B21B6; --cor-primaria-fraca: #F1EBFC; --cor-primaria-fraca-borda: #DDD0F7;
-        --cor-sucesso: #15803D; --cor-sucesso-fraca: #E9F8EE; --cor-sucesso-borda: #BEEAC9;
-        --cor-destaque: #B45309; --cor-destaque-ink: #78350F; --cor-destaque-fraca: #FEF6E4; --cor-destaque-borda: #F6DFA6; --cor-destaque-solido: #F5B301;
-        --cor-erro: #B91C1C; --cor-erro-fraca: #FDECEC; --cor-erro-borda: #F5C6C6;
+        --cor-primaria: #00006b; --cor-primaria-forte: #00004d; --cor-primaria-fraca: #E6E6F0; --cor-primaria-fraca-borda: #B8B8D4;
+        --cor-sucesso: #0c8006; --cor-sucesso-fraca: #E6F2E6; --cor-sucesso-borda: #B8DCB5;
+        --cor-destaque: #00006b; --cor-destaque-ink: #00004d; --cor-destaque-fraca: #E6E6F0; --cor-destaque-borda: #B8B8D4; --cor-destaque-solido: #00006b;
+        --cor-erro: #e02815; --cor-erro-fraca: #FDECEC; --cor-erro-borda: #F5C2BD;
         --raio: 10px; --raio-sm: 7px;
-        --sombra-card: 0 1px 2px rgba(33,26,46,0.04), 0 8px 24px -12px rgba(33,26,46,0.12);
+        --sombra-card: 0 1px 2px rgba(0,0,0,0.05), 0 8px 24px -12px rgba(0,0,0,0.1);
       }
       html.dark-theme {
-        --cor-primaria: #A374F2; --cor-primaria-forte: #B692F6; --cor-primaria-fraca: #2B2145; --cor-primaria-fraca-borda: #4A3B72;
-        --cor-sucesso: #4ADE80; --cor-sucesso-fraca: #17301F; --cor-sucesso-borda: #2E5D3D;
-        --cor-destaque: #F5B301; --cor-destaque-ink: #FCE1A8; --cor-destaque-fraca: #332507; --cor-destaque-borda: #5C4712; --cor-destaque-solido: #F5B301;
-        --cor-erro: #F87171; --cor-erro-fraca: #3A1C1C; --cor-erro-borda: #63302F;
+        --cor-primaria: #4F4FFF; --cor-primaria-forte: #6B6BFF; --cor-primaria-fraca: #14144A; --cor-primaria-fraca-borda: #2D2D7A;
+        --cor-sucesso: #25B31C; --cor-sucesso-fraca: #0F2E0D; --cor-sucesso-borda: #1E4A1C;
+        --cor-destaque: #4F4FFF; --cor-destaque-ink: #E6E6F0; --cor-destaque-fraca: #14144A; --cor-destaque-borda: #2D2D7A; --cor-destaque-solido: #4F4FFF;
+        --cor-erro: #FF4D3D; --cor-erro-fraca: #3A1A18; --cor-erro-borda: #7A2E2A;
         --sombra-card: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
       }
       body {
         font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
         background:
-          radial-gradient(circle at 50% 0%, rgba(109, 40, 217, 0.08) 0%, rgba(109, 40, 217, 0) 60%),
+          radial-gradient(circle at 50% 0%, rgba(0, 0, 107, 0.08) 0%, rgba(0, 0, 107, 0) 60%),
           #F1F5F9;
         min-height: 100vh;
         display: flex;
@@ -132,7 +132,7 @@
       }
       html.dark-theme body {
         background:
-          radial-gradient(circle at 50% 0%, rgba(163, 116, 242, 0.14) 0%, rgba(163, 116, 242, 0) 60%),
+          radial-gradient(circle at 50% 0%, rgba(79, 79, 255, 0.14) 0%, rgba(79, 79, 255, 0) 60%),
           #0F172A;
         color: #E2E8F0;
       }
@@ -170,7 +170,7 @@
         position: fixed;
         inset: 0;
         z-index: 99999;
-        background: #170523;
+        background: #000033;
         overflow: hidden;
         display: none;
         flex-direction: column;
@@ -208,7 +208,7 @@
         width: 40px;
         height: 40px;
         border-radius: 10px;
-        background: linear-gradient(135deg, #A374F2, #8B5CF6);
+        background: linear-gradient(135deg, #00006b, #00004d);
         color: #FFFFFF;
         font-weight: 800;
         font-size: 1.05rem;

@@ -6,3 +6,8 @@ TunelSSH_OpenPortal/
 TunelSSH/
 Personal_app/
 Personal_app_android/
+
+# Generated artifacts (bootstrap)
+graphify-out/
+repomix-output.xml
+

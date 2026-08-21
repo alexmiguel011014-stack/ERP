@@ -78,24 +78,24 @@
 			"@media (max-width: 880px) { body { padding-left: 0 !important; } }\n" +
 			".sidebar-backdrop { position: fixed; inset: 0; background: rgba(2,6,23,0.55); z-index: 1999; display: none; }\n" +
 			"@media (max-width: 880px) { .sidebar-backdrop.open { display: block; } }\n" +
-			".sidebar { position: fixed; top: 0; left: 0; width: var(--sidebar-w); height: 100%; z-index: 2000; background: #1A1626; border-right: 1px solid #2A2340; transition: transform 0.2s cubic-bezier(0.16,1,0.3,1), width 0.2s ease; display: flex; flex-direction: column; overflow: hidden; }\n" +
+			".sidebar { position: fixed; top: 0; left: 0; width: var(--sidebar-w); height: 100%; z-index: 2000; background: #110082; border-right: 1px solid rgba(255,255,255,0.12); transition: transform 0.2s cubic-bezier(0.16,1,0.3,1), width 0.2s ease; display: flex; flex-direction: column; overflow: hidden; }\n" +
 			"body.sidebar-collapsed .sidebar { width: var(--sidebar-w-collapsed); }\n" +
 			// left:-300px→0 animava `left` (propriedade de layout, força reflow);
 			// troquei por transform:translateX, que só compõe (GPU), sem reflow.
 			"@media (max-width: 880px) { .sidebar { transform: translateX(-100%); width: 280px !important; box-shadow: 4px 0 24px rgba(0,0,0,0.35); } .sidebar.open { transform: translateX(0); } }\n" +
-			".sidebar-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 16px; border-bottom: 1px solid #2A2340; flex-shrink: 0; }\n" +
+			".sidebar-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 16px; border-bottom: 1px solid rgba(255,255,255,0.12); flex-shrink: 0; }\n" +
 			"body.sidebar-collapsed .sidebar-header { padding: 18px 8px 16px; flex-direction: column; gap: 10px; }\n" +
 			".sidebar-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.05rem; color: #F8FAFC; white-space: nowrap; overflow: hidden; }\n" +
 			".sidebar-brand-mark { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg,var(--cor-primaria),#8B5CF6); color: #FFF; font-weight: 800; font-size: 0.85rem; flex-shrink: 0; }\n" +
 			"body.sidebar-collapsed .sidebar-brand span.brand-text { display: none; }\n" +
 			".sidebar-collapse-btn { background: none; border: none; color: #64748B; cursor: pointer; padding: 4px 6px; border-radius: 6px; display: flex; transition: transform 0.2s; }\n" +
-			".sidebar-collapse-btn:hover { background: #2A2340; color: #E2E8F0; }\n" +
+			".sidebar-collapse-btn:hover { background: rgba(255,255,255,0.12); color: #E2E8F0; }\n" +
 			"body.sidebar-collapsed .sidebar-collapse-btn { transform: rotate(180deg); }\n" +
 			"@media (max-width: 880px) { .sidebar-collapse-btn { display: none; } }\n" +
 			".sidebar-close { display: none; background: none; border: none; font-size: 1.3rem; color: #64748B; cursor: pointer; padding: 2px 6px; border-radius: 4px; line-height: 1; }\n" +
 			"@media (max-width: 880px) { .sidebar-close { display: inline-flex; } }\n" +
 			".sidebar-close:hover { color: #F87171; background: #450A0A; }\n" +
-			".sidebar-user { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid #2A2340; flex-shrink: 0; }\n" +
+			".sidebar-user { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.12); flex-shrink: 0; }\n" +
 			".sidebar-user-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg,var(--cor-primaria),#EC4899); color: #FFF; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; flex-shrink: 0; }\n" +
 			".sidebar-user-info { min-width: 0; overflow: hidden; }\n" +
 			".sidebar-user-name { color: #F1F5F9; font-size: 0.8rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n" +
@@ -103,18 +103,18 @@
 			"body.sidebar-collapsed .sidebar-user-info { display: none; }\n" +
 			".sidebar-nav { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 10px 0; }\n" +
 			".sidebar-nav::-webkit-scrollbar { width: 5px; }\n" +
-			".sidebar-nav::-webkit-scrollbar-thumb { background: #2A2340; border-radius: 3px; }\n" +
+			".sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 3px; }\n" +
 			".sidebar-section-label { padding: 14px 20px 6px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #475569; white-space: nowrap; overflow: hidden; }\n" +
 			"body.sidebar-collapsed .sidebar-section-label { text-align: center; padding: 14px 4px 6px; }\n" +
 			"body.sidebar-collapsed .sidebar-section-label span.label-text { display: none; }\n" +
 			".sidebar-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 20px; margin: 1px 10px; border-radius: 8px; border: none; background: none; color: #CBD5E1; font-size: 0.85rem; font-weight: 500; cursor: pointer; text-align: left; text-decoration: none; transition: background 0.12s, color 0.12s; white-space: nowrap; width: calc(100% - 20px); }\n" +
-			".sidebar-item:hover { background: #2A2340; color: #F8FAFC; }\n" +
+			".sidebar-item:hover { background: rgba(255,255,255,0.12); color: #F8FAFC; }\n" +
 			// Trocado o border-left sólido (o "tell" nº1 de UI gerada por IA,
 			// segundo a pesquisa em DESIGN.md) por uma marca de contagem — o
 			// mesmo risco usado em qualquer planilha de estoque física — como
 			// indicador do item ativo, sobreposta sem empurrar ícone/texto.
-			".sidebar-item.current { background: rgba(111,163,120,0.14); color: #D9EEDC; position: relative; }\n" +
-			".sidebar-item.current::before { content: \"\"; position: absolute; left: 7px; top: 50%; width: 12px; height: 11px; transform: translateY(-50%); background-repeat: no-repeat; background-size: contain; background-image: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 16' fill='none' stroke='%236FA378' stroke-width='2' stroke-linecap='round'%3E%3Cline x1='2' y1='1' x2='2' y2='15'/%3E%3Cline x1='6' y1='1' x2='6' y2='15'/%3E%3Cline x1='10' y1='1' x2='10' y2='15'/%3E%3Cline x1='14' y1='1' x2='14' y2='15'/%3E%3Cline x1='0.5' y1='14' x2='16' y2='2'/%3E%3C/svg%3E\"); }\n" +
+			".sidebar-item.current { background: rgba(54,153,41,0.14); color: #D9EEDC; position: relative; }\n" +
+			".sidebar-item.current::before { content: \"\"; position: absolute; left: 7px; top: 50%; width: 12px; height: 11px; transform: translateY(-50%); background-repeat: no-repeat; background-size: contain; background-image: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 16' fill='none' stroke='%23369929' stroke-width='2' stroke-linecap='round'%3E%3Cline x1='2' y1='1' x2='2' y2='15'/%3E%3Cline x1='6' y1='1' x2='6' y2='15'/%3E%3Cline x1='10' y1='1' x2='10' y2='15'/%3E%3Cline x1='14' y1='1' x2='14' y2='15'/%3E%3Cline x1='0.5' y1='14' x2='16' y2='2'/%3E%3C/svg%3E\"); }\n" +
 			".sidebar-item svg, .sidebar-icon { width: 18px; height: 18px; flex-shrink: 0; }\n" +
 			".sidebar-badge { display: inline-flex; align-items: center; justify-content: center; padding: 1px 6px; border-radius: 4px; background: #3B2A5E; color: #E4D6FA; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.03em; line-height: 1.6; flex-shrink: 0; min-width: 26px; text-align: center; }\n" +
 			".sidebar-item .item-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n" +
@@ -123,7 +123,7 @@
 			"body.sidebar-collapsed .sidebar-item.current::before { display: none; }\n" +
 			".sidebar-item.disabled { color: #475569; cursor: default; }\n" +
 			".sidebar-item.disabled:hover { background: none; }\n" +
-			".sidebar-divider { height: 1px; background: #2A2340; margin: 8px 16px; }\n" +
+			".sidebar-divider { height: 1px; background: rgba(255,255,255,0.12); margin: 8px 16px; }\n" +
 			".sidebar-item.danger { color: #FCA5A5; }\n" +
 			".sidebar-item.danger:hover { background: #450A0A; color: #FECACA; }\n" +
 			".sidebar-group-chevron { margin-left: auto; width: 14px; height: 14px; flex-shrink: 0; transition: transform 0.15s; }\n" +
@@ -175,7 +175,7 @@
 			".dark-theme .btn-small:hover { background-color: var(--cor-primaria); color: #FFFFFF; border-color: var(--cor-primaria); }\n" +
 			".dark-theme .aviso { background-color: #1E293B; border-color: #42271B; color: #FCD34D; }\n" +
 			".dark-theme .sku-display { background-color: #0F172A; color: var(--cor-primaria); }\n" +
-			".dark-theme .mensagem.success { background-color: #064E35; color: #6EE7B7; border-color: #10B981; }\n" +
+			".dark-theme .mensagem.success { background-color: #143015; color: #B9E6B3; border-color: #369929; }\n" +
 			".dark-theme .mensagem.error { background-color: #450A0A; color: #FCA5A5; border-color: #EF4444; }\n" +
 			".dark-theme .empty-state { color: #64748B; }\n" +
 			".dark-theme .lista-item { border-bottom-color: #1E293B; }\n" +
@@ -208,7 +208,7 @@
 			".dark-theme .panel h2 { color: #E2E8F0; }\n" +
 			".dark-theme .info-label { color: #94A3B8; }\n" +
 			".dark-theme .info-value { color: #F1F5F9; }\n" +
-			".dark-theme .version-badge.current { background-color: #064E35; color: #6EE7B7; }\n" +
+			".dark-theme .version-badge.current { background-color: #143015; color: #B9E6B3; }\n" +
 			".dark-theme .version-badge.latest { background-color: #0F172A; color: var(--cor-primaria); }\n" +
 			".dark-theme .version-badge.outdated { background-color: #450A0A; color: #FCA5A5; }\n" +
 			".dark-theme .loading-overlay { background-color: rgba(15,23,42,0.9); }\n" +
@@ -255,7 +255,7 @@
 			".dark-theme .carrinho-item-body { background-color: #0F172A; border-top-color: #334159; }\n" +
 			".dark-theme .carrinho-item-preco { color: #94A3B8; }\n" +
 			".dark-theme #carrinhoVazio.carrinho-vazio { color: #64748B; border-color: #334159; }\n" +
-			".dark-theme .mensagem-pdv.sucesso { background-color: #064E35; color: #6EE7B7; border-color: #10B981; }\n" +
+			".dark-theme .mensagem-pdv.sucesso { background-color: #143015; color: #B9E6B3; border-color: #369929; }\n" +
 			".dark-theme .mensagem-pdv.erro { background-color: #450A0A; color: #FCA5A5; border-color: #EF4444; }\n" +
 			".dark-theme .venda-total { color: var(--cor-sucesso); }\n" +
 			".dark-theme .filters label { color: #94A3B8; }\n" +

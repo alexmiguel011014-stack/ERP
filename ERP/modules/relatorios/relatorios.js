@@ -30,13 +30,13 @@
 
 	var CORES = {
 		azul: "#6D28D9",
-		verde: "#15803D",
+		verde: "#369929",
 		vermelho: "#B91C1C",
 		amarelo: "#B45309",
 		cinza: "#64748B",
 		paleta: [
 			"#6D28D9",
-			"#15803D",
+			"#369929",
 			"#F5B301",
 			"#B91C1C",
 			"#8B5CF6",

@@ -16,18 +16,18 @@
 	var estiloTokens = document.createElement("style");
 	estiloTokens.textContent =
 		":root {\n" +
-		"  --cor-primaria: #2F5233; --cor-primaria-forte: #223D26; --cor-primaria-fraca: #E8EFE7; --cor-primaria-fraca-borda: #C9DAC8;\n" +
-		"  --cor-sucesso: #3D8B4A; --cor-sucesso-fraca: #E9F5EA; --cor-sucesso-borda: #BEE0C3;\n" +
-		"  --cor-destaque: #9C6B1F; --cor-destaque-ink: #5C3E12; --cor-destaque-fraca: #FBF1DE; --cor-destaque-borda: #E9CE97; --cor-destaque-solido: #C08A2E;\n" +
-		"  --cor-erro: #8B2E2E; --cor-erro-fraca: #F7E9E8; --cor-erro-borda: #E4BFBD;\n" +
+		"  --cor-primaria: #00006b; --cor-primaria-forte: #00004d; --cor-primaria-fraca: #E6E6F0; --cor-primaria-fraca-borda: #B8B8D4;\n" +
+		"  --cor-sucesso: #0c8006; --cor-sucesso-fraca: #E6F2E6; --cor-sucesso-borda: #B8DCB5;\n" +
+		"  --cor-destaque: #00006b; --cor-destaque-ink: #00004d; --cor-destaque-fraca: #E6E6F0; --cor-destaque-borda: #B8B8D4; --cor-destaque-solido: #00006b;\n" +
+		"  --cor-erro: #e02815; --cor-erro-fraca: #FDECEC; --cor-erro-borda: #F5C2BD;\n" +
 		"  --raio: 6px; --raio-sm: 4px;\n" +
-		"  --sombra-card: 0 1px 2px rgba(34,31,26,0.05), 0 8px 20px -12px rgba(34,31,26,0.1);\n" +
+		"  --sombra-card: 0 1px 2px rgba(0,0,0,0.05), 0 8px 20px -12px rgba(0,0,0,0.1);\n" +
 		"}\n" +
 		"html.dark-theme {\n" +
-		"  --cor-primaria: #6FA378; --cor-primaria-forte: #8CBB94; --cor-primaria-fraca: #1E2B20; --cor-primaria-fraca-borda: #35472F;\n" +
-		"  --cor-sucesso: #6FA378; --cor-sucesso-fraca: #1B2C1E; --cor-sucesso-borda: #2E4A32;\n" +
-		"  --cor-destaque: #D6A94A; --cor-destaque-ink: #F0DBA6; --cor-destaque-fraca: #332507; --cor-destaque-borda: #5C4712; --cor-destaque-solido: #D6A94A;\n" +
-		"  --cor-erro: #C2645F; --cor-erro-fraca: #3A2321; --cor-erro-borda: #63403D;\n" +
+		"  --cor-primaria: #4F4FFF; --cor-primaria-forte: #6B6BFF; --cor-primaria-fraca: #14144A; --cor-primaria-fraca-borda: #2D2D7A;\n" +
+		"  --cor-sucesso: #25B31C; --cor-sucesso-fraca: #0F2E0D; --cor-sucesso-borda: #1E4A1C;\n" +
+		"  --cor-destaque: #4F4FFF; --cor-destaque-ink: #E6E6F0; --cor-destaque-fraca: #14144A; --cor-destaque-borda: #2D2D7A; --cor-destaque-solido: #4F4FFF;\n" +
+		"  --cor-erro: #FF4D3D; --cor-erro-fraca: #3A1A18; --cor-erro-borda: #7A2E2A;\n" +
 		"  --sombra-card: 0 1px 2px rgba(0,0,0,0.3), 0 8px 20px -12px rgba(0,0,0,0.5);\n" +
 		"}\n";
 	(document.head || document.documentElement).appendChild(estiloTokens);
