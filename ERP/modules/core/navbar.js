@@ -2,7 +2,10 @@
 	if (new URLSearchParams(window.location.search).get("embedded") === "1")
 		return;
 
-	function iniciarNavbar(sessao) {
+	function iniciarNavbar(sessao, modulosCarregados) {
+		// Disponibiliza pro dashboard/abas.js ler (não precisa buscar de novo
+		// via IPC) — ver docs/MODULE_MANIFEST.md.
+		window.erpModulosCarregados = modulosCarregados || [];
 		var currentPage = window.location.pathname.split("/").pop() || "index.html";
 		var perfil = sessao && sessao.perfil ? sessao.perfil : "admin";
 		var isAdmin = perfil === "admin";
@@ -292,14 +295,68 @@
 			return currentPage === arquivo ? " current" : "";
 		}
 
+		// Renderiza um item de sidebar a partir do manifesto do módulo (ver
+		// docs/MODULE_MANIFEST.md) — usado pelas seções "Gestão" e
+		// "Administração", que têm permissão por módulo. "Principal"
+		// (Dashboard/PDV) fica hardcoded abaixo de propósito: são os 2 links
+		// sempre alcançáveis, sem gate nenhum — não dependem do manifesto
+		// carregar com sucesso, pra sobrar sempre uma forma de navegar mesmo
+		// se um modulo.json tiver problema.
+		function permissaoLiberada(modulo) {
+			var p = modulo.permissao;
+			if (p.tipo === "sempre") return true;
+			if (p.tipo === "admin") return isAdmin;
+			if (p.tipo === "modulo") return podeModulo(p.nomeModulo);
+			return false;
+		}
+
+		function renderizarItemSidebar(modulo) {
+			if (!permissaoLiberada(modulo)) return "";
+			var nav = modulo.navbar;
+			var href =
+				modulo.tipo === "workspace-dashboard"
+					? "../dashboard/index.html?workspace=" + nav.workspaceParam
+					: "../" + modulo.id + "/" + modulo.entrada;
+			var classeAtivo =
+				modulo.tipo === "pagina" ? itemAtivo(modulo.entrada) : "";
+			var dica = nav.dica || nav.label;
+			return (
+				'<a href="' +
+				href +
+				'" class="sidebar-item' +
+				classeAtivo +
+				'" data-tip="' +
+				dica +
+				'">' +
+				nav.icone +
+				'<span class="item-label">' +
+				nav.label +
+				"</span></a>"
+			);
+		}
+
+		function itensDaSecao(secao) {
+			return modulosCarregados
+				.filter(function (m) {
+					return m.navbar && m.navbar.secao === secao;
+				})
+				.sort(function (a, b) {
+					return a.navbar.ordem - b.navbar.ordem;
+				});
+		}
+
+		var itensGestao = itensDaSecao("gestao");
+		var itensAdministracao = itensDaSecao("administracao");
+		var htmlGestao = itensGestao.map(renderizarItemSidebar).join("");
+		var htmlAdministracao = itensAdministracao
+			.map(renderizarItemSidebar)
+			.join("");
+
 		// O grupo "Administração" começa recolhido, exceto se a página atual for
 		// uma das que moram dentro dele — senão o item ativo ficaria escondido.
-		var PAGINAS_GRUPO_ADMIN = [
-			"acessos.html",
-			"banco.html",
-			"importacao.html",
-			"atualizacao.html",
-		];
+		var PAGINAS_GRUPO_ADMIN = itensAdministracao.map(function (m) {
+			return m.entrada;
+		});
 		var grupoAdminAberto =
 			PAGINAS_GRUPO_ADMIN.indexOf(currentPage) !== -1 ||
 			localStorage.getItem("sidebarAdminAberta") === "1";
@@ -345,32 +402,7 @@
 			autenticado
 				? '<div class="sidebar-section-label"><span class="label-text">Gestão</span></div>'
 				: "") +
-			(podeModulo("produtos")
-				? '<a href="../dashboard/index.html?workspace=gerenciamento-produtos" class="sidebar-item" data-tip="Produtos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/></svg><span class="item-label">Produtos</span></a>'
-				: "") +
-			(podeModulo("compras")
-				? '<a href="../compras/compras.html" class="sidebar-item' +
-					itemAtivo("compras.html") +
-					'" data-tip="Compras"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg><span class="item-label">Compras</span></a>'
-				: "") +
-			(podeModulo("fornecedores")
-				? '<a href="../fornecedores/fornecedores.html" class="sidebar-item' +
-					itemAtivo("fornecedores.html") +
-					'" data-tip="Fornecedores"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.752 11.168l-2.66-4.29a1 1 0 0 0 0 1.2L14 15l-4 4a1 1 0 0 0 1 1.5l7-7a1 1 0 0 0-.2-1.6z"/></svg><span class="item-label">Fornecedores</span></a>'
-				: "") +
-			'<a href="../clientes/clientes.html" class="sidebar-item' +
-			itemAtivo("clientes.html") +
-			'" data-tip="Clientes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="item-label">Clientes</span></a>' +
-			(podeModulo("financeiro")
-				? '<a href="../financeiro/financeiro.html" class="sidebar-item' +
-					itemAtivo("financeiro.html") +
-					'" data-tip="Financeiro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span class="item-label">Financeiro</span></a>'
-				: "") +
-			(podeModulo("relatorios")
-				? '<a href="../relatorios/relatorios.html" class="sidebar-item' +
-					itemAtivo("relatorios.html") +
-					'" data-tip="Relatórios"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5V5a2 2 0 0 1 2-2h8.5a1.5 1.5 0 0 1 1 1v12.5a1.5 1.5 0 0 1-1 1.5H6a2 2 0 0 0-2 2z"/><path d="M9 5V3h6v2M9 9h6v6H9z"/></svg><span class="item-label">Relatórios</span></a>'
-				: "") +
+			htmlGestao +
 			(autenticado
 				? '<button type="button" class="sidebar-item sidebar-group-toggle' +
 					(grupoAdminAberto ? " expanded" : "") +
@@ -378,24 +410,7 @@
 					'<div class="sidebar-group' +
 					(grupoAdminAberto ? " expanded" : "") +
 					'" id="sidebarGroupAdmin"><div class="sidebar-group-inner">' +
-					(isAdmin
-						? '<a href="../acessos/acessos.html" class="sidebar-item' +
-							itemAtivo("acessos.html") +
-							'" data-tip="Acessos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1.5"/></svg><span class="item-label">Gerenciar Acessos</span></a>'
-						: "") +
-					(isAdmin
-						? '<a href="../banco/banco.html" class="sidebar-item' +
-							itemAtivo("banco.html") +
-							'" data-tip="Banco de Dados"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg><span class="item-label">Banco de Dados</span></a>'
-						: "") +
-					(isAdmin
-						? '<a href="../importacao/importacao.html" class="sidebar-item' +
-							itemAtivo("importacao.html") +
-							'" data-tip="Importação"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span class="item-label">Importação</span></a>'
-						: "") +
-					'<a href="../atualizacao/atualizacao.html" class="sidebar-item' +
-					itemAtivo("atualizacao.html") +
-					'" data-tip="Atualizações"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg><span class="item-label">Atualizações</span></a>' +
+					htmlAdministracao +
 					"</div></div>"
 				: "") +
 			(autenticado
@@ -643,9 +658,34 @@
 		}
 	}
 
+	// Sidebar agora depende de dois dados assíncronos: a sessão (já existia)
+	// e a lista de módulos vinda de main.js via IPC (ver
+	// docs/MODULE_MANIFEST.md e ipc/sistema.js). Se a busca de módulos
+	// falhar (ex.: um modulo.json malformado), loga o erro pra não
+	// desaparecer sem rastro e segue com lista vazia — Dashboard/PDV/Login/
+	// Logout continuam hardcoded acima e alcançáveis mesmo assim; só as
+	// seções Gestão/Administração ficam vazias nesse cenário.
+	function buscarModulosCarregados() {
+		if (!window.api || !window.api.getModulosCarregados) {
+			return Promise.resolve([]);
+		}
+		return window.api.getModulosCarregados().catch(function (erro) {
+			console.error("[navbar] falha ao carregar modulo.json:", erro);
+			return [];
+		});
+	}
+
 	if (window.erpAuthPromise) {
-		window.erpAuthPromise.then(iniciarNavbar).catch(function () {});
+		window.erpAuthPromise
+			.then(function (sessao) {
+				return buscarModulosCarregados().then(function (modulos) {
+					iniciarNavbar(sessao, modulos);
+				});
+			})
+			.catch(function () {});
 	} else {
-		iniciarNavbar({ autenticado: false, perfil: "admin" });
+		buscarModulosCarregados().then(function (modulos) {
+			iniciarNavbar({ autenticado: false, perfil: "admin" }, modulos);
+		});
 	}
 })();

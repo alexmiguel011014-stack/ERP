@@ -1,0 +1,12 @@
+{
+	"id": "pagamentos",
+	"nome": "Pagamentos",
+	"versao": "1.0.0",
+	"tipo": "pagina",
+	"entrada": "pagamentos.html",
+	"ipc": ["pagamentos.js", "pix.js"],
+	"permissao": { "tipo": "modulo", "nomeModulo": "financeiro" },
+	"navbar": null,
+	"paiWorkspace": "financeiro",
+	"dependeDe": ["financeiro"]
+}

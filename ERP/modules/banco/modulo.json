@@ -1,0 +1,18 @@
+{
+	"id": "banco",
+	"nome": "Banco de Dados",
+	"versao": "1.0.0",
+	"tipo": "pagina",
+	"entrada": "banco.html",
+	"ipc": ["banco-admin.js"],
+	"permissao": { "tipo": "admin" },
+	"navbar": {
+		"secao": "administracao",
+		"label": "Banco de Dados",
+		"icone": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\"/><path d=\"M21 12c0 1.66-4 3-9 3s-9-1.34-9-3\"/><path d=\"M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5\"/></svg>",
+		"ordem": 100,
+		"abaDashboard": true
+	},
+	"paiWorkspace": null,
+	"dependeDe": []
+}

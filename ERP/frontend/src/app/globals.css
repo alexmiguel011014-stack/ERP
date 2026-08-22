@@ -6,6 +6,17 @@
   --font-*: initial;
   --font-outfit: Outfit, sans-serif;
 
+  /* Escala de raio mais fechada que o padrão do TailAdmin — este é um
+     dashboard operacional (ERP de loja, consultado várias vezes ao dia),
+     não um SaaS de consumo; cantos muito arredondados + ícones grandes
+     leem como "app amigável genérico", não como ferramenta densa e
+     profissional. Sistemático de propósito: toda classe rounded-* do app
+     herda daqui, não precisa caçar componente por componente. */
+  --radius-lg: 0.375rem;
+  --radius-xl: 0.5rem;
+  --radius-2xl: 0.625rem;
+  --radius-3xl: 0.875rem;
+
   --breakpoint-*: initial;
   --breakpoint-2xsm: 375px;
   --breakpoint-xsm: 425px;
@@ -38,18 +49,21 @@
   --color-white: #ffffff;
   --color-black: #101828;
 
-  --color-brand-25: #f2f7ff;
-  --color-brand-50: #ecf3ff;
-  --color-brand-100: #dde9ff;
-  --color-brand-200: #c2d6ff;
-  --color-brand-300: #9cb9ff;
-  --color-brand-400: #7592ff;
-  --color-brand-500: #465fff;
-  --color-brand-600: #3641f5;
-  --color-brand-700: #2a31d8;
-  --color-brand-800: #252dae;
-  --color-brand-900: #262e89;
-  --color-brand-950: #161950;
+  /* Paleta navy-blue real do ALLU ERP (--cor-primaria: #00006b, ver
+     modules/core/head.js) substituindo o roxo/azul de fábrica do TailAdmin —
+     decisão já confirmada com o dono (ver GOALS.md e o plano de migração). */
+  --color-brand-25: #f2f2fa;
+  --color-brand-50: #e9e9f5;
+  --color-brand-100: #d3d3eb;
+  --color-brand-200: #a8a8d6;
+  --color-brand-300: #7c7cc2;
+  --color-brand-400: #4d4da3;
+  --color-brand-500: #00006b;
+  --color-brand-600: #00005e;
+  --color-brand-700: #00004d;
+  --color-brand-800: #00003b;
+  --color-brand-900: #00002a;
+  --color-brand-950: #000018;
 
   --color-blue-light-25: #f5fbff;
   --color-blue-light-50: #f0f9ff;

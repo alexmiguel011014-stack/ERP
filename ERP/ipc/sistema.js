@@ -1,3 +1,4 @@
+const path = require("path");
 const { app } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const {
@@ -6,6 +7,7 @@ const {
 	importBackup,
 	getDBPath,
 } = require("../database");
+const { carregarModulos, aplicarEntitlements } = require("../modulos.js");
 
 // Estado local a este domínio: só usado por download-update / quit-and-install,
 // abaixo. autoUpdater.autoDownload/autoInstallOnAppQuit são configurados uma
@@ -81,6 +83,19 @@ function registrar(ipcMain, deps) {
 	});
 
 	ipcMain.handle("get-db-path", async () => getDBPath());
+
+	// navbar.js roda no renderer (sem fs/require de Node) e precisa da lista
+	// de módulos pra montar a sidebar — ver docs/MODULE_MANIFEST.md e
+	// modulos.js. Barato (19 JSONs pequenos), chamado direto a cada request
+	// em vez de cacheado, então nunca fica desatualizado durante o dev.
+	// aplicarEntitlements: mesmo filtro dormant do main.js — um módulo
+	// desativado some da sidebar, não só do registro de IPC.
+	ipcMain.handle("get-modulos-carregados", async () => {
+		return aplicarEntitlements(
+			carregarModulos(path.join(__dirname, "..", "modules")),
+			path.join(__dirname, "..", "entitlements.json"),
+		);
+	});
 }
 
 module.exports = { registrar };

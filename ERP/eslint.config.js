@@ -21,6 +21,7 @@ module.exports = [
 		files: [
 			"main.js",
 			"database.js",
+			"modulos.js",
 			"db/**/*.js",
 			"ipc/**/*.js",
 			"integracoes/**/*.js",

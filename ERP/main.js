@@ -301,25 +301,39 @@ const deps = {
 	getMainWindow: () => mainWindow,
 };
 
-require("./ipc/produtos").registrar(ipcMain, deps);
-require("./ipc/categorias").registrar(ipcMain, deps);
-require("./ipc/clientes").registrar(ipcMain, deps);
-require("./ipc/vendas").registrar(ipcMain, deps);
-require("./ipc/estoque").registrar(ipcMain, deps);
-require("./ipc/precificacao").registrar(ipcMain, deps);
-require("./ipc/fornecedores").registrar(ipcMain, deps);
-require("./ipc/compras").registrar(ipcMain, deps);
-require("./ipc/financeiro").registrar(ipcMain, deps);
-require("./ipc/caixa").registrar(ipcMain, deps);
-require("./ipc/relatorios").registrar(ipcMain, deps);
-require("./ipc/dashboard").registrar(ipcMain, deps);
-require("./ipc/banco-admin").registrar(ipcMain, deps);
-require("./ipc/sistema").registrar(ipcMain, deps);
-require("./ipc/usuarios").registrar(ipcMain, deps);
+// auth e fiscal são infraestrutura do core (sessão central + integração
+// fiscal cross-cutting, usada internamente por vendas/caixa) — não são
+// "módulos" plugáveis no sentido de docs/MODULE_MANIFEST.md, então ficam de
+// fora do loop de manifesto, registrados direto, como sempre foram.
 require("./ipc/auth").registrar(ipcMain, deps);
-require("./ipc/pagamentos").registrar(ipcMain, deps);
-require("./ipc/pix").registrar(ipcMain, deps);
 require("./ipc/fiscal").registrar(ipcMain, deps);
+
+// Registro de IPC dos módulos plugáveis, orientado por manifesto — ver
+// docs/MODULE_MANIFEST.md e modulos.js. Substitui a lista fixa de 19
+// requires que existia aqui antes; o mesmo conjunto de arquivos ipc/*.js é
+// registrado, só que descoberto a partir de modules/**/modulo.json em vez de
+// hardcoded. Um mesmo ipc/*.js pode ser referenciado por mais de um módulo
+// (ex.: "estoque.js" por entrada/estoque-lista/importacao) — dedupe por nome
+// de arquivo, senão ipcMain.handle() lança "second handler" no boot.
+//
+// aplicarEntitlements: desligado por padrão (sem entitlements.json na raiz,
+// todo módulo continua habilitado) — ver GOALS.md "Security: dormant
+// entitlements design". Um módulo desativado não tem nem o IPC registrado
+// nem aparece na sidebar (ipc/sistema.js aplica o mesmo filtro do lado do
+// navbar.js) — desligar por entitlement bloqueia os dois lados, não só a UI.
+const { carregarModulos, aplicarEntitlements } = require("./modulos.js");
+const ipcJaRegistrado = new Set();
+const modulosHabilitados = aplicarEntitlements(
+	carregarModulos(path.join(__dirname, "modules")),
+	path.join(__dirname, "entitlements.json"),
+);
+for (const modulo of modulosHabilitados) {
+	for (const nomeIpc of modulo.ipc) {
+		if (ipcJaRegistrado.has(nomeIpc)) continue;
+		ipcJaRegistrado.add(nomeIpc);
+		require("./ipc/" + nomeIpc).registrar(ipcMain, deps);
+	}
+}
 
 app.on("before-quit", () => {
 	if (sessao) {

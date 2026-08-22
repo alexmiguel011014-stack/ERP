@@ -1,0 +1,12 @@
+{
+	"id": "precificacao",
+	"nome": "Precificação",
+	"versao": "1.0.0",
+	"tipo": "pagina",
+	"entrada": "precificacao.html",
+	"ipc": ["precificacao.js"],
+	"permissao": { "tipo": "modulo", "nomeModulo": "produtos" },
+	"navbar": null,
+	"paiWorkspace": "produtos",
+	"dependeDe": ["produtos"]
+}

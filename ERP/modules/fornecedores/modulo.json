@@ -1,0 +1,18 @@
+{
+	"id": "fornecedores",
+	"nome": "Fornecedores",
+	"versao": "1.0.0",
+	"tipo": "pagina",
+	"entrada": "fornecedores.html",
+	"ipc": ["fornecedores.js"],
+	"permissao": { "tipo": "modulo", "nomeModulo": "fornecedores" },
+	"navbar": {
+		"secao": "gestao",
+		"label": "Fornecedores",
+		"icone": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M14.752 11.168l-2.66-4.29a1 1 0 0 0 0 1.2L14 15l-4 4a1 1 0 0 0 1 1.5l7-7a1 1 0 0 0-.2-1.6z\"/></svg>",
+		"ordem": 50,
+		"abaDashboard": true
+	},
+	"paiWorkspace": null,
+	"dependeDe": []
+}

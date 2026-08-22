@@ -88,6 +88,7 @@ contextBridge.exposeInMainWorld("api", {
 	quitAndInstall: () => ipcRenderer.invoke("quit-and-install"),
 	getAppVersion: () => ipcRenderer.invoke("get-app-version"),
 	getDBPath: () => ipcRenderer.invoke("get-db-path"),
+	getModulosCarregados: () => ipcRenderer.invoke("get-modulos-carregados"),
 	registrarEntradaEstoque: (dados) =>
 		ipcRenderer.invoke("registrar-entrada-estoque", dados),
 	getMovimentacoesEstoque: (limite) =>

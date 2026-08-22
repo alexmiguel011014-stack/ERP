@@ -184,13 +184,26 @@ Setup Electron seguro · SQLite 8 tabelas + extensões · SQLCipher (criptografi
 
 ## Fora de escopo (decidido)
 
-- **Emissão de NF-e / NFC-e**: requer integração ao SEFAZ, certificado digital A1, contingência e retenção de numeração — inviável em ERP desktop offline sem infraestrutura. Mantido o recibo térmico.
+~~Emissão de NF-e / NFC-e: requer integração ao SEFAZ... inviável em ERP desktop offline.~~
+Esta linha estava desatualizada (corrigido em 2026-08-22, via GOALS.md): a emissão **já foi
+construída** — `integracoes/fiscal/provider.js` + `integracoes/fiscal/providers/focusnfe.js`
+(NF-e via FocusNFe), com `test/fiscal.test.js` + `test/fiscal-provider.test.js` cobrindo. O
+recibo térmico continua existindo em paralelo, não foi removido.
+
+- **Decisão de processador de pagamento (Ton/Stone/adquirente alternativo)**: pesquisado a
+  fundo (ver `GOALS.md`, seção "Payment Processor Integration"), mas o dono decidiu em
+  2026-08-22 não seguir com isso — nem o import de extrato Ton, nem trocar de adquirente. Pix
+  via Efí (`integracoes/pix/`) continua sendo a única integração de pagamento ativa.
 
 ## Próximos Passos
 
-1. **Testar o instalador** (.exe NSIS) em uma máquina limpa.
-2. **Melhorias finais de UI/UX**: ícones vetoriais, tipografia refinada.
-3. **NFC-e**: avaliar ACBr/biblioteca de emissão como evolução futura.
+1. **Testar o instalador** (.exe NSIS) em uma máquina limpa. Ainda em aberto.
+2. ~~Melhorias finais de UI/UX: ícones vetoriais, tipografia refinada.~~ Superseded pelo
+   Frontend Visual/UX Fix Pass (ver `GOALS.md`) — pass tela-por-tela concluído, 13 bugs reais
+   corrigidos. A migração de visual pro template TailAdmin (Next.js) está em andamento, também
+   documentada em `GOALS.md`.
+3. ~~NFC-e: avaliar ACBr/biblioteca de emissão como evolução futura.~~ Já construído — ver a
+   correção acima.
 
 ~~Backlog restante: troco automático no PDV · busca de cliente no PDV · imagens nos produtos.~~
 Esta linha estava desatualizada (checado em 2026-08-19, via GOALS.md): os três já existem e

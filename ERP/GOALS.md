@@ -612,7 +612,13 @@ flowchart TD
 
 ---
 
-## Payment Processor Integration (Ton / Stone / alternatives) — open decision, paused
+## Payment Processor Integration (Ton / Stone / alternatives) — decided: not pursuing (2026-08-22)
+
+**Owner decision (2026-08-22): dropping this entire section, not just pausing it.** No Ton
+statement import, no Stone PJ upgrade, no adquirente switch — Pix via Efí stays the only active
+payment integration. The research below stays as-is (accurate, still useful if this is ever
+revisited), but every actionable item in this section is now closed as "decided against," not
+"waiting on the owner."
 
 **Status as of 2026-08-18: the "is there an API path for Ton" question is now answered —
 no.** Confirmed directly from Stone's own help center
@@ -721,72 +727,19 @@ these three (or stay on Ton) for card payments," not an either/or.
 Real switching cost to weigh, not just rate math: new machine, Ton's existing sales history
 doesn't move automatically, staff has to learn a new machine. Not this file's call to make.
 
-### Phase 1 — buildable today regardless of the owner's decision: Ton .xlsx import + reconciliation
+### Phase 1 (Ton .xlsx import) and the open decision — both closed, not pursuing
 
-No credential needed — this is option (1) from the three above, and stays useful even if (2)
-or (3) is later chosen too (a store rarely wants to lose the ability to reconcile its own
-historical Ton statements). Not started yet — paused with the rest of this section.
-
-- [ ] New table `ExtratoTon` in `db/schema.js` (`IF NOT EXISTS`, matching the other 21
-      tables): `id INTEGER PRIMARY KEY AUTOINCREMENT`, `data_transacao TEXT NOT NULL`,
-      `descricao TEXT`, `valor REAL NOT NULL` (sign = entrada/saída), `tipo TEXT`, `chave_dedup
-      TEXT NOT NULL` (composite: `date + '|' + valor + '|' + descricao`, hashed or raw — Ton's
-      xlsx export has no stable transaction ID to dedupe on, unlike OFX's `FITID`), `UNIQUE
-      (chave_dedup)`, `lancamento_id INTEGER` (nullable FK → `LancamentosFinanceiros.id`),
-      `status TEXT NOT NULL DEFAULT 'pendente'`, `importado_em TEXT NOT NULL`.
-- [ ] New file `db/ton.js` (mirror the one-file-per-domain convention every other `db/*.js`
-      already follows) + `ipc/ton.js`, gated `exigirSessao("admin")` like `ipc/banco-admin.js`.
-- [ ] Parsing the `.xlsx` needs a real dependency — Node has no built-in Excel parser (unlike
-      the OFX plan, which was simple enough to hand-parse). Evaluate `xlsx` (SheetJS) or
-      `exceljs` against the actual column layout of a real exported file before picking one —
-      don't guess the column order/headers without seeing one.
-- [ ] `importarExtratoTon(caminhoArquivo)` via Electron's native file dialog (mirror whatever
-      IPC pattern `exportBackup`/restore already uses in `main.js` for file pickers). Returns
-      `{ inseridos, duplicados, total }`; a near-duplicate (same date+valor, different
-      descrição) should surface as a warning to review, not a silent skip or silent insert.
-- [ ] `sugerirConciliacao()` / `confirmarConciliacao()` / `marcarIgnorado()` — same shape as
-      `db/pagamentos.js`'s existing pattern (register → list → mark received), matching
-      `LancamentosFinanceiros` rows by amount + date proximity, user-confirmed only, never
-      auto-committed.
-- [ ] UI at `modules/conciliacao-ton/` (not `modules/banco-ton/` — `modules/banco/` already
-      means "raw DB inspector," would collide). Add to `modules/core/navbar.js` and
-      `window.erpBanco` per the existing convention.
-- [ ] `test/ton-extrato.test.js` (node:test, mirror `test/pix-payload.test.js`'s style): a
-      small fixture (inline test data standing in for a real exported row set, not a real
-      downloaded statement) covering parse → insert → re-import is a no-op (dedup) →
-      near-duplicate surfaces a warning → `sugerirConciliacao` matches the expected pair →
-      `confirmarConciliacao` flips both statuses. Add to the explicit file list in
-      `package.json`'s `test` script (already a hardcoded list, not `node --test`'s directory
-      scan — see that script's own history for why).
-
-### Open decision
-- [ ] User decides, informed by what's already built/confirmed above: (a) is Efí's existing
-      Pix integration already enough, making the card-machine/adquirente question moot for
-      now; (b) build Phase 1 (.xlsx import/reconciliation against Ton as-is — works today, no
-      account change needed); (c) look into upgrading Ton → Conta Stone PJ if revenue now
-      clears the R$15k/month minimum (unlocks Open Finance today, plausibly OpenBank API
-      later — a business/eligibility question, not something to start technically until the
-      owner confirms revenue qualifies); (d) switch adquirente entirely to Mercado Pago /
-      PagBank / InfinitePay; (e) reconcile `AGENTS.md`'s stale "NF-e fora de escopo" line now
-      that FocusNFe integration exists, regardless of (a)–(d). No email to Stone/Ton support is
-      needed for (b) or (d) — only relevant if (c) is chosen, to confirm the upgrade path.
-- [ ] Whichever processor (if any) is chosen, the security checklist below applies to its
-      credentials exactly as it already should apply to Efí's and FocusNFe's (verify those two
-      already follow it — this section was written before they existed, so that check is
-      itself still open):
-      - Credential read from `process.env`, sourced from a local `.env` at the project root
-        (gitignored — confirm `grep -n '^\.env$' .gitignore` still holds).
-      - `.env.example` with variable **names** only, never a real or realistic-looking value.
-      - Never log a raw credential — mask tokens/secrets in any request/response logging and
-        in `logErro()`/`erp-crash.log`.
-      - If a token must be persisted, store it inside the SQLCipher-encrypted DB (reuse
-        `db/conexao.js`'s existing key machinery), never as a plaintext file.
-      - Manual `git diff --staged` read + `node ~/.claude/base_project/scripts/scan-skill.js .`
-        before the first commit touching any of this — the risk is a human pasting a real key
-        into a comment or test fixture, which no automated check reliably catches.
-      - Module naming: avoid `modules/banco/` (already means "raw DB table inspector" per
-        `AGENTS.md`) for anything bank-related — use `conciliacao-ton/` or similar if Ton/Stone
-        statement reconciliation is still built.
+- [x] ~~Phase 1: Ton .xlsx import + reconciliation (`ExtratoTon` table, `db/ton.js`/`ipc/ton.js`,
+      `modules/conciliacao-ton/`, dedup/reconciliation logic, `test/ton-extrato.test.js`)~~ —
+      **owner decided not to build this (2026-08-22)**, not a technical blocker. Full spec kept
+      in git history if this is ever revisited — not reproduced here since it won't be built.
+- [x] ~~Open decision: (a) Efí-only vs. (b) Ton .xlsx vs. (c) Stone PJ upgrade vs. (d) switch
+      adquirente~~ — **decided: (a), Efí's existing Pix integration stays the only payment
+      integration.** (e) (the stale `AGENTS.md` NF-e line) was independent of this decision and
+      is fixed now regardless — see `AGENTS.md`'s corrected "Fora de escopo" section.
+- [x] ~~Security checklist for whichever processor gets chosen~~ — moot, no new processor
+      credential is being added. Efí's and FocusNFe's existing credential handling (`.env`,
+      masked logging) predates this section and was already reviewed when those were built.
 
 ---
 
@@ -834,60 +787,104 @@ flowchart TD
 
 ### Backend: module manifest + loader
 
-- [ ] Design the module manifest schema (`architect`-level decision, write it down before any
-      code) — a `modulo.json` per module folder declaring at minimum: `id`, `nome`, `versao`,
-      `entrada` (path to its `.html`), `ipc` (path to its `ipc/*.js` handler file, matching the
-      existing one-file-per-domain convention in `ipc/`), `navbar` (label, icon SVG or icon id,
-      href, section — "Principal"/"Gestão"/"Administração", matching the 3 existing sidebar
-      groups seen in `navbar.js`), `permissao` (`requerAdmin: true` or `requerModulo: "nome"`,
-      mirroring the existing `data-requer-admin`/`data-requer-modulo` attributes already used by
-      every module's `<body>` tag), and `dependeDe` (array of other module ids, if any — e.g. a
-      hypothetical future module needing `produtos` to exist first). Model this closely on
-      Odoo's `__manifest__.py` pattern (name/version/depends/data) — same problem shape, proven
-      design, don't reinvent it. Done when: the schema is written as a doc (or JSON Schema file)
-      and validated against what all 19 *existing* modules would need to declare, listing any
-      module whose needs don't fit the schema as-designed.
-- [ ] `db/modulos.js` or similar: a small loader that scans `modules/*/modulo.json` at startup,
-      validates each against the schema above (fail loud with the file path on a malformed
-      manifest, don't silently skip it), and returns an ordered list (dependency-sorted via
-      `dependeDe`) — done when: a unit test feeds it a temp directory of fixture manifests
-      (including one deliberately malformed one and one with a `dependeDe` cycle) and asserts the
-      correct order / correct rejection.
-- [ ] Replace `main.js`'s 19 hardcoded `require("./ipc/X").registrar(...)` calls
-      (`main.js:304-322`) with a loop over the manifest loader's output — done when: every IPC
-      handler that worked before still registers (assert via the existing test suite, which
-      already exercises IPC-backed logic through `db/*` — no handler silently stops registering).
-- [ ] Replace `navbar.js`'s hardcoded sidebar HTML string (`navbar.js:328-404`) with a renderer
-      that builds the same markup from the manifest list instead of the hand-written template —
-      done when: the rendered sidebar HTML is byte-for-byte equivalent (same links, same icons,
-      same permission gating, same 3 section groups) for an admin session and a `vendedor`
-      session, checked directly against the current output, not assumed from the diff.
-- [ ] Regression pass **before** touching repo structure: all 19 modules still load, all IPC
-      handlers still respond, both permission profiles (`admin`/`vendedor`) still see the correct
-      sidebar, both themes still render correctly — done when: `npm run lint` + `npm test` pass
-      and a manual pass confirms the sidebar/permissions live, module-by-module, same as the
-      Frontend Visual/UX Fix Pass's own verification standard. **This item gates everything
-      below** — don't extract modules into separate repos until the loader that makes that
-      meaningful is proven working in the current single repo.
+- [x] **Design the module manifest schema — done, `docs/MODULE_MANIFEST.md`.** Turned out to be
+      a bigger discovery than the original item assumed: reading the actual code
+      (`main.js:304-322`, `navbar.js:328-404`, `dashboard/abas.js`,
+      `produtos/gerenciamento-produtos.js`) showed the module tree is **4 levels deep**, not
+      flat — Sidebar → Dashboard-tab (a THIRD file, `abas.js`'s `MODULOS_ABA` dict, hardcodes
+      per-module knowledge by matching the clicked link's filename — not in the original item's
+      scope) → Produtos' own internal tab bar → Estoque's own hidden 4th-level tab. The schema
+      (`id`/`nome`/`versao`/`tipo`/`entrada`/`ipc`/`permissao`/`navbar`/`paiWorkspace`/`dependeDe`,
+      modeled on Odoo's `__manifest__.py`) accounts for all of it, including the one real
+      exception found (Atualizações sits visually inside the admin sidebar group but is NOT
+      admin-gated — any authenticated user reaches it) and one pre-existing bug flagged, not
+      fixed (`gerenciamento-produtos.js` hard-gates the whole Produtos workspace to
+      `perfil==="admin"`, stricter than the sidebar's own `podeModulo("produtos")` check — a
+      vendedor granted the permission would see the link but nothing would happen on click).
+      Validated for real: wrote actual `modulo.json`/`<id>.modulo.json` manifests for all 19
+      modules (not a hypothetical check) — see the loader item below for the real proof these are
+      correct, not just written.
+- [x] **`modulos.js` (repo root, not `db/` — this is module discovery, not database logic) —
+      done.** Scans `modules/**` for `modulo.json`/`*.modulo.json`, validates each field, resolves
+      and checks every `ipc`/`entrada` reference against the real filesystem, topologically sorts
+      by `dependeDe` (Kahn's algorithm, throws naming the exact cycle). `test/modulos.test.js`
+      (10 tests, registered in `package.json`'s test script) — done when criteria met for real:
+      malformed JSON, missing required field, unknown `dependeDe` target, dependency cycle, dead
+      `ipc`/`entrada` reference, and duplicate id all throw with the exact file path; and — the
+      strongest proof — **running the loader against the real `modules/` directory succeeds and
+      correctly orders every parent before its children** (`produtos` before `cadastro`, `entrada`
+      before `estoque-lista`, `financeiro` before `pagamentos`), which is simultaneously the
+      "validate the schema against all 19 real modules" requirement from the item above.
+      `npm run lint` (0 warnings) + `npm test` (50/50, was 40/40) both pass.
+- [x] **Replace `main.js`'s 19 hardcoded `require("./ipc/X").registrar(...)` calls — done.**
+      `auth.js`/`fiscal.js` stay direct (core infra, not plugable modules — see
+      `docs/MODULE_MANIFEST.md`); the rest come from a loop over `carregarModulos()`'s output,
+      deduped by filename (`produtos.js` and `estoque.js` are each referenced by more than one
+      module manifest — without dedup, `ipcMain.handle()` would throw "second handler" on boot).
+      Verified for real, not assumed: `test/modulos.test.js` has a dedicated test asserting the
+      exact set of files the new loop registers equals the old hardcoded 19-file list (neither a
+      dropped nor a duplicated handler); and the app was actually booted (`npm start`, twice) with
+      the crash log (`erp-crash.log`) checked before/after — no new entries, confirming no
+      "second handler" exception or other boot-time crash in practice, not just in theory.
+- [x] **Replace `navbar.js`'s hardcoded sidebar HTML + `dashboard/abas.js`'s `MODULOS_ABA` dict —
+      done, live-verified by the owner against the checklist below.** `navbar.js`
+      now fetches the module list via a new IPC round-trip (`ipc/sistema.js`'s
+      `get-modulos-carregados` handler → `preload.js`'s `window.api.getModulosCarregados()`,
+      since `navbar.js` runs in the renderer with no `fs` access) before building the sidebar.
+      Deliberate risk-reduction choice: Dashboard and PDV (the "Principal" section, the only 2
+      always-reachable, ungated links) stay **hardcoded, unchanged** — only the permission-gated
+      Gestão/Administração sections became manifest-driven — so a bad `modulo.json` degrades to a
+      smaller sidebar, never a fully unreachable app; the fetch failure path logs via
+      `console.error` (visible in `erp-crash.log`) instead of failing silently.
+      `dashboard/abas.js`'s `MODULOS_ABA` dict is now computed from `window.erpModulosCarregados`
+      (set by `navbar.js` before it touches the DOM) inside the click handler itself, not at
+      script-load time — `abas.js` runs synchronously before the async module fetch resolves, so
+      the lookup has to happen lazily, at actual click time, when the data is guaranteed ready.
+      **Two specific fidelity risks found and fixed while doing this**, not assumed away:
+      "Acessos" has a tooltip (`data-tip="Acessos"`) that's shorter than its visible label
+      ("Gerenciar Acessos") — added `navbar.dica` to the schema/manifest for this one real
+      exception; and Produtos' `?workspace=` query value (`"gerenciamento-produtos"`) doesn't
+      match its own manifest id (`"produtos"`) — added `navbar.workspaceParam` rather than
+      deriving it from `id`. Verified so far: `npm run lint` (0 warnings), `npm test` (51/51),
+      and two full app boots with the crash log checked before/after (no new entries — no
+      uncaught exception/unhandled rejection fired while `navbar.js`/`abas.js` actually ran in
+      the renderer). **Not yet verified**: that the rendered sidebar is actually correct — same
+      links, same permission gating for `admin` vs. `vendedor`, same Dashboard-tab behavior —
+      because none of the above can observe rendered DOM output or click-through behavior. Owner
+      confirmed proceeding on this basis, then live-verified against the checklist below (admin
+      sidebar order/tooltip/tabs, Produtos sub-tabs, vendedor's reduced sidebar including the
+      Atualizações exception) — owner reported "deu certo" (2026-08-22), no discrepancies found.
+- [x] Regression pass **before touching repo structure — done.** `npm run lint` + `npm test`
+      (51/51) pass, and the manual pass above confirmed sidebar/permissions/tabs live for both
+      profiles. **This item gated everything below** — module extraction into separate repos can
+      now proceed, since the loader that makes it meaningful is proven working in the current
+      single repo. Not yet started (next topic).
 
-### Deployment/Infra: multi-repo composition
+### Deployment/Infra: multi-repo composition — deferred until ~December 2026, owner's explicit call
+
+**Owner decision (2026-08-22), overriding this section's earlier "recommended for now" framing:**
+everything stays in the **single existing repository** until ~December 2026 — no module gets
+split into its own GitHub repo before then. The module folders under `modules/` are the
+organizational unit (already matches `docs/MODULE_MANIFEST.md`'s inventory), not separate repos,
+for now. The research below stays as the plan for *when* that changes, not something to act on
+now — don't create any new GitHub repo, don't add a submodule, without a fresh, explicit go-ahead
+after this date.
 
 Researched: `npm` cannot reference a specific workspace package inside another repo via a git
 URL (no git-dependency support for workspaces as of npm's current release), which rules out the
 "one core repo, `npm install` pulls each module straight from its own GitHub URL as a workspace
 member" approach the ask first suggested — that mechanism doesn't exist in current npm tooling.
 Two approaches actually work for this case (offline-first desktop app, no existing complex CI,
-single dev owner today):
+single dev owner today) — **both explicitly future work, not started:**
 
-- [ ] **Recommended for now: git submodules.** Each module folder becomes its own GitHub repo;
+- [ ] **When the split happens: git submodules.** Each module folder becomes its own GitHub repo;
       the core repo (`ERP/ERP`) references each one as a submodule under `modules/<nome>/`,
       pinned to a commit. Native git, zero extra infrastructure, works identically with public
-      repos (which is what's needed anyway — code stays open until Dec 2026, so there is no
-      access-control benefit yet to anything fancier). Tradeoff to accept knowingly: submodule
-      workflow has real rough edges (detached HEAD after checkout, `git submodule update
-      --init --recursive` required after clone, easy to forget to push a submodule's own commit
-      before updating its pointer in core) — document these three specifically in `README.md`
-      once adopted, since they're the actual footguns, not a vague "submodules are tricky".
+      repos. Tradeoff to accept knowingly: submodule workflow has real rough edges (detached HEAD
+      after checkout, `git submodule update --init --recursive` required after clone, easy to
+      forget to push a submodule's own commit before updating its pointer in core) — document
+      these three specifically in `README.md` once adopted, since they're the actual footguns,
+      not a vague "submodules are tricky".
 - [ ] **Migration path for ~December 2026** (do not build this now, just don't design anything
       that blocks it later): once modules need real per-customer gating, publish each module as
       a versioned npm package via **GitHub Packages** (private repo + package = the entitlement
@@ -895,7 +892,7 @@ single dev owner today):
       buy, no custom license-key software needed) and have the core's `package.json` depend on
       published versions instead of submodule checkouts. This is a repackaging step once modules
       are already clean, manifest-declared packages — not a redesign — *if* the manifest schema
-      and folder shape from the Backend section above are followed now.
+      and folder shape from the Backend section above are followed now (they are).
 - [ ] Update `package.json`'s `build.files` allowlist and the build/CI scripts to check out
       submodules (`git submodule update --init --recursive`) before `electron-builder` runs —
       done when: a clean clone + the documented build command produces a working installer with
@@ -906,31 +903,99 @@ single dev owner today):
 
 ### Security: dormant entitlements design
 
-- [ ] Design `entitlements.json` (or equivalent, read once at boot alongside the manifest list)
-      — shape: `{ "modulos": { "<id>": true } }` or similar, defaulting every discovered module
-      to enabled. Wire the manifest loader to skip loading a module only if explicitly disabled
-      here — done when: the mechanism exists and is exercised by a test that disables one module
-      and confirms it doesn't register, but the *shipped default* has every module enabled (this
-      is a designed-but-dormant switch, not a partial license system going live now).
-- [ ] Document, in `GOALS.md` or `AGENTS.md`, the actual switch-over plan for ~December 2026
-      (which module(s) become gated, how a customer's entitlement file gets generated/delivered)
-      as a **future item, not built now** — so the design isn't forgotten, but nothing here
-      creates a support burden or a way to accidentally lock the owner's own build before the
-      owner decides to.
+- [x] **`aplicarEntitlements()` in `modulos.js` — done.** Reads an optional `entitlements.json`
+      at the repo root, shape `{ "modulos": { "<id>": false } }` — only lists what's *disabled*;
+      absent file or absent id means enabled, so the shipped default (no file present) is every
+      module enabled, exactly as specified. Disabling a module cascades to anything that
+      `dependeDe` it (disabling `produtos` also disables `cadastro`/`categorias`/`precificacao`/
+      `entrada`/`estoque-lista` — doesn't make sense to leave a child registered when its parent
+      workspace is gone). Wired into **both** halves that need to respect it: `main.js`'s IPC
+      registration loop (a disabled module's handlers never register — not just hidden in the
+      UI) and `ipc/sistema.js`'s `get-modulos-carregados` (disabled module never reaches the
+      sidebar either). 5 new tests (`test/modulos.test.js`, 56 total now): no-file-present stays
+      fully enabled, explicit `false` excludes, cascading disable through 2 levels of `dependeDe`
+      excludes both, malformed `entitlements.json` throws, and — real proof, not a fixture —
+      running it against the actual project with no `entitlements.json` present confirms all 19
+      real modules stay enabled. `npm run lint` (0 warnings) + `npm test` (56/56) pass. Not
+      re-verified via a fresh Electron boot this increment (the app was already open for the
+      owner's own manual sidebar testing at the time — restarting it would have interrupted that;
+      the change is provably a no-op today since no `entitlements.json` exists, and the exact
+      same `carregarModulos()` path was already boot-verified before this wrapper was added).
+- [x] **Switch-over plan for ~December 2026 documented — done, `docs/MODULE_MANIFEST.md`.**
+      Gating stays per-module (matches the "sell PDV + Estoque only" pricing idea, no new
+      granularity needed); flagged one real open question for the owner to decide *later, not
+      now*: a plain `entitlements.json` has no tamper-resistance against the customer's own
+      machine, which is fine for now but is a real gap to close before this goes live for
+      real money — not assumed away, not solved prematurely either.
 
 ### Frontend: per-module restyle, reordered
 
-- [ ] Once the Backend regression item above is verified, resume the already-planned TailAdmin
-      restyle (`magical-soaring-squirrel.md`) **one module at a time**, in whatever order the
-      owner picks interactively (owner: "eu vou te auxiliando o que seria mais compatível com
-      cada coisa" — this is a guided, module-by-module conversation, not a pre-decided order like
-      the original Phase 1→6 plan). Each module's restyle is scoped to that module's own repo
-      once extracted — done when: that module's screens visually match the TailAdmin reference
-      the owner is guiding against, verified live against the running app (same standard as the
-      Frontend Visual/UX Fix Pass), and the module's own test/lint still pass standalone.
-- [ ] No fixed module order is prescribed here on purpose — unlike the Backend/Deployment items
-      above (which have real technical dependencies), module restyle order is the owner's call
-      session to session. **(manual, owner-driven)**
+**Note (2026-08-22):** "once extracted" below is now stale — the owner decided everything stays
+in the single repo until ~December 2026 (see Deployment/Infra section above). Restyle work
+happens directly in `frontend/`, not in a per-module repo.
+
+- [x] **Shell: real auth, navy theme, manifest-driven sidebar, real Dashboard — built, not yet
+      live-verified by the owner.** First concrete step of the restyle, per the owner's own
+      choice (esqueleto + Dashboard, over "another module first with a generic sidebar").
+      - `AuthContext` (`frontend/src/context/AuthContext.tsx`) wired to the real IPC
+        (`getAuthSession`/`unlockWithProfile`/`logout`) — same `podeModulo`/`isAdmin` mirror
+        logic as the vanilla `navbar.js`, real enforcement still 100% server-side in IPC.
+      - `(admin)/layout.tsx` now actually gates on `sessao.autenticado`, redirecting to
+        `/signin` — previously anyone could view admin pages regardless of session.
+      - `globals.css`'s `@theme` brand scale replaced (TailAdmin's factory purple/blue →
+        navy, landing on `--color-brand-500: #00006b`, the confirmed real primary).
+      - `AppSidebar.tsx` rewritten to be **manifest-driven** — fetches
+        `window.api.getModulosCarregados()` (the same IPC endpoint the vanilla sidebar uses,
+        see Core + Plugins Architecture above) instead of TailAdmin's hardcoded demo nav
+        (Calendar/Forms/Tables/Charts/etc., all removed). Renders 3 sections
+        (Principal/Gestão/Administração) sorted by the manifest's own `ordem`, gated by the
+        same `permissao.tipo` logic as vanilla. Deliberate simplification vs. vanilla: no
+        collapsible Administração sub-group (flat 3rd section instead) — a real, disclosed
+        difference, not an oversight.
+      - `SignInForm.tsx` replaced entirely — was TailAdmin's generic template (Google/X social
+        login, "keep me logged in," "forgot password," "sign up" — none of which apply to an
+        internal, admin-managed, no-self-registration system). Now: usuário/senha, wired to
+        `login()`, real error display. Matches `modules/auth/login.html`'s actual field
+        shape, not invented.
+      - `(admin)/page.tsx` replaced — was TailAdmin's fake e-commerce demo (fake metrics,
+        "Monthly Target," fictional "Recent Orders") plus the leftover `IpcSmokeTest` spike
+        component (now deleted, its whole purpose fulfilled by this real wiring). Now: 3 new
+        components (`DashboardStatCards`, `FaturamentoChart`, `MaisVendidos`) fed by
+        `window.api.dashboardStats()`, matching the vanilla dashboard's real 6 stat
+        cards + 7-day chart + top-products table, not reinvented field names.
+      - Every `window.api` call has a real fallback path (checked, not assumed) for the case
+        it doesn't exist — running in a plain browser (`next dev` in a normal tab, no Electron
+        preload bridge) shows a clear message instead of hanging or crashing silently.
+      - Verified so far: `npm run typecheck` (clean) + `npm run lint` (clean) +
+        `npm run build` (22/22 pages, static export succeeds) in `frontend/`, plus a real
+        `next dev` session checked live in the Browser pane — auth-gate redirect confirmed
+        working (`/` → `/signin` when unauthenticated), the real login form renders with the
+        correct navy branding and copy, and the "no `window.api`" error path was actually
+        triggered and displayed correctly (proven live, not just reasoned about).
+      - **Not yet verified**: the sidebar and Dashboard with real data and a real session —
+        that needs the actual Electron app (`ERP_SPIKE_FRONTEND=1 npm start`), which only the
+        owner can look at, same limitation as the Core + Plugins sidebar work above. Not
+        checked off as fully done until that live pass happens.
+      - **Density pass (2026-08-22), owner feedback after first live look:** "muito grande os
+        ícones, parece coisa de velho, queria algo mais minimalista." Diagnosed as a real
+        Operate-mode density mismatch, not a one-off tweak — TailAdmin's factory scale (44-48px
+        icon boxes, `rounded-2xl`, generous `p-5/p-6` card padding, `text-title-sm/md` headings)
+        is tuned for a spacious consumer SaaS feel, not a dense tool checked repeatedly during a
+        shift. Fixed systematically via `@theme`'s `--radius-*` tokens (every `rounded-*` class
+        in the app inherits the tighter scale, not hunted file-by-file) plus deliberate
+        per-component tightening (stat-card icons 44px→32px, card padding 20-24px→16px flat,
+        stat value 30px→20px, sidebar icons 20px→18px matching the vanilla app's own scale,
+        header button 44px→36px). Used the `impeccable` skill's `layout` guidance for this
+        (Operate mode: density should match use frequency, not framework defaults). One
+        pre-existing false positive triaged and suppressed via the skill's own mechanism
+        (`hook-admin.mjs ignore-value gray-on-color`, scoped to `globals.css`): FullCalendar's
+        vendor timegrid-axis CSS, untouched this session, Calendar page out of scope. Verified:
+        `npm run typecheck` + `npm run build` (22/22) both clean after the pass, the mechanical
+        `detect.mjs` scan returned no findings on every changed file, and the login heading's
+        computed font-size was checked live in the browser (24px, down from 30-36px) — the
+        sidebar/Dashboard density itself still needs the owner's own eyes in the real app.
+- [ ] Next modules after the shell — owner-guided, no fixed order, same as before.
+      **(manual, owner-driven)**
 
 ---
 

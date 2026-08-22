@@ -1,0 +1,12 @@
+{
+	"id": "vendas",
+	"nome": "Histórico de Vendas",
+	"versao": "1.0.0",
+	"tipo": "pagina",
+	"entrada": "vendas.html",
+	"ipc": ["vendas.js"],
+	"permissao": { "tipo": "admin" },
+	"navbar": null,
+	"paiWorkspace": "relatorios",
+	"dependeDe": ["relatorios"]
+}

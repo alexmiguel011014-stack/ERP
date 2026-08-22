@@ -1,0 +1,18 @@
+{
+	"id": "dashboard",
+	"nome": "Dashboard",
+	"versao": "1.0.0",
+	"tipo": "pagina",
+	"entrada": "index.html",
+	"ipc": ["dashboard.js"],
+	"permissao": { "tipo": "sempre" },
+	"navbar": {
+		"secao": "principal",
+		"label": "Dashboard",
+		"icone": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"3\" y=\"3\" width=\"7\" height=\"9\" rx=\"1.5\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"5\" rx=\"1.5\"/><rect x=\"14\" y=\"12\" width=\"7\" height=\"9\" rx=\"1.5\"/><rect x=\"3\" y=\"16\" width=\"7\" height=\"5\" rx=\"1.5\"/></svg>",
+		"ordem": 10,
+		"abaDashboard": false
+	},
+	"paiWorkspace": null,
+	"dependeDe": []
+}

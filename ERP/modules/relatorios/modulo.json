@@ -1,0 +1,18 @@
+{
+	"id": "relatorios",
+	"nome": "Relatórios",
+	"versao": "1.0.0",
+	"tipo": "pagina",
+	"entrada": "relatorios.html",
+	"ipc": ["relatorios.js"],
+	"permissao": { "tipo": "modulo", "nomeModulo": "relatorios" },
+	"navbar": {
+		"secao": "gestao",
+		"label": "Relatórios",
+		"icone": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M4 19.5V5a2 2 0 0 1 2-2h8.5a1.5 1.5 0 0 1 1 1v12.5a1.5 1.5 0 0 1-1 1.5H6a2 2 0 0 0-2 2z\"/><path d=\"M9 5V3h6v2M9 9h6v6H9z\"/></svg>",
+		"ordem": 80,
+		"abaDashboard": true
+	},
+	"paiWorkspace": null,
+	"dependeDe": []
+}

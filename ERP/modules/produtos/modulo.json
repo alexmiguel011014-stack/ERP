@@ -1,0 +1,20 @@
+{
+	"id": "produtos",
+	"nome": "Produtos",
+	"versao": "1.0.0",
+	"tipo": "workspace-dashboard",
+	"entrada": null,
+	"ipc": ["produtos.js"],
+	"permissao": { "tipo": "modulo", "nomeModulo": "produtos" },
+	"navbar": {
+		"secao": "gestao",
+		"label": "Produtos",
+		"workspaceParam": "gerenciamento-produtos",
+		"icone": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z\"/><polyline points=\"3.29 7 12 12 20.71 7\"/><line x1=\"12\" y1=\"22\" x2=\"12\" y2=\"12\"/></svg>",
+		"ordem": 30,
+		"abaDashboard": true
+	},
+	"paiWorkspace": null,
+	"dependeDe": [],
+	"notaDivergencia": "gerenciamento-produtos.js's iniciar() additionally hard-gates this workspace to sessao.perfil === 'admin', stricter than permissao above (a vendedor with permissoes.produtos=true passes the sidebar gate but the workspace silently won't open) — pre-existing behavior, not changed by this manifest."
+}

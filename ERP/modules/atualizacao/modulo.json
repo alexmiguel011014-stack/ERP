@@ -1,0 +1,19 @@
+{
+	"id": "atualizacao",
+	"nome": "Atualizações",
+	"versao": "1.0.0",
+	"tipo": "pagina",
+	"entrada": "atualizacao.html",
+	"ipc": ["sistema.js"],
+	"permissao": { "tipo": "sempre" },
+	"navbar": {
+		"secao": "administracao",
+		"label": "Atualizações",
+		"icone": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><polyline points=\"23 4 23 10 17 10\"/><path d=\"M20.49 15a9 9 0 1 1-2.12-9.36L23 10\"/></svg>",
+		"ordem": 120,
+		"abaDashboard": true
+	},
+	"paiWorkspace": null,
+	"dependeDe": [],
+	"notaDivergencia": "Visually placed inside the collapsed 'Administração' sidebar group, but permissao.tipo is 'sempre' (not 'admin') — the one real exception where navbar.secao and permissao.tipo diverge in the current app. Preserved here, not 'fixed', because it's the existing, presumably intentional behavior."
+}

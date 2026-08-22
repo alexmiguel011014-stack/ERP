@@ -1,0 +1,12 @@
+{
+	"id": "cadastro",
+	"nome": "Cadastro de Produto",
+	"versao": "1.0.0",
+	"tipo": "pagina",
+	"entrada": "cadastro.html",
+	"ipc": ["produtos.js"],
+	"permissao": { "tipo": "modulo", "nomeModulo": "produtos" },
+	"navbar": null,
+	"paiWorkspace": "produtos",
+	"dependeDe": ["produtos"]
+}

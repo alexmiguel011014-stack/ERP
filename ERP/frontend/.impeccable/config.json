@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          "src/app/globals.css"
+        ],
+        "createdAt": "2026-08-22T18:19:56.929Z",
+        "reason": "pre-existing FullCalendar vendor timegrid-axis label CSS (fc-timegrid-slot-label-frame/fc-timegrid-axis-cushion), not touched this session, Calendar page out of current task scope; gray text on the calendar's own light axis background is correct/conventional, not a colored surface"
+      }
+    ]
+  }
+}

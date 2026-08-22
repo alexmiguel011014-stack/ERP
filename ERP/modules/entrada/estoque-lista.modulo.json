@@ -1,0 +1,12 @@
+{
+	"id": "estoque-lista",
+	"nome": "Lista de Estoque",
+	"versao": "1.0.0",
+	"tipo": "pagina",
+	"entrada": "estoque-lista.html",
+	"ipc": ["estoque.js"],
+	"permissao": { "tipo": "modulo", "nomeModulo": "produtos" },
+	"navbar": null,
+	"paiWorkspace": "entrada",
+	"dependeDe": ["entrada"]
+}

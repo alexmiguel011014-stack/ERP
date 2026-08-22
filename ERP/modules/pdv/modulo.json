@@ -1,0 +1,18 @@
+{
+	"id": "pdv",
+	"nome": "Frente de Caixa",
+	"versao": "1.0.0",
+	"tipo": "pagina",
+	"entrada": "pdv.html",
+	"ipc": ["caixa.js"],
+	"permissao": { "tipo": "sempre" },
+	"navbar": {
+		"secao": "principal",
+		"label": "Frente de Caixa",
+		"icone": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"2\" y=\"6\" width=\"20\" height=\"13\" rx=\"2\"/><path d=\"M2 10h20M7 15h4\"/></svg>",
+		"ordem": 20,
+		"abaDashboard": true
+	},
+	"paiWorkspace": null,
+	"dependeDe": []
+}
