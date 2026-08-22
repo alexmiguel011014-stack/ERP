@@ -78,12 +78,18 @@
     <style>
       .campo { margin-bottom: 1rem; }
       .campo label { display: block; margin-bottom: 0.5rem; font-weight: 600; }
-      .campo select, .campo input, .campo textarea { width: 100%; padding: 0.5rem; border: 1px solid #CBD5E1; border-radius: 4px; box-sizing: border-box; }
+      .campo select, .campo input, .campo textarea { width: 100%; padding: 0.5rem; border: 1px solid #CBD5E1; border-radius: 4px; box-sizing: border-box; background: #FFFFFF; color: #1E293B; }
       .campo textarea { min-height: 60px; }
-      .btn-primary { background: #2563EB; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-weight: 600; }
-      .btn-primary:hover { background: #1D4ED8; }
+      .btn-primary { background: var(--cor-primaria); color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-weight: 600; }
+      .btn-primary:hover { background: var(--cor-primaria-forte); }
       .btn-secondary { background: #6B7280; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
       .btn-secondary:hover { background: #4B5563; }
+
+      /* Mesma lacuna de tema escuro do pagamentos.html — .page/.campo nunca
+         tiveram cobertura de dark mode. */
+      .dark-theme .campo select,
+      .dark-theme .campo input,
+      .dark-theme .campo textarea { background: #0F172A; border-color: #334159; color: #F1F5F9; }
     </style>
 
     <script src="../core/banco.js"></script>

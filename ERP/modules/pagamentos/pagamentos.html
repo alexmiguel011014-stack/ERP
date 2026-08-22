@@ -39,11 +39,11 @@
       /* Estilos inclusos diretamente para garantir carregamento */
       .page { padding: 1rem; }
       .table-actions { margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
-      .table-actions input { flex: 1; padding: 0.5rem; border: 1px solid #CBD5E1; border-radius: 4px; }
-      .table-actions button { padding: 0.5rem 1rem; background: #3B82F6; color: white; border: none; border-radius: 4px; cursor: pointer; }
-      .table-actions button:hover { background: #2563EB; }
-      .btn-primary { background: #2563EB; color: white; font-weight: 600; border-radius: 4px; }
-      .btn-primary:hover { background: #1D4ED8; }
+      .table-actions input { flex: 1; padding: 0.5rem; border: 1px solid #CBD5E1; border-radius: 4px; background: #FFFFFF; color: #1E293B; }
+      .table-actions button { padding: 0.5rem 1rem; background: var(--cor-primaria); color: white; border: none; border-radius: 4px; cursor: pointer; }
+      .table-actions button:hover { background: var(--cor-primaria-forte); }
+      .btn-primary { background: var(--cor-primaria); color: white; font-weight: 600; border-radius: 4px; }
+      .btn-primary:hover { background: var(--cor-primaria-forte); }
       table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
       th, td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid #E5E7EB; }
       th { background-color: #F8FAFC; }
@@ -55,6 +55,18 @@
       .badge-alert { background: #F87171; color: white; }
       .btn-acoes { margin-left: 0.25rem; padding: 0.3rem 0.6rem; background: #E5E7EB; color: #1F2937; border: none; border-radius: 4px; font-size: 0.75rem; cursor: pointer; }
       .btn-acoes:hover { background: #D1D5DB; }
+
+      /* Esta tela nunca teve cobertura de tema escuro — .page não é .container
+         (não herda o card branco padrão), então sem isso ela ficava 100% clara
+         mesmo com o resto do app em modo escuro. */
+      .dark-theme .table-actions input { background: #0F172A; border-color: #334159; color: #F1F5F9; }
+      .dark-theme table { color: #E2E8F0; }
+      .dark-theme th, .dark-theme td { border-bottom-color: #334159; }
+      .dark-theme th { background-color: #0F172A; color: #94A3B8; }
+      .dark-theme tbody tr:hover { background-color: #1E293B; }
+      .dark-theme .empty-state { color: #94A3B8; }
+      .dark-theme .btn-acoes { background: #334159; color: #F1F5F9; }
+      .dark-theme .btn-acoes:hover { background: #475569; }
     </style>
 
     <script src="../core/banco.js"></script>

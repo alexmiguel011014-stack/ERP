@@ -30,3 +30,6 @@ jobs:
 
       - name: Test
         run: npm test
+
+      - name: E2E (login + visita todas as páginas, coleta erros de console)
+        run: npx electron scripts/test-ui.js

@@ -27,14 +27,15 @@
 		var pct = Math.round(p || 0);
 		document.getElementById("progressBar").style.display = "block";
 		document.getElementById("progressText").style.display = "block";
-		document.getElementById("progressFill").style.width = pct + "%";
+		document.getElementById("progressFill").style.transform =
+			"scaleX(" + pct / 100 + ")";
 		document.getElementById("progressText").textContent = pct + "%";
 	}
 
 	function resetDownload() {
 		document.getElementById("progressBar").style.display = "none";
 		document.getElementById("progressText").style.display = "none";
-		document.getElementById("progressFill").style.width = "0%";
+		document.getElementById("progressFill").style.transform = "scaleX(0)";
 	}
 
 	function setButton(disabled) {

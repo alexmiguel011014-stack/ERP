@@ -11,13 +11,20 @@
       .header-verde { color: #369929; font-weight: 600; }
       .header-vermelho { color: #DC2626; font-weight: 600; }
       .progress-bar { width: 100%; height: 10px; background: #E2E8F0; border-radius: 6px; overflow: hidden; margin-top: 14px; }
-      .progress-fill { height: 100%; background: #2563EB; width: 0%; transition: width 0.3s; }
+      .progress-fill { height: 100%; width: 100%; background: #2563EB; transform: scaleX(0); transform-origin: left; transition: transform 0.3s; }
       .center { text-align: center; }
       .msg { padding: 10px 16px; border-radius: 8px; font-size: 0.85rem; margin-top: 12px; }
-      .msg-success { background: #EAF6E8; color: #369929; border: 1px solid #C3E5BF; }
-      .msg-info { background: #EFF6FF; color: #2563EB; border: 1px solid #BFDBFE; }
-      .msg-warning { background: #FFFBEB; color: #D97706; border: 1px solid #FDE68A; }
-      .msg-error { background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; }
+      /* atualizacao.js monta class="msg " + tipo (duas classes separadas por
+         espaço, não "msg-tipo" hifenizado) — os seletores precisam casar com
+         isso, senão a caixa de mensagem nunca ganha cor/fundo em tema nenhum. */
+      .msg.success { background: #EAF6E8; color: #369929; border: 1px solid #C3E5BF; }
+      .msg.info { background: #EFF6FF; color: #2563EB; border: 1px solid #BFDBFE; }
+      .msg.warning { background: #FFFBEB; color: #D97706; border: 1px solid #FDE68A; }
+      .msg.error { background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; }
+      .dark-theme .msg.success { background: #143015; color: #B9E6B3; border-color: #369929; }
+      .dark-theme .msg.info { background: #0F172A; color: #93C5FD; border-color: #2563EB; }
+      .dark-theme .msg.warning { background: #332507; color: #FCE1A8; border-color: #D97706; }
+      .dark-theme .msg.error { background: #450A0A; color: #FCA5A5; border-color: #DC2626; }
     </style>
   </head>
   <body>

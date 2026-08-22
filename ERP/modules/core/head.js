@@ -24,6 +24,7 @@
 		"  --sombra-card: 0 1px 2px rgba(0,0,0,0.05), 0 8px 20px -12px rgba(0,0,0,0.1);\n" +
 		"}\n" +
 		"html.dark-theme {\n" +
+		"  color-scheme: dark;\n" +
 		"  --cor-primaria: #4F4FFF; --cor-primaria-forte: #6B6BFF; --cor-primaria-fraca: #14144A; --cor-primaria-fraca-borda: #2D2D7A;\n" +
 		"  --cor-sucesso: #25B31C; --cor-sucesso-fraca: #0F2E0D; --cor-sucesso-borda: #1E4A1C;\n" +
 		"  --cor-destaque: #4F4FFF; --cor-destaque-ink: #E6E6F0; --cor-destaque-fraca: #14144A; --cor-destaque-borda: #2D2D7A; --cor-destaque-solido: #4F4FFF;\n" +

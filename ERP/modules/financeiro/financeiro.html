@@ -7,6 +7,36 @@
     <script src="../core/auth.js"></script>
     <link rel="stylesheet" href="../core/modulos.css" />
     <title>ALLU ERP - Financeiro</title>
+    <style>
+      /* .config-item/.config-input-row: modulos.css não define essas classes
+         (só existem em precificacao.css, não linkado aqui) — sem isso o campo
+         de Alíquota de Provisão de DAS renderizava sem layout nenhum. */
+      .config-item { margin-bottom: 8px; }
+      .config-item label {
+        display: block;
+        font-weight: 600;
+        font-size: 0.8rem;
+        color: #475569;
+        margin-bottom: 6px;
+      }
+      .config-input-row { display: flex; gap: 10px; align-items: center; }
+      .config-input-row input[type="number"] {
+        width: 140px;
+        padding: 8px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 7px;
+        font-size: 0.9rem;
+        outline: none;
+        transition: border-color 0.15s;
+      }
+      .config-input-row input[type="number"]:focus { border-color: var(--cor-primaria); }
+      .dark-theme .config-item label { color: #94a3b8; }
+      .dark-theme .config-input-row input[type="number"] {
+        background: #1e293b;
+        border-color: #334159;
+        color: #f1f5f9;
+      }
+    </style>
   </head>
   <body data-requer-modulo="financeiro">
     <div class="container">

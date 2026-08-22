@@ -35,8 +35,8 @@
             <input type="number" id="custoInput" min="0" step="0.01" value="0" />
           </div>
         </div>
-        <div id="produtoPreview" style="font-size: 0.85rem; color: #475569; margin-bottom: 10px;"></div>
-        <div id="cotacaoPreview" style="font-size: 0.8rem; color: #475569; margin-bottom: 10px;"></div>
+        <div id="produtoPreview" class="detalhe-preview" style="font-size: 0.85rem; margin-bottom: 10px;"></div>
+        <div id="cotacaoPreview" class="detalhe-preview" style="font-size: 0.8rem; margin-bottom: 10px;"></div>
         <div class="form-actions">
           <button type="button" id="btnAdicionar" class="btn btn-primary">Adicionar item</button>
         </div>
@@ -72,16 +72,30 @@
     </div>
 
     <div id="printOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; z-index: 10001;">
-      <div style="background: #FFFFFF; border-radius: 8px; padding: 24px; max-width: 640px; width: 92%; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+      <div class="print-overlay-box">
         <div id="printContent"></div>
         <div style="display: flex; gap: 10px; margin-top: 16px;">
-          <button onclick="window.print()" style="flex: 1; padding: 8px; background: #2563EB; color: #fff; border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer;">Imprimir / Salvar PDF</button>
-          <button onclick="document.getElementById('printOverlay').style.display='none'" style="flex: 1; padding: 8px; background: #64748B; color: #fff; border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer;">Fechar</button>
+          <button onclick="window.print()" class="btn btn-primary" style="flex: 1;">Imprimir / Salvar PDF</button>
+          <button onclick="document.getElementById('printOverlay').style.display='none'" class="btn btn-secondary" style="flex: 1;">Fechar</button>
         </div>
       </div>
     </div>
 
     <style>
+      .print-overlay-box {
+        background: #FFFFFF;
+        border-radius: 8px;
+        padding: 24px;
+        max-width: 640px;
+        width: 92%;
+        max-height: 85vh;
+        overflow-y: auto;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      }
+      .dark-theme .print-overlay-box {
+        background: #1E293B;
+        color: #E2E8F0;
+      }
       @media print {
         body * { visibility: hidden; }
         #printContent, #printContent * { visibility: visible; }

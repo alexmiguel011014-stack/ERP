@@ -435,6 +435,16 @@ tr:last-child td {
 	color: var(--cor-primaria);
 }
 
+/* Texto de pré-visualização (SKU escaneado, resultado de busca) usado antes
+   de confirmar uma ação — cor fixa porque não é um estado semântico
+   (sucesso/erro), só precisa de uma variante legível no tema escuro. */
+.detalhe-preview {
+	color: #475569;
+}
+.dark-theme .detalhe-preview {
+	color: #94a3b8;
+}
+
 /* Skeleton loading (shimmer) — usado no lugar de "Carregando..." em listas
    e tabelas, para dar sensação de progresso enquanto os dados chegam. */
 .skeleton-box {
@@ -552,6 +562,11 @@ tr:last-child td {
 	background: var(--cor-primaria);
 	color: #ffffff;
 	border-color: var(--cor-primaria);
+}
+.dark-theme .tab-btn {
+	background: #0f172a;
+	color: #94a3b8;
+	border-color: #334159;
 }
 
 .barra-abc {

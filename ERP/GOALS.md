@@ -160,9 +160,10 @@ repeated here — see `AGENTS.md` §"Funcionalidades Implementadas" for that lis
       (`modules/produtos/cadastro.js` — `escolherImagem`/`removerImagem`/preview, backed by
       `window.erpBanco.produtos.imagem`). Corrected the stale line in `AGENTS.md` (§"Próximos
       Passos") to point here instead of listing these as open work.
-- [ ] UI/UX polish backlog from `AGENTS.md` ("ícones vetoriais, tipografia refinada") — superseded
+- [x] UI/UX polish backlog from `AGENTS.md` ("ícones vetoriais, tipografia refinada") — superseded
       by the concrete, screen-by-screen fix pass below (owner reported specific broken-looking
-      screens on 2026-08-19, not just general polish); see **Frontend Visual/UX Fix Pass** section.
+      screens on 2026-08-19, not just general polish), which is now complete; see **Frontend
+      Visual/UX Fix Pass** section.
 
 ## Frontend Visual/UX Fix Pass (PDV pilot → screen-by-screen rollout) — in progress
 
@@ -262,23 +263,108 @@ live look per the checklist above; only the CSS-file-shape signal below is confi
 Suggested order (no hard technical dependency between screens — reorder freely; this is
 severity/likely-impact ordering per fix.md convention, cashier-facing screens first):
 
-- [ ] **Dedicated CSS, zero `@media`** (same specific gap PDV had): `entrada/entrada.css`,
-      `importacao/importacao.css` — both link `modulos.css` (unlike PDV) so they get its 2
-      breakpoints for free, but their own custom layout blocks likely still don't stack. (manual)
-- [ ] **Dedicated CSS, only 1 `@media` rule** (probably just modulos.css's own, copy-pasted or
-      inherited, not a screen-specific breakpoint): `clientes/clientes.css`,
-      `precificacao/precificacao.css`, `produtos/categorias.css`,
-      `produtos/gerenciamento-produtos.css`, `vendas/vendas.css`. (manual)
-- [ ] **Dedicated CSS, best existing coverage** (4 `@media` rules — audit last, likely smallest
-      gap): `produtos/cadastro.css`. (manual)
-- [ ] **No dedicated CSS file — 100% reliant on `modulos.css` + inline styles**: `acessos.html`,
-      `atualizacao.html`, `banco.html`, `compras.html`, `dashboard/index.html`,
-      `financeiro.html`, `fornecedores.html`, `pagamentos/lancar-pagamento.html`,
-      `pagamentos/pagamentos.html`, `relatorios.html`. Likely the smallest per-screen gap (best
-      baseline already) but still worth a pass for the encoding + inline-style-modal checks —
-      PDV's own worst offenders (the 3 hardcoded modal overlays) are exactly the kind of
-      ad-hoc inline styling other screens may have too, independent of whether they link
-      `modulos.css`. (manual)
+- [x] **`entrada/entrada.css` + `importacao/importacao.css` — audited, no layout bugs; fixed a
+      shared dark-mode gap.** Both correctly link `modulos.css` and their custom blocks
+      (`.panel-lista-estoque`, `.chip-group`, `.table-responsive`) already wrap/stack fine; the
+      720px/900px breakpoints they inherit from `modulos.css` are unreachable under the same
+      pre-existing `minWidth: 1024` constraint flagged in the PDV section (not a new gap). Found
+      one real bug shared with 3 other screens below: `#produtoPreview`/`#baixaProdutoPreview`/
+      `#previaResultado` used an inline `style="color: #475569"` that no `.dark-theme` rule could
+      ever override — same category as PDV's hardcoded modal overlays. Fixed by adding a reusable
+      `.detalhe-preview` class (+ `.dark-theme` variant) to `modulos.css` and swapping the inline
+      color out on both files. Encoding clean, no clipping issues (plain scrolling documents).
+- [x] **`clientes/clientes.css`, `precificacao/precificacao.css`, `produtos/categorias.css`,
+      `produtos/gerenciamento-produtos.css`, `vendas/vendas.css` — audited; 3 real bugs found and
+      fixed, not just copy-pasted breakpoints as guessed.** Each file's 1 `@media` rule turned out
+      to be a real, correct, screen-specific breakpoint (not copy-paste) — no responsive gap.
+      Bugs found: (1) `clientes.css`'s `.dark-theme .modal-header` used `background: #0f3312` — a
+      stray dark-green hex that matches no other color in the app's dark palette (everywhere else
+      uses `#0f172a`/`#1e293b`), almost certainly a typo; fixed to `#0f172a`. (2) `categorias.css`
+      and `vendas.css` both still carried a dead `.navbar`/`.navbar-brand`/`.navbar-links` block —
+      confirmed dead the same way as PDV's bonus fix: neither `categorias.html` nor `vendas.html`
+      has any static nav markup, the real navbar is 100% injected by `navbar.js` with its own
+      (different, correct) rules; removed both blocks. (3) `clientes.css`'s `#pePreview` had the
+      same hardcoded `color: #475569` inline-style bug as the entrada/importacao group above;
+      fixed the same way (`.detalhe-preview`). Also found and fixed a project-wide gap while here:
+      `modulos.css`'s shared `.tab-btn` (used by `financeiro.html` and `relatorios.html`, not by
+      any file in this group) had zero `.dark-theme` coverage — added it. Encoding clean; no
+      clipping issues.
+- [x] **`produtos/cadastro.css` — audited, best existing coverage confirmed; 2 small bugs fixed.**
+      The file's already-thorough dark-theme block covers every interactive element (dropdown,
+      popover, modal, tags) correctly. Found: (1) `#previewImagemProduto`'s image-preview box was
+      inline-styled with a light-only `background:#F8FAFC`/`color:#94A3B8`, same "inline style no
+      `.dark-theme` rule can reach" bug as the rest of this pass — converted to a
+      `.preview-imagem-produto` class with a dark variant. (2) `.dark-theme .placeholder-cell` was
+      set to `#475569` — a mid-dark gray meant for *light* backgrounds, actually **lower**
+      contrast than the light-mode value on the actual dark background it's meant to improve;
+      fixed to `#64748b`, matching the muted-text tone used everywhere else in dark mode. 4
+      `@media` rules all confirmed real and correct, same pre-existing 1024px-floor caveat as
+      every other screen. Encoding clean.
+- [x] **`dashboard/index.html` — audited, clean, no bugs found.** Correcting this file's
+      categorization while at it: it was grouped below as "no dedicated CSS file — 100%
+      modulos.css", which was never true — it has always had its own complete `<style>` block
+      (now ~740 lines after this session's border/grid/icon fixes), doesn't link `modulos.css`
+      at all (same situation as PDV before its fix). Ran the full 4-point checklist: (1)
+      encoding — clean, no mojibake (`grep` for the byte patterns that hit PDV returns nothing);
+      (2) responsive — has its own `@media (max-width: 480px)` (stats grid) and
+      `@media (max-width: 900px)` (dash-grid → 1 column), but both are below the project's
+      already-flagged `main.js` `minWidth: 1024` floor (see PDV section above) — same
+      pre-existing, out-of-scope-per-screen constraint, not a new gap; (3) dark mode — complete,
+      every colored class has an explicit `.dark-theme` rule or inherits correctly through
+      `head.js`'s CSS custom properties, zero hardcoded-light `style="background:..."` (the
+      pattern that was PDV's 3 modal overlays doesn't exist here); (4) clipping — clean, this is
+      a normal scrolling document, not a fixed-height split panel like PDV, no `overflow: hidden`
+      trapping real content.
+- [x] **`acessos.html`, `atualizacao.html`, `banco.html`, `compras.html`, `financeiro.html`,
+      `fornecedores.html`, `pagamentos/lancar-pagamento.html`, `pagamentos/pagamentos.html`,
+      `relatorios.html` — audited; several real bugs found, not just the expected small gap.**
+      - `atualizacao.html`: a genuine **functional** bug, not just a dark-mode gap —
+        `atualizacao.js`'s `showMessage()` builds `class="msg " + tipo` (two space-separated
+        classes), but the CSS defined `.msg-success`/`.msg-info`/`.msg-warning`/`.msg-error`
+        (one hyphenated class) — a selector that can never match that markup. The colored
+        update-status message box has never rendered with any color or background, in *either*
+        theme. Fixed the selectors to `.msg.success`/`.msg.info`/`.msg.warning`/`.msg.error` and
+        added the missing `.dark-theme` variants while there.
+      - `compras.html`: the print-preview modal (`#printOverlay`'s content box) was hardcoded
+        `background: #FFFFFF` inline with no override possible — same bug class as PDV's 3 modal
+        overlays. Converted to a `.print-overlay-box` class with a dark variant. Its "Imprimir"/
+        "Fechar" buttons were also raw inline-styled (`#2563EB`/`#64748B`) instead of the shared,
+        already-dark-covered `.btn-primary`/`.btn-secondary` classes; switched them over. Also
+        had the same `#produtoPreview`/`#cotacaoPreview` inline-color bug as the entrada group
+        above; fixed with `.detalhe-preview`.
+      - `financeiro.html`: a real **layout** bug, found by checking which stylesheet the page
+        actually loads — the "Provisão de DAS" block uses `.config-item`/`.config-input-row`,
+        classes that only exist in `precificacao.css`, which this page does **not** link (only
+        `modulos.css`, which doesn't define them either). The alíquota input and its Salvar
+        button were rendering with zero layout styling. Added a small scoped `<style>` block
+        (light + dark) with the missing rules.
+      - `pagamentos/pagamentos.html` and `pagamentos/lancar-pagamento.html`: the worst gap in the
+        whole pass — **zero** `.dark-theme` coverage anywhere (neither file uses `.container`, so
+        neither inherited anything from the app-wide dark baseline either). Added dark rules for
+        inputs/selects/table/hover/empty-state/action buttons on both. Also found their embedded
+        `.btn-primary`/`.btn-secondary` silently override the shared navy-branded versions from
+        `modulos.css` (loaded first, then beaten by these later, more-specific local rules) with
+        generic blue/gray (`#2563EB`/`#6B7280`) — every button on these two screens visibly
+        doesn't match the rest of the app's navy branding. Repointed both at
+        `var(--cor-primaria)` so they render and dark-adapt like every other button in the app.
+      - `relatorios.html`: the "Exportar ABC (CSV)"/"Exportar PDF" buttons used inline pastel
+        `background-color`s (`#EAF6E8`/`#FEE2E2`) with no dark variant — same "stays light in
+        dark mode" bug category as the message-box findings above. Converted to
+        `.btn-exportar-csv`/`.btn-exportar-pdf` classes with dark variants.
+      - `acessos.html`, `banco.html`: no bugs in their own markup/CSS (both already carry decent
+        scoped dark-theme rules, e.g. `banco.html`'s `.resumo-card`/`.modal-senha` overrides), but
+        auditing them surfaced a **shared, cross-cutting** bug: bare `<select>` elements not
+        wrapped in `.form-group` (`#selectTabela` in `banco.html`; `#filtroLogUsuario`/
+        `#filtroLogAcao` in `acessos.html`) have no explicit CSS in either theme, so they render
+        as Chromium's native (always-light) control — a light dropdown box floating in an
+        otherwise-dark screen. Root-caused and fixed at the actual source instead of patching each
+        instance: added `color-scheme: dark` to `html.dark-theme` in `head.js`'s injected token
+        stylesheet (runs on every page). Chromium then auto-dark-themes any native control that
+        doesn't already have explicit author styling — fixes these two screens' selects and any
+        other unstyled native control anywhere else in the app, without touching elements that
+        already have explicit `.dark-theme` rules (author styles still win over the UA default).
+      Encoding clean across all 9 files; no clipping issues found (all plain scrolling documents,
+      no fixed-height split panels like PDV).
 
 **Not in scope for this pass** (flagged, not started): the underlying pattern — one shared
 runtime-injected stylesheet (`navbar.js`, ~140 hand-maintained selectors) plus N independent
@@ -286,8 +372,13 @@ per-module CSS files with inconsistent coverage — will keep producing this exa
 the app grows. A real design-token refactor (CSS custom properties for background colors instead
 of a parallel `.dark-theme .X` rule per `.X`, so new components get dark mode for free) would
 remove the recurring cost, but that's a **structural change**, not a fix, and conflicts with the
-owner's explicit "one module per session" approach for now — worth revisiting only after the
-Phase 2 rollout above is done and the pattern's actual size is fully known.
+owner's explicit "one module per session" approach for now. Phase 2 is now done and the pattern's
+actual size is known: 13 real bugs across 16 screens, almost all some flavor of "a `.dark-theme`
+rule is missing/wrong/unreachable" — worth revisiting as a real refactor if this class of bug
+keeps recurring as new screens are added, but not undertaken here (out of the "fix, don't
+redesign" scope this pass was given). This is moot anyway for the Next.js migration
+(`magical-soaring-squirrel.md`) screens, which adopt Tailwind's `.dark` + CSS-variable convention
+from scratch instead of the hand-maintained parallel-selector pattern.
 
 ## Connectivity
 
@@ -699,6 +790,150 @@ historical Ton statements). Not started yet — paused with the rest of this sec
 
 ---
 
+## Core + Plugins Architecture (module separation + per-module restyle) — build, not started
+
+**Why this section exists:** owner wants to restructure the app from "19 modules hardcoded into
+one repo" into a **core + plugins** shape: a minimal core (auth, dashboard shell, shared
+SQLCipher database) that business modules (PDV, Clientes, Produtos, Compras, Fornecedores,
+Financeiro, Relatórios, Pagamentos, Acessos, Banco, Atualização, Importação, Entrada, Vendas)
+plug into — each with its own GitHub repo, addable/removable without touching the others or
+rebuilding the whole app ("like a car's CAN bus: swap a part without breaking the rest" — owner's
+own framing). Business motivation: **price per managed module** once the product is sold, e.g. a
+client buys PDV + Estoque without the rest. The code must stay fully open/accessible until
+**~December 2026** (owner's own deadline) — no hard license lock before then; any
+entitlement/gating mechanism built here must default to "everything unlocked" until that date.
+
+This does **not** replace the already-approved Next.js/TailAdmin frontend migration
+(`C:\Users\beatl\.claude\plans\magical-soaring-squirrel.md`, Phase 0 spike already done — see
+`Frontend` section above) — it changes the *order and boundary* the restyle work happens in
+(module by module, independently, once each module has a clean boundary) instead of one big
+sequential Phase 1→6 pass. The **frontend visual/UX bug-fix pass is fully done** (see section
+above) and stays as-is; this new section is about the module *structure*, not another repaint of
+the current vanilla screens.
+
+**Confirmed from reading the actual code** (not assumed): `main.js` currently wires every module
+by hand — 19 sequential `require("./ipc/X").registrar(ipcMain, deps)` calls
+(`main.js:304-322`, one per domain). `navbar.js` builds the sidebar as one giant hardcoded HTML
+string with every module's icon/label/href/permission-gate hand-written inline
+(`navbar.js:328-404`, e.g. the "Financeiro" link is `podeModulo("financeiro") ? '<a href=...>' :
+""` baked directly into the template). **Both of these are exactly the two places a real
+plug-in-a-module mechanism has to replace** — this is the concrete, scoped technical work behind
+the "CAN bus" analogy, not a vague architecture goal.
+
+```mermaid
+flowchart TD
+    A[Design module manifest schema\n+ core/module contract] --> B[Backend: manifest-driven\nloader replaces main.js's\n19 hardcoded requires]
+    A --> C[Frontend: manifest-driven\nsidebar replaces navbar.js's\nhardcoded HTML string]
+    B --> D[Regression: same 19 modules,\nsame permissions, now loaded\nvia manifest, in ONE repo]
+    C --> D
+    D --> E[Extract module folders into\nseparate GitHub repos,\nwire as git submodules]
+    E --> F[Packaging: submodule checkout\nstep before electron-builder]
+    D --> G[Design entitlements.json\n— dormant, all-open until Dec 2026]
+    F --> H[Per-module restyle against\nTailAdmin, one module at a time,\nuser-guided]
+```
+
+### Backend: module manifest + loader
+
+- [ ] Design the module manifest schema (`architect`-level decision, write it down before any
+      code) — a `modulo.json` per module folder declaring at minimum: `id`, `nome`, `versao`,
+      `entrada` (path to its `.html`), `ipc` (path to its `ipc/*.js` handler file, matching the
+      existing one-file-per-domain convention in `ipc/`), `navbar` (label, icon SVG or icon id,
+      href, section — "Principal"/"Gestão"/"Administração", matching the 3 existing sidebar
+      groups seen in `navbar.js`), `permissao` (`requerAdmin: true` or `requerModulo: "nome"`,
+      mirroring the existing `data-requer-admin`/`data-requer-modulo` attributes already used by
+      every module's `<body>` tag), and `dependeDe` (array of other module ids, if any — e.g. a
+      hypothetical future module needing `produtos` to exist first). Model this closely on
+      Odoo's `__manifest__.py` pattern (name/version/depends/data) — same problem shape, proven
+      design, don't reinvent it. Done when: the schema is written as a doc (or JSON Schema file)
+      and validated against what all 19 *existing* modules would need to declare, listing any
+      module whose needs don't fit the schema as-designed.
+- [ ] `db/modulos.js` or similar: a small loader that scans `modules/*/modulo.json` at startup,
+      validates each against the schema above (fail loud with the file path on a malformed
+      manifest, don't silently skip it), and returns an ordered list (dependency-sorted via
+      `dependeDe`) — done when: a unit test feeds it a temp directory of fixture manifests
+      (including one deliberately malformed one and one with a `dependeDe` cycle) and asserts the
+      correct order / correct rejection.
+- [ ] Replace `main.js`'s 19 hardcoded `require("./ipc/X").registrar(...)` calls
+      (`main.js:304-322`) with a loop over the manifest loader's output — done when: every IPC
+      handler that worked before still registers (assert via the existing test suite, which
+      already exercises IPC-backed logic through `db/*` — no handler silently stops registering).
+- [ ] Replace `navbar.js`'s hardcoded sidebar HTML string (`navbar.js:328-404`) with a renderer
+      that builds the same markup from the manifest list instead of the hand-written template —
+      done when: the rendered sidebar HTML is byte-for-byte equivalent (same links, same icons,
+      same permission gating, same 3 section groups) for an admin session and a `vendedor`
+      session, checked directly against the current output, not assumed from the diff.
+- [ ] Regression pass **before** touching repo structure: all 19 modules still load, all IPC
+      handlers still respond, both permission profiles (`admin`/`vendedor`) still see the correct
+      sidebar, both themes still render correctly — done when: `npm run lint` + `npm test` pass
+      and a manual pass confirms the sidebar/permissions live, module-by-module, same as the
+      Frontend Visual/UX Fix Pass's own verification standard. **This item gates everything
+      below** — don't extract modules into separate repos until the loader that makes that
+      meaningful is proven working in the current single repo.
+
+### Deployment/Infra: multi-repo composition
+
+Researched: `npm` cannot reference a specific workspace package inside another repo via a git
+URL (no git-dependency support for workspaces as of npm's current release), which rules out the
+"one core repo, `npm install` pulls each module straight from its own GitHub URL as a workspace
+member" approach the ask first suggested — that mechanism doesn't exist in current npm tooling.
+Two approaches actually work for this case (offline-first desktop app, no existing complex CI,
+single dev owner today):
+
+- [ ] **Recommended for now: git submodules.** Each module folder becomes its own GitHub repo;
+      the core repo (`ERP/ERP`) references each one as a submodule under `modules/<nome>/`,
+      pinned to a commit. Native git, zero extra infrastructure, works identically with public
+      repos (which is what's needed anyway — code stays open until Dec 2026, so there is no
+      access-control benefit yet to anything fancier). Tradeoff to accept knowingly: submodule
+      workflow has real rough edges (detached HEAD after checkout, `git submodule update
+      --init --recursive` required after clone, easy to forget to push a submodule's own commit
+      before updating its pointer in core) — document these three specifically in `README.md`
+      once adopted, since they're the actual footguns, not a vague "submodules are tricky".
+- [ ] **Migration path for ~December 2026** (do not build this now, just don't design anything
+      that blocks it later): once modules need real per-customer gating, publish each module as
+      a versioned npm package via **GitHub Packages** (private repo + package = the entitlement
+      mechanism itself — a customer's npm token either can or can't fetch a module they didn't
+      buy, no custom license-key software needed) and have the core's `package.json` depend on
+      published versions instead of submodule checkouts. This is a repackaging step once modules
+      are already clean, manifest-declared packages — not a redesign — *if* the manifest schema
+      and folder shape from the Backend section above are followed now.
+- [ ] Update `package.json`'s `build.files` allowlist and the build/CI scripts to check out
+      submodules (`git submodule update --init --recursive`) before `electron-builder` runs —
+      done when: a clean clone + the documented build command produces a working installer with
+      no manual extra step beyond what's documented.
+- [ ] Update `.github/workflows/ci.yml`'s checkout step (`actions/checkout@v4`) to fetch
+      submodules (`with: submodules: recursive`) — done when: CI passes against the new repo
+      shape, not just locally.
+
+### Security: dormant entitlements design
+
+- [ ] Design `entitlements.json` (or equivalent, read once at boot alongside the manifest list)
+      — shape: `{ "modulos": { "<id>": true } }` or similar, defaulting every discovered module
+      to enabled. Wire the manifest loader to skip loading a module only if explicitly disabled
+      here — done when: the mechanism exists and is exercised by a test that disables one module
+      and confirms it doesn't register, but the *shipped default* has every module enabled (this
+      is a designed-but-dormant switch, not a partial license system going live now).
+- [ ] Document, in `GOALS.md` or `AGENTS.md`, the actual switch-over plan for ~December 2026
+      (which module(s) become gated, how a customer's entitlement file gets generated/delivered)
+      as a **future item, not built now** — so the design isn't forgotten, but nothing here
+      creates a support burden or a way to accidentally lock the owner's own build before the
+      owner decides to.
+
+### Frontend: per-module restyle, reordered
+
+- [ ] Once the Backend regression item above is verified, resume the already-planned TailAdmin
+      restyle (`magical-soaring-squirrel.md`) **one module at a time**, in whatever order the
+      owner picks interactively (owner: "eu vou te auxiliando o que seria mais compatível com
+      cada coisa" — this is a guided, module-by-module conversation, not a pre-decided order like
+      the original Phase 1→6 plan). Each module's restyle is scoped to that module's own repo
+      once extracted — done when: that module's screens visually match the TailAdmin reference
+      the owner is guiding against, verified live against the running app (same standard as the
+      Frontend Visual/UX Fix Pass), and the module's own test/lint still pass standalone.
+- [ ] No fixed module order is prescribed here on purpose — unlike the Backend/Deployment items
+      above (which have real technical dependencies), module restyle order is the owner's call
+      session to session. **(manual, owner-driven)**
+
+---
+
 ## Suggested order
 
 1. ~~P0 fix (pagamentos migration)~~ — done. Also found and fixed, beyond the missing table:
@@ -725,10 +960,26 @@ historical Ton statements). Not started yet — paused with the rest of this sec
    not a technical decision.
 8. Payment Processor Integration decision (see section above) — **paused, open**, needs an
    answer from the owner before any code or outreach happens.
-9. Frontend Visual/UX Fix Pass (see section above) — **PDV pilot done** (all 5 bugs fixed,
-   verified live). Phase 2's 17 remaining screens **still open**, one per session, using the
-   pilot's checklist. Independent of item 8 (no shared files).
+9. Frontend Visual/UX Fix Pass (see section above) — **done.** PDV pilot (all 5 bugs fixed,
+   verified live) plus all 17 remaining screens now audited against the pilot's 4-point checklist
+   (`dashboard/index.html` clean; the other 16 had 13 real bugs found and fixed — dark-mode gaps,
+   2 genuine layout/functional bugs (`atualizacao.html`'s message classes never matched,
+   `financeiro.html` referencing CSS classes it never loads), dead legacy CSS, and one
+   project-wide fix via `color-scheme: dark` in `head.js`). Verified via `npm run lint` (0
+   warnings) + `npm test` (40/40) after every change; no live browser pass done this session (see
+   note below) — static-code verification only, same method used successfully for PDV/Dashboard.
+   Independent of item 8 (no shared files). **Not yet committed** — offer to prepare a commit once
+   confirmed.
 10. ~~Financial/Accounting Depth~~ — done: margem de contribuição, ponto de equilíbrio (a real
     unit-mismatch bug caught and fixed before shipping), giro de estoque, provisão de DAS, all
     with tests (5 new, 40/40 total passing) and wired into the real UI, verified live against
     seeded data — every number matched its formula exactly on screen, not just in tests.
+11. **Core + Plugins Architecture (see section above) — new, not started.** Concrete first step:
+    design the module manifest schema, then replace `main.js`'s 19 hardcoded IPC requires and
+    `navbar.js`'s hardcoded sidebar HTML with a manifest-driven loader — all still inside the
+    current single repo, verified against the existing 19-module behavior before any repo is
+    split out. Only after that regression passes does extracting modules into separate GitHub
+    repos (git submodules) become meaningful. The already-approved TailAdmin restyle resumes
+    module-by-module once a module has its own clean boundary, owner-guided session to session —
+    no fixed order. Independent of items 5/7/8 above (no shared files), but item 5 (clean-machine
+    installer test) should be re-run once packaging changes for submodule checkout, not just once.
