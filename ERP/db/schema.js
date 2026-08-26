@@ -435,6 +435,12 @@ async function iniciarBanco() {
 		atributos: "atributos TEXT",
 		estoque_minimo: "estoque_minimo INTEGER NOT NULL DEFAULT 5",
 	});
+	// Mesmo padrão soft-delete de Produtos/Clientes: inativar em vez de
+	// excluir quando a categoria já tem histórico, sem perder o vínculo com
+	// produtos que a referenciam.
+	await migrarColunas(conexao, "Categorias", {
+		ativo: "ativo INTEGER NOT NULL DEFAULT 1",
+	});
 	// ALTER TABLE do SQLite recusa colunas UNIQUE: adiciona simples e garante a
 	// unicidade por índice (mesma semântica, inclusive vários NULL permitidos).
 	await migrarColunas(conexao, "Clientes", {

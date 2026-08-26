@@ -994,8 +994,461 @@ happens directly in `frontend/`, not in a per-module repo.
         `detect.mjs` scan returned no findings on every changed file, and the login heading's
         computed font-size was checked live in the browser (24px, down from 30-36px) — the
         sidebar/Dashboard density itself still needs the owner's own eyes in the real app.
-- [ ] Next modules after the shell — owner-guided, no fixed order, same as before.
-      **(manual, owner-driven)**
+      - **Second iteration (2026-08-22), owner saw it live in Electron:** first pass still
+        "meio grande." Rather than guess again, built a temporary `DensitySlider` component
+        (a `--density` CSS var driving the stat cards' padding/gap/icon/font sizes via
+        `calc()`, a live 0.65–1.3× control right on the Dashboard) so the owner could dial in
+        the exact number instead of me iterating blind — matches `impeccable`'s `layout.md`
+        density-parameter pattern, self-hosted since the skill's own `live` mode needs
+        MCP-browser tooling this session doesn't have wired to the Electron window. Owner
+        settled on **0.90**; baked that multiplier into `DashboardStatCards.tsx`'s literal
+        values (12.6px padding, 25.2px icon box, 16.2px value size, etc.) and deleted the
+        slider component — it was explicitly temporary, not a shipped feature.
+      - **Header cleanup, same session:** owner flagged the header search bar as dead weight
+        (no command palette behind it) — removed, along with its now-orphaned `⌘K` listener.
+        Owner also flagged that the template's fake logged-in user ("Musharof Chowdhury",
+        `randomuser@pimjo.com`) and fake notification bell (8 hardcoded fake "Nganter App"
+        collaboration requests, a permanent fake unread dot) were still showing, since this
+        started life as a downloaded template. Fixed `UserDropdown.tsx` to show the *real*
+        session (`sessao.usuario.nome`/`isAdmin` from `AuthContext`) with a working "Sair"
+        that calls the real `logout()` IPC — previously a dead link to `/signin`. Deleted
+        `NotificationDropdown.tsx` entirely rather than leave an inert bell: there is no
+        notification backend in this ERP today, so a bell that can never show anything real
+        is the same class of misleading dead UI as the fake search bar, not a feature to
+        half-build. Flagged, not built: real notifications (estoque baixo, pagamento
+        vencendo) would be a legitimate future feature if the owner wants it — new scope,
+        not part of this shell pass.
+      - **Sidebar width, same request:** reduced from TailAdmin's factory 290px (expanded) /
+        90px (collapsed) to 260px / 76px, plus the `<aside>`'s own horizontal padding
+        20px→16px — updated consistently in both `AppSidebar.tsx` (the sidebar itself) and
+        `(admin)/layout.tsx` (the content area's matching margin, which has to move in
+        lockstep or the page content would overlap or leave a gap).
+      - Verified: `npm run typecheck` clean, `detect.mjs` clean on every touched file,
+        `npm run build` 22/22 pages. Owner confirmed live ("certo") — 2026-08-22.
+- [x] **Clientes — first CRUD module, built and live-verified.** Owner asked me to pick
+      the next screen; chose Clientes over Fornecedores/Categorias for the reasons the original
+      plan already gave (`magical-soaring-squirrel.md`): simplest pure CRUD, no nested-workspace
+      dependency (unlike Categorias, which lives inside the not-yet-ported Produtos workspace),
+      always-visible in the sidebar (`permissao: sempre`, no profile-gating edge case to test),
+      and used by enough other screens (PDV, Vendas) that its pattern pays off broadly. Read the
+      real vanilla implementation before building anything — `modules/clientes/clientes.js`
+      (create/edit form) and `modules/clientes/lista-clientes.js` (list) are two separate pages
+      — and found a real discrepancy worth noting rather than guessing: `Clientes` rows have
+      `academia`/`faixa` DB columns (leftover from this ERP's original jiu-jitsu-store client,
+      per the "ALLU is a generic product" direction already on record), but the current create
+      form has **no field for them** — they only survive as list-page filter checkboxes + CSV
+      export columns, populated only by legacy/imported data. Followed the existing product
+      direction: no academia/faixa anywhere in the new form (matches the current form exactly,
+      not an addition).
+      - `lib/erpApi.ts` — thin `window.api` wrapper mirroring `modules/core/banco.js`'s
+        namespace-per-domain shape, `clientes` namespace only for now (extended per module as
+        each one gets built, not all at once).
+      - `hooks/useClientes.ts`, `components/clientes/{ClientesTable,ClienteFormModal}.tsx`,
+        `lib/utils/mascaras.ts` (phone/CPF-CNPJ masks, ported byte-for-byte from
+        `clientes.js`'s own mask functions) — the `<XyzTable>`/`<XyzFormModal>`/`useXyz()`
+        pattern the original plan named as the goal of doing a simple CRUD module first.
+        Modal-based create/edit (not a separate page/route) — matches what the plan already
+        specified, not a new decision.
+      - **Real bug found and fixed while building this, not by inspection alone**: TailAdmin's
+        shared `Button.tsx` never forwarded a `type` prop to the underlying `<button>` — inside
+        a `<form>`, an unlabeled `<button>` defaults to `type="submit"`, so a "Cancelar" button
+        next to a "Salvar" button would have silently submitted the form instead of closing it.
+        Added the `type` prop (defaults to unset = browser's own submit-inside-form default,
+        exactly like before, for every *existing* usage) — a real, general-purpose fix that
+        benefits every future form built on this component, not something specific to Clientes.
+      - **Explicitly deferred, not dropped** (scope kept to the core CRUD pattern the plan asked
+        for): the `academia`/`faixa` list filters and CSV export from `lista-clientes.js`, the
+        trash/restore toggle (`removerCliente` is soft-delete via `ativo=0`, already wired, just
+        not exposed in the UI yet), the "Movimentações" modal (read-only sales history per
+        client), and "Preços especiais" (per-client SKU pricing — needs the Produtos module,
+        not yet ported, before it's meaningful to build).
+      - Verified: `npm run typecheck` clean, `detect.mjs` clean on every new/touched file,
+        `npm run build` (23/23 pages now). Owner tested live (list/search/create/edit/delete
+        against the real database) and confirmed working — 2026-08-22.
+- [x] **Fornecedores — second CRUD module, built and live-verified.** Same pattern as
+      Clientes, deliberately: same folder shape (`hooks/useFornecedores.ts`,
+      `components/fornecedores/{FornecedoresTable,FornecedorFormModal}.tsx`), same `erpApi.ts`
+      namespace convention (now two namespaces). Read `ipc/fornecedores.js` + `db/fornecedores.js`
+      before building, not assumed — found two real differences from Clientes worth preserving,
+      not smoothing over into false consistency:
+      - **Hard delete, not soft delete.** `removerFornecedor` actually `DELETE`s the row (guarded:
+        throws if the supplier has purchase orders) — Clientes' `ativo=0` trash/restore pattern
+        does not apply here. Matched the exact vanilla confirm copy (`Excluir "NOME"?`, not
+        Clientes' longer "enviar para a lixeira" wording) since the underlying action really is
+        different and deserves different copy, not a shared generic string.
+      - **No input masking.** Checked `modules/fornecedores/fornecedores.js` for a CNPJ/phone
+        mask like Clientes has — there isn't one; the current vanilla form takes CNPJ/telefone as
+        plain free text. Built the same way (plain `Input`, no mask) rather than "improving" it
+        with the mask utility already sitting in `lib/utils/mascaras.ts` from the Clientes
+        build — adding formatting behavior the current app doesn't have is a scope decision for
+        the owner to make, not something to slip in because the code happened to be handy.
+      - Permission: `exigirPermissao("fornecedores")` in the IPC layer already matches the
+        manifest's existing `permissao: {tipo:"modulo", nomeModulo:"fornecedores"}` — no manifest
+        change needed, the sidebar link already pointed at `/fornecedores` correctly.
+      - **Deferred, same reasoning as Clientes' "Preços especiais":** the "Produtos fornecidos"
+        nested sub-feature (SKU + custo combinado per supplier) needs the Produtos module, not
+        yet ported.
+      - Verified: `npm run typecheck` clean, `detect.mjs` clean, `npm run build` (24/24 pages).
+        Owner tested live ("parece funcionar corretamente") — 2026-08-24.
+- [x] **Search state persists across navigation — done, live-verified after one real fix.**
+      Owner noticed a real regression testing Clientes/Fornecedores: searching, then navigating
+      to another screen and back, loses the search text — Next.js unmounts the page component on
+      navigation (no more iframe-tabs keeping state alive like `dashboard/abas.js` did in the
+      vanilla app). Talked through the tradeoff explicitly rather than just picking one:
+      rebuilding the old iframe-tab system was rejected (it existed *because of* the
+      iframe-embedding complexity this migration is deliberately removing — `?embedded=1` and all
+      — not because it was the best solution; it would also have a real, scaling RAM cost from
+      keeping N screens' component trees + fetched data alive at once, a real concern the owner
+      raised for weaker store PCs — confirmed for the owner that the lightweight approach has
+      none of that cost). True multi-screen "work in two screens at once" tabs stays explicitly
+      out of scope — flagged as a real, bigger feature to plan deliberately if daily store
+      workflow actually needs it, not something to build as a side effect of this fix.
+      - **First attempt was wrong, caught by the owner's own retest, not by me**: persisted the
+        search text via `history.replaceState` into the current page's URL (`?busca=...`). Built
+        clean, typechecked clean — but didn't work, because the sidebar's `<Link>` always points
+        at the bare `/clientes` with no query string; only the browser's own *back button* would
+        have carried the saved URL forward. Clicking "Clientes" in the sidebar again (the actual
+        way the owner returns to a screen) is a fresh navigation that ignores it entirely.
+      - **Real fix: `sessionStorage`**, keyed per screen (`hooks/useBuscaPersistida.ts`), not the
+        URL. Survives *any* path back to the screen (sidebar click, back button, whatever),
+        clears itself when the app session actually ends — matching the "lasts while the app is
+        open" behavior the old tab system had, without literally rebuilding it.
+      - Verified: `npm run typecheck` clean, `detect.mjs` clean, `npm run build` clean on both
+        attempts — neither check could have caught the actual bug (it was a navigation-path
+        gap, not a type or build error), which is exactly why the owner's live retest mattered
+        and why this stayed unchecked until they confirmed the second version — 2026-08-22
+        ("perfeito").
+- [x] **Acessos — third module, admin-gated, built and live-verified (2026-08-24).** First
+      screen exercising the `permissao:{tipo:"admin"}` gate (Clientes was `sempre`, Fornecedores
+      was `{tipo:"modulo"}`). Read `ipc/usuarios.js` + `db/usuarios.js` first: unlike
+      Clientes/Fornecedores, `salvarUsuario(dados)` is a single endpoint for create *and* update
+      (branches internally on `dados.id`), and password hashing (scrypt, salted) stays 100%
+      server-side — the form only ever sends plaintext over IPC, never hashes client-side.
+      - `components/acessos/{UsuarioFormModal,UsuariosTable,LogAtividadesPanel}.tsx`,
+        `hooks/{useUsuarios,useLogAtividades}.ts`, `app/(admin)/acessos/page.tsx`. Also ported
+        the vanilla screen's second panel — **Log de atividades** (filterable audit log,
+        `banco.logAtividades`/`getLogAtividades`) — since it's a first-class part of this same
+        screen, not an optional side feature to defer.
+      - Owner tested live, then asked for a real hierarchy change: **three access tiers instead
+        of two.** Added **Dono** between Adm and Funcionário (renamed from "Vendedor" — same
+        underlying `perfil` DB value `"vendedor"`, only the label changed, no data migration).
+        Rules implemented, backend-enforced (not just hidden in the UI):
+        - `main.js#ehNivelAdmin` — one shared helper so `exigirSessao("admin")` accepts both
+          `"admin"` and `"dono"`; single change point instead of touching the ~35 call sites
+          across `ipc/*.js` individually. `exigirPermissao` got the same treatment.
+        - `db/usuarios.js#salvarUsuario(dados, ator)` — now takes the acting session (threaded
+          through from `ipc/usuarios.js` via `getSessao()`) to enforce, at the point a **new**
+          password is being set: (1) a dono can never set a password on an admin-role account,
+          full stop; (2) changing your *own* password (admin or dono) requires `dados.senhaAtual`,
+          verified for real against the stored hash via the existing `verificarHashSenha`.
+          Resetting *someone else's* password (the normal admin/dono workflow) still needs no
+          current-password confirmation — that would defeat the point of a reset.
+        - Both frontends updated in lockstep, not just the new one — the vanilla
+          `modules/acessos/{acessos.html,acessos.js}` still is the default (`ERP_SPIKE_FRONTEND`
+          is opt-in), and the backend rule change would have silently broken the *old* screen's
+          self-password-change flow (no `senhaAtual` field to send) if left untouched. Also
+          caught and fixed the same latent bug in both frontends: the perfil dropdown handler
+          collapsed anything that wasn't `"vendedor"` into `"admin"`, which would have silently
+          discarded a `"dono"` selection before it ever reached the backend.
+        - `db/banco-admin.js#verificarSenhaAdmin` — separately gates the Banco de Dados screen's
+          step-up re-auth (see below); hardcoded `perfil !== "admin"`, found and fixed while
+          building Banco, not part of the original ask.
+      - **Known gap, disclosed rather than silently closed either way**: the ask was specifically
+        about the *password* — a dono can still edit an admin's other fields through the form
+        (nome, ativo, and even the `perfil` dropdown itself). Not locked down; flagged to the
+        owner, not decided unilaterally.
+      - Verified: `npm run typecheck` clean, `npm run lint` clean (frontend), `npx eslint`
+        clean on the touched backend files, all 56 backend tests still passing after the
+        `db/usuarios.js`/`main.js` changes, `npm run build` (25/25 pages).
+- [x] **Sidebar: hamburger removed, pure hover mode — built (2026-08-24).** Owner's explicit
+      ask: no more click-to-pin expanded state, sidebar only widens on mouse hover, always
+      starts collapsed (76px). Removed `isExpanded`/`isMobileOpen`/`toggleSidebar`/
+      `toggleMobileSidebar` from `SidebarContext.tsx` entirely (not just unused — the only
+      thing that ever triggered them, the header's hamburger button, is gone too), which made
+      `Backdrop.tsx` (the mobile-drawer click-outside overlay) unreachable dead code — deleted.
+      `AppSidebar.tsx`/`(admin)/layout.tsx` now key everything off `isHovered` alone. Verified:
+      `npm run typecheck` clean, `npm run lint` clean.
+- [ ] **Banco de Dados — fourth module, built, not yet live-verified.** Chosen as the next
+      "simple, low-risk" pick after Acessos, same reasoning flagged earlier in this plan
+      (admin-gated, mostly read-only). Read `modules/banco/banco.js` + `db/banco-admin.js`
+      first: this screen has its own extra gate on top of the page-level admin permission — it
+      re-asks for the logged-in user's password (`verificarSenhaAdmin`) before showing any data,
+      a step-up re-auth for a sensitive raw-DB browser. Ported that gate as-is (a small
+      password form in `hooks/useBancoAdmin.ts` + `app/(admin)/banco/page.tsx`), not simplified
+      away.
+      - Table resumo grid (name + row count, clickable) + dropdown, both wired to the same
+        `consultarTabela(tabela, 200)` query; raw HTML table for the selected table's rows
+        (React's own text-content escaping replaces the vanilla `esc()` helper — same
+        protection, no manual escaping needed); "Exportar Banco (JSON)" button (writes a
+        timestamped file server-side into `<dbDir>/exports/`, not a browser download).
+      - Verified: `npm run typecheck` clean, `npm run lint` clean, `npx eslint` clean on
+        `db/banco-admin.js`, all 56 backend tests passing, `npm run build` (26/26 pages).
+        Owner hasn't confirmed live yet.
+- [x] **Fornecedores CNPJ/telefone: strict input masking — built (2026-08-24).** Owner tested
+      live, saved a supplier with `cnpj="1213185465487874"` (16 raw digits) and
+      `telefone="asdf"` (letters) — the free-text inputs flagged as a deliberate scope decision
+      when Fornecedores was first built (see that entry above) turned out to be a real usability
+      gap, not a fine-as-is choice, once the owner actually hit it. Wired in the same
+      `mascaraCpfCnpj`/`mascaraTelefone` utilities Clientes already uses
+      (`lib/utils/mascaras.ts`) — same punctuation-as-you-type behavior, same 14/11-digit caps.
+      `FornecedorFormModal.tsx` also runs existing records' `cnpj`/`telefone` through the mask
+      when the edit form opens, so a garbled legacy value (like the owner's own test row) self-
+      heals into the correct format the moment it's reopened, not just for values typed from now
+      on. `db/fornecedores.js` stores `cnpj`/`telefone` as plain passthrough columns (no format
+      constraint, confirmed by reading it) — masking is purely a frontend fix, no backend/schema
+      change needed. On submit: `cnpj` stripped to raw digits (matches how Clientes' `cpf_cnpj`
+      is already stored), `telefone` kept with its mask punctuation (also matching Clientes).
+      Verified: `npm run typecheck` clean, `npm run lint` clean.
+- [ ] **Importação — fifth module, built, not yet live-verified.** Smallest remaining screen
+      (109 lines in the vanilla `importacao.js`, checked against `financeiro.js`/`relatorios.js`/
+      `atualizacao.js` before picking it — genuinely the smallest, not a guess) — single file
+      upload, client-side JSON parse/validate, one IPC call, no list/table/CRUD.
+      - **Found and fixed a real manifest bug while reading the real gate before porting it**:
+        `modules/importacao/modulo.json` said `permissao:{tipo:"admin"}`, but the actual vanilla
+        page (`data-requer-modulo="estoque"` in `importacao.html`) and its IPC handler
+        (`exigirPermissao("estoque")` in `ipc/vendas.js`, not admin-only) both gate on the
+        `estoque` module permission — a funcionário granted "Estoque" access in Acessos should
+        see this screen, and couldn't have, in either frontend, since the manifest is the single
+        source both the vanilla sidebar and the new React sidebar read from. Fixed to
+        `permissao:{tipo:"modulo",nomeModulo:"estoque"}`. Also found `"ipc":["estoque.js"]` was
+        wrong — the handler this module actually calls (`importar-vendas-historicas`) lives in
+        `ipc/vendas.js`, not `ipc/estoque.js`; fixed the `ipc` array and added
+        `"dependeDe":["vendas"]` so the entitlements cascade (Dec 2026 switch-over) would
+        correctly disable this screen if "vendas" itself ever gets disabled — today this was
+        masked by the "vendas" module's own manifest already registering `vendas.js`
+        independently, so nothing was actually broken live, but the manifest itself was wrong.
+        Re-ran `test/modulos.test.js` after the fix (16/16 still passing).
+      - `app/(admin)/importacao/page.tsx` — no dedicated hook, plain component state (file
+        parse/validate/preview/import/result), matching the screen's actual one-shot-action
+        shape rather than building a hook for something that isn't a reusable data-fetch
+        pattern. New `erpApi.vendas` namespace (first entry in it — `importarHistorico`).
+      - Verified: `npm run typecheck` clean, `npm run lint` clean, `npm test` (56/56, backend
+        manifest change), `npm run build` (27/27 pages). Not yet verified live by the owner.
+- [ ] **Atualização — sixth module, built, not yet live-verified.** Second-smallest remaining
+      screen (158 lines). Only module so far needing a genuinely different data pattern: the
+      `autoUpdater` (electron-updater) talks to the renderer via **push**, not
+      request/response — `main.js` does `webContents.send("update-status", data)`,
+      `preload.js` redispatches it as a DOM `CustomEvent("update-status")` on `window`. Every
+      prior hook (`useClientes`, `useUsuarios`, etc.) only ever called `erpApi.X()` once and
+      set state from the resolved value; this one has to `window.addEventListener` on mount
+      and clean up on unmount instead, since the main process can push a new status at any
+      time (checking → available → download-progress × N → update-downloaded/error).
+      - `hooks/useAtualizacao.ts` — mirrors the vanilla state machine exactly (the same 6
+        `update-status` cases, the same "if downloading, ignore repeat 'checking' events"
+        guard, the same 3-way button branching: check → download → install depending on
+        internal state), not simplified or restructured, since a states-and-transitions port
+        is exactly where a "cleaner" rewrite risks silently dropping a real case. New
+        `erpApi.sistema` namespace (`checkForUpdates`/`downloadUpdate`/`quitAndInstall`/
+        `getAppVersion`) — the first 4 methods that map directly to preload-exposed names
+        instead of raw IPC channel strings, since that's what `checkForUpdates` etc. already
+        are in `preload.js` (no `-` channel-string round-trip needed).
+      - Page-level permission stays `permissao:{tipo:"sempre"}` (anyone can see update
+        status) but `download-update`/`quit-and-install` are still `exigirSessao("admin")`
+        at the IPC layer (now admin-or-dono, per the Acessos hierarchy work above) —
+        preserved as-is: a funcionário sees the same screen and button, and would get IPC's
+        real error if they ever clicked past "check" into "download," same as the vanilla app
+        already does. Not something to lock down further, not something to loosen either.
+      - Verified: `npm run typecheck` clean, `npm run lint` clean, `npm run build` in
+        progress (no backend files touched this time). Not yet verified live by the owner —
+        also can't be fully exercised without a real newer release published, so the "no
+        update available" / "checking" paths are what's realistically testable right now.
+- [ ] **Financeiro + Pagamentos — seventh module, built, not yet live-verified.** Owner asked
+      to run through the rest of the per-module restyle in one continuous pass
+      (`/execgoals`, "pode fazer tudo de uma vez"). 5-tab workspace (A Receber/A Pagar/Fluxo
+      de Caixa/Fechamentos de Caixa/Pagamentos), each tab fetching lazily on activation —
+      matching vanilla's own show/hide-and-fetch behavior, not eagerly loading all 5 tabs'
+      data upfront.
+      - **Real architectural difference from vanilla, deliberately not copied**: the
+        Pagamentos tab was an `<iframe src="../pagamentos/pagamentos.html?embedded=1">` in
+        the vanilla app — exactly the iframe-embedding pattern this whole migration exists to
+        remove. Ported as a real in-page tab (`PagamentosTab.tsx`) instead, and "Lançar Novo
+        Pagamento" (a full page navigation to `lancar-pagamento.html` in vanilla) became a
+        modal (`PagamentoFormModal.tsx`) — matching the `<XyzFormModal>` convention every
+        other module already uses, not a new decision made just for this screen.
+      - Ported the Pix QR generation flow inside that modal byte-faithful to
+        `lancar-pagamento.html`: shows the QR only when método is "pix", disables the button
+        while generating, "automático" vs. "manual" confirmation copy depending on whether a
+        real Pix provider is configured (`gerarQrCodePix`'s `automatico` flag), copy-to-
+        clipboard for the copia-e-cola code.
+      - Vanilla's dead "Excluir" button on the recebimentos list (its own handler just showed
+        `alert("Funcionalidade de exclusão não implementada neste release.")` — never wired to
+        a real IPC call) was **not ported** — matches the standing rule from the shell pass
+        (delete `NotificationDropdown.tsx` rather than ship dead UI): a button that can never
+        do anything real doesn't belong in the rebuild either.
+      - New shared `lib/utils/formatos.ts` (`formatarAtributos`) — ported once, reusable by
+        every future module that lists product variações (Compras, Entrada, Vendas, PDV),
+        not just this one. Extended `InputField.tsx` with an `onKeyDown` prop (needed for the
+        SKU-search "press Enter" pattern used throughout the vanilla app) — same
+        extend-the-shared-component-when-a-real-need-appears precedent as the earlier `type`/
+        `value` additions.
+      - Verified: `npm run typecheck` clean, `npm run lint` clean. Not yet verified live.
+- [ ] **Compras — eighth module, built, not yet live-verified.** SKU-search cart-builder
+      (mirrors Financeiro's own "add item, see running total, submit" shape) plus an order
+      list with expand-to-view-items, a partial-receiving flow (per-item quantity inputs,
+      pre-filled with what's still outstanding), cancel, and print.
+      - Reused `erpApi.produtos.buscarSKU` and two `erpApi.fornecedores` endpoints
+        (`cotacao`/`custoProduto`) that existed in the vanilla `window.erpBanco` surface but
+        hadn't been added to `erpApi.ts` yet (Fornecedores' own CRUD build only needed
+        `listar`/`salvar`/`atualizar`/`remover`) — extended the namespace rather than
+        duplicating logic.
+      - **Print, ported with a new reusable mechanism, not a one-off hack**: vanilla's
+        print-preview used a fixed-position overlay plus a `@media print { body* {
+        visibility:hidden } #printContent{visibility:visible} }` CSS trick scoped to that one
+        page. Added the same trick once, globally, in `globals.css` (`#print-area` id) — so
+        Vendas/PDV receipts can reuse it later instead of re-solving the same problem.
+      - Verified: `npm run typecheck` clean, `npm run lint` clean, `npm run build` (30/30
+        pages). Not yet verified live.
+- [ ] **Produtos — ninth module, the biggest single piece so far, built, not yet
+      live-verified.** Real architectural wrinkle handled, not glossed over: the manifest
+      types Produtos `tipo:"workspace-dashboard"` — vanilla opened it as a tab *inside* the
+      Dashboard page (`?workspace=gerenciamento-produtos`, `dashboard/abas.js`'s tab system),
+      the exact iframe-tab mechanism this whole migration exists to remove, and the new
+      Dashboard page never implemented that tab host to begin with. Routed it as a normal
+      standalone page instead — `AppSidebar.tsx#hrefDoModulo` no longer special-cases
+      `workspace-dashboard` (Produtos was the only module using that type), everything now
+      resolves to `/${id}` like every other module. Disclosed simplification, not an
+      oversight — same category as the earlier "no collapsible Administração sub-group" note.
+      - **Real tab structure, confirmed by reading `dashboard/index.html` directly, not
+        guessed from the module folder layout**: the visible workspace tab bar is *Cadastro de
+        Produto | Estoque | Precificação* — three tabs, not the four module folders under
+        `modules/produtos/` + `modules/entrada/` + `modules/precificacao/` might suggest.
+        "Categorias" isn't a tab at all — vanilla does a full page navigation away from the
+        workspace to reach it (`window.location.href = "categorias.html"`), so it's a
+        standalone top-level route here too (`/categorias`), not nested under `/produtos`.
+        "Lista de Estoque" is a *hidden* fourth tab inside the same workspace frame, revealed
+        only by a button inside the Estoque tab — ported as an in-page toggle inside
+        `/produtos/estoque` (`EstoqueListaView.tsx`) rather than a fifth route, matching the
+        "stays in the same workspace context" behavior it actually has in vanilla.
+      - **Found and fixed the same manifest bug class as Importação, twice more**:
+        `modules/entrada/modulo.json` and `modules/entrada/estoque-lista.modulo.json` both
+        said `permissao:{tipo:"modulo",nomeModulo:"produtos"}`, but both real vanilla pages
+        (`data-requer-modulo="estoque"`) and the real IPC gate (`exigirPermissao("estoque")`
+        in `ipc/estoque.js`, all 7 handlers) require the `estoque` permission specifically —
+        not `produtos`. Fixed both manifests to `nomeModulo:"estoque"`. Re-ran
+        `test/modulos.test.js` after each fix (16/16 passing) — three for three so far on
+        "the manifest disagrees with the real gate," worth double-checking on every remaining
+        module before assuming a `.json` file written early in this project is still accurate.
+      - **Cadastro de Produto** (`ProdutoFormPanel.tsx` + `CategoriaSelector.tsx` +
+        `ProdutoImagemPicker.tsx` + `ProdutosListModal.tsx`) — the hierarchical
+        category/attribute picker (search popover, chips, inline "create category" modal that
+        pre-selects the new one) ported as one reusable component, not inlined into the form.
+        Image picking calls `escolherImagemProduto` directly — that IPC handler opens a
+        **native OS file dialog** (`dialog.showOpenDialog` in the main process), so the React
+        side needed no file-input/drag-drop code of its own, just the same IPC call vanilla
+        already made. The products list modal (filters sidebar, lixeira toggle, CSV export)
+        ported as a modal opened from the form, matching vanilla's own modal-over-page shape
+        exactly (not simplified into a separate route).
+      - **Categorias** (`app/(admin)/categorias/page.tsx`) — hierarchical group/attribute
+        CRUD (max 2 levels), reusing the same `useCategorias()` hook the selector above uses.
+      - **Estoque** (`EstoqueReposicaoForm.tsx` + `EstoqueBaixaForm.tsx` +
+        `MovimentacoesList.tsx` + `EstoqueListaView.tsx`) — SKU-search reposição cart (same
+        shape as Compras' own cart builder), a separate "dar baixa" flow with the real
+        estoque-vs-reservado guard (`ajustarEstoqueManual`'s `abaixoDoReservado` warning,
+        ported verbatim — orçamentos abertos can reserve stock that a manual baixa shouldn't
+        silently promise away), and the movimentações history with its category filter.
+      - **Precificação** (`PrecificacaoTable.tsx`) — the most stateful screen ported so far:
+        per-cell debounced auto-save (400ms, matching vanilla's own timing) on custo/impostos/
+        margem/preço, live margem↔preço cross-calculation (editing one recalculates and saves
+        the other, exactly like vanilla), a custo-fixo-per-product toggle, mass-margin-apply
+        across a checkbox selection, and 3 admin-gated global config values (margem padrão,
+        custo fixo mensal, taxa de adquirente) sitting alongside per-product edits that only
+        need the `produtos` permission — preserved that exact split (checked
+        `ipc/precificacao.js`'s gates line by line), not flattened into one permission level.
+        **Real bug found while porting, not by inspection alone**: `EditableNumber`'s first
+        draft never resynced its internal typed-text state when the row's underlying value
+        changed from *outside* the cell (mass-apply, a full reload) — the cell would keep
+        showing what the user last typed instead of the new value. Added the missing
+        `useEffect` before it shipped, not after a bug report.
+      - **Real pre-existing bug found and disclosed, not fixed**: `listProdutosDetalhados`
+        (backs the Produtos list modal) never selects `estoque_minimo` from `Variacoes` — so
+        that modal's own "Estoque baixo" filter checkbox has never matched anything, in either
+        frontend (it always compares against `0`). `getEstoqueVisaoGeral` (the Estoque tab's
+        own list) selects the column correctly and isn't affected. Typed `estoque_minimo` as
+        optional on `VariacaoProduto` to match the real (incomplete) data shape rather than
+        quietly adding the column to the query — that's a real fix belonging to its own
+        change, not a side effect of a port.
+      - Verified: `npm run typecheck` clean, `npm run lint` clean, `npm test` (56/56, backend
+        manifest changes), `npm run build` (35/35 pages). **Live-verified by the owner
+        (2026-08-24)** — found 8 real issues in one pass, all fixed same session:
+        - **Modal close button covering content.** `components/ui/modal/index.tsx`'s X sat
+          fully *inside* the card's top-right corner (`right-3 top-3`) — on `ProdutosListModal`
+          (which uses `p-0` plus its own header row of controls reaching the same corner), the
+          38px circle visually overlapped the "Exportar CSV" button. Moved it to float *outside*
+          the corner (`-right-3 -top-3`, white background + border + shadow, floating-chip
+          look) — a shared-component fix, so it corrects every modal in the app at once, not
+          just this one.
+        - **Saved product never appeared in the list.** `ProdutosListModal` doesn't unmount
+          when closed (`Modal` just returns `null` internally — the parent component, and its
+          `useProdutos`/`useCategorias` hooks, stay mounted the whole time), so the very first
+          fetch on page load was the *only* fetch it ever did. Added a `useEffect` that
+          refetches whenever `isOpen` flips true — matches vanilla's own `abrirModal()`, which
+          always called `carregarProdutos()` on open; missed porting that part the first time.
+        - **Duplicate SKU fetch on mount.** `ProdutoFormPanel` had two separate `useEffect`s
+          both calling `buscarProximoSku()` for a new product — one via the
+          `[produtoEditando]` effect's `else` branch, a second standalone `useEffect(.... , [])`
+          left over from an earlier draft. Removed the redundant one. Flagged, not fully
+          resolved: owner also reported intermittent lost keystrokes typing into "Nome do
+          Produto" — this duplicate fetch was the only concrete lead found by re-reading the
+          component; couldn't reproduce the actual symptom without a live session, so it's
+          disclosed as a possible-not-confirmed fix, not claimed as solved.
+        - **Categorias/Estoque/Movimentações redesigned to match the pattern the owner
+          explicitly preferred** ("gostei muito mais do design da lista de produtos... faz a
+          lista padrão sendo um card aparecendo com fundo borrado"): every list view that used
+          to be permanently inline is now a button-triggered modal, reusing `ProdutosListModal`'s
+          exact visual language instead of three different ad-hoc layouts. New
+          `CategoriasListModal.tsx`; `EstoqueListaView.tsx` converted from a full-page state
+          swap into a `Modal`; `MovimentacoesList.tsx` converted from always-visible-inline into
+          a `Modal` opened by a new "Ver movimentações" button. Added a magnifying-glass button
+          next to the SKU field in both `EstoqueReposicaoForm` and `EstoqueBaixaForm` that opens
+          the stock-list modal pre-filtered to whatever SKU is currently typed — lets the owner
+          browse/confirm a SKU visually instead of typing blind, per the owner's own request.
+        - **New feature: Inativar for Categorias, real backend work, not just UI.** Owner's
+          own spec: a category can be inactivated only if no *active* product still uses it
+          (looser than the existing hard-delete guard, which blocks on *any* usage, active or
+          not). Added `Categorias.ativo` via `migrarColunas` (same additive-migration pattern
+          as every other soft-delete column in this schema), `inativarCategoria`/
+          `reativarCategoria` in `db/categorias.js` (checks `Produtos.ativo=1` specifically,
+          not just any historical link), new IPC handlers + preload exposure, and extended
+          `getListCategoriasWithUsage`/`categoriasWithUsage` with an `incluirInativas` param
+          (default false — every *selection* dropdown across the app, e.g. picking categories
+          on a new product, now implicitly hides inactivated ones; only the new management
+          modal's "Ver inativas" toggle passes `true`). Also added to
+          `modules/core/banco.js`'s `categorias` namespace for vanilla parity, even though no
+          vanilla UI calls it yet — keeps the shared IPC layer's dual-frontend convention
+          consistent. Re-ran `npm test` (56/56) and `eslint` on every touched backend file
+          after the schema change.
+        - **New pattern: password re-confirmation before delete.** Owner's explicit ask —
+          "excluir qualquer item deve pedir senha." Scoped to the two delete actions actually
+          in front of the owner in this feedback (Produtos' excluir/excluir-definitivo,
+          Categorias' excluir) rather than silently retrofitting it across every module already
+          shipped — a much bigger, separate change that deserves its own explicit go-ahead, not
+          a side effect of this bug-fix pass. New reusable `ConfirmarSenhaModal.tsx`, reusing
+          the same `verificarSenhaAdmin` endpoint the Banco de Dados screen's step-up gate
+          already uses — real consequence, disclosed: since that endpoint itself is
+          `exigirSessao("admin")`, deleting a product or category now effectively requires
+          admin/dono, even though the base action was already reachable by any funcionário with
+          the `produtos` permission. Inativar (reversible) deliberately was *not* put behind
+          this gate — only the irreversible actions were, matching the security principle
+          (irreversible → extra confirmation, reversible → the existing `confirm()` is enough).
+        - Verified: `npm run typecheck` clean, `npm run lint` clean, `npm test` (56/56),
+          `npx eslint` clean on touched backend files, `npm run build` (35/35). Owner's second
+          live pass found two more real gaps, fixed same session:
+          - **`CategoriasListModal` didn't actually match `ProdutosListModal`'s layout** — the
+            owner's first ask ("mesmo formato") was only followed at the surface level (Modal
+            wrapper, blurred backdrop, floating X) but not structurally: Produtos' modal has a
+            two-column body (a left `<aside>` with checkbox filter groups + the table on the
+            right), Categorias' was a single-column table with filters jammed into the header
+            row instead. Rebuilt to the same two-column skeleton — `aside` with "Tipo"
+            (Grupo/Atributo checkboxes) and "Uso" (com/sem produtos vinculados checkboxes) +
+            "Limpar filtros", mirroring Produtos' Categoria/Estoque filter groups exactly, not
+            just visually similar.
+          - **Header padding**: the row holding the theme toggle + user dropdown
+            (`AppHeader.tsx`) had `py-4` (16px) vertical padding even at desktop width (no
+            `lg:py-*` override existed to shrink it) — reduced to `py-[14.4px]`, exactly 90% of
+            the original, per the owner's own ask. Icon sizes (`ThemeToggleButton`, the avatar
+            in `UserDropdown`) untouched — only the padding around them shrank.
+          - Verified: `npm run typecheck` clean, `npm run lint` clean, `npm run build` in
+            progress. Not yet re-verified live.
 
 ---
 

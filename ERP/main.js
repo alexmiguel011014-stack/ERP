@@ -72,18 +72,27 @@ function logErro(texto) {
 	}
 }
 
+// "dono" tem o mesmo nível de acesso de "admin" em todo o app (só existem
+// regras específicas a mais restringindo dono nas rotas de usuários — ver
+// db/usuarios.js). Por isso o gate de "admin" aqui aceita os dois perfis,
+// num único ponto, em vez de espalhar `perfil === "admin" || perfil === "dono"`
+// pelos ~15 arquivos de ipc/*.js que chamam exigirSessao("admin").
+function ehNivelAdmin(perfil) {
+	return perfil === "admin" || perfil === "dono";
+}
+
 function exigirSessao(perfil) {
 	if (!sessao) throw new Error("Sessão encerrada. Faça login novamente.");
-	if (perfil && sessao.perfil !== perfil)
+	if (perfil === "admin" && !ehNivelAdmin(sessao.perfil))
 		throw new Error("Acesso permitido somente ao administrador.");
 }
 
 // Módulos com toggle liberável para o perfil vendedor (ver PERMISSOES_MODULOS
-// na tela de Acessos). Admin sempre passa, independente do que estiver salvo
-// em sessao.permissoes — o campo só existe para restringir o vendedor.
+// na tela de Acessos). Admin/dono sempre passam, independente do que estiver
+// salvo em sessao.permissoes — o campo só existe para restringir o vendedor.
 function exigirPermissao(modulo) {
 	if (!sessao) throw new Error("Sessão encerrada. Faça login novamente.");
-	if (sessao.perfil === "admin") return;
+	if (ehNivelAdmin(sessao.perfil)) return;
 	if (!sessao.permissoes || sessao.permissoes[modulo] !== true) {
 		throw new Error(
 			"Seu usuário não tem acesso a este módulo. Solicite liberação ao administrador.",

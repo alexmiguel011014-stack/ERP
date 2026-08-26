@@ -17,7 +17,7 @@ type Usuario = {
 
 type Sessao = {
 	autenticado: boolean;
-	perfil?: "admin" | "vendedor";
+	perfil?: "admin" | "dono" | "vendedor";
 	permissoes?: Record<string, boolean>;
 	usuario?: Usuario;
 };
@@ -43,14 +43,17 @@ export const useAuth = () => {
 	return context;
 };
 
-// Mesma lógica de modules/core/navbar.js (isAdmin || permissoes[modulo] === true)
-// — mantida em paralelo aqui de propósito: o enforcement real continua 100% no
-// IPC (ver docs do plano de migração), isso aqui é só o mesmo espelho
-// cosmético que a sidebar vanilla já faz.
+// "dono" tem o mesmo nível de acesso de "admin" em todo o app — mesmo par de
+// perfis que main.js#ehNivelAdmin aceita pro gate real no IPC. Isso aqui é só
+// o espelho cosmético (enforcement de verdade continua 100% no IPC).
+function ehNivelAdmin(sessao: Sessao) {
+	return sessao.perfil === "admin" || sessao.perfil === "dono";
+}
+
 function calcularPodeModulo(sessao: Sessao) {
-	const isAdmin = sessao.perfil === "admin";
+	const nivelAdmin = ehNivelAdmin(sessao);
 	const permissoes = sessao.permissoes || {};
-	return (modulo: string) => isAdmin || permissoes[modulo] === true;
+	return (modulo: string) => nivelAdmin || permissoes[modulo] === true;
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -96,7 +99,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 		setSessao(SESSAO_DESLOGADA);
 	}, []);
 
-	const isAdmin = sessao.perfil === "admin";
+	const isAdmin = ehNivelAdmin(sessao);
 
 	return (
 		<AuthContext.Provider

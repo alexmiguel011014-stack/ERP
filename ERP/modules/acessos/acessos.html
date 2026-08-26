@@ -24,22 +24,30 @@
             <label for="login">Login *</label>
             <input type="text" id="login" required placeholder="apenas letras, números, . _ -" />
           </div>
-          <div class="form-group">
+          <div class="form-group" id="grupoSenha">
             <label for="senha">Senha *</label>
             <input type="password" id="senha" autocomplete="new-password" placeholder="mínimo 4 caracteres" />
             <small id="senhaHint" style="color: #64748B;">Deixe em branco para manter a senha atual</small>
           </div>
-          <div class="form-group">
+          <div class="form-group" id="grupoSenhaConfirmar">
             <label for="senhaConfirmar">Confirmar senha</label>
             <input type="password" id="senhaConfirmar" autocomplete="new-password" placeholder="repita a senha" />
+          </div>
+          <div class="form-group" id="grupoSenhaAtual" style="display:none;">
+            <label for="senhaAtual">Senha atual</label>
+            <input type="password" id="senhaAtual" autocomplete="current-password" placeholder="necessária pra trocar sua própria senha" />
+          </div>
+          <div class="form-group" id="avisoSenhaBloqueada" style="display:none; color:#64748b; font-size:0.8rem;">
+            Você não pode alterar a senha do administrador.
           </div>
           <div class="form-group">
             <label for="perfil">Perfil de acesso</label>
             <select id="perfil">
-              <option value="admin">Admin</option>
-              <option value="vendedor">Vendedor</option>
+              <option value="admin">Adm</option>
+              <option value="dono">Dono</option>
+              <option value="vendedor">Funcionário</option>
             </select>
-            <small style="color: #64748b;">Admin acessa tudo. Vendedor acessa só Frente de Caixa (PDV) e Clientes.</small>
+            <small style="color: #64748b;">Adm e Dono acessam tudo. Funcionário acessa só Frente de Caixa (PDV) e Clientes, mais os módulos liberados abaixo.</small>
           </div>
           <div class="form-group" id="grupoComissao" style="display:none;">
             <label for="comissao">Comissão sobre vendas (%)</label>

@@ -5,7 +5,7 @@
 	"tipo": "pagina",
 	"entrada": "estoque-lista.html",
 	"ipc": ["estoque.js"],
-	"permissao": { "tipo": "modulo", "nomeModulo": "produtos" },
+	"permissao": { "tipo": "modulo", "nomeModulo": "estoque" },
 	"navbar": null,
 	"paiWorkspace": "entrada",
 	"dependeDe": ["entrada"]

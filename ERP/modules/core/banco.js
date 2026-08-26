@@ -92,8 +92,8 @@
 			listar: function () {
 				return invocar("getCategorias");
 			},
-			comUso: function () {
-				return invocar("categoriasWithUsage");
+			comUso: function (incluirInativas) {
+				return invocar("categoriasWithUsage", incluirInativas);
 			},
 			proximoCodigo: function () {
 				return invocar("proximoCodigoCategoria");
@@ -106,6 +106,12 @@
 			},
 			remover: function (id) {
 				return invocar("removerCategoria", id);
+			},
+			inativar: function (id) {
+				return invocar("inativarCategoria", id);
+			},
+			reativar: function (id) {
+				return invocar("reativarCategoria", id);
 			},
 		},
 

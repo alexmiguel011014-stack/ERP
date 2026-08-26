@@ -2,7 +2,7 @@ export {};
 
 type SessaoAuth = {
 	autenticado: boolean;
-	perfil?: "admin" | "vendedor";
+	perfil?: "admin" | "dono" | "vendedor";
 	permissoes?: Record<string, boolean>;
 	usuario?: { id: number; login: string; nome: string };
 };

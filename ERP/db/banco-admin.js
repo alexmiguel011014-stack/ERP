@@ -103,7 +103,14 @@ async function verificarSenhaAdmin(login, senha) {
 		"SELECT id, senha_hash, perfil, ativo FROM Usuarios WHERE login = ? COLLATE NOCASE",
 		[l],
 	);
-	if (!usr || usr.perfil !== "admin" || Number(usr.ativo) !== 1) return false;
+	// "dono" tem o mesmo nível de acesso de "admin" (ver main.js#ehNivelAdmin)
+	// — sem esse OR, um dono nunca passaria nesse gate extra de reautenticação.
+	if (
+		!usr ||
+		(usr.perfil !== "admin" && usr.perfil !== "dono") ||
+		Number(usr.ativo) !== 1
+	)
+		return false;
 
 	const { ok, precisaMigrar } = verificarHashSenha(l, s, usr.senha_hash);
 	if (ok && precisaMigrar) {

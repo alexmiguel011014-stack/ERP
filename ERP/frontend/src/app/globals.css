@@ -222,6 +222,26 @@
   @apply text-gray-500 group-hover:text-gray-700 dark:text-gray-400;
 }
 
+/* Impressão de comprovantes/pedidos (Compras, Vendas, PDV...) — mesmo truque
+   do vanilla modules/compras/compras.html: esconde tudo menos o conteúdo
+   marcado como #print-area, reutilizável em qualquer tela nova que precise
+   imprimir algo sem levar sidebar/header junto. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #print-area,
+  #print-area * {
+    visibility: visible;
+  }
+  #print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+}
+
 @utility menu-item-icon-active {
   @apply text-brand-500 dark:text-brand-400;
 }

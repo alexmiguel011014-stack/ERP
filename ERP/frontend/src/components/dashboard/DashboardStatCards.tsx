@@ -51,19 +51,32 @@ function CardBase({
 		warning: "bg-warning-500 text-white",
 	};
 	return (
-		<div className="rounded-xl border border-gray-200 bg-white p-3.5 dark:border-gray-800 dark:bg-white/[0.03]">
-			<div className="flex items-center gap-2">
+		<div
+			className="rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
+			style={{ padding: "12.6px" }}
+		>
+			<div className="flex items-center" style={{ gap: "7.2px" }}>
 				<div
-					className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${fundoIcone[corIcone]}`}
+					className={`flex shrink-0 items-center justify-center rounded-lg ${fundoIcone[corIcone]}`}
+					style={{ height: "25.2px", width: "25.2px" }}
 				>
 					{icone}
 				</div>
-				<span className="truncate text-xs text-gray-500 dark:text-gray-400">
+				<span
+					className="truncate text-gray-500 dark:text-gray-400"
+					style={{ fontSize: "10.8px" }}
+				>
 					{label}
 				</span>
 			</div>
-			<div className="mt-2 flex items-end justify-between gap-2">
-				<h4 className="text-lg font-semibold text-gray-800 dark:text-white/90">
+			<div
+				className="flex items-end justify-between gap-2"
+				style={{ marginTop: "7.2px" }}
+			>
+				<h4
+					className="font-semibold text-gray-800 dark:text-white/90"
+					style={{ fontSize: "16.2px" }}
+				>
 					{valor}
 				</h4>
 				{variacao !== undefined && <Variacao valor={variacao} />}
@@ -78,7 +91,7 @@ export default function DashboardStatCards({
 	stats: DashboardStats;
 }) {
 	return (
-		<div className="grid grid-cols-2 gap-3">
+		<div className="grid grid-cols-2" style={{ gap: "10.8px" }}>
 			<CardBase
 				icone={<BoxIcon className="size-4" />}
 				label="Vendas hoje"

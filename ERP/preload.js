@@ -53,8 +53,11 @@ contextBridge.exposeInMainWorld("api", {
 	getItensVenda: (vendaId) => ipcRenderer.invoke("get-itens-venda", vendaId),
 	getEstoqueNegativo: () => ipcRenderer.invoke("get-estoque-negativo"),
 	getCategorias: () => ipcRenderer.invoke("get-categorias"),
-	categoriasWithUsage: () => ipcRenderer.invoke("categorias-with-usage"),
+	categoriasWithUsage: (incluirInativas) =>
+		ipcRenderer.invoke("categorias-with-usage", incluirInativas),
 	removerCategoria: (id) => ipcRenderer.invoke("remover-categoria", id),
+	inativarCategoria: (id) => ipcRenderer.invoke("inativar-categoria", id),
+	reativarCategoria: (id) => ipcRenderer.invoke("reativar-categoria", id),
 	getPricingData: () => ipcRenderer.invoke("get-pricing-data"),
 	getGlobalMargin: () => ipcRenderer.invoke("get-global-margin"),
 	saveGlobalMargin: (valor) => ipcRenderer.invoke("save-global-margin", valor),

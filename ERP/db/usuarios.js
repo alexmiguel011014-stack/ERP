@@ -250,7 +250,10 @@ async function listarUsuarios() {
 	);
 }
 
-async function salvarUsuario(dados) {
+// `ator` é a sessão de quem está fazendo a chamada (getSessao() do main.js),
+// usado só pras regras de hierarquia abaixo — nunca pra decidir se a chamada
+// é permitida no geral (isso já é o exigirSessao("admin") do IPC).
+async function salvarUsuario(dados, ator) {
 	const l = String(dados.login || "")
 		.trim()
 		.toLowerCase();
@@ -261,7 +264,9 @@ async function salvarUsuario(dados) {
 		);
 	}
 	if (!nome) throw new Error("Informe o nome do usuário.");
-	const perfil = dados.perfil === "vendedor" ? "vendedor" : "admin";
+	const perfil = ["dono", "vendedor"].includes(dados.perfil)
+		? dados.perfil
+		: "admin";
 	const comissao = Math.max(0, Number(dados.comissao_percentual) || 0);
 	const permissoes = JSON.stringify(
 		dados.permissoes && typeof dados.permissoes === "object"
@@ -295,6 +300,38 @@ async function salvarUsuario(dados) {
 	} else {
 		if (!/^[0-9]+$/.test(String(dados.id)))
 			throw new Error("Usuário inválido.");
+		const alvo = await getAsync(
+			"SELECT id, login, perfil, senha_hash FROM Usuarios WHERE id = ?",
+			[Number(dados.id)],
+		);
+		if (!alvo) throw new Error("Usuário não encontrado.");
+
+		if (senha) {
+			if (senha.length < 4)
+				throw new Error("A senha deve ter pelo menos 4 caracteres.");
+
+			// Hierarquia: dono nunca altera a senha do admin. E trocar a própria
+			// senha (admin ou dono) exige confirmar a senha atual — evita que uma
+			// sessão aberta sozinha na loja vire troca de senha sem saber a antiga.
+			const editandoAdmin = alvo.perfil === "admin";
+			const editandoSiMesmo = !!ator && Number(ator.id) === Number(alvo.id);
+			if (editandoAdmin && ator && ator.perfil === "dono") {
+				throw new Error("Você não pode alterar a senha do administrador.");
+			}
+			if (
+				editandoSiMesmo &&
+				ator &&
+				(ator.perfil === "admin" || ator.perfil === "dono")
+			) {
+				const verificacao = verificarHashSenha(
+					alvo.login,
+					String(dados.senhaAtual || ""),
+					alvo.senha_hash,
+				);
+				if (!verificacao.ok) throw new Error("Senha atual incorreta.");
+			}
+		}
+
 		await runAsync(
 			"UPDATE Usuarios SET nome = ?, ativo = ?, perfil = ?, comissao_percentual = ?, permissoes = ? WHERE id = ?",
 			[
@@ -307,8 +344,6 @@ async function salvarUsuario(dados) {
 			],
 		);
 		if (senha) {
-			if (senha.length < 4)
-				throw new Error("A senha deve ter pelo menos 4 caracteres.");
 			await runAsync("UPDATE Usuarios SET senha_hash = ? WHERE id = ?", [
 				hashSenhaUsuario(senha),
 				Number(dados.id),

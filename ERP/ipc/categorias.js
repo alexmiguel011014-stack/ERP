@@ -3,6 +3,8 @@ const {
 	getCategorias,
 	getListCategoriasWithUsage,
 	removerCategoria,
+	inativarCategoria,
+	reativarCategoria,
 	salvarCategoria,
 	salvarCategoriaComSubcategorias,
 } = require("../database");
@@ -28,10 +30,10 @@ function registrar(ipcMain, deps) {
 		}
 	});
 
-	ipcMain.handle("categorias-with-usage", async () => {
+	ipcMain.handle("categorias-with-usage", async (event, incluirInativas) => {
 		try {
 			exigirPermissao("produtos");
-			return await getListCategoriasWithUsage();
+			return await getListCategoriasWithUsage(!!incluirInativas);
 		} catch (erro) {
 			throw erro.message;
 		}
@@ -41,6 +43,30 @@ function registrar(ipcMain, deps) {
 		try {
 			exigirPermissao("produtos");
 			const resultado = await removerCategoria(id);
+			const mainWindow = getMainWindow();
+			if (mainWindow) mainWindow.webContents.send("categorias-changed");
+			return resultado;
+		} catch (erro) {
+			throw erro.message;
+		}
+	});
+
+	ipcMain.handle("inativar-categoria", async (event, id) => {
+		try {
+			exigirPermissao("produtos");
+			const resultado = await inativarCategoria(id);
+			const mainWindow = getMainWindow();
+			if (mainWindow) mainWindow.webContents.send("categorias-changed");
+			return resultado;
+		} catch (erro) {
+			throw erro.message;
+		}
+	});
+
+	ipcMain.handle("reativar-categoria", async (event, id) => {
+		try {
+			exigirPermissao("produtos");
+			const resultado = await reativarCategoria(id);
 			const mainWindow = getMainWindow();
 			if (mainWindow) mainWindow.webContents.send("categorias-changed");
 			return resultado;

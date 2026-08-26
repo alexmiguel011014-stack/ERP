@@ -5,7 +5,7 @@ const {
 } = require("../database");
 
 function registrar(ipcMain, deps) {
-	const { exigirSessao, log } = deps;
+	const { exigirSessao, log, getSessao } = deps;
 
 	ipcMain.handle("listar-usuarios", async () => {
 		try {
@@ -19,7 +19,7 @@ function registrar(ipcMain, deps) {
 	ipcMain.handle("salvar-usuario", async (event, dados) => {
 		try {
 			exigirSessao("admin");
-			const resultado = await salvarUsuario(dados);
+			const resultado = await salvarUsuario(dados, getSessao());
 			log(
 				dados.id ? "editar-usuario" : "criar-usuario",
 				"Usuarios",

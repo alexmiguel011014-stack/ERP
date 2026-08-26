@@ -71,6 +71,8 @@ module.exports = {
 	getCategorias: categorias.getCategorias,
 	getListCategoriasWithUsage: categorias.getListCategoriasWithUsage,
 	removerCategoria: categorias.removerCategoria,
+	inativarCategoria: categorias.inativarCategoria,
+	reativarCategoria: categorias.reativarCategoria,
 	getPricingData: precificacao.getPricingData,
 	getGlobalMargin: precificacao.getGlobalMargin,
 	saveGlobalMargin: precificacao.saveGlobalMargin,

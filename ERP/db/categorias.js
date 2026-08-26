@@ -16,7 +16,7 @@ async function getProximoCodigoCategoria() {
 	return "CAT" + String(n).padStart(4, "0");
 }
 
-async function getListCategoriasWithUsage() {
+async function getListCategoriasWithUsage(incluirInativas) {
 	// Garante a tabela de junção mesmo em bancos abertos antes da migração
 	// (p.ex. app em execução antes da atualização que introduziu o checklist).
 	await runAsync(
@@ -30,13 +30,17 @@ async function getListCategoriasWithUsage() {
 	);
 
 	const linhas = await allAsync(
-		`SELECT c.id, c.nome, c.categoria_pai_id,
+		`SELECT c.id, c.nome, c.categoria_pai_id, c.ativo,
             p.nome AS categoria_pai_nome,
             (SELECT COUNT(*) FROM ProdutoCategorias pc WHERE pc.categoria_id = c.id) AS uso_checklist,
-            (SELECT COUNT(*) FROM Produtos pr WHERE pr.categoria_id = c.id OR pr.subcategoria_id = c.id) AS uso_legado
+            (SELECT COUNT(*) FROM Produtos pr WHERE pr.categoria_id = c.id OR pr.subcategoria_id = c.id) AS uso_legado,
+            (SELECT COUNT(*) FROM ProdutoCategorias pc JOIN Produtos pr2 ON pr2.id = pc.produto_id WHERE pc.categoria_id = c.id AND pr2.ativo = 1) AS uso_ativo_checklist,
+            (SELECT COUNT(*) FROM Produtos pr3 WHERE (pr3.categoria_id = c.id OR pr3.subcategoria_id = c.id) AND pr3.ativo = 1) AS uso_ativo_legado
      FROM Categorias c
      LEFT JOIN Categorias p ON p.id = c.categoria_pai_id
+     WHERE ? OR c.ativo = 1
      ORDER BY (CASE WHEN c.categoria_pai_id IS NULL THEN 0 ELSE 1 END), c.nome COLLATE NOCASE`,
+		[incluirInativas ? 1 : 0],
 	);
 
 	return linhas.map((l) => ({
@@ -46,8 +50,56 @@ async function getListCategoriasWithUsage() {
 		categoria_pai_id: l.categoria_pai_id,
 		categoria_pai_nome: l.categoria_pai_nome,
 		tipo: l.categoria_pai_id ? "subcategoria" : "categoria",
+		ativo: Number(l.ativo) !== 0,
 		uso_count: Number(l.uso_checklist || 0) + Number(l.uso_legado || 0),
+		uso_ativo_count:
+			Number(l.uso_ativo_checklist || 0) + Number(l.uso_ativo_legado || 0),
 	}));
+}
+
+// Diferente de removerCategoria (bloqueia com QUALQUER vínculo, mesmo
+// histórico/inativo): inativar só bloqueia se existir produto ATIVO usando a
+// categoria — pedido explícito do dono, pensado pra permitir aposentar uma
+// categoria sem quebrar o histórico de produtos já descontinuados que a usam.
+async function inativarCategoria(id) {
+	const alvo = await getAsync(
+		"SELECT id, categoria_pai_id FROM Categorias WHERE id = ?",
+		[id],
+	);
+	if (!alvo) throw new Error("Categoria não encontrada.");
+
+	const vinculadoAtivoChecklist = await getAsync(
+		"SELECT COUNT(*) AS n FROM ProdutoCategorias pc JOIN Produtos p ON p.id = pc.produto_id WHERE pc.categoria_id = ? AND p.ativo = 1",
+		[id],
+	);
+	const vinculadoAtivoLegado = await getAsync(
+		"SELECT COUNT(*) AS n FROM Produtos WHERE (categoria_id = ? OR subcategoria_id = ?) AND ativo = 1",
+		[id, id],
+	);
+	if (
+		(vinculadoAtivoChecklist && vinculadoAtivoChecklist.n > 0) ||
+		(vinculadoAtivoLegado && vinculadoAtivoLegado.n > 0)
+	) {
+		throw new Error(
+			"Categoria vinculada a produto(s) ativo(s). Inative ou reclassifique os produtos antes.",
+		);
+	}
+
+	const result = await runAsync(
+		"UPDATE Categorias SET ativo = 0 WHERE id = ?",
+		[id],
+	);
+	if (result.changes === 0) throw new Error("Categoria não encontrada.");
+	return { success: true };
+}
+
+async function reativarCategoria(id) {
+	const result = await runAsync(
+		"UPDATE Categorias SET ativo = 1 WHERE id = ?",
+		[id],
+	);
+	if (result.changes === 0) throw new Error("Categoria não encontrada.");
+	return { success: true };
 }
 
 async function removerCategoria(id) {
@@ -264,6 +316,8 @@ module.exports = {
 	getCategorias,
 	getListCategoriasWithUsage,
 	removerCategoria,
+	inativarCategoria,
+	reativarCategoria,
 	salvarCategoria,
 	salvarCategoriaComSubcategorias,
 	getProximoCodigoCategoria,

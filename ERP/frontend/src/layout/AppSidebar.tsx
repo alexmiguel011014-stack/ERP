@@ -47,15 +47,16 @@ function IconeModulo({ svg }: { svg: string }) {
 	);
 }
 
+// "workspace-dashboard" (só Produtos usa esse tipo) abria como aba dentro do
+// Dashboard no app vanilla — o mesmo mecanismo de iframe-tab que essa
+// migração existe pra remover (ver dashboard/abas.js). Rota normal como
+// qualquer outro módulo — simplificação deliberada, não descuido.
 function hrefDoModulo(m: ManifestoModulo): string {
-	if (m.tipo === "workspace-dashboard") {
-		return `/?workspace=${m.navbar?.workspaceParam ?? m.id}`;
-	}
 	return `/${m.id}`;
 }
 
 const AppSidebar: React.FC = () => {
-	const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
+	const { isHovered, setIsHovered } = useSidebar();
 	const pathname = usePathname();
 	const { sessao, isAdmin, podeModulo } = useAuth();
 	const [modulos, setModulos] = useState<ManifestoModulo[]>([]);
@@ -86,29 +87,22 @@ const AppSidebar: React.FC = () => {
 
 	return (
 		<aside
-			className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-5 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-screen transition-all duration-300 ease-in-out z-50 border-r border-gray-200
-        ${
-					isExpanded || isMobileOpen
-						? "w-[290px]"
-						: isHovered
-							? "w-[290px]"
-							: "w-[90px]"
-				}
-        ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}
-        lg:translate-x-0`}
-			onMouseEnter={() => !isExpanded && setIsHovered(true)}
+			className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-4 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-screen transition-all duration-300 ease-in-out z-50 border-r border-gray-200 translate-x-0 ${
+				isHovered ? "w-[260px]" : "w-[76px]"
+			}`}
+			onMouseEnter={() => setIsHovered(true)}
 			onMouseLeave={() => setIsHovered(false)}
 		>
 			<div
 				className={`py-5 flex items-center gap-3 ${
-					!isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
+					isHovered ? "justify-start" : "lg:justify-center"
 				}`}
 			>
 				<Link href="/" className="flex items-center gap-2.5">
 					<span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-xs font-extrabold text-white">
 						AE
 					</span>
-					{(isExpanded || isHovered || isMobileOpen) && (
+					{isHovered && (
 						<span className="text-base font-bold text-gray-800 dark:text-white/90">
 							ALLU ERP
 						</span>
@@ -122,16 +116,10 @@ const AppSidebar: React.FC = () => {
 							<div key={secao.id}>
 								<h2
 									className={`mb-2 text-xs uppercase flex leading-[20px] text-gray-400 ${
-										!isExpanded && !isHovered
-											? "lg:justify-center"
-											: "justify-start"
+										isHovered ? "justify-start" : "lg:justify-center"
 									}`}
 								>
-									{isExpanded || isHovered || isMobileOpen ? (
-										secao.label
-									) : (
-										<HorizontaLDots />
-									)}
+									{isHovered ? secao.label : <HorizontaLDots />}
 								</h2>
 								<ul className="flex flex-col gap-1">
 									{secao.itens.map((m) => {
@@ -156,7 +144,7 @@ const AppSidebar: React.FC = () => {
 													>
 														<IconeModulo svg={m.navbar!.icone} />
 													</span>
-													{(isExpanded || isHovered || isMobileOpen) && (
+													{isHovered && (
 														<span className="menu-item-text">
 															{m.navbar!.label}
 														</span>
@@ -170,9 +158,7 @@ const AppSidebar: React.FC = () => {
 						))}
 						{sessao.autenticado && secoes.length === 0 && (
 							<p className="px-1 text-xs text-gray-400">
-								{isExpanded || isHovered || isMobileOpen
-									? "Nenhum módulo disponível."
-									: ""}
+								{isHovered ? "Nenhum módulo disponível." : ""}
 							</p>
 						)}
 					</div>

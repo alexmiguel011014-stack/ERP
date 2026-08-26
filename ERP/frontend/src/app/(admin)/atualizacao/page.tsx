@@ -1,0 +1,83 @@
+"use client";
+import Button from "@/components/ui/button/Button";
+import { useAtualizacao } from "@/hooks/useAtualizacao";
+
+const COR_STATUS: Record<string, string> = {
+	normal: "text-gray-500 dark:text-gray-400",
+	vermelho: "font-semibold text-error-600 dark:text-error-400",
+	verde: "font-semibold text-success-600 dark:text-success-400",
+};
+
+const COR_MENSAGEM: Record<string, string> = {
+	success:
+		"border-success-200 bg-success-50 text-success-700 dark:border-success-800 dark:bg-success-500/10 dark:text-success-400",
+	info: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-500/10 dark:text-blue-400",
+	warning:
+		"border-warning-200 bg-warning-50 text-warning-700 dark:border-warning-800 dark:bg-warning-500/10 dark:text-warning-400",
+	error:
+		"border-error-200 bg-error-50 text-error-600 dark:border-error-800 dark:bg-error-500/10 dark:text-error-400",
+};
+
+export default function AtualizacaoPage() {
+	const {
+		versao,
+		status,
+		statusCor,
+		progresso,
+		mensagem,
+		botaoDesabilitado,
+		clicarBotao,
+	} = useAtualizacao();
+
+	return (
+		<div className="grid grid-cols-1 gap-4">
+			<div>
+				<h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">
+					Atualizações
+				</h1>
+				<p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+					Versão atual:{" "}
+					<strong className="text-gray-800 dark:text-white/90">{versao}</strong>
+					{" · "}
+					<span className={COR_STATUS[statusCor]}>{status}</span>
+				</p>
+			</div>
+
+			<div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+				<h2 className="text-base font-semibold text-gray-800 dark:text-white/90">
+					Status
+				</h2>
+				<p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+					Buscamos uma nova versão em segundo plano.
+				</p>
+				{progresso !== null && (
+					<>
+						<div className="mt-3.5 h-2.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-white/10">
+							<div
+								className="h-full origin-left rounded-full bg-brand-500 transition-transform duration-300"
+								style={{ transform: `scaleX(${progresso / 100})` }}
+							/>
+						</div>
+						<p className="mt-1.5 text-sm text-gray-500 dark:text-gray-400">
+							{progresso}%
+						</p>
+					</>
+				)}
+			</div>
+
+			{mensagem && (
+				<div
+					className={`rounded-xl border p-4 text-sm ${COR_MENSAGEM[mensagem.tipo]}`}
+				>
+					{mensagem.texto}
+				</div>
+			)}
+
+			<div className="text-center">
+				<Button onClick={clicarBotao} disabled={botaoDesabilitado}>
+					Atualizar
+				</Button>
+			</div>
+		</div>
+	);
+}

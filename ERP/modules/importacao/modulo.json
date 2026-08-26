@@ -4,8 +4,8 @@
 	"versao": "1.0.0",
 	"tipo": "pagina",
 	"entrada": "importacao.html",
-	"ipc": ["estoque.js"],
-	"permissao": { "tipo": "admin" },
+	"ipc": ["vendas.js"],
+	"permissao": { "tipo": "modulo", "nomeModulo": "estoque" },
 	"navbar": {
 		"secao": "administracao",
 		"label": "Importação",
@@ -14,5 +14,5 @@
 		"abaDashboard": true
 	},
 	"paiWorkspace": null,
-	"dependeDe": []
+	"dependeDe": ["vendas"]
 }

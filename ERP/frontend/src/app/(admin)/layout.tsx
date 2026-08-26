@@ -5,7 +5,6 @@ import { useSidebar } from "@/context/SidebarContext";
 import { useAuth } from "@/context/AuthContext";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
-import Backdrop from "@/layout/Backdrop";
 import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
@@ -14,7 +13,7 @@ export default function AdminLayout({
 }: {
 	children: React.ReactNode;
 }) {
-	const { isExpanded, isHovered, isMobileOpen } = useSidebar();
+	const { isHovered } = useSidebar();
 	const { sessao, carregando } = useAuth();
 	const router = useRouter();
 
@@ -32,18 +31,13 @@ export default function AdminLayout({
 		return null;
 	}
 
-	// Dynamic class for main content margin based on sidebar state
-	const mainContentMargin = isMobileOpen
-		? "ml-0"
-		: isExpanded || isHovered
-			? "lg:ml-[290px]"
-			: "lg:ml-[90px]";
+	// Sidebar é 100% hover: margem do conteúdo só cresce enquanto o mouse
+	// está em cima dela (ver AppSidebar.tsx / SidebarContext.tsx).
+	const mainContentMargin = isHovered ? "lg:ml-[260px]" : "lg:ml-[76px]";
 
 	return (
 		<div className="min-h-screen xl:flex">
-			{/* Sidebar and Backdrop */}
 			<AppSidebar />
-			<Backdrop />
 			{/* Main Content Area */}
 			<div
 				className={`flex-1 transition-all  duration-300 ease-in-out ${mainContentMargin}`}

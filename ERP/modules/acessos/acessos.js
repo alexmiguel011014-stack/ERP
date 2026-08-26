@@ -5,6 +5,11 @@
 	var login = document.getElementById("login");
 	var senha = document.getElementById("senha");
 	var confirmar = document.getElementById("senhaConfirmar");
+	var senhaAtual = document.getElementById("senhaAtual");
+	var grupoSenha = document.getElementById("grupoSenha");
+	var grupoSenhaConfirmar = document.getElementById("grupoSenhaConfirmar");
+	var grupoSenhaAtual = document.getElementById("grupoSenhaAtual");
+	var avisoSenhaBloqueada = document.getElementById("avisoSenhaBloqueada");
 	var ativo = document.getElementById("ativo");
 	var perfil = document.getElementById("perfil");
 	var grupoComissao = document.getElementById("grupoComissao");
@@ -20,8 +25,44 @@
 	var mensagem = document.getElementById("mensagem");
 	var senhaHint = document.getElementById("senhaHint");
 
+	var LABEL_PERFIL = { admin: "ADM", dono: "DONO", vendedor: "FUNCIONÁRIO" };
+
 	var usuarios = [];
 	var sessaoUsuario = null;
+	var perfilLogado = null;
+
+	function usuarioPorId(id) {
+		var alvo = null;
+		usuarios.forEach((u) => {
+			if (u.id === id) alvo = u;
+		});
+		return alvo;
+	}
+
+	// Dono nunca mexe na senha do admin — mas edita o resto do cadastro dele
+	// (nome, ativo, perfil), só a senha é bloqueada, por pedido explícito.
+	// Trocar a própria senha (admin ou dono) exige confirmar a senha atual.
+	function atualizarBloqueioSenha() {
+		var idEditando = editandoId.value ? Number(editandoId.value) : null;
+		var alvo = idEditando ? usuarioPorId(idEditando) : null;
+		var souEu = sessaoUsuario && idEditando === sessaoUsuario.id;
+		var donoBloqueado =
+			perfilLogado === "dono" && alvo && alvo.perfil === "admin";
+		var precisaAtual =
+			souEu && (perfilLogado === "admin" || perfilLogado === "dono");
+
+		if (donoBloqueado) {
+			grupoSenha.style.display = "none";
+			grupoSenhaConfirmar.style.display = "none";
+			grupoSenhaAtual.style.display = "none";
+			avisoSenhaBloqueada.style.display = "block";
+		} else {
+			grupoSenha.style.display = "block";
+			grupoSenhaConfirmar.style.display = "block";
+			grupoSenhaAtual.style.display = precisaAtual ? "block" : "none";
+			avisoSenhaBloqueada.style.display = "none";
+		}
+	}
 
 	function mostrarMensagem(texto, tipo) {
 		mensagem.textContent = texto;
@@ -49,6 +90,7 @@
 		btnCancelarEdicao.style.display = "none";
 		login.disabled = false;
 		login.readOnly = false;
+		atualizarBloqueioSenha();
 	}
 
 	perfil.addEventListener("change", () => {
@@ -67,6 +109,7 @@
 			.getAuthSession()
 			.then((s) => {
 				sessaoUsuario = (s && s.usuario) || null;
+				perfilLogado = (s && s.perfil) || null;
 				return window.erpBanco.usuarios.listar();
 			})
 			.then((rows) => {
@@ -94,7 +137,7 @@
 					: '<span class="badge badge-cinza">Desativado</span>';
 			var perfilBadge =
 				'<span class="badge badge-azul">' +
-				String(u.perfil || "admin").toUpperCase() +
+				(LABEL_PERFIL[u.perfil] || String(u.perfil || "admin").toUpperCase()) +
 				"</span>";
 
 			var div = document.createElement("div");
@@ -125,7 +168,8 @@
 					nome.value = u.nome || "";
 					login.value = u.login || "";
 					ativo.checked = Number(u.ativo) === 1;
-					perfil.value = u.perfil === "vendedor" ? "vendedor" : "admin";
+					perfil.value =
+						u.perfil === "dono" || u.perfil === "vendedor" ? u.perfil : "admin";
 					comissao.value = Number(u.comissao_percentual) || 0;
 					var ehVendedor = perfil.value === "vendedor";
 					grupoComissao.style.display = ehVendedor ? "block" : "none";
@@ -141,12 +185,14 @@
 					});
 					senha.value = "";
 					confirmar.value = "";
+					senhaAtual.value = "";
 					senha.required = false;
 					senhaHint.style.display = "block";
 					btnSalvar.textContent = "Salvar Alterações";
 					btnCancelarEdicao.style.display = "inline-block";
 					login.disabled = true;
 					login.readOnly = true;
+					atualizarBloqueioSenha();
 					window.scrollTo({ top: 0, behavior: "smooth" });
 					nome.focus();
 				});
@@ -242,6 +288,27 @@
 			return;
 		}
 
+		var idEditando = editando ? Number(editandoId.value) : null;
+		var alvoAtual = idEditando ? usuarioPorId(idEditando) : null;
+		var donoBloqueado =
+			perfilLogado === "dono" && alvoAtual && alvoAtual.perfil === "admin";
+		if (donoBloqueado && senhaVal) {
+			mostrarMensagem(
+				"Você não pode alterar a senha do administrador.",
+				"erro",
+			);
+			return;
+		}
+		var precisaSenhaAtual =
+			editando &&
+			sessaoUsuario &&
+			sessaoUsuario.id === idEditando &&
+			(perfilLogado === "admin" || perfilLogado === "dono");
+		if (precisaSenhaAtual && senhaVal && !senhaAtual.value) {
+			mostrarMensagem("Informe sua senha atual para trocar a senha.", "erro");
+			return;
+		}
+
 		var permissoesSelecionadas = {};
 		checksPermissoes.forEach((c) => {
 			if (c.checked) permissoesSelecionadas[c.value] = true;
@@ -250,15 +317,20 @@
 		var dados = {
 			login: loginVal,
 			nome: nome.value.trim(),
-			perfil: perfil.value === "vendedor" ? "vendedor" : "admin",
+			perfil:
+				perfil.value === "dono" || perfil.value === "vendedor"
+					? perfil.value
+					: "admin",
 			comissao_percentual: parseFloat(comissao.value) || 0,
 			ativo: ativo.checked,
 			senha: senhaVal,
+			senhaAtual: senhaAtual.value,
 			permissoes: permissoesSelecionadas,
 		};
 		if (editando) dados.id = Number(editandoId.value);
 
-		// Não permite desativar/excluir a si mesmo, nem tirar o próprio acesso admin.
+		// Não permite desativar a si mesmo, nem (sendo admin) tirar o próprio
+		// acesso de admin.
 		if (
 			editando &&
 			sessaoUsuario &&
@@ -272,6 +344,8 @@
 			editando &&
 			sessaoUsuario &&
 			sessaoUsuario.id === dados.id &&
+			alvoAtual &&
+			alvoAtual.perfil === "admin" &&
 			dados.perfil !== "admin"
 		) {
 			mostrarMensagem(
