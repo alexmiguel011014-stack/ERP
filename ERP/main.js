@@ -41,6 +41,26 @@ try {
 	/* sem .env: segue com as integrações opcionais desligadas */
 }
 
+// Conta de suporte do desenvolvedor (db/usuarios.js:garantirContaSuporte):
+// num build empacotado não existe .env (o .gitignore garante que ele nunca
+// entra no repo, e build.files também não o inclui no pacote — de propósito,
+// um .env sem criptografia dentro do instalador seria trivial de extrair).
+// O valor chega aqui embrulhado em package.json.build.extraMetadata.erpSuporte
+// (setado só na máquina de quem publica a release, nunca commitado — ver
+// AGENTS.md, seção de processo de release). Só usa esse fallback quando o
+// .env não já forneceu os dois valores.
+if (!process.env.ERP_SUPORTE_LOGIN || !process.env.ERP_SUPORTE_SENHA) {
+	try {
+		const pkg = require("./package.json");
+		if (pkg.erpSuporte?.login && pkg.erpSuporte?.senha) {
+			process.env.ERP_SUPORTE_LOGIN = pkg.erpSuporte.login;
+			process.env.ERP_SUPORTE_SENHA = pkg.erpSuporte.senha;
+		}
+	} catch {
+		/* sem campo embutido: segue sem a conta de suporte nesta instalação */
+	}
+}
+
 // Isolamento pros testes e2e (Playwright, ver e2e/): precisa vir ANTES do
 // requestSingleInstanceLock() abaixo, senão uma instância de teste rodando
 // junto com o app real de verdade colide no lock (o lock é por userData) e

@@ -2143,11 +2143,18 @@ flowchart TD
   the asar. (2) A manual `.env` the developer drops next to each client's install after the
   fact — rejected: doesn't match "so I can manage the ERP on client PCs" (plural, ongoing) —
   would need repeating by hand for every future install/reinstall. (3) **Chosen**:
-  electron-builder's own `extraMetadata` build option, which merges values from the
-  *packaging machine's* environment into the packaged `package.json` at build time — the
-  value never touches source control (same discipline as `GH_TOKEN`, `.env`, and every other
-  secret this project already keeps out of the repo), gets baked once per release, and
-  `main.js` reads it the same way it already reads `process.env` for Pix/fiscal
+  electron-builder's own `extraMetadata` build option, set via **CLI flags at publish time**
+  (`-c.extraMetadata.erpSuporte.login=... -c.extraMetadata.erpSuporte.senha=...`, verified
+  against electron-builder's own source/tests — `coerceTypes(config.extraMetadata)` and the
+  documented `-c.mac.sign.identity=null`-style nested-path override both confirm this exact
+  syntax works), not a static `extraMetadata` block in `package.json` (a static block would
+  need `${env.X}` macro expansion inside `extraMetadata` specifically, which isn't confirmed
+  to apply there — the documented macro expansion is for publish-config string fields, a
+  narrower thing). The shell substitutes the real values into the CLI flags before
+  electron-builder ever sees them — the value never touches source control (same discipline
+  as `GH_TOKEN`, `.env`, and every other secret this project already keeps out of the repo),
+  gets baked once per release, and `main.js` reads it the same way it already reads
+  `process.env` for Pix/fiscal
   (`process.loadEnvFile`), falling back to the embedded `package.json` field when no local
   `.env` is present (i.e. in the packaged, installed case).
 - **Password rotation is not retroactive.** Because the value is baked in per-release (not
@@ -2192,46 +2199,57 @@ flowchart TD
       `derivarChaveUsuario`/`embrulharChave`/`gravarArquivoUsuarios`, no new crypto.
       Idempotent by construction (same "if (!arquivo[login])" guard already used for normal
       users) — never re-wraps or overwrites on every login, only creates the entry once.
-- [ ] **`db/usuarios.js` — bootstrap the `Usuarios` row too**, same "if not present, insert"
-      pattern already used for the very first admin (`autenticarUsuario` step 3), so the
-      support login has a real `Usuarios` entry (perfil `admin`) the first time it's wrapped,
-      not just a key-file entry with nothing in the database to back it.
-- [ ] **`db/usuarios.js` (or `ipc/acessos.js`, wherever `removerUsuario` lives) — protected
-      login guard.** Refuse to remove or deactivate `process.env.ERP_SUPORTE_LOGIN` /
-      whatever login was bootstrapped as the support account, independent of the existing
-      last-admin-count check (this one always refuses, not just "when it's the last one").
-- [ ] **`listarUsuarios()` — filter the support login out** of what the Acessos page ever
-      receives, so `frontend/src/app/(admin)/acessos/page.tsx` and
-      `UsuarioFormModal.tsx` never need their own awareness of it.
-- [ ] **`main.js` — extend `.env` loading for the packaged case.** `process.loadEnvFile` only
-      ever finds a `.env` in dev today (already disclosed as a known gap in AGENTS.md's
-      Integrações Externas section). Add a fallback read from a `package.json` field (e.g.
-      `require("./package.json").erpSuporte`) for the packaged case, sourced at build time via
-      electron-builder's `extraMetadata`.
-- [ ] **`package.json` (`build.extraMetadata`) — wire the build-time bake.** Reads
-      `ERP_SUPORTE_LOGIN`/`ERP_SUPORTE_SENHA` from the packaging machine's shell environment
-      (documented in `.env.example` and AGENTS.md's release process section, never committed
-      with a real value) into the `erpSuporte` field `main.js` reads back at runtime.
-- [ ] **`.env.example` — document the two new variables**, with a comment explaining they're
-      read at *package/release* time, not at every app launch, and are never required (both
-      absent = feature silently doesn't activate, no error).
-- [ ] **Owner decision needed before implementation starts**: confirm or override the proposed
-      login `allu_suporte`, and confirm the "hidden from Acessos, visible via Banco de Dados"
-      visibility default above.
+      **Collision safety, since the owner picked the login `adm`** (a name a store could
+      plausibly pick for their own account too): `garantirContaSuporte()` checks BOTH the
+      wrap-file entry AND the `Usuarios` row before ever writing anything — if `adm` already
+      belongs to a real account on that install (in either place), the function is a total
+      no-op for that install rather than overwriting/breaking the real account's access. This
+      means the support login simply won't be available on any client whose own admin already
+      happens to be named `adm` — a real, disclosed limitation of reusing a common name,
+      traded for simplicity per the owner's explicit choice.
+- [x] **`db/usuarios.js` — bootstrap the `Usuarios` row too**, same "if not present, insert"
+      pattern already used for the very first admin (`autenticarUsuario` step 3) — done inside
+      `garantirContaSuporte()` itself (not step 3, which only fires on a truly empty table).
+- [x] **`db/usuarios.js` — protected login guard.** `removerUsuario` refuses unconditionally
+      (`ehLoginDeSuporte` check before the existing last-admin-count logic). `salvarUsuario`'s
+      edit branch also refuses to edit/deactivate it by id — defense in depth beyond just
+      hiding it from the list (closes a direct-IPC-call gap).
+- [x] **`listarUsuarios()` — filter the support login out**, so
+      `frontend/src/app/(admin)/acessos/page.tsx` / `UsuarioFormModal.tsx` never need their
+      own awareness of it.
+- [x] **`main.js` — extend `.env` loading for the packaged case.** Falls back to
+      `require("./package.json").erpSuporte.{login,senha}` when `.env` didn't already provide
+      both — the field the CLI publish flags below bake in.
+- [x] **Publish command — wire the build-time bake.** `AGENTS.md`'s release process section
+      documents the two extra `-c.extraMetadata.erpSuporte.*` flags the developer adds to the
+      existing `npx electron-builder --publish always` command, sourcing
+      `ERP_SUPORTE_LOGIN`/`ERP_SUPORTE_SENHA` from their own shell environment — never a
+      static block in `package.json`, never committed with a real value.
+- [x] **`.env.example` — document the two new variables**, noting they're read at
+      *package/release* time (via the CLI flags above), not at every app launch in a packaged
+      build, and are never required.
+- [x] **Owner decision, answered (2026-08-28)**: login is `adm` (not the proposed
+      `allu_suporte` — see collision-safety note above); the actual password was provided
+      directly and used to publish v1.1.2 — **deliberately not recorded here or anywhere in
+      this repo** (this file is public). Visibility default (hidden from Acessos, visible via
+      Banco de Dados) not objected to — proceeding with it as specified in Design rationale.
 
 ### Tests
 
-- [ ] `test/` (new file, e.g. `test/suporte-admin.test.js`, same `node:test` + temp-DB pattern
-      as `test/senha.test.js`): with `ERP_SUPORTE_LOGIN`/`ERP_SUPORTE_SENHA` set, a fresh DB's
+- [x] `test/suporte-admin.test.js` (new, `node:test` + temp-DB pattern matching
+      `test/senha.test.js`): with `ERP_SUPORTE_LOGIN`/`ERP_SUPORTE_SENHA` set, a fresh DB's
       first-ever login (a different, normal login) also results in the support login
       successfully authenticating afterward — proves the wrap-on-any-unlock behavior, not just
       wrap-on-first-bootstrap.
-- [ ] Same test file: `listarUsuarios()` never includes the support login in its result.
-- [ ] Same test file: `removerUsuario(idDoSuporte)` throws, regardless of how many other
+- [x] Same test file: `listarUsuarios()` never includes the support login in its result.
+- [x] Same test file: `removerUsuario(idDoSuporte)` throws, regardless of how many other
       active admins exist.
-- [ ] Same test file: with the env vars unset, behavior is byte-for-byte identical to today —
+- [x] Same test file: with the env vars unset, behavior is byte-for-byte identical to today —
       no support login created, no error, nothing observable changes (proves the feature is
       genuinely opt-in, not a hidden requirement).
+- [x] Same test file: collision case — a login matching `ERP_SUPORTE_LOGIN` that already
+      belongs to a real account (created before the support env vars were ever set) keeps
+      working with its own real password, and the support password does NOT unlock it.
 - [ ] **(manual)** Full build → install cycle on a real second machine: confirm the baked
       `extraMetadata` value actually reaches a packaged install and the support login works
       end-to-end — this specific path (electron-builder's env-to-`extraMetadata` substitution)

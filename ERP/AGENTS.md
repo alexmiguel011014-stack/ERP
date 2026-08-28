@@ -32,7 +32,7 @@ publicar:
 
 ```powershell
 $env:GH_TOKEN = "<personal access token com escopo repo>"
-npx electron-builder --publish always
+npx electron-builder --publish always -c.extraMetadata.erpSuporte.login=$env:ERP_SUPORTE_LOGIN -c.extraMetadata.erpSuporte.senha=$env:ERP_SUPORTE_SENHA
 ```
 
 `GH_TOKEN` é lido automaticamente pelo `electron-builder` (convenção própria dele) — nunca
@@ -41,6 +41,24 @@ da sessão de quem publica, igual a qualquer outro token deste projeto (ver seç
 sobre credenciais de integração). Gerar o token em github.com → Settings → Developer settings
 → Personal access tokens, escopo `repo` (ou o fine-grained equivalente com permissão de
 Contents: Read and write no repositório `ERP`).
+
+As duas flags `-c.extraMetadata.erpSuporte.*` são **opcionais** (a conta de suporte do
+desenvolvedor — ver GOALS.md — só é criada se ambas estiverem definidas no shell de quem
+publica; omitir as duas gera um build idêntico ao de antes desta feature existir). Sintaxe
+verificada contra o próprio código-fonte/testes do electron-builder (`-c.<caminho.aninhado>`
+funciona pra qualquer campo de config, incluindo `extraMetadata` — não é uma expansão
+`${env.X}` dentro de um `extraMetadata` estático em `package.json`, que não é garantida pra
+esse campo especificamente).
+
+**Pegadinha real (achada em 2026-08-28, primeira vez publicando pra valer): a release sai
+como rascunho ("draft") por padrão**, mesmo com `--publish always`. Nesse estado o
+`electron-updater` não a enxerga — `checkForUpdates()` nunca encontra uma release rascunho.
+Depois de publicar, confirme e corrija se necessário:
+
+```powershell
+gh release view vX.Y.Z --repo alexmiguel011014-stack/ERP    # confere "draft: true/false"
+gh release edit vX.Y.Z --repo alexmiguel011014-stack/ERP --draft=false   # publica de verdade
+```
 
 ## Comandos Essenciais
 

