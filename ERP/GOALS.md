@@ -2098,6 +2098,157 @@ file)
 
 ---
 
+## Developer Support Admin Account (feature, not started)
+
+**Owner's ask (2026-08-28), verbatim**: "unica coisa que voce realmente deve subir e fazer é
+minha conta de adm com senha que eu vou definir posteriormente para eu poder gerenciar os erp
+no pc dos clientes." — the only thing that should actually ship is the owner's own admin
+account, with a password to be defined later, so the owner can manage the ERP on client
+machines. Raised right after a real cutover test (v1.1.0 published, installed on a second
+PC) surfaced that there's currently no way for the developer to get into a client's install
+without knowing that specific store's own login — every install's `Usuarios` table is
+bootstrapped independently, from whatever the store typed on first run (see `db/usuarios.js`,
+already documented in AGENTS.md's Auth section).
+
+```mermaid
+flowchart TD
+    A[Env var: ERP_SUPORTE_LOGIN / ERP_SUPORTE_SENHA\nread from the packager's own gitignored .env] --> B[main.js: process.loadEnvFile\n same mechanism already used for Pix/fiscal]
+    B --> C[db/usuarios.js: autenticarUsuario\nstep 4 extended — wrap the fixed support login\ntoo, on EVERY successful unlock, not just bootstrap]
+    C --> D[erp_usuarios.json gets a second wrapped-key entry\nsame AES-256-GCM scheme as any normal user]
+    E[electron-builder extraMetadata\nbakes the value into the packaged app] --> B
+    C --> F[removerUsuario: guard so the support login\ncan never be deleted/deactivated]
+    C --> G[listarUsuarios: filtered out of the store's\nown Gerenciar Acessos screen]
+```
+
+### Design rationale
+
+- **Why this can't be "just add a row to `Usuarios`."** The DB is SQLCipher-encrypted; the
+  actual decryption key is the "chave-mestre," derived once from whatever password unlocked
+  the database the very first time, and every OTHER login works by having its own wrapped
+  copy of that same master key sitting in `erp_usuarios.json` (AES-256-GCM, keyed by
+  `derivarChaveUsuario(login, senha)`, see `db/usuarios.js`). A support login with no wrapped
+  entry could never actually decrypt an existing store's database — it would just be a
+  useless row. The wrap has to be created at a moment the process already holds the real
+  master key in memory, which only happens during a successful unlock.
+- **When the wrap gets created.** `autenticarUsuario`'s existing step 4 already does
+  "ensure a wrap exists for the login that just authenticated" (this is how a *normal* user's
+  first login creates their own entry). Extending that same step to *also* wrap the fixed
+  support login, on every successful unlock (the store's own daily logins, not just first
+  bootstrap), means the support account becomes usable the very first time anyone at the
+  store logs in after this ships — no special first-run flow needed, no action required from
+  the store owner.
+- **How the password reaches a packaged build — considered three options.** (1) Bundle the
+  raw `.env` file into the installer (`build.files`) — rejected: a plaintext credential
+  sitting inside the installed app's `resources/` folder, trivially extractable by unpacking
+  the asar. (2) A manual `.env` the developer drops next to each client's install after the
+  fact — rejected: doesn't match "so I can manage the ERP on client PCs" (plural, ongoing) —
+  would need repeating by hand for every future install/reinstall. (3) **Chosen**:
+  electron-builder's own `extraMetadata` build option, which merges values from the
+  *packaging machine's* environment into the packaged `package.json` at build time — the
+  value never touches source control (same discipline as `GH_TOKEN`, `.env`, and every other
+  secret this project already keeps out of the repo), gets baked once per release, and
+  `main.js` reads it the same way it already reads `process.env` for Pix/fiscal
+  (`process.loadEnvFile`), falling back to the embedded `package.json` field when no local
+  `.env` is present (i.e. in the packaged, installed case).
+- **Password rotation is not retroactive.** Because the value is baked in per-release (not
+  fetched from a server — this app has none, by design), changing
+  `ERP_SUPORTE_SENHA` and cutting a new release only affects installs that update to it.
+  Already-installed clients keep whichever password was baked in when they installed/last
+  updated, until they update again. Disclosed here so it's not assumed to behave like a
+  central "reset everywhere" — it can't, offline-first has no such mechanism.
+- **Never deletable.** `removerUsuario` already refuses to remove/deactivate the *last active
+  admin* (so an owner can't lock themselves out). Extending the same guard to unconditionally
+  refuse the fixed support login (regardless of admin count) prevents the store's own cleanup
+  — or an admin who doesn't recognize the login and assumes it's a mistake — from silently
+  removing the developer's own access.
+- **Hidden from the store's own Gerenciar Acessos list — a judgment call, not hidden from the
+  database itself.** Filtering the support login out of `listarUsuarios()`'s result (so it
+  never shows in the Acessos screen a store admin uses day to day) matches how vendor support
+  accounts are conventionally handled — it avoids a store owner seeing an unfamiliar login and
+  worrying it's a breach. It is **not** concealment in any stronger sense: the row is a normal
+  `Usuarios` entry, fully visible to anyone using the existing "Banco de Dados" raw-table
+  inspection module (admin-gated, already requires re-entering the admin password — see
+  AGENTS.md's Auth section). Flagged explicitly here rather than assumed, since "should the
+  client be able to see this account exists" is ultimately the owner's call, not a technical
+  one — open for the owner to override before this ships.
+- **Login name**: needs the owner's preference (not invented here) — proposing a default of
+  `allu_suporte` (matches the product's own branding, unambiguous, unlikely to collide with a
+  real customer's chosen login) for the owner to confirm or override before implementation.
+- **Out of scope, explicitly**: this is *not* remote/central management (no server exists or
+  is proposed) — it's a guaranteed local credential the developer can use once they have
+  physical or remote-desktop (AnyDesk/TeamViewer, already in the developer's own toolset)
+  access to a client machine. Building actual centralized fleet management (push config,
+  view status across installs from one dashboard) would be a much larger, separate initiative
+  and contradicts this project's deliberate offline-first, no-server architecture — not
+  proposed here.
+
+### Implementation
+
+- [ ] **`db/usuarios.js` — extend the wrap-ensure step.** In `autenticarUsuario`, after the
+      existing "ensure wrap for this login" logic, also ensure a wrap exists for
+      `process.env.ERP_SUPORTE_LOGIN` using `process.env.ERP_SUPORTE_SENHA` — guarded so it's
+      a no-op when either env var is unset (dev machines without the secret configured, or a
+      build that deliberately omits it, keep working exactly as today). Reuses
+      `derivarChaveUsuario`/`embrulharChave`/`gravarArquivoUsuarios`, no new crypto.
+      Idempotent by construction (same "if (!arquivo[login])" guard already used for normal
+      users) — never re-wraps or overwrites on every login, only creates the entry once.
+- [ ] **`db/usuarios.js` — bootstrap the `Usuarios` row too**, same "if not present, insert"
+      pattern already used for the very first admin (`autenticarUsuario` step 3), so the
+      support login has a real `Usuarios` entry (perfil `admin`) the first time it's wrapped,
+      not just a key-file entry with nothing in the database to back it.
+- [ ] **`db/usuarios.js` (or `ipc/acessos.js`, wherever `removerUsuario` lives) — protected
+      login guard.** Refuse to remove or deactivate `process.env.ERP_SUPORTE_LOGIN` /
+      whatever login was bootstrapped as the support account, independent of the existing
+      last-admin-count check (this one always refuses, not just "when it's the last one").
+- [ ] **`listarUsuarios()` — filter the support login out** of what the Acessos page ever
+      receives, so `frontend/src/app/(admin)/acessos/page.tsx` and
+      `UsuarioFormModal.tsx` never need their own awareness of it.
+- [ ] **`main.js` — extend `.env` loading for the packaged case.** `process.loadEnvFile` only
+      ever finds a `.env` in dev today (already disclosed as a known gap in AGENTS.md's
+      Integrações Externas section). Add a fallback read from a `package.json` field (e.g.
+      `require("./package.json").erpSuporte`) for the packaged case, sourced at build time via
+      electron-builder's `extraMetadata`.
+- [ ] **`package.json` (`build.extraMetadata`) — wire the build-time bake.** Reads
+      `ERP_SUPORTE_LOGIN`/`ERP_SUPORTE_SENHA` from the packaging machine's shell environment
+      (documented in `.env.example` and AGENTS.md's release process section, never committed
+      with a real value) into the `erpSuporte` field `main.js` reads back at runtime.
+- [ ] **`.env.example` — document the two new variables**, with a comment explaining they're
+      read at *package/release* time, not at every app launch, and are never required (both
+      absent = feature silently doesn't activate, no error).
+- [ ] **Owner decision needed before implementation starts**: confirm or override the proposed
+      login `allu_suporte`, and confirm the "hidden from Acessos, visible via Banco de Dados"
+      visibility default above.
+
+### Tests
+
+- [ ] `test/` (new file, e.g. `test/suporte-admin.test.js`, same `node:test` + temp-DB pattern
+      as `test/senha.test.js`): with `ERP_SUPORTE_LOGIN`/`ERP_SUPORTE_SENHA` set, a fresh DB's
+      first-ever login (a different, normal login) also results in the support login
+      successfully authenticating afterward — proves the wrap-on-any-unlock behavior, not just
+      wrap-on-first-bootstrap.
+- [ ] Same test file: `listarUsuarios()` never includes the support login in its result.
+- [ ] Same test file: `removerUsuario(idDoSuporte)` throws, regardless of how many other
+      active admins exist.
+- [ ] Same test file: with the env vars unset, behavior is byte-for-byte identical to today —
+      no support login created, no error, nothing observable changes (proves the feature is
+      genuinely opt-in, not a hidden requirement).
+- [ ] **(manual)** Full build → install cycle on a real second machine: confirm the baked
+      `extraMetadata` value actually reaches a packaged install and the support login works
+      end-to-end — this specific path (electron-builder's env-to-`extraMetadata` substitution)
+      can't be exercised by the existing e2e suite, which launches the app straight from
+      source (`electron .`), never a packaged build.
+
+### Registration
+
+- [ ] AGENTS.md's Auth / Decisões Arquiteturais section gets a note about this account's
+      existence and purpose — so a future session (or the owner, months from now) doesn't
+      rediscover an unexplained login the same confused way this whole feature started.
+      Deliberately **not** documented in README.md (a public file) — the account's existence
+      is fine to disclose to a future maintainer working in the repo, not to anyone browsing
+      the public GitHub page.
+
+---
+
 ## Suggested order
 
 1. ~~P0 fix (pagamentos migration)~~ — done. Also found and fixed, beyond the missing table:

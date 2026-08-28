@@ -15,6 +15,22 @@ const { carregarModulos, aplicarEntitlements } = require("../modulos.js");
 // Node), então a config feita lá continua valendo aqui.
 let downloadedUpdateExePath = null;
 
+// electron-updater não tem timeout embutido pras próprias chamadas de rede —
+// numa conexão ruim (ou bloqueada por firewall), checkForUpdates()/
+// downloadUpdate() ficam pendentes pra sempre, e a tela de Atualizações
+// (useAtualizacao.ts) fica presa em "Verificando..." sem erro, sem jeito de
+// sair (bug real reportado: "travou" ao clicar em Atualizações num PC
+// diferente). Envolve a chamada com um timeout próprio, garantindo que o
+// IPC sempre resolve ou rejeita num tempo limitado.
+function comTimeout(promessa, ms, mensagemErro) {
+	return Promise.race([
+		promessa,
+		new Promise((_resolver, rejeitar) =>
+			setTimeout(() => rejeitar(new Error(mensagemErro)), ms),
+		),
+	]);
+}
+
 function registrar(ipcMain, deps) {
 	const { exigirSessao } = deps;
 
@@ -48,7 +64,11 @@ function registrar(ipcMain, deps) {
 
 	ipcMain.handle("check-for-updates", async () => {
 		try {
-			const result = await autoUpdater.checkForUpdates();
+			const result = await comTimeout(
+				autoUpdater.checkForUpdates(),
+				20000,
+				"Tempo esgotado ao verificar atualizações. Verifique sua conexão.",
+			);
 			return result;
 		} catch (erro) {
 			throw erro.message;
@@ -58,7 +78,11 @@ function registrar(ipcMain, deps) {
 	ipcMain.handle("download-update", async () => {
 		try {
 			exigirSessao("admin");
-			const result = await autoUpdater.downloadUpdate();
+			const result = await comTimeout(
+				autoUpdater.downloadUpdate(),
+				120000,
+				"Tempo esgotado ao baixar a atualização. Verifique sua conexão.",
+			);
 			if (result && result.path) {
 				downloadedUpdateExePath = result.path;
 			}

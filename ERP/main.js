@@ -160,16 +160,30 @@ function pararBackupAutomatico() {
 
 var intervaloAtualizacao = null;
 
+// electron-updater não tem timeout embutido — numa conexão ruim,
+// checkForUpdates() fica pendente pra sempre. Sem isso, um PC com rede
+// instável nunca completa a checagem em segundo plano (e, se o
+// electron-updater serializa chamadas internamente, a próxima 24h depois
+// também nunca roda, presa atrás da primeira que nunca termina).
+function checarAtualizacoesComTimeout() {
+	Promise.race([
+		autoUpdater.checkForUpdates(),
+		new Promise((_resolver, rejeitar) =>
+			setTimeout(() => rejeitar(new Error("timeout")), 20000),
+		),
+	]).catch(() => {});
+}
+
 // Checa 1x no boot (já existia) + de novo a cada 24h enquanto o app fica
 // aberto — sem o intervalo, uma loja que deixa o PDV ligado o dia inteiro só
 // veria uma atualização no dia seguinte, quando reabrisse o app.
 function iniciarChecagemAutomaticaDeAtualizacao() {
 	if (!app.isPackaged) return;
 	if (intervaloAtualizacao) clearInterval(intervaloAtualizacao);
-	autoUpdater.checkForUpdates().catch(() => {});
+	checarAtualizacoesComTimeout();
 	intervaloAtualizacao = setInterval(
 		() => {
-			autoUpdater.checkForUpdates().catch(() => {});
+			checarAtualizacoesComTimeout();
 		},
 		24 * 60 * 60 * 1000,
 	);

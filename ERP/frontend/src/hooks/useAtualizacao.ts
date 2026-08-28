@@ -110,7 +110,16 @@ export function useAtualizacao() {
 		if (!window.api?.checkForUpdates) return;
 		setStatus("Verificando...");
 		setStatusCor("normal");
-		erpApi.sistema.checkForUpdates().catch(() => {});
+		erpApi.sistema.checkForUpdates().catch((e: unknown) => {
+			// Sem isso, uma falha aqui (timeout de rede, ver ipc/sistema.js)
+			// deixava a tela presa em "Verificando..." pra sempre, sem erro e
+			// sem jeito de tentar de novo — bug real reportado ("travou" ao
+			// clicar em Atualizações).
+			setStatus("Erro ao verificar");
+			setStatusCor("vermelho");
+			setBotaoDesabilitado(false);
+			mostrarMensagem("error", e instanceof Error ? e.message : String(e));
+		});
 	}, []);
 
 	const download = useCallback(() => {
