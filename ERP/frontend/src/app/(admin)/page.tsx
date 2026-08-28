@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { usePageHeader } from "@/context/PageHeaderContext";
 import DashboardStatCards from "@/components/dashboard/DashboardStatCards";
 import FaturamentoChart from "@/components/dashboard/FaturamentoChart";
 import MaisVendidos from "@/components/dashboard/MaisVendidos";
@@ -24,6 +25,10 @@ type DashboardStats = {
 };
 
 export default function DashboardPage() {
+	usePageHeader(
+		"Dashboard",
+		"Visão geral do dia: vendas, faturamento e produtos mais vendidos.",
+	);
 	const [stats, setStats] = useState<DashboardStats | null>(null);
 	const [erro, setErro] = useState<string | null>(null);
 

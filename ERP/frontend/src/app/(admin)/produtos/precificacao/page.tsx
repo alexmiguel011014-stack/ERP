@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
+import { usePageHeader } from "@/context/PageHeaderContext";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import Button from "@/components/ui/button/Button";
@@ -20,6 +21,7 @@ function fmtPct(v: number) {
 }
 
 export default function PrecificacaoPage() {
+	usePageHeader("Precificação", "Gerencie margens e preços de venda");
 	const {
 		dados,
 		setDados,
@@ -187,15 +189,6 @@ export default function PrecificacaoPage() {
 
 	return (
 		<div className="grid grid-cols-1 gap-4">
-			<div>
-				<h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-					Precificação
-				</h1>
-				<p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-					Gerencie margens e preços de venda
-				</p>
-			</div>
-
 			<div className="grid grid-cols-1 gap-4 rounded-xl border border-gray-200 bg-white p-4 sm:grid-cols-3 dark:border-gray-800 dark:bg-white/[0.03]">
 				<div>
 					<Label>Margem de Lucro Padrão (%)</Label>

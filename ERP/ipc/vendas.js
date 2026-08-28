@@ -59,9 +59,16 @@ function registrar(ipcMain, deps) {
 		}
 	});
 
+	// Sessão comum (não admin): a Devolução/Troca do PDV chama esse mesmo
+	// canal pra buscar os itens de uma venda específica antes de processar
+	// um estorno, e o PDV é liberado pra qualquer vendedor (modulo.json
+	// "permissao":{"tipo":"sempre"}) — um admin-only aqui deixava devolução
+	// inacessível pra vendedor comum. A tela de Histórico de Vendas
+	// (admin-only) continua protegida pelo próprio "get-vendas" (admin),
+	// que é o único jeito de listar vendas pra depois pedir os itens.
 	ipcMain.handle("get-itens-venda", async (event, vendaId) => {
 		try {
-			exigirSessao("admin");
+			exigirSessao();
 			return await getItensVenda(vendaId);
 		} catch (erro) {
 			throw erro.message;

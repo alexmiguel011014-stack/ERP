@@ -1,11 +1,12 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import Button from "@/components/ui/button/Button";
 import CategoriaSelector from "./CategoriaSelector";
 import ProdutoImagemPicker from "./ProdutoImagemPicker";
 import { useCategorias } from "@/hooks/useCategorias";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import {
 	erpApi,
 	type CategoriaComUso,
@@ -43,18 +44,29 @@ export default function ProdutoFormPanel({
 	onAbrirListaCategorias: () => void;
 }) {
 	const { categorias, recarregar: recarregarCategorias } = useCategorias();
-	const [nome, setNome] = useState("");
+	// Rascunho de "produto novo" sobrevive a sair da tela e voltar — mesmo
+	// mecanismo já usado no PDV/Compras/Categorias.
+	const [nome, setNome, limparNome] = usePersistedState(
+		"produtos_form_nome",
+		"",
+	);
 	const [sku, setSku] = useState("");
-	const [estoque, setEstoque] = useState("0");
+	const [estoque, setEstoque, limparEstoque] = usePersistedState(
+		"produtos_form_estoque",
+		"0",
+	);
 	const [imagem, setImagem] = useState<string | null>(null);
-	const [categoriasSelecionadas, setCategoriasSelecionadas] = useState<
-		string[]
-	>([]);
+	const [categoriasSelecionadas, setCategoriasSelecionadas, limparCategorias] =
+		usePersistedState<string[]>("produtos_form_categorias", []);
 	const [mensagem, setMensagem] = useState<{
 		texto: string;
 		sucesso: boolean;
 	} | null>(null);
 	const [salvando, setSalvando] = useState(false);
+	// Evita que o efeito abaixo apague um rascunho recém-carregado do
+	// localStorage no primeiro render (produtoEditando começa null tanto
+	// "sem edição nenhuma" quanto "acabou de cancelar uma edição").
+	const primeiraVez = useRef(true);
 
 	const editandoId = produtoEditando?.id ?? null;
 
@@ -77,17 +89,20 @@ export default function ProdutoFormPanel({
 					sels = [String(produtoEditando.categoria_id)];
 			}
 			setCategoriasSelecionadas(sels);
-		} else {
+		} else if (!primeiraVez.current) {
 			limparFormulario();
+		} else if (!sku) {
+			buscarProximoSku();
 		}
+		primeiraVez.current = false;
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [produtoEditando]);
 
 	function limparFormulario() {
-		setNome("");
-		setEstoque("0");
+		limparNome();
+		limparEstoque();
 		setImagem(null);
-		setCategoriasSelecionadas([]);
+		limparCategorias();
 		if (!editandoId) buscarProximoSku();
 	}
 

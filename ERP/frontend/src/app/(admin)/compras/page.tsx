@@ -1,9 +1,14 @@
 "use client";
 import { useState } from "react";
+import { usePageHeader } from "@/context/PageHeaderContext";
 import NovoPedidoForm from "@/components/compras/NovoPedidoForm";
 import PedidosList from "@/components/compras/PedidosList";
 
 export default function ComprasPage() {
+	usePageHeader(
+		"Pedidos de Compra",
+		"Solicite produtos ao fornecedor. No recebimento, o estoque e a conta a pagar são gerados automaticamente.",
+	);
 	const [mensagem, setMensagem] = useState<{
 		texto: string;
 		sucesso: boolean;
@@ -17,16 +22,6 @@ export default function ComprasPage() {
 
 	return (
 		<div className="grid grid-cols-1 gap-4">
-			<div>
-				<h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-					Pedidos de Compra
-				</h1>
-				<p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-					Solicite produtos ao fornecedor. No recebimento, o estoque e a conta a
-					pagar são gerados automaticamente.
-				</p>
-			</div>
-
 			<NovoPedidoForm
 				onCriado={() => setRefreshTick((t) => t + 1)}
 				onMensagem={mostrarMensagem}

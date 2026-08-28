@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import Button from "@/components/ui/button/Button";
+import { usePageHeader } from "@/context/PageHeaderContext";
 import { erpApi, type LinhaImportacaoVenda } from "@/lib/erpApi";
 
 function validarFormato(dados: unknown): string | null {
@@ -18,6 +19,10 @@ function validarFormato(dados: unknown): string | null {
 }
 
 export default function ImportacaoPage() {
+	usePageHeader(
+		"Importação de Vendas Históricas",
+		"Popula o histórico de vendas a partir de um arquivo já normalizado.",
+	);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const [linhas, setLinhas] = useState<LinhaImportacaoVenda[] | null>(null);
 	const [previa, setPrevia] = useState("");
@@ -91,16 +96,11 @@ export default function ImportacaoPage() {
 
 	return (
 		<div className="grid grid-cols-1 gap-4">
-			<div>
-				<h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-					Importação de Vendas Históricas
-				</h1>
-				<p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-					Popula o histórico de vendas a partir de um arquivo já normalizado,
-					para que o cálculo automático de Custos Fixos e outros relatórios
-					tenham dado real desde já — sem esperar um mês de uso do sistema.
-				</p>
-			</div>
+			<p className="max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+				Popula o histórico de vendas a partir de um arquivo já normalizado, para
+				que o cálculo automático de Custos Fixos e outros relatórios tenham dado
+				real desde já — sem esperar um mês de uso do sistema.
+			</p>
 
 			<div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
 				<h2 className="text-base font-semibold text-gray-800 dark:text-white/90">

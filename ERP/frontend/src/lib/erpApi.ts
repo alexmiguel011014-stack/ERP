@@ -222,7 +222,38 @@ export type Venda = {
 	total: number;
 	forma_pagamento: string | null;
 	data_venda: string;
+	desconto: number;
+	observacao: string | null;
+	status: "finalizada" | "orcamento" | "cancelado";
+	nota_status: string | null;
+	nota_numero: string | null;
 	cliente_nome: string | null;
+};
+
+export type FiltroVendas = {
+	dataInicio?: string | null;
+	dataFim?: string | null;
+	status?: string;
+	formaPagamento?: string;
+};
+
+export type ItemVenda = {
+	id: number;
+	variacao_id: number;
+	produto_nome: string;
+	tamanho: string | null;
+	cor: string | null;
+	atributos: string | null;
+	sku: string;
+	quantidade: number;
+	preco_unitario: number;
+	subtotal: number;
+	ncm: string | null;
+	cfop_padrao: string | null;
+	csosn: string | null;
+	unidade_fiscal: string | null;
+	origem_mercadoria: string | null;
+	quantidade_devolvida: number;
 };
 
 export type PrecificacaoLinha = {
@@ -265,6 +296,71 @@ export type ProdutoVariacao = {
 	sku: string;
 	atributos: string | null;
 	imagem: string | null;
+};
+
+// Shape real de buscarProdutosPorTermo (PDV) — mais estreito que
+// ProdutoVariacao (sem categoria_nome/subcategoria_nome/preco_custo, que
+// essa query não seleciona).
+export type ProdutoBusca = {
+	id: number; // id da variação — vira variacao_id no carrinho
+	produto_id: number;
+	sku: string;
+	nome: string;
+	tamanho: string | null;
+	cor: string | null;
+	preco: number;
+	quantidade_estoque: number;
+	quantidade_reservada: number;
+	quantidade_disponivel: number;
+	estoque_minimo: number | null;
+	atributos: string | null;
+	imagem: string | null;
+};
+
+export type CaixaAberto = {
+	id: number;
+	data_abertura: string;
+	valor_abertura: number;
+	usuario_abertura_id: number | null;
+	status: string;
+};
+
+export type ResumoCaixa = {
+	id: number;
+	data_abertura: string;
+	valor_abertura: number;
+	vendido_em_dinheiro: number;
+	valor_esperado_agora: number;
+};
+
+export type ItemCarrinho = {
+	variacao_id: number;
+	quantidade: number;
+	preco_unitario: number;
+};
+
+export type NovaVendaDados = {
+	itens: ItemCarrinho[];
+	status?: "orcamento" | "finalizada";
+	desconto?: number;
+	total: number;
+	cliente_id?: number | null;
+	forma_pagamento?: string | null;
+	observacao?: string | null;
+};
+
+export type ResultadoVenda = { success: boolean; vendaId: number };
+
+export type DevolucaoDados = {
+	venda_id: number;
+	itens: { item_venda_id: number; quantidade: number }[];
+	motivo?: string | null;
+};
+
+export type ResultadoDevolucao = {
+	success: boolean;
+	devolucaoId: number;
+	valorTotal: number;
 };
 
 export type CotacaoFornecedor = {
@@ -442,6 +538,98 @@ export type ResultadoImportacaoVendas = {
 	total: number;
 };
 
+export type DreResultado = {
+	periodo: { inicio: string; fim: string };
+	vendas: number;
+	receitaBruta: number;
+	descontos: number;
+	receitaLiquida: number;
+	cmv: number;
+	lucroBruto: number;
+	margemBrutaPercentual: number;
+	despesas: number;
+	lucroLiquido: number;
+	margemLiquidaPercentual: number;
+};
+
+export type RelatorioVendasResultado = {
+	resumo: {
+		vendas: number;
+		faturamento: number;
+		descontos: number;
+		ticketMedio: number;
+	};
+	porDia: {
+		dia: string;
+		vendas: number;
+		faturamento: number;
+		descontos: number;
+	}[];
+	porPagamento: {
+		forma_pagamento: string;
+		vendas: number;
+		faturamento: number;
+	}[];
+};
+
+export type CurvaAbcLinha = {
+	produto_nome: string;
+	quantidade: number;
+	receita: number;
+	custo: number;
+	lucro: number;
+	margem: number;
+	percentual: number;
+	acumulado: number;
+	classe: "A" | "B" | "C";
+};
+
+export type ComissaoLinha = {
+	usuario_id: number;
+	nome: string;
+	login: string;
+	perfil: string;
+	vendas: number;
+	total_vendido: number;
+	comissao_percentual: number;
+	comissao_valor: number;
+};
+
+export type MargemContribuicaoResultado = {
+	periodo: { inicio: string; fim: string };
+	taxaAdquirenteUsada: number;
+	porProduto: {
+		produto_id: number;
+		produto_nome: string;
+		quantidade: number;
+		receita: number;
+		margemContribuicao: number;
+		margemContribuicaoUnitaria: number;
+		margemContribuicaoPercentual: number;
+	}[];
+	margemContribuicaoTotal: number;
+	margemContribuicaoUnitariaMedia: number;
+	margemContribuicaoPercentualMedia: number;
+};
+
+export type PontoDeEquilibrioResultado = {
+	periodo: { inicio: string; fim: string };
+	custoFixoMensal: number;
+	margemContribuicaoUnitariaMedia: number;
+	margemContribuicaoPercentualMedia: number;
+	quantidadeNecessaria: number | null;
+	faturamentoNecessario: number | null;
+};
+
+export type GiroEstoqueLinha = {
+	produto_id: number;
+	produto_nome: string;
+	quantidadeVendida: number;
+	estoqueAtual: number;
+	giro: number | null;
+	diasParaReposicao: number | null;
+};
+
 export const erpApi = {
 	clientes: {
 		listar: (incluirInativos?: boolean) =>
@@ -453,6 +641,8 @@ export const erpApi = {
 			invocar<{ success: boolean }>("atualizarCliente", id, dados),
 		remover: (id: number) =>
 			invocar<{ success: boolean }>("removerCliente", id),
+		precoEspecial: (clienteId: number, variacaoId: number) =>
+			invocar<number | null>("getPrecoCliente", clienteId, variacaoId),
 	},
 	fornecedores: {
 		listar: () => invocar<Fornecedor[]>("getFornecedores"),
@@ -496,6 +686,8 @@ export const erpApi = {
 			invocar<{ success: boolean }>("removerImagemProduto", produtoId),
 		imagem: (nomeArquivo: string) =>
 			invocar<string | null>("getImagemProduto", nomeArquivo),
+		buscarPorTermo: (termo: string) =>
+			invocar<ProdutoBusca[]>("buscarProdutosTermo", termo),
 	},
 	categorias: {
 		comUso: (incluirInativas?: boolean) =>
@@ -592,7 +784,21 @@ export const erpApi = {
 	vendas: {
 		importarHistorico: (linhas: LinhaImportacaoVenda[]) =>
 			invocar<ResultadoImportacaoVendas>("importarVendasHistoricas", linhas),
-		listar: (filtro?: unknown) => invocar<Venda[]>("getVendas", filtro),
+		listar: (filtro?: FiltroVendas) => invocar<Venda[]>("getVendas", filtro),
+		itens: (vendaId: number) => invocar<ItemVenda[]>("getItensVenda", vendaId),
+		converterOrcamento: (vendaId: number) =>
+			invocar<{ success: boolean; vendaId: number }>(
+				"converterOrcamento",
+				vendaId,
+			),
+		atualizarNotaFiscal: (
+			vendaId: number,
+			dados: { status: string; numero: string | null },
+		) => invocar<{ success: boolean }>("atualizarNotaFiscal", vendaId, dados),
+		finalizar: (dados: NovaVendaDados) =>
+			invocar<ResultadoVenda>("finalizarVenda", dados),
+		registrarDevolucao: (dados: DevolucaoDados) =>
+			invocar<ResultadoDevolucao>("registrarDevolucao", dados),
 	},
 	financeiro: {
 		lancamentos: (filtro: { tipo?: string; status?: string }) =>
@@ -617,6 +823,20 @@ export const erpApi = {
 	caixa: {
 		historico: (limite?: number) =>
 			invocar<FechamentoCaixa[]>("getHistoricoCaixa", limite),
+		aberto: () => invocar<CaixaAberto | null>("getCaixaAberto"),
+		resumo: () => invocar<ResumoCaixa | null>("getResumoCaixaAberto"),
+		abrir: (valorAbertura: number) =>
+			invocar<{ success: boolean; caixaId: number }>(
+				"abrirCaixa",
+				valorAbertura,
+			),
+		fechar: (valorInformado: number, observacao: string | null) =>
+			invocar<{
+				success: boolean;
+				valorEsperado: number;
+				valorInformado: number;
+				diferenca: number;
+			}>("fecharCaixa", valorInformado, observacao),
 	},
 	pagamentos: {
 		listar: (metodo?: string) =>
@@ -635,5 +855,25 @@ export const erpApi = {
 		downloadUpdate: () => invocar<{ success: boolean }>("downloadUpdate"),
 		quitAndInstall: () => invocar<void>("quitAndInstall"),
 		getAppVersion: () => invocar<string>("getAppVersion"),
+	},
+	relatorios: {
+		dre: (inicio: string | null, fim: string | null) =>
+			invocar<DreResultado>("getDRE", inicio, fim),
+		vendasPeriodo: (inicio: string | null, fim: string | null) =>
+			invocar<RelatorioVendasResultado>("getRelatorioVendas", inicio, fim),
+		curvaABC: (inicio: string | null, fim: string | null) =>
+			invocar<CurvaAbcLinha[]>("getCurvaABC", inicio, fim),
+		comissoes: (inicio: string | null, fim: string | null) =>
+			invocar<ComissaoLinha[]>("getComissoes", inicio, fim),
+		margemContribuicao: (inicio: string | null, fim: string | null) =>
+			invocar<MargemContribuicaoResultado>(
+				"getMargemContribuicao",
+				inicio,
+				fim,
+			),
+		pontoDeEquilibrio: (inicio: string | null, fim: string | null) =>
+			invocar<PontoDeEquilibrioResultado>("getPontoDeEquilibrio", inicio, fim),
+		giroEstoque: (inicio: string | null, fim: string | null) =>
+			invocar<GiroEstoqueLinha[]>("getGiroEstoque", inicio, fim),
 	},
 };

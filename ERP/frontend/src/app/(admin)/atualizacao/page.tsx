@@ -1,11 +1,14 @@
 "use client";
 import Button from "@/components/ui/button/Button";
+import { usePageHeader } from "@/context/PageHeaderContext";
 import { useAtualizacao } from "@/hooks/useAtualizacao";
 
-const COR_STATUS: Record<string, string> = {
-	normal: "text-gray-500 dark:text-gray-400",
-	vermelho: "font-semibold text-error-600 dark:text-error-400",
-	verde: "font-semibold text-success-600 dark:text-success-400",
+// Cores pro status no header — fundo azul-marinho fixo, não usa o par
+// light/dark que os cards no corpo da página usam.
+const COR_STATUS_HEADER: Record<string, string> = {
+	normal: "text-gray-300",
+	vermelho: "font-semibold text-error-400",
+	verde: "font-semibold text-success-400",
 };
 
 const COR_MENSAGEM: Record<string, string> = {
@@ -29,20 +32,17 @@ export default function AtualizacaoPage() {
 		clicarBotao,
 	} = useAtualizacao();
 
+	usePageHeader(
+		"Atualizações",
+		<>
+			Versão atual: <strong className="text-white">{versao}</strong>
+			{" · "}
+			<span className={COR_STATUS_HEADER[statusCor]}>{status}</span>
+		</>,
+	);
+
 	return (
 		<div className="grid grid-cols-1 gap-4">
-			<div>
-				<h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-					Atualizações
-				</h1>
-				<p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-					Versão atual:{" "}
-					<strong className="text-gray-800 dark:text-white/90">{versao}</strong>
-					{" · "}
-					<span className={COR_STATUS[statusCor]}>{status}</span>
-				</p>
-			</div>
-
 			<div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
 				<h2 className="text-base font-semibold text-gray-800 dark:text-white/90">
 					Status

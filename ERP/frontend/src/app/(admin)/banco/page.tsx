@@ -3,6 +3,7 @@ import { useState } from "react";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import Button from "@/components/ui/button/Button";
+import { usePageHeader } from "@/context/PageHeaderContext";
 import { useBancoAdmin } from "@/hooks/useBancoAdmin";
 
 export default function BancoPage() {
@@ -26,16 +27,17 @@ export default function BancoPage() {
 	} = useBancoAdmin();
 	const [senha, setSenha] = useState("");
 
+	usePageHeader(
+		"Banco de Dados",
+		autorizado
+			? "Visão crua das tabelas do banco — use com cuidado"
+			: "Área sensível — confirme sua senha para ver os dados crus.",
+	);
+
 	if (!autorizado) {
 		return (
 			<div className="mx-auto mt-16 max-w-sm">
 				<div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/[0.03]">
-					<h1 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-						Banco de Dados
-					</h1>
-					<p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-						Área sensível — confirme sua senha para ver os dados crus.
-					</p>
 					<form
 						className="mt-4 space-y-3"
 						onSubmit={(e) => {
@@ -68,23 +70,13 @@ export default function BancoPage() {
 
 	return (
 		<div className="grid grid-cols-1 gap-4">
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-						Banco de Dados
-					</h1>
-					<p className="text-sm text-gray-500 dark:text-gray-400">
-						Visão crua das tabelas do banco — use com cuidado
-					</p>
-				</div>
-				<div className="flex gap-2">
-					<Button variant="outline" onClick={atualizar}>
-						Atualizar
-					</Button>
-					<Button onClick={exportarJSON} disabled={exportando}>
-						{exportando ? "Exportando..." : "Exportar Banco (JSON)"}
-					</Button>
-				</div>
+			<div className="flex justify-end gap-2">
+				<Button variant="outline" onClick={atualizar}>
+					Atualizar
+				</Button>
+				<Button onClick={exportarJSON} disabled={exportando}>
+					{exportando ? "Exportando..." : "Exportar Banco (JSON)"}
+				</Button>
 			</div>
 
 			{resultadoExportacao && (

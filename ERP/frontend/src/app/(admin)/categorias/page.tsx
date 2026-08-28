@@ -1,16 +1,28 @@
 "use client";
 import { useState } from "react";
+import { usePageHeader } from "@/context/PageHeaderContext";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import Button from "@/components/ui/button/Button";
 import { useCategorias } from "@/hooks/useCategorias";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { erpApi } from "@/lib/erpApi";
 import CategoriasListModal from "@/components/produtos/CategoriasListModal";
 
 export default function CategoriasPage() {
+	usePageHeader(
+		"Categorias",
+		"Gerencie grupos e atributos (tamanhos, cores, etc.)",
+	);
 	const { categorias, recarregar } = useCategorias();
-	const [nome, setNome] = useState("");
-	const [paiId, setPaiId] = useState("");
+	const [nome, setNome, limparNome] = usePersistedState(
+		"categorias_form_nome",
+		"",
+	);
+	const [paiId, setPaiId, limparPaiId] = usePersistedState(
+		"categorias_form_pai_id",
+		"",
+	);
 	const [mensagem, setMensagem] = useState<{
 		texto: string;
 		sucesso: boolean;
@@ -42,8 +54,8 @@ export default function CategoriasPage() {
 				texto: temPai ? "Atributo adicionado!" : "Categoria criada!",
 				sucesso: true,
 			});
-			setNome("");
-			setPaiId("");
+			limparNome();
+			limparPaiId();
 			recarregar();
 		} catch (e) {
 			setMensagem({
@@ -57,22 +69,13 @@ export default function CategoriasPage() {
 	}
 
 	function limpar() {
-		setNome("");
-		setPaiId("");
+		limparNome();
+		limparPaiId();
 		setMensagem(null);
 	}
 
 	return (
 		<div className="grid grid-cols-1 gap-4">
-			<div>
-				<h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-					Categorias
-				</h1>
-				<p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-					Gerencie grupos e atributos (tamanhos, cores, etc.)
-				</p>
-			</div>
-
 			<div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
 				<h2 className="text-base font-semibold text-gray-800 dark:text-white/90">
 					Nova Categoria / Atributo

@@ -3,6 +3,7 @@ import { useState } from "react";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import Button from "@/components/ui/button/Button";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { erpApi, type ProdutoVariacao } from "@/lib/erpApi";
 import { formatarMoeda } from "@/components/dashboard/formatos";
 import { formatarAtributos } from "@/lib/utils/formatos";
@@ -32,8 +33,14 @@ export default function EstoqueReposicaoForm({
 		null,
 	);
 	const [previewTexto, setPreviewTexto] = useState("");
-	const [itens, setItens] = useState<ItemReposicao[]>([]);
-	const [observacao, setObservacao] = useState("");
+	const [itens, setItens, limparItens] = usePersistedState<ItemReposicao[]>(
+		"estoque_reposicao_itens",
+		[],
+	);
+	const [observacao, setObservacao, limparObservacao] = usePersistedState(
+		"estoque_reposicao_observacao",
+		"",
+	);
 	const [confirmando, setConfirmando] = useState(false);
 
 	async function buscarProduto() {
@@ -120,8 +127,8 @@ export default function EstoqueReposicaoForm({
 	}
 
 	function limpar() {
-		setItens([]);
-		setObservacao("");
+		limparItens();
+		limparObservacao();
 	}
 
 	async function confirmarReposicao() {
@@ -140,8 +147,8 @@ export default function EstoqueReposicaoForm({
 				origem: "manual",
 			});
 			onMensagem("Entrada registrada com sucesso!", true);
-			setItens([]);
-			setObservacao("");
+			limparItens();
+			limparObservacao();
 			onConfirmado();
 		} catch (e) {
 			onMensagem(

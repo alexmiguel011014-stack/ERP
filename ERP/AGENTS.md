@@ -117,6 +117,48 @@ ERP/
 └── test/                            -- Testes automatizados (npm test): integration.test.js, senha.test.js
 ```
 
+## Frontend novo (`frontend/`, Next.js — em migração)
+
+`modules/` (HTML/CSS/JS puro) está sendo migrado telas-por-tela pra um frontend novo em
+`frontend/`: Next.js 15 + React 19 + Tailwind v4, build estático (`output: 'export'`,
+`trailingSlash: true`), servido pelo Electron via protocolo customizado `app://renderer/`
+(registrado em `main.js`, não um servidor HTTP local — ver `magical-soaring-squirrel.md`
+pro racional completo). Os dois frontends coexistem até o cutover final (Fase 6 do plano);
+`modules/**` só sai do repo depois disso, nunca antes.
+
+- **Cutover feito (2026-08-28)**: o frontend novo é o padrão agora (`main.js`,
+  `CARREGAR_FRONTEND_ANTIGO`). `ERP_LEGACY_FRONTEND=1` força o `modules/` antigo — válvula
+  de escape interna pra emergência, nunca documentada/usada pelo usuário final.
+  `ERP_Launcher.bat` é o único lançador agora (o antigo `ERP_Launcher_NovoFrontend.bat`
+  virou redundante e foi removido). `modules/**` continua no repo, não apagado ainda —
+  Fase 6 do plano original (`magical-soaring-squirrel.md`) pede uma passada de regressão
+  completa nas ~22 telas, os dois perfis, os dois temas, antes de remover de vez.
+- **Projeto npm isolado**: `frontend/` tem `package.json`/lockfile próprios — nunca rodar
+  `npm install` nele a partir da raiz (que é `"type": "commonjs"`, só Electron). Só
+  `frontend/out/` (o build estático) entra no pacote final (`package.json` → `build.files`).
+- **`trailingSlash: true` é obrigatório** (export estático — cada rota vira
+  `rota/index.html`), o que significa `usePathname()` sempre devolve a rota com barra no
+  final (`"/financeiro/"`), nunca sem. Qualquer comparação direta com um href construído
+  sem barra (`hrefDoModulo()`, `"/produtos/cadastro"` etc.) precisa passar por
+  `normalizarPathname()` (`hooks/useModulos.ts`) antes de comparar — bug real já pego e
+  corrigido uma vez (fazia o sistema de abas do header só reconhecer o Dashboard).
+- **Camada de acesso a dados**: `lib/erpApi.ts` espelha `window.api` (o mesmo IPC que
+  `modules/` já usa) em namespaces por domínio, na mesma linha de `modules/core/banco.js`.
+  Hooks simples por entidade em cima (`hooks/use*.ts`) — sem React Query/SWR, decisão
+  deliberada (IPC local, não tem o que cachear/retry como dado de rede).
+- **Sessão**: 100% estado do processo principal, sem token client-side — `AuthContext` só
+  lê a sessão uma vez no mount do shell `(admin)/layout.tsx`.
+- **Sistema de abas do header** (`context/TabsContext.tsx` + `layout/AbasAtivasWrapper.tsx`):
+  mantém múltiplos módulos "montados" ao mesmo tempo (um `Map<pathname, ReactNode>`
+  capturado na primeira visita, entradas inativas só escondidas via `hidden`, não
+  desmontadas) — reimplementação manual porque o mecanismo nativo do Next
+  (`cacheComponents`/`<Activity>`) exige a versão 16 (projeto está na 15.5.23).
+- Sem suíte de teste automatizado ainda (`frontend/package.json` não tem script `test`) —
+  todo o trabalho é verificado manualmente contra o app rodando. CI (ver seção acima) roda
+  só lint+typecheck do frontend, sem build.
+- Progresso módulo-por-módulo, decisões de arquitetura detalhadas e histórico de bugs:
+  `GOALS.md`.
+
 ## Banco de Dados
 
 - Arquivo: `erp.sqlite` (criptografado com SQLCipher). Dev: `./data/` | Produção: `%APPDATA%/ERP/`.
@@ -167,7 +209,15 @@ certificado A1 e conta em provedor de pagamento ainda pendentes de acesso — ve
 - Auth via sessão no processo principal (`get-auth-session` → `getAuthSession` no preload); perfil atual `erp_perfil` = admin.
 - Login exigido apenas na entrada do app (`modules/core/auth.js` redireciona para `modules/auth/login.html` se não autenticado). Usuários são gerenciados em `modules/acessos/` (acessível pela sidebar: "Gerenciar Acessos", admin).
 - Dois perfis: `admin` (acesso total) e `vendedor` (restrito por `permissoes` JSON, gerenciado em `modules/acessos/`). Admin sempre passa em `exigirPermissao(modulo)` independente de `permissoes`. `main.js:exigirPermissao` já gate 11 domínios IPC (produtos, categorias, clientes, vendas, estoque, fornecedores, compras, precificacao, financeiro, caixa, relatorios); `pagamentos`, `dashboard`, `usuarios`, `banco-admin`, `sistema` e `auth` ainda usam só `exigirSessao('admin')`.
-- Atualização automática: `electron-updater` + GitHub Releases.
+- Atualização automática: `electron-updater` + GitHub Releases. Checa no boot + a cada 24h
+  enquanto o app fica aberto (`main.js:iniciarChecagemAutomaticaDeAtualizacao`). Achou
+  atualização → `update-status` (push event) chega em qualquer tela via um card global
+  (`frontend/src/components/atualizacao/UpdateAvailableCard.tsx`, montado no
+  `(admin)/layout.tsx`), não só na página `/atualizacao`. "Sim, atualizar" baixa (barra de
+  progresso no card) e, ao terminar o download, chama `quit-and-install` sozinho — sem
+  precisar de um segundo clique. Instalador NSIS é `oneClick: true` (progresso automático,
+  sem assistente com cliques) — trade-off: perdeu a opção de escolher pasta de instalação
+  no primeiro install manual, aceitável pra um app de tenant único instalado numa máquina só.
 - **Camada central de acesso**: `modules/core/banco.js` expõe `window.erpBanco` (agrupado por domínio: produtos, categorias, clientes, vendas, estoque, precificacao, fornecedores, compras, financeiro, relatorios, dashboard, usuarios, sistema). Incluído em todas as páginas via `<script src="../core/banco.js">`. Módulos novos devem usar `window.erpBanco.*`; `window.api.*` permanece disponível para código legado.
 - **Módulo banco** (`modules/banco/banco.html` + `banco.js`): inspeção crua das tabelas via sidebar (admin). Exige sessão admin (`exigirSessao('admin')`) nos IPC `listar-tabelas-banco` / `consultar-tabela-banco` e confirmação de senha do admin (`verificar-senha-admin`). Cadastros do dia a dia NÃO exigem senha extra (a sessão já autentica).
 

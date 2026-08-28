@@ -1,11 +1,13 @@
 "use client";
 import { useState } from "react";
+import { usePageHeader } from "@/context/PageHeaderContext";
 import ProdutoFormPanel from "@/components/produtos/ProdutoFormPanel";
 import ProdutosListModal from "@/components/produtos/ProdutosListModal";
 import CategoriasListModal from "@/components/produtos/CategoriasListModal";
 import type { ProdutoDetalhado } from "@/lib/erpApi";
 
 export default function CadastroProdutoPage() {
+	usePageHeader("Cadastro de Produto", "Cadastre produtos, SKUs e categorias.");
 	const [modalAberto, setModalAberto] = useState(false);
 	const [modalCategoriasAberto, setModalCategoriasAberto] = useState(false);
 	const [produtoEditando, setProdutoEditando] =

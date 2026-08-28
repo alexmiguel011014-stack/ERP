@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { usePageHeader } from "@/context/PageHeaderContext";
 import { useClientes } from "@/hooks/useClientes";
 import ClientesTable from "@/components/clientes/ClientesTable";
 import ClienteFormModal from "@/components/clientes/ClienteFormModal";
@@ -7,6 +8,7 @@ import Button from "@/components/ui/button/Button";
 import type { Cliente } from "@/lib/erpApi";
 
 export default function ClientesPage() {
+	usePageHeader("Clientes", "Cadastro e edição de clientes");
 	const { clientes, carregando, erro, recarregar } = useClientes();
 	const [modalAberto, setModalAberto] = useState(false);
 	const [clienteEditando, setClienteEditando] = useState<Cliente | null>(null);
@@ -23,15 +25,7 @@ export default function ClientesPage() {
 
 	return (
 		<div className="grid grid-cols-1 gap-4">
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-						Clientes
-					</h1>
-					<p className="text-sm text-gray-500 dark:text-gray-400">
-						Cadastro e edição de clientes
-					</p>
-				</div>
+			<div className="flex justify-end">
 				<Button onClick={abrirNovo}>Novo Cliente</Button>
 			</div>
 

@@ -1,6 +1,6 @@
 {
 	"name": "erp",
-	"version": "1.0.5",
+	"version": "1.1.0",
 	"description": "ERP local (offline) da ALLU",
 	"main": "main.js",
 	"scripts": {
@@ -9,7 +9,8 @@
 		"dist": "electron-builder",
 		"rebuild": "electron-rebuild -f -w @journeyapps/sqlcipher",
 		"lint": "eslint .",
-		"test": "node --test test/integration.test.js test/senha.test.js test/negocio.test.js test/pix-payload.test.js test/pix-provider.test.js test/fiscal.test.js test/fiscal-provider.test.js test/backup.test.js test/relatorios-financeiro.test.js test/modulos.test.js"
+		"test": "node --test test/integration.test.js test/senha.test.js test/negocio.test.js test/pix-payload.test.js test/pix-provider.test.js test/fiscal.test.js test/fiscal-provider.test.js test/backup.test.js test/relatorios-financeiro.test.js test/modulos.test.js",
+		"test:e2e": "playwright test"
 	},
 	"keywords": [],
 	"author": "Alex Miguel",
@@ -61,8 +62,7 @@
 		},
 		"nsis": {
 			"artifactName": "ALLU-ERP-Setup-${version}.${ext}",
-			"oneClick": false,
-			"allowToChangeInstallationDirectory": true,
+			"oneClick": true,
 			"createDesktopShortcut": true,
 			"createStartMenuShortcut": true,
 			"shortcutName": "ALLU ERP"
@@ -71,6 +71,7 @@
 	"devDependencies": {
 		"@electron/rebuild": "^4.2.0",
 		"@eslint/js": "^9.0.0",
+		"@playwright/test": "^1.62.1",
 		"electron": "^43.0.0",
 		"electron-builder": "^26.15.3",
 		"eslint": "^9.0.0",

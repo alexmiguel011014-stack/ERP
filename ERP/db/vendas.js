@@ -6,6 +6,7 @@ const {
 	normalizarBusca,
 } = require("./conexao");
 const { criarLancamentoInterno } = require("./financeiro");
+const { getCaixaAberto } = require("./caixa");
 
 // eslint-disable-next-line no-unused-vars
 async function finalizarVendaPDV02(dados) {
@@ -187,6 +188,22 @@ async function finalizarVenda(dados, usuarioId) {
 		throw new Error("A venda precisa de pelo menos um item.");
 
 	const status = dados.status === "orcamento" ? "orcamento" : "finalizada";
+
+	// Guarda de caixa: só se aplica a venda finalizada de verdade (dinheiro/
+	// pagamento passando pelo caixa) — orçamento não move dinheiro nenhum,
+	// só reserva estoque, então não precisa de caixa aberto pra existir.
+	// Endurecido a pedido do dono: no vanilla isso era só um indicador
+	// visual no PDV, sem nenhum bloqueio real no backend — dinheiro podia
+	// ficar fora da conciliação do caixa sem ninguém perceber.
+	if (status === "finalizada") {
+		const caixaAberto = await getCaixaAberto();
+		if (!caixaAberto) {
+			throw new Error(
+				"Não é possível finalizar a venda com o caixa fechado. Abra o caixa antes de continuar.",
+			);
+		}
+	}
+
 	const desconto = Math.max(0, Number(dados.desconto) || 0);
 	const total = Math.max(0, Number(dados.total) || 0);
 	const clienteId = dados.cliente_id ? Number(dados.cliente_id) : null;

@@ -23,7 +23,12 @@ protocol.registerSchemesAsPrivileged([
 		privileges: { standard: true, secure: true, supportFetchAPI: true },
 	},
 ]);
-const CARREGAR_FRONTEND_NOVO = process.env.ERP_SPIKE_FRONTEND === "1";
+// Cutover (2026-08-28): o frontend novo (Next.js) é o padrão agora — antes
+// era opt-in via ERP_SPIKE_FRONTEND=1. `modules/` (HTML/CSS/JS puro) continua
+// no repo como rede de segurança, não apagado ainda (ver AGENTS.md) — essa
+// env var é só uma válvula de escape interna pra voltar pro antigo se algo
+// aparecer quebrado, nunca documentada/usada pelo usuário final.
+const CARREGAR_FRONTEND_ANTIGO = process.env.ERP_LEGACY_FRONTEND === "1";
 const DIR_FRONTEND_NOVO = path.join(__dirname, "frontend", "out");
 
 // Carrega .env (chaves Pix/NF-e etc.) se existir — nunca obrigatório, o app
@@ -34,6 +39,15 @@ try {
 	process.loadEnvFile(path.join(__dirname, ".env"));
 } catch {
 	/* sem .env: segue com as integrações opcionais desligadas */
+}
+
+// Isolamento pros testes e2e (Playwright, ver e2e/): precisa vir ANTES do
+// requestSingleInstanceLock() abaixo, senão uma instância de teste rodando
+// junto com o app real de verdade colide no lock (o lock é por userData) e
+// a instância de teste simplesmente fecha sozinha. Só tem efeito com a env
+// var setada — no-op em qualquer uso normal do app.
+if (process.env.ERP_TEST_USERDATA_DIR) {
+	app.setPath("userData", process.env.ERP_TEST_USERDATA_DIR);
 }
 
 const instanciaUnica = app.requestSingleInstanceLock();
@@ -144,6 +158,23 @@ function pararBackupAutomatico() {
 	}
 }
 
+var intervaloAtualizacao = null;
+
+// Checa 1x no boot (já existia) + de novo a cada 24h enquanto o app fica
+// aberto — sem o intervalo, uma loja que deixa o PDV ligado o dia inteiro só
+// veria uma atualização no dia seguinte, quando reabrisse o app.
+function iniciarChecagemAutomaticaDeAtualizacao() {
+	if (!app.isPackaged) return;
+	if (intervaloAtualizacao) clearInterval(intervaloAtualizacao);
+	autoUpdater.checkForUpdates().catch(() => {});
+	intervaloAtualizacao = setInterval(
+		() => {
+			autoUpdater.checkForUpdates().catch(() => {});
+		},
+		24 * 60 * 60 * 1000,
+	);
+}
+
 autoUpdater.on("checking-for-update", () => {
 	if (mainWindow)
 		mainWindow.webContents.send("update-status", { status: "checking" });
@@ -217,25 +248,37 @@ function criarJanelaPrincipal() {
 		);
 	});
 
-	// Nível >=2 cobre console.error/console.warn e os erros que o script
-	// errorlog.js (carregado em toda página) reencaminha via console.error:
-	// exceções JS não tratadas (window.onerror) e promises sem catch.
-	janela.webContents.on("console-message", (event, detail) => {
-		const { level, message, lineNumber, sourceId } = detail;
-		if (level === "error" || level === "warning") {
-			logErro(
-				"[L" +
-					level +
-					"] " +
-					message +
-					" (" +
-					sourceId +
-					":" +
-					lineNumber +
-					")",
-			);
-		}
-	});
+	// Cobre console.error/console.warn e os erros que o script errorlog.js
+	// (carregado em toda página) reencaminha via console.error: exceções JS
+	// não tratadas (window.onerror) e promises sem catch.
+	// Bug real encontrado e corrigido aqui: a partir do Electron 35, esse
+	// evento passa a detalhar tudo num ÚNICO parâmetro (não mais
+	// `(event, level, message, ...)` nem `(event, detail)`), e o "level"
+	// virou string ("info"/"warning"/"error"/"debug"), não mais número. O
+	// código antigo desestruturava de um segundo parâmetro que não existe
+	// mais nessa versão do Electron (^43) — `detail` sempre undefined,
+	// lançando exceção dentro do próprio handler a cada mensagem de console,
+	// silenciosamente, sem nunca gravar nada no log. Erro raiz do "nenhum
+	// diagnóstico aparece no erp-crash.log" — não causado por nenhuma feature
+	// nova, já existia antes.
+	janela.webContents.on(
+		"console-message",
+		({ level, message, lineNumber, sourceId }) => {
+			if (level === "error" || level === "warning") {
+				logErro(
+					"[L" +
+						level +
+						"] " +
+						message +
+						" (" +
+						sourceId +
+						":" +
+						lineNumber +
+						")",
+				);
+			}
+		},
+	);
 
 	janela.webContents.on(
 		"did-fail-load",
@@ -251,10 +294,10 @@ function criarJanelaPrincipal() {
 		},
 	);
 
-	if (CARREGAR_FRONTEND_NOVO) {
-		janela.loadURL("app://renderer/");
-	} else {
+	if (CARREGAR_FRONTEND_ANTIGO) {
 		janela.loadFile("modules/dashboard/index.html");
+	} else {
+		janela.loadURL("app://renderer/");
 	}
 }
 
@@ -285,15 +328,13 @@ app.whenReady().then(async () => {
 
 	setDBPath(app.getPath("userData"));
 
-	if (CARREGAR_FRONTEND_NOVO) {
+	if (!CARREGAR_FRONTEND_ANTIGO) {
 		registrarProtocoloFrontendNovo();
 	}
 
 	criarJanelaPrincipal();
 
-	if (app.isPackaged) {
-		autoUpdater.checkForUpdates();
-	}
+	iniciarChecagemAutomaticaDeAtualizacao();
 });
 
 const deps = {

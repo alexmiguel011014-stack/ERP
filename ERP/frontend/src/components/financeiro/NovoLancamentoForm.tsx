@@ -3,6 +3,7 @@ import { useState } from "react";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import Button from "@/components/ui/button/Button";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { erpApi, type NovoLancamento } from "@/lib/erpApi";
 
 export default function NovoLancamentoForm({
@@ -12,11 +13,26 @@ export default function NovoLancamentoForm({
 	onSalvo: (tipo: "receber" | "pagar", mensagem: string) => void;
 	onErro: (mensagem: string) => void;
 }) {
-	const [tipo, setTipo] = useState<"receber" | "pagar">("receber");
-	const [descricao, setDescricao] = useState("");
-	const [valor, setValor] = useState("");
-	const [vencimento, setVencimento] = useState("");
-	const [parcelas, setParcelas] = useState("1");
+	const [tipo, setTipo] = usePersistedState<"receber" | "pagar">(
+		"financeiro_lancamento_tipo",
+		"receber",
+	);
+	const [descricao, setDescricao, limparDescricao] = usePersistedState(
+		"financeiro_lancamento_descricao",
+		"",
+	);
+	const [valor, setValor, limparValor] = usePersistedState(
+		"financeiro_lancamento_valor",
+		"",
+	);
+	const [vencimento, setVencimento, limparVencimento] = usePersistedState(
+		"financeiro_lancamento_vencimento",
+		"",
+	);
+	const [parcelas, setParcelas, limparParcelas] = usePersistedState(
+		"financeiro_lancamento_parcelas",
+		"1",
+	);
 	const [salvando, setSalvando] = useState(false);
 
 	async function adicionar() {
@@ -45,10 +61,10 @@ export default function NovoLancamentoForm({
 					? `Lançamento adicionado em ${parcelasNum} parcelas.`
 					: "Lançamento adicionado.",
 			);
-			setDescricao("");
-			setValor("");
-			setVencimento("");
-			setParcelas("1");
+			limparDescricao();
+			limparValor();
+			limparVencimento();
+			limparParcelas();
 		} catch (e) {
 			onErro(e instanceof Error ? e.message : String(e));
 		} finally {

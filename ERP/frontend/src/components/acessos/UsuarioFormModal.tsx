@@ -6,6 +6,7 @@ import Input from "@/components/form/input/InputField";
 import Checkbox from "@/components/form/input/Checkbox";
 import Button from "@/components/ui/button/Button";
 import { useAuth } from "@/context/AuthContext";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import {
 	erpApi,
 	parsePermissoesUsuario,
@@ -51,6 +52,25 @@ function perfilValido(v: string): "admin" | "dono" | "vendedor" {
 	return v === "dono" || v === "vendedor" ? v : "admin";
 }
 
+// Só os campos sem senha — nunca persistir credencial em localStorage.
+type RascunhoUsuario = {
+	login: string;
+	nome: string;
+	perfil: "admin" | "dono" | "vendedor";
+	comissao_percentual: number;
+	ativo: boolean;
+	permissoes: Record<string, boolean>;
+};
+
+const RASCUNHO_VAZIO: RascunhoUsuario = {
+	login: "",
+	nome: "",
+	perfil: "admin",
+	comissao_percentual: 0,
+	ativo: true,
+	permissoes: {},
+};
+
 export default function UsuarioFormModal({
 	isOpen,
 	onClose,
@@ -66,6 +86,11 @@ export default function UsuarioFormModal({
 	const [form, setForm] = useState<FormState>(FORM_VAZIO);
 	const [erro, setErro] = useState<string | null>(null);
 	const [salvando, setSalvando] = useState(false);
+	const [rascunho, setRascunho, limparRascunho] =
+		usePersistedState<RascunhoUsuario>(
+			"acessos_novo_usuario_rascunho",
+			RASCUNHO_VAZIO,
+		);
 
 	useEffect(() => {
 		if (!isOpen) return;
@@ -83,19 +108,38 @@ export default function UsuarioFormModal({
 				permissoes: parsePermissoesUsuario(usuarioEditando.permissoes),
 			});
 		} else {
-			setForm(FORM_VAZIO);
+			setForm({ ...FORM_VAZIO, ...rascunho });
 		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [isOpen, usuarioEditando]);
 
 	function campo<K extends keyof FormState>(nome: K, valor: FormState[K]) {
-		setForm((f) => ({ ...f, [nome]: valor }));
+		setForm((f) => {
+			const novo = { ...f, [nome]: valor };
+			// Rascunho só faz sentido pra cadastro novo — editar um usuário
+			// existente não deve sobrescrever o que estava sendo digitado antes.
+			if (!usuarioEditando) {
+				setRascunho({
+					login: novo.login,
+					nome: novo.nome,
+					perfil: novo.perfil,
+					comissao_percentual: novo.comissao_percentual,
+					ativo: novo.ativo,
+					permissoes: novo.permissoes,
+				});
+			}
+			return novo;
+		});
 	}
 
 	function alternarPermissao(modulo: string, marcado: boolean) {
-		setForm((f) => ({
-			...f,
-			permissoes: { ...f.permissoes, [modulo]: marcado },
-		}));
+		setForm((f) => {
+			const permissoes = { ...f.permissoes, [modulo]: marcado };
+			if (!usuarioEditando) {
+				setRascunho((r) => ({ ...r, permissoes }));
+			}
+			return { ...f, permissoes };
+		});
 	}
 
 	const ehVendedor = form.perfil === "vendedor";
@@ -172,6 +216,7 @@ export default function UsuarioFormModal({
 		setErro(null);
 		try {
 			await erpApi.usuarios.salvar(dados);
+			if (!usuarioEditando) limparRascunho();
 			onSalvo();
 			onClose();
 		} catch (e) {

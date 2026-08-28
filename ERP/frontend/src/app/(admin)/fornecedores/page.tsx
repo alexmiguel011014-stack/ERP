@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { usePageHeader } from "@/context/PageHeaderContext";
 import { useFornecedores } from "@/hooks/useFornecedores";
 import FornecedoresTable from "@/components/fornecedores/FornecedoresTable";
 import FornecedorFormModal from "@/components/fornecedores/FornecedorFormModal";
@@ -7,6 +8,10 @@ import Button from "@/components/ui/button/Button";
 import type { Fornecedor } from "@/lib/erpApi";
 
 export default function FornecedoresPage() {
+	usePageHeader(
+		"Fornecedores",
+		"Contatos comerciais e prazos de pagamento acordados",
+	);
 	const { fornecedores, carregando, erro, recarregar } = useFornecedores();
 	const [modalAberto, setModalAberto] = useState(false);
 	const [fornecedorEditando, setFornecedorEditando] =
@@ -24,15 +29,7 @@ export default function FornecedoresPage() {
 
 	return (
 		<div className="grid grid-cols-1 gap-4">
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-						Fornecedores
-					</h1>
-					<p className="text-sm text-gray-500 dark:text-gray-400">
-						Contatos comerciais e prazos de pagamento acordados
-					</p>
-				</div>
+			<div className="flex justify-end">
 				<Button onClick={abrirNovo}>Novo Fornecedor</Button>
 			</div>
 

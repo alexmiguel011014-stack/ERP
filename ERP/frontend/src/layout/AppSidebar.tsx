@@ -1,32 +1,16 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "../context/SidebarContext";
 import { useAuth } from "../context/AuthContext";
 import { HorizontaLDots } from "../icons/index";
-
-type ManifestoNavbar = {
-	secao: "principal" | "gestao" | "administracao";
-	label: string;
-	dica?: string;
-	icone: string;
-	ordem: number;
-	abaDashboard: boolean;
-	workspaceParam?: string;
-};
-
-type ManifestoModulo = {
-	id: string;
-	nome: string;
-	tipo: "pagina" | "workspace-dashboard";
-	entrada: string | null;
-	permissao:
-		| { tipo: "sempre" }
-		| { tipo: "admin" }
-		| { tipo: "modulo"; nomeModulo: string };
-	navbar: ManifestoNavbar | null;
-};
+import {
+	hrefDoModulo,
+	normalizarPathname,
+	useModulosPermitidos,
+} from "../hooks/useModulos";
+import IconeModulo from "../components/common/IconeModulo";
 
 const SECAO_LABEL: Record<string, string> = {
 	principal: "Principal",
@@ -35,59 +19,34 @@ const SECAO_LABEL: Record<string, string> = {
 };
 const ORDEM_SECAO = ["principal", "gestao", "administracao"];
 
-// Renderiza o SVG bruto que já vem no manifesto (modulo.json) — mesmo ícone
-// usado no navbar.js vanilla, sem reconverter pra componente React um por
-// um. Fonte confiável (nossos próprios arquivos, não dado de usuário).
-function IconeModulo({ svg }: { svg: string }) {
-	return (
-		<span
-			className="[&>svg]:h-[18px] [&>svg]:w-[18px]"
-			dangerouslySetInnerHTML={{ __html: svg }}
-		/>
-	);
-}
-
-// "workspace-dashboard" (só Produtos usa esse tipo) abria como aba dentro do
-// Dashboard no app vanilla — o mesmo mecanismo de iframe-tab que essa
-// migração existe pra remover (ver dashboard/abas.js). Rota normal como
-// qualquer outro módulo — simplificação deliberada, não descuido.
-function hrefDoModulo(m: ManifestoModulo): string {
-	return `/${m.id}`;
-}
+// Módulos cujo manifesto já existe (e por isso apareceriam na sidebar) mas
+// ainda não têm rota real no frontend novo — clicar neles navegaria pra uma
+// página inexistente no export estático e travaria em tela branca (mesmo
+// bug de raiz corrigido pra "dashboard" em hooks/useModulos.ts). Renderizados
+// desabilitados até cada um ganhar sua rota real; remover da lista assim que
+// built. Vazio agora: "vendas" (/vendas) e "pdv" (/pdv) já têm rota real —
+// era o último módulo do plano de migração, mecanismo mantido pro caso de um
+// módulo novo entrar no manifesto antes de ganhar sua página no Next.js.
+const MODULOS_SEM_ROTA_NOVA = new Set<string>([]);
 
 const AppSidebar: React.FC = () => {
 	const { isHovered, setIsHovered } = useSidebar();
 	const pathname = usePathname();
-	const { sessao, isAdmin, podeModulo } = useAuth();
-	const [modulos, setModulos] = useState<ManifestoModulo[]>([]);
+	const { sessao } = useAuth();
+	const modulos = useModulosPermitidos();
 
-	useEffect(() => {
-		if (!window.api?.getModulosCarregados) return;
-		window.api
-			.getModulosCarregados()
-			.then((lista) => setModulos(lista as ManifestoModulo[]))
-			.catch(() => setModulos([]));
-	}, []);
-
-	function permissaoLiberada(m: ManifestoModulo) {
-		if (m.permissao.tipo === "sempre") return true;
-		if (m.permissao.tipo === "admin") return isAdmin;
-		return podeModulo(m.permissao.nomeModulo);
-	}
-
-	const isActive = (path: string) => path === pathname;
+	const isActive = (path: string) => path === normalizarPathname(pathname);
 
 	const secoes = ORDEM_SECAO.map((secaoId) => {
 		const itens = modulos
-			.filter((m) => m.navbar && m.navbar.secao === secaoId)
-			.filter(permissaoLiberada)
+			.filter((m) => m.navbar!.secao === secaoId)
 			.sort((a, b) => (a.navbar!.ordem ?? 0) - (b.navbar!.ordem ?? 0));
 		return { id: secaoId, label: SECAO_LABEL[secaoId], itens };
 	}).filter((secao) => secao.itens.length > 0);
 
 	return (
 		<aside
-			className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-4 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-screen transition-all duration-300 ease-in-out z-50 border-r border-gray-200 translate-x-0 ${
+			className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-4 left-0 bg-[#0F172A] text-gray-100 h-screen transition-all duration-300 ease-in-out z-50 border-r border-white/10 translate-x-0 ${
 				isHovered ? "w-[260px]" : "w-[76px]"
 			}`}
 			onMouseEnter={() => setIsHovered(true)}
@@ -103,9 +62,7 @@ const AppSidebar: React.FC = () => {
 						AE
 					</span>
 					{isHovered && (
-						<span className="text-base font-bold text-gray-800 dark:text-white/90">
-							ALLU ERP
-						</span>
+						<span className="text-base font-bold text-white">ALLU ERP</span>
 					)}
 				</Link>
 			</div>
@@ -123,6 +80,25 @@ const AppSidebar: React.FC = () => {
 								</h2>
 								<ul className="flex flex-col gap-1">
 									{secao.itens.map((m) => {
+										if (MODULOS_SEM_ROTA_NOVA.has(m.id)) {
+											return (
+												<li key={m.id}>
+													<span
+														title={`${m.navbar!.label} — em migração, ainda não disponível neste frontend`}
+														className="menu-item cursor-not-allowed opacity-40"
+													>
+														<span className="menu-item-icon-inactive">
+															<IconeModulo svg={m.navbar!.icone} />
+														</span>
+														{isHovered && (
+															<span className="menu-item-text">
+																{m.navbar!.label}
+															</span>
+														)}
+													</span>
+												</li>
+											);
+										}
 										const href = hrefDoModulo(m);
 										return (
 											<li key={m.id}>

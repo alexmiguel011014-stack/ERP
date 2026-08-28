@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { usePageHeader } from "@/context/PageHeaderContext";
 import NovoLancamentoForm from "@/components/financeiro/NovoLancamentoForm";
 import LancamentosTab from "@/components/financeiro/LancamentosTab";
 import FluxoCaixaTab from "@/components/financeiro/FluxoCaixaTab";
@@ -17,6 +18,10 @@ const ABAS: { id: Aba; label: string }[] = [
 ];
 
 export default function FinanceiroPage() {
+	usePageHeader(
+		"Financeiro",
+		"Contas a pagar, contas a receber e fluxo de caixa realizado.",
+	);
 	const [aba, setAba] = useState<Aba>("receber");
 	const [refreshTick, setRefreshTick] = useState(0);
 	const [mensagem, setMensagem] = useState<{
@@ -36,15 +41,6 @@ export default function FinanceiroPage() {
 
 	return (
 		<div className="grid grid-cols-1 gap-4">
-			<div>
-				<h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-					Financeiro
-				</h1>
-				<p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-					Contas a pagar, contas a receber e fluxo de caixa realizado.
-				</p>
-			</div>
-
 			<div className="flex flex-wrap gap-2 border-b border-gray-200 dark:border-gray-800">
 				{ABAS.map((a) => (
 					<button

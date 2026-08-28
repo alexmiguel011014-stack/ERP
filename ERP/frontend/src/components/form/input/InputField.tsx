@@ -1,5 +1,10 @@
 import React, { FC } from "react";
 
+// autoComplete default é "off": nenhum desses inputs tem `name`, mas o
+// Chromium ainda tenta sugerir valores de outros formulários da própria app
+// (ex: digitar em "Nome" de Fornecedores e o mesmo texto aparecer sozinho em
+// "Nome" de Clientes) — bug real reportado pelo dono. Passe autoComplete
+// explícito só pra campo que realmente quer sugestão nativa (login, etc.).
 interface InputProps {
 	type?: "text" | "number" | "email" | "password" | "date" | "time" | string;
 	id?: string;
@@ -17,6 +22,7 @@ interface InputProps {
 	success?: boolean;
 	error?: boolean;
 	hint?: string; // Optional hint text
+	autoComplete?: string;
 }
 
 const Input: FC<InputProps> = ({
@@ -36,6 +42,7 @@ const Input: FC<InputProps> = ({
 	success = false,
 	error = false,
 	hint,
+	autoComplete = "off",
 }) => {
 	// Determine input styles based on state (disabled, success, error)
 	let inputClasses = `h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800 ${className}`;
@@ -66,6 +73,7 @@ const Input: FC<InputProps> = ({
 				max={max}
 				step={step}
 				disabled={disabled}
+				autoComplete={autoComplete}
 				className={inputClasses}
 			/>
 

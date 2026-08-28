@@ -202,7 +202,7 @@
     cursor: pointer;
   }
   body {
-    @apply relative font-normal font-outfit z-1 bg-gray-50;
+    @apply relative font-normal font-outfit z-1 bg-[#F0F4F8] dark:bg-gray-50;
   }
 }
 
@@ -214,12 +214,15 @@
   @apply bg-brand-50 text-brand-500 dark:bg-brand-500/[0.12] dark:text-brand-400;
 }
 
+/* Sidebar tem fundo azul-marinho sólido fixo (bg-[#0F172A] em AppSidebar.tsx),
+   independente do tema claro/escuro do resto do app — por isso o texto/ícone
+   "inativo" usa direto os tons claros que antes só existiam na variante dark:. */
 @utility menu-item-inactive {
-  @apply text-gray-700 hover:bg-gray-100 group-hover:text-gray-700 dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-gray-300;
+  @apply text-gray-300 hover:bg-white/10 group-hover:text-white dark:hover:bg-white/5;
 }
 
 @utility menu-item-icon {
-  @apply text-gray-500 group-hover:text-gray-700 dark:text-gray-400;
+  @apply text-gray-400 group-hover:text-white;
 }
 
 /* Impressão de comprovantes/pedidos (Compras, Vendas, PDV...) — mesmo truque
@@ -247,7 +250,7 @@
 }
 
 @utility menu-item-icon-inactive {
-  @apply text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300;
+  @apply text-gray-400 group-hover:text-white;
 }
 
 @utility menu-item-arrow {

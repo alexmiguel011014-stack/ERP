@@ -15,6 +15,8 @@ const { runAsync, getAsync } = require("../db/conexao");
 before(async () => {
 	db.setDBPath(TMP);
 	await db.desbloquearBanco("senha-teste-123");
+	// finalizarVenda (status "finalizada") agora exige caixa aberto.
+	await db.abrirCaixa(0, null);
 });
 
 after(async () => {

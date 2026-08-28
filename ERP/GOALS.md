@@ -1252,6 +1252,46 @@ happens directly in `frontend/`, not in a per-module repo.
         progress (no backend files touched this time). Not yet verified live by the owner —
         also can't be fully exercised without a real newer release published, so the "no
         update available" / "checking" paths are what's realistically testable right now.
+      - **Follow-up (2026-08-28), owner's explicit spec for the update flow**: "verifica
+        sempre se tem atualização no repositório (1x/dia). ou clica em verificar
+        atualizações. se ele verificar sozinho deve aparecer um card: Existe uma
+        atualização, deseja fazer ela? se a pessoa clicar em sim, fecha o app, abre uma
+        barra de carregamento, termina de atualizar depois inicia o app sozinho." Gaps
+        found against that spec and closed:
+        - `main.js` only checked for updates **once**, at boot. Added
+          `iniciarChecagemAutomaticaDeAtualizacao()` (mirrors the existing daily-backup
+          interval pattern) — checks at boot + every 24h while the app stays open, so a
+          register left running all day doesn't have to wait for tomorrow's relaunch to
+          notice a new release.
+        - The existing `/atualizacao` page (`useAtualizacao.ts`) only ever surfaced status
+          to whoever was already looking at that specific page — a background daily check
+          finding an update while the owner was mid-sale on PDV would go unnoticed. New
+          `components/atualizacao/UpdateAvailableCard.tsx`, mounted once in
+          `(admin)/layout.tsx` (so it's live on every authenticated screen, not just
+          `/atualizacao`): listens for the same `update-status` push event, and on
+          `"available"` shows a floating card — "Existe uma atualização (vX) disponível.
+          Deseja instalar agora?" with Sim/Agora não. This is additive, not a replacement —
+          the `/atualizacao` page and its own button still work exactly as before for a
+          manual check.
+        - "Sim" downloads (progress bar right on the card) and, unlike the existing page's
+          flow (which needs a *second* click once the download finishes), calls
+          `quit-and-install` automatically the moment the `"update-downloaded"` event
+          arrives — matches "termina de atualizar depois inicia o app sozinho" literally,
+          no extra interaction.
+        - The NSIS installer itself was `oneClick: false` (`package.json` → `build.nsis`) —
+          a multi-step wizard (choose folder → Install → Finish), incompatible with "abre
+          uma barra de carregamento" with zero clicks. Switched to `oneClick: true`
+          (`quitAndInstall`'s own progress UI becomes a plain auto-advancing loading bar).
+          **Disclosed trade-off, not hidden**: one-click NSIS installers can't offer
+          "choose install directory," so `allowToChangeInstallationDirectory` was removed
+          too — acceptable here since this app is installed on one dedicated register PC
+          per client, not distributed to end users who'd want to pick a location.
+        - Verified: `npm run lint`/`typecheck`/`build` clean (frontend), `npx eslint main.js`
+          clean, `npm test` still 57/57, e2e suite (see Header Tab System section) still
+          4/4 — confirms the new daily-interval code doesn't break app boot. **Not yet
+          live-verified against a real published release** (same caveat as above — the
+          "update available" → download → silent-install → auto-relaunch path can only be
+          fully proven once there's an actual newer GitHub Release to update *to*).
 - [ ] **Financeiro + Pagamentos — seventh module, built, not yet live-verified.** Owner asked
       to run through the rest of the per-module restyle in one continuous pass
       (`/execgoals`, "pode fazer tudo de uma vez"). 5-tab workspace (A Receber/A Pagar/Fluxo
@@ -1447,8 +1487,614 @@ happens directly in `frontend/`, not in a per-module repo.
             `lg:py-*` override existed to shrink it) — reduced to `py-[14.4px]`, exactly 90% of
             the original, per the owner's own ask. Icon sizes (`ThemeToggleButton`, the avatar
             in `UserDropdown`) untouched — only the padding around them shrank.
-          - Verified: `npm run typecheck` clean, `npm run lint` clean, `npm run build` in
-            progress. Not yet re-verified live.
+          - Verified: `npm run typecheck` clean, `npm run lint` clean, `npm run build` (35/35
+            pages). Owner's third live pass found one more real gap, fixed same session:
+          - **"Lista de Categorias" opened the wrong thing.** `ProdutoFormPanel.tsx`'s button
+            was a plain `<Link href="/categorias">` — a full page navigation to the Categorias
+            *management* page (its own form + a separate "Categorias Cadastradas" button),
+            not the list modal the owner expected (same modal "Lista de Produtos" opens,
+            `CategoriasListModal`). A tab-inside-a-tab, in the owner's own words. Replaced the
+            `Link` with an `onAbrirListaCategorias` callback (mirroring the existing
+            `onAbrirLista` prop for the products list) so `produtos/cadastro/page.tsx` now
+            renders `CategoriasListModal` directly, same pattern as `ProdutosListModal`.
+            Verified: `npm run typecheck` clean, `npm run build` (35/35 pages), Electron
+            relaunched and confirmed booted (4 processes). Shipped in commit `e9ad544`.
+- [ ] **Relatórios — tenth module, built, not yet live-verified.** Owner chose to continue the
+      migration into Relatórios/Vendas/PDV rather than wait for live verification of the 6
+      modules still pending it (Banco, Importação, Atualização, Financeiro+Pagamentos, Compras,
+      Produtos) — those stay open, unchanged, this is additive.
+      - Investigated the real vanilla module first (`modules/relatorios/relatorios.js`,
+        `db/relatorios.js`, `ipc/relatorios.js`) before porting, same discipline as every prior
+        module. **No manifest/gate mismatch this time** — `modules/relatorios/modulo.json`'s
+        `nomeModulo:"relatorios"` matches all 7 `ipc/relatorios.js` handlers'
+        `exigirPermissao("relatorios")` exactly (the first module checked this session where the
+        manifest was already correct).
+      - `erpApi.relatorios` namespace added (7 methods: `dre`, `vendasPeriodo`, `curvaABC`,
+        `comissoes`, `margemContribuicao`, `pontoDeEquilibrio`, `giroEstoque`), all
+        `(inicio, fim)` positional strings matching the real `db/relatorios.js` signatures
+        exactly, confirmed already exposed under these exact names in `preload.js` (no new
+        preload/IPC work needed — this module's backend was fully done in the earlier
+        Financial/Accounting Depth pass).
+      - **Charting swapped from Chart.js to ApexCharts**, not a byte-for-byte port — ApexCharts
+        was already a `frontend/` dependency (from the TailAdmin base, used by
+        `FaturamentoChart.tsx` on the Dashboard) and the original migration plan
+        (`magical-soaring-squirrel.md`, Phase 3) explicitly called for this swap. 4 charts
+        ported: `PorDiaChart` (bar), `PorPagamentoChart` (donut), `CurvaAbcChart` (pie),
+        `DreChart` (horizontal bar, using ApexCharts' `distributed:true` to get one color per
+        bar the way Chart.js did natively). Same color palette values ported from vanilla's
+        `CORES` object.
+      - **jsPDF export ported faithfully, one real bug fixed not replicated**: vanilla's
+        `exportarPdf()` printed the Comissões table twice (a verbatim copy-paste of the same
+        block at two points in the source) — fixed in the port, not copied, since that's a
+        genuine defect, not intentional behavior worth preserving for parity. Everything else
+        ported as-is per the investigation, including two disclosed, not-fixed quirks: (1) the
+        Curva ABC panel/CSV/PDF all label the classification "por receita"/"por lucro"
+        inconsistently while the actual A/B/C math is always by accumulated **lucro** share, not
+        receita — a pre-existing vanilla naming/logic mismatch, ported as-is rather than
+        unilaterally changing real business classification the owner may already rely on; (2)
+        Margem de Contribuição, Ponto de Equilíbrio, and Giro de Estoque are excluded from the
+        PDF export, same as vanilla — not treated as a bug, since vanilla never included them
+        either. New `jspdf` dependency added to `frontend/package.json` (vanilla loaded it via a
+        vendored UMD bundle; the React port uses the real npm package instead, same library).
+      - **Currency/percent formatting deliberately modernized, not byte-for-byte**: vanilla's
+        `formatarMoeda` was a raw `"R$ " + toFixed(2)` with no thousands separator; the port
+        (`components/relatorios/formatos.ts`) uses `Intl.NumberFormat("pt-BR", {style:
+        "currency"})`, matching the convention already established by
+        `components/dashboard/formatos.ts` elsewhere in this migration — same small-file-not-
+        shared pattern (each screen's `formatos.ts` is intentionally its own copy, per that
+        file's own comment, not worth sharing at this size).
+      - **Admin-only "Vendas" tab, disclosed simplification**: vanilla's second tab lazily
+        embeds `vendas.html?embedded=1` in an `<iframe>` — exactly the iframe-embedding pattern
+        this whole migration exists to remove, and Vendas hasn't been ported to a real Next.js
+        route yet (it's next, per the owner's own chosen order). The tab still only renders for
+        `isAdmin` (mirrors vanilla's client-side profile check), but shows a placeholder message
+        instead of an iframe for now — will be wired to a real `/vendas` link once that module is
+        built next.
+      - CSV export (Curva ABC only, matching vanilla's own scope — no CSV button exists for any
+        other panel in either frontend) ported as a direct client-side Blob-download, same
+        pattern as every other CSV export already shipped this session (Produtos, etc).
+      - Verified: `npm run typecheck` clean, `npm run lint` clean, `npm run build` (36/36 pages,
+        `/relatorios` at 138 kB First Load JS — the jsPDF+ApexCharts weight, expected). No
+        backend files touched (all IPC/db/preload wiring for this domain already existed from
+        the earlier Financial/Accounting Depth pass) — `npm test` not re-run, nothing to
+        invalidate. Electron relaunched, confirmed booted. Not yet live-verified by the owner.
+- [x] **Theme: navy header/sidebar + ice-blue page background, page titles moved into the
+      header.** Two owner-driven rounds. Round 1 (`#3fd2c7` chrome / `#93dcfc` background) was
+      explicitly rejected live ("ficou feio de mais") — round 2 settled on `#0F172A` (header +
+      sidebar, solid navy) / `#F0F4F8` (page background). Applied as literal hex (`bg-[#0F172A]`
+      etc.), not new `@theme` tokens — these aren't the brand-primary color (`--color-brand-500`,
+      still `#00006b`, untouched), just chrome/background, and the owner is still iterating on
+      them ("vamos ter que mudar futuramente de novo").
+      - Sidebar/header text and icon colors needed real contrast fixes, not just a background
+        swap — `menu-item-inactive`/`menu-item-icon-inactive` (`globals.css`, used only by
+        `AppSidebar.tsx`) switched from dark-gray light-mode text to light-gray always, since the
+        sidebar's background is now permanently dark regardless of the app's own light/dark
+        toggle. Same for the "ALLU ERP" logo label and `UserDropdown`'s toggle button (name +
+        chevron) sitting directly on the header.
+      - **New cross-cutting pattern: page titles live in the header, not in each page's own
+        body.** Owner's explicit ask, with a worked example (Compras' "Pedidos de Compra" title
+        pointed at, "tire esse titulo dai e passe ele exatamente do mesmo jeito para o header").
+        Added `PageHeaderContext.tsx` (`{cabecalho, setCabecalho}` + a `usePageHeader(titulo,
+        subtitulo?)` hook that sets-on-mount/clears-on-unmount via a `useEffect`) so a page
+        declares its own title without the header needing to know about routes. Wired into
+        `(admin)/layout.tsx` (`PageHeaderProvider` wraps sidebar+header+children) and
+        `AppHeader.tsx` (renders `cabecalho.titulo` white + `cabecalho.subtitulo` light-gray, in
+        the space between the mobile-only logo/hamburger block and the theme/user block — that
+        space is otherwise empty at desktop width). Applied to all 12 pages that had a page-level
+        `<h1>`: Relatórios, Compras, Categorias, Financeiro, Atualização, Importação,
+        Estoque, Precificação, Acessos, Fornecedores, Clientes, Banco de Dados.
+      - Found and fixed a real layout bug while wiring the header, not just inserted the new
+        element: the header's mobile-only logo/hamburger container had `w-full` with no `lg:`
+        override, so even though its own children were `lg:hidden`, the empty container itself
+        still claimed full width at desktop and would have squeezed the new title block out —
+        changed to `lg:hidden` on the whole container. Same issue on the theme/user container
+        (`w-full` with no desktop override) — added `lg:w-auto lg:shrink-0` so it hugs its own
+        content instead of also claiming full width.
+      - `banco/page.tsx` has two states (password gate, then the real screen) — one
+        `usePageHeader` call computes title/subtitle from `autorizado` rather than duplicating
+        the call in both branches; `atualizacao/page.tsx`'s subtitle is dynamic JSX (colored
+        status span), so `usePageHeader`'s second argument is typed `React.ReactNode`, not just
+        `string`, to support both cases without a separate API.
+      - Three pages (`acessos`, `fornecedores`, `clientes`) had their title living in a
+        `flex justify-between` row next to an action button ("Novo Usuário" etc.) — removing the
+        title left the button as the row's only child, so those rows were simplified to
+        `flex justify-end` rather than left with a now-pointless `justify-between` on a
+        single-child row.
+      - Disclosed simplification: `importacao/page.tsx`'s original subtitle was a 3-sentence
+        paragraph — too long for a single-line header without losing all meaning when truncated.
+        The header got a shortened one-line version; the full original explanation stays in the
+        page body as a standalone paragraph, not deleted.
+      - `produtos/cadastro` was initially left untouched (see below — owner corrected this).
+      - Verified: `npm run typecheck` clean, `npm run lint` clean, `npm run build` (36/36 pages),
+        Electron relaunched and confirmed booted (4 processes) after both the color-swap round
+        and the title-relocation round.
+      - **Owner's live pass found two real bugs, fixed same session:**
+        - **`produtos/cadastro` and Dashboard were missing a header title** — the first pass's
+          "only move what already had a title" judgment call was too narrow; owner wanted every
+          screen consistent. Added `usePageHeader("Cadastro de Produto", ...)` and
+          `usePageHeader("Dashboard", ...)` (Dashboard never had one to begin with, in either
+          pass — added fresh).
+        - **Dashboard crashed to a blank white screen when opened via the sidebar link — a real,
+          pre-existing routing bug, not caused by this session's color/title work.** Root-caused
+          via `erp-crash.log` (`app.getPath("userData")/erp-crash.log`, `main.js`'s
+          `did-fail-load` → `logErro()` hook — read directly rather than guessing, since there's
+          no live DevTools access to the packaged Electron window from this session):
+          `DID-FAIL-LOAD ... url=app://renderer/dashboard/index.txt`. `modules/dashboard/
+          modulo.json`'s `id` is `"dashboard"`, and `AppSidebar.tsx#hrefDoModulo` resolves every
+          module to `/${m.id}` — but the Dashboard page actually lives at Next.js's root route
+          `/` (`app/(admin)/page.tsx`), not `/dashboard`. Clicking the sidebar link tried to
+          client-side-navigate to a route that doesn't exist in the static export, and the
+          failure left the page blank instead of erroring visibly. Fixed with a targeted special
+          case in `hrefDoModulo` (`if (m.id === "dashboard") return "/"`) — the only module where
+          this applies, since every other module's manifest `id` genuinely matches its own route
+          segment. Pre-existing since Dashboard was first built this session; previously masked
+          because the app always lands on `/` right after login, so this path was never actually
+          exercised via a sidebar click until the owner did it live today.
+        - Verified: `npm run typecheck` clean, `npm run lint` clean, `npm run build` (36/36
+          pages), Electron relaunched and confirmed booted (4 processes). Not yet re-verified
+          live by the owner.
+      - **Interim safety guard added while Vendas/PDV weren't built yet**: `AppSidebar.tsx`'s
+        `MODULOS_SEM_ROTA_NOVA` set renders a disabled (grayed out, non-clickable) sidebar item
+        for any manifest module with no real Next.js route yet, instead of a real `Link` — same
+        bug class as the Dashboard fix above, caught proactively this time instead of reactively.
+        Owner flagged that "Frente de Caixa" (PDV) would hit exactly this landmine; guarded it
+        before starting the Vendas/PDV build rather than leaving it live mid-build. Removed
+        `"vendas"` from the set once Vendas shipped (see below); `"pdv"` stays until PDV ships.
+- [ ] **Vendas — eleventh module, built, not yet live-verified.** Owner: "pode começar a fazer o
+      vendas/pdv" — Vendas built first per the migration plan's own reasoning (proves the shared
+      `vendas.*` API/hook surface PDV will also depend on, before PDV's much bigger build).
+      Investigated the real vanilla module first (`modules/vendas/vendas.js`, `db/vendas.js`,
+      `ipc/vendas.js`, plus `test/negocio.test.js` for the already-proven orçamento↔venda
+      backend contract) — **first module this session where the manifest already matched the
+      real IPC gate**, no mismatch bug found this time (`modulo.json`'s `{tipo:"admin"}` matches
+      `get-vendas`/`get-itens-venda`'s real `exigirSessao("admin")` gate exactly).
+      - `erpApi.ts`'s pre-existing `Venda` type and `vendas.listar()` stub were incomplete/
+        mistyped from an earlier session (`listar(filtro?: unknown)`, `Venda` missing `desconto`,
+        `observacao`, `status`, `nota_status`, `nota_numero`) — corrected to match `getVendas`'s
+        real return shape and `filtro` shape (`{dataInicio, dataFim, status, formaPagamento}`)
+        exactly, not guessed. Added `itens`/`converterOrcamento`/`atualizarNotaFiscal` — the
+        three IPC channels this specific screen calls. Deliberately did **not** yet add
+        `finalizar`/`registrarDevolucao`/`devolucoes`/`itensDevolucao`/`hoje` — those exist in
+        vanilla's `banco.js` `vendas` namespace and PDV will need them, but nothing in this
+        screen calls them; adding untyped/unused API surface ahead of the screen that actually
+        needs it isn't this item's job. Will be added precisely when PDV is built next, once the
+        real cart/checkout payload shape is investigated instead of guessed now.
+      - **Read-only history screen, admin-only** (`app/(admin)/vendas/page.tsx` +
+        `hooks/useVendas.ts` + `components/vendas/*`): server-side date-range filter (only filter
+        vanilla actually sends to the backend), client-side status pills (Todas/Finalizada/
+        Orçamento — matches vanilla's exact 3 options, no invented "Cancelado" pill vanilla
+        doesn't have), client-side forma-pagamento pills (PIX/Cartão/Dinheiro/Fiado, vanilla's
+        hardcoded list), client-side search (cliente/# venda), sortable columns, and
+        prev/next+page-size pagination (10/20/50/100) — same client-side-over-server-fetched-
+        cache shape as vanilla, not re-architected into server-side filtering.
+      - Row click expands an inline itens sub-table (lazy-fetched once per venda, cached in the
+        hook, matching vanilla's `itensCache`); "Ver detalhes completos" opens a full modal
+        (`VendaDetalheModal.tsx`) with the complete item table, a manual nota-fiscal tracking
+        widget (status select + número input + Salvar → `atualizarNotaFiscal`), Imprimir (reuses
+        the `#print-area`/`@media print` mechanism from `globals.css`, first built for Compras
+        and explicitly flagged then for reuse here), PDF export (jsPDF, same library/pattern as
+        Relatórios/Compras — a generic document export, not a POS receipt), and — only for
+        `status === "orcamento"` — "Converter em Venda" (confirm dialog → `converterOrcamento`).
+      - **Faithful gap, disclosed not silently fixed**: `cancelarOrcamento` exists as a real,
+        working backend function (`db/vendas.js`, `ipc/vendas.js`) but is **not wired to any
+        button in vanilla's own UI** — confirmed by reading vendas.js/pdv.js, not assumed. Ported
+        the same way: no "Cancelar" button added. An orçamento can only move forward
+        (converter) or sit unconverted; this matches the existing app's actual behavior, not a
+        gap introduced by the port.
+      - **Also fixed the same bug class Compras' PDF export had (Relatórios' Comissões-table
+        duplication)**: nothing found here — vanilla's `exportarDetalhePdf` for this screen was
+        clean on inspection, ported as-is, no analogous bug.
+      - **Relatórios' "Vendas" tab, previously a disclosed placeholder, is now wired for real.**
+        When Vendas didn't exist yet, that tab showed "ainda não foi portado." Now it renders the
+        actual Vendas screen's components inline (`useVendas()` + the same `Vendas*` components),
+        matching vanilla's own behavior of showing the real history screen inside that tab —
+        **without** the iframe-embedding mechanism vanilla used (`vendas.html?embedded=1`), since
+        removing that exact pattern is this whole migration's reason to exist. Independent
+        `useVendas()` instance per mount (Relatórios' tab and the standalone `/vendas` route each
+        have their own filter/pagination state, not shared) — matches how every other
+        modal-vs-page duplication in this codebase already works (e.g. `ProdutosListModal` vs.
+        a hypothetical standalone products page), not a new pattern.
+      - Removed `"vendas"` from `AppSidebar.tsx`'s `MODULOS_SEM_ROTA_NOVA` guard (see above) now
+        that `/vendas` is real — though `modules/vendas/modulo.json` still has `navbar: null` in
+        vanilla too (never a standalone sidebar item, same as Categorias), so this was always a
+        dormant safety net for this module, not something actively blocking a visible link.
+      - Fixed a real bug caught before shipping, not after: the first draft of `VendasTable.tsx`
+        used a bare `<>...</>` fragment inside `.map()` with `key` placed on the inner `<tr>`
+        instead of the fragment itself — React requires the key on the element actually returned
+        per iteration. Fixed to `<Fragment key={v.id}>`.
+      - Verified: `npm run typecheck` clean, `npm run lint` clean, `npm run build` (37/37 pages,
+        `/vendas` + `/relatorios` both pull in jsPDF, ~254-261 kB First Load JS, expected). No
+        backend/manifest files touched — this module needed none. Electron relaunched, confirmed
+        booted (4 processes). Not yet live-verified by the owner.
+- [ ] **PDV (Frente de Caixa) — twelfth and final module of the migration, built, not yet
+      live-verified.** The most complex and highest-stakes screen — actual checkout, real
+      money — deliberately saved for last per the original migration plan. Investigated the full
+      vanilla module (`modules/pdv/pdv.js`, 1435 lines, read in full — not skimmed) plus
+      `test/negocio.test.js`'s already-proven checkout contract before writing any code.
+      - **Two real, pre-existing gaps found in vanilla — both put to the owner as explicit
+        decisions before building, not silently picked either way:**
+        1. **Caixa (cash register) was a soft UI reminder only — nothing in the backend actually
+           blocked checkout with the caixa closed.** Owner chose to harden this. Added a guard
+           directly in `db/vendas.js#finalizarVenda`: `status === "finalizada"` now requires
+           `getCaixaAberto()` to return a row, else throws before the transaction even opens
+           ("Não é possível finalizar a venda com o caixa fechado..."). Scoped to real sales
+           only — `status === "orcamento"` never touches money, so it's exempt (an orçamento can
+           still be created with the caixa closed, matching the fact that reserving stock isn't
+           a cash-register concern). This is a genuine **behavior change from vanilla**, not a
+           straight port — flagged as such, not silently absorbed into "just a port."
+        2. **Real bug**: `get-itens-venda` (used by PDV's own Devolução/Troca flow to look up a
+           sale's items) was gated `exigirSessao("admin")` in `ipc/vendas.js`, while PDV itself
+           is `permissao:{tipo:"sempre"}` — any vendedor. Meant a non-admin cashier could open
+           the Devolução overlay but the lookup itself would throw an access error — devolução
+           was silently broken for regular sellers in the shipped vanilla app. Owner chose to
+           fix it. Loosened the gate to bare `exigirSessao()`; the admin-only Vendas history
+           screen (which also depends on `getItensVenda`) stays effectively admin-gated anyway
+           since it's the only way to list vendas in the first place (`get-vendas` is still
+           `exigirSessao("admin")`, unchanged) — this fix only widens the "look up one *specific,
+           already-known* venda id's items" path, not sales browsing.
+        - **Both backend changes needed test updates**, not just new coverage: `test/
+          negocio.test.js` and `test/relatorios-financeiro.test.js` both call `finalizarVenda`
+          with the default "finalizada" status and never opened a caixa — under the new guard
+          those would now fail. Added `db.abrirCaixa(0, null)` to both files' `before()` hooks so
+          existing coverage keeps testing what it always tested, not the new guard by accident.
+          Added a dedicated new test in `negocio.test.js` ("rejeita venda finalizada com caixa
+          fechado, mas orçamento continua permitido") proving both halves of the new guard: a
+          finalizada checkout rejects (and doesn't touch stock) with caixa closed, while an
+          orçamento with the same items still succeeds. All 57 backend tests pass (up from 56).
+      - **Confirmed genuinely absent from PDV's checkout, not built**: Pix QR generation/polling
+        and real fiscal note emission. Full-text-grepped vanilla `pdv.js` for both — zero
+        matches beyond the literal "PIX" label in the payment dropdown. Selecting PIX just
+        stores the string on `forma_pagamento`, same as Cartão — no QR, no confirmation
+        webhook/poll. (Those real integrations exist elsewhere — Pagamentos' `gerarQrCodePix`,
+        Vendas' manual `atualizarNotaFiscal` tracker — but PDV's own checkout never touches
+        them, so the port doesn't either. Not a gap, matches the real app exactly.)
+      - `erpApi.ts` gained `produtos.buscarPorTermo` (found the real preload-exposed name is
+        `buscarProdutosTermo`, not `buscarProdutosPorTermo` like the db/ipc function itself —
+        checked `preload.js` directly rather than assuming the naming convention held, since it
+        didn't this one time), `clientes.precoEspecial`, `vendas.finalizar`/
+        `vendas.registrarDevolucao` (deferred from the Vendas module on purpose, built now with
+        the real checkout payload shape in hand instead of guessed earlier), and a full `caixa`
+        namespace (`aberto`/`resumo`/`abrir`/`fechar`).
+      - **`hooks/useCarrinho.ts`**: cart state persisted to `localStorage["pdv_carrinho"]`,
+        matching vanilla exactly (cart survives an accidental reload/navigation). Add-to-cart
+        replicates all three vanilla guards: blocks at preço ≤ 0, blocks at zero disponível,
+        non-blocking low-stock warning (≤ `estoque_minimo || 5`, same default vanilla uses).
+        Client-specific pricing (`getPrecoCliente`) applied on add and re-applied to the whole
+        cart when a client is selected (`reprecificarParaCliente`), matching vanilla's
+        `aplicarPrecoCliente`/`reaplicarPrecoClienteNoCarrinho` pair.
+      - **`hooks/useCaixa.ts`** wraps the new `caixa` namespace; the PDV page shows a badge
+        (green "Caixa aberto" / red "Caixa fechado") that opens `CaixaModal.tsx` — same
+        abrir/fechar flow as vanilla (valor de abertura; on close, a resumo box with
+        vendido-em-dinheiro/valor-esperado, then valor contado + diferença shown after
+        confirming), backed by the real `db/caixa.js` math (already existed, untouched).
+      - **Product search** (`BuscaProduto.tsx`): plain text input, Enter to search/select,
+        arrow keys to navigate results — confirmed via full read of `pdv.js` that vanilla's own
+        barcode-scanner handling is nothing more than this same pattern (a scanner just types
+        fast and ends with Enter, no special timing heuristic exists to replicate), so no new
+        scanner-specific logic was invented.
+      - **Checkout** (`app/(admin)/pdv/page.tsx`): builds the exact `dados` shape
+        `finalizarVenda` expects (confirmed field-by-field against the real function body, not
+        the caller) — `itens` (variacao_id/quantidade/preco_unitario), `status`, `desconto`,
+        `total`, `cliente_id`, `forma_pagamento`, `observacao`. Vanilla's own stylistic
+        inconsistency (checked `erpBanco.vendas.finalizar` for availability but then called
+        `window.api.finalizarVenda` directly — both hit the same channel, so harmless in
+        vanilla) was **not** reproduced — the port just calls the one clean method once.
+      - **Receipt** (`ReciboModal.tsx`): vanilla prints via a page-specific `#receiptContent`
+        id (confirmed **no shared `#print-area` id exists anywhere in the vanilla codebase** —
+        every module scopes its own `@media print` block to its own container id, contrary to
+        what the Compras/Vendas build notes in this file assumed). The port uses this
+        migration's own established `#print-area` convention instead (already wired into
+        `globals.css`, already reused by Compras and Vendas this session) — a deliberate,
+        consistent choice for the new codebase, not a literal vanilla port of a pattern that,
+        on closer inspection, never actually existed as "shared" in the old app.
+      - **Devolução/Troca** (`DevolucaoModal.tsx`): search by venda #, per-item quantity inputs
+        capped at `quantidade - quantidade_devolvida`, confirm → `registrarDevolucao`. Ported
+        as-is functionally; now actually reachable by non-admin sellers per the gate fix above.
+      - Verified: `npm run typecheck` clean, `npm run lint` clean, `npx eslint` clean on
+        `db/vendas.js`/`ipc/vendas.js`/both touched test files, `npm test` (57/57), `npm run
+        build` (38/38 pages, `/pdv` at 127 kB First Load JS). Electron relaunched, confirmed
+        booted (4 processes). **This closes out the frontend migration's module list** — every
+        module from the original plan (`magical-soaring-squirrel.md`) now has a Next.js route.
+        Not yet live-verified by the owner — given this screen handles real money, live testing
+        (both perfis, both a normal checkout and the new caixa-closed rejection) matters more
+        here than anywhere else in the migration before this replaces the vanilla PDV for real
+        use.
+- [x] **Post-launch owner QA round: PDV modal padding, form-field memory across modules,
+      Clientes/Fornecedores autofill bug, footer watermark — built (2026-08-26).**
+      - **Footer watermark replaced**: `Footer.tsx` no longer credits TailAdmin/ThemeWagon —
+        now "Desenvolvido por Allu Enterprise" (owner's own text, corrected from "entreprise").
+      - **4 modals missing padding, found and fixed the same way across all of them**:
+        `CaixaModal.tsx`, `DevolucaoModal.tsx`, `ReciboModal.tsx` (all new this session) and
+        `VendaDetalheModal.tsx` never got the `p-6` every other modal in the app already carries
+        on its `Modal className` — content sat flush against the modal's rounded corners.
+      - **PDV cart alert (`carrinho.alerta`) now auto-dismisses after 10s** (`useCarrinho.ts`) —
+        previously stuck on screen until overwritten by another alert, with no way to dismiss it.
+      - **Real bug found and fixed at the root**: typing in Fornecedores' "Nome" field and then
+        navigating to Clientes showed the same text still filled in Clientes' "Nome" field —
+        confirmed via code read this is **not** a React state bug (each modal has fully
+        independent local `useState`, no shared key) — it's Chromium's own autofill suggesting
+        values across unrelated forms since neither `<input>` set `autoComplete`. Fixed at the
+        shared component: `InputField.tsx` now defaults `autoComplete="off"`, with an escape
+        hatch for any future field that legitimately wants native autofill (login, etc).
+      - **New reusable hook, `hooks/usePersistedState.ts`**: a drop-in `useState` replacement
+        backed by `localStorage`, generalizing the pattern already built ad-hoc for the PDV cart
+        and payment form. Returns `[valor, setValor, limpar]` — `limpar` resets to the initial
+        value AND clears the stored key, used after a successful save so the next new-record
+        draft starts empty instead of resurrecting the just-submitted values.
+      - **Owner's ask: "todos os módulos" need field memory, except Clientes/Fornecedores**
+        (which had the separate autofill bug instead, fixed above — not blindly given
+        persistence too, since that wasn't what was reported for them). Applied to every
+        "create new record" draft found:
+        - `UsuarioFormModal.tsx` (Acessos) — persists login/nome/perfil/comissão/ativo/
+          permissões; **deliberately excludes the three password fields** (senha/confirmarSenha/
+          senhaAtual) from the persisted subset — a security carve-out, not an oversight, since
+          those must never touch `localStorage`. The persisted draft only applies to *new*-user
+          mode, not while editing an existing user (an edit session's typed changes shouldn't be
+          mistaken for a "new user" draft next time the modal opens); cleared on successful save.
+        - `categorias/page.tsx` — nome + grupo-pai.
+        - `NovoPedidoForm.tsx` (Compras) — the item cart + fornecedor + observação (the cart is
+          the most expensive thing to lose, same reasoning as the PDV cart); transient
+          search-only fields (sku/qtd/custo being typed *before* "Adicionar item") intentionally
+          not persisted, matching how the PDV product-search input isn't either.
+        - `NovoLancamentoForm.tsx` (Financeiro) — tipo/descrição/valor/vencimento/parcelas.
+          `PagamentoFormModal.tsx` in the same module was deliberately **not** touched — it
+          already force-resets every field on every open by its own existing design (ties a
+          fresh Pix QR to one specific attempt), so adding persistence would fight that
+          intentional behavior rather than fix a real gap; disclosed, not silently skipped.
+        - `ProdutoFormPanel.tsx` (Produtos Cadastro) — nome/estoque inicial/categorias
+          selecionadas (SKU stays unpersisted — it's server-generated, not typed). Needed one
+          extra guard beyond the simple cases: the component's own `useEffect` already reset the
+          form to empty whenever `produtoEditando` was `null`, which fires on *first mount too*
+          (not just on "cancelar edição") — without a fix that would have wiped the just-loaded
+          persisted draft immediately after loading it. Added a `useRef` "primeira vez" flag so
+          the reset only fires on a real transition away from editing, not on initial mount.
+        - `EstoqueReposicaoForm.tsx` — the reposição item cart + observação, same "cart is the
+          expensive thing to lose" reasoning as Compras. `EstoqueBaixaForm.tsx` deliberately
+          **not** touched — it's a single quick action (SKU → qtd → motivo → confirm), no
+          cart/multi-step draft exists there to lose, consistent with the same judgment applied
+          to transient search fields elsewhere.
+        - **Explicitly out of scope, disclosed**: Relatórios' and Vendas' date-range filters.
+          Investigated applying persistence there too, but both hooks auto-fetch on mount using
+          `dataInicio`/`dataFim` in their own `useEffect(() => { gerar() }, [])` — since
+          `usePersistedState`'s own localStorage load happens in a *separate* effect that
+          resolves one render after the initial one, the auto-fetch would fire with the stale
+          default empty dates before the persisted value ever loads, silently fetching the wrong
+          period on first mount. Fixing that race properly needs a different pattern (e.g. don't
+          auto-fetch until the persisted value has loaded) — real, but lower-value than the
+          "lost a typed form" pain the owner actually reported, so left for a future pass rather
+          than shipping a subtly-wrong auto-fetch.
+      - Verified: `npm run typecheck` clean, `npm run lint` clean, `npm run build` clean (no
+        backend files touched — this whole round was frontend-only). Electron relaunched,
+        confirmed booted (4 processes). Not yet re-verified live by the owner.
+
+---
+
+## Header Tab System (multi-tab workspace, faithful to the pre-migration dashboard) — built (2026-08-26), root-cause bug fixed (2026-08-27), tests below still pending live verification
+
+**Owner's ask (2026-08-26), verbatim intent**: bring back the old vanilla dashboard's
+`abas.js` behavior — clicking a sidebar module opens it as a tab in the header, several
+modules can be open **at the same time**, switching between them doesn't lose what was
+typed/in progress, each tab closes independently with an ×. Concrete example given: take
+`AppHeader.tsx`'s current title block (e.g. "Financeiro" + the subtitle line under it) and
+turn it into a closable tab chip instead. Apply this to every sidebar module, not just one.
+Two smaller asks bundled into the same request: the header itself should be shorter (its
+current height is "too big"), and the active tab's chip should use a lighter blue than the
+navy header background.
+
+**This directly revisits a decision this migration made on purpose.** `magical-soaring-
+squirrel.md` (the original migration plan) explicitly flagged removing the vanilla
+dashboard's simultaneous-iframe-tabs UX as "a real change of behavior for the end user, not
+just implementation — worth confirming with the client before deciding technically," and the
+owner accepted that tradeoff when the shell was first built. Asked directly this session
+(see the architecture question below), the owner confirmed: **yes, they want the literal
+multi-tab behavior back**, not just a single "current section" chip styled to look tab-like.
+That answer is what this whole section is designed around — a lighter version (one tab at a
+time, no real concurrency to manage) would have been a much smaller build, and was offered as
+the alternative before this scope was locked in.
+
+```mermaid
+flowchart TD
+    A[TabsContext: open-tabs list + active id,\nderived from the same manifest list AppSidebar.tsx already loads] --> B[Keep-alive render wrapper:\ncaches children by pathname, hides inactive ones]
+    A --> C[Header tab strip UI\nreplaces the title block in AppHeader.tsx]
+    B --> C
+    C --> D[Header height/padding pass\nnow that the title block is gone]
+    C --> E[Active-tab color token\nlighter blue vs. navy header]
+    A --> F[localStorage persistence of open tabs\nsame pattern as this session's memória work]
+```
+
+### Design rationale
+
+- **Why not Next.js's own native mechanism for this.** Researched directly (not assumed):
+  Next.js does have a built-in way to keep a route's component state alive across navigation
+  instead of unmounting it — `cacheComponents: true` in `next.config`, which uses React's
+  `<Activity>` component internally. **It requires Next.js 16.** This project is on
+  **15.5.23** — upgrading a major framework version specifically to unlock one UI feature,
+  mid-way through an already-large migration, is a much bigger and riskier move than this
+  feature justifies on its own. Also found multiple open Next.js GitHub issues describing
+  `cacheComponents`/`<Activity>` as still causing real breakage in application logic even on
+  16 (["Activity component route preservation causes significant breakage"](https://github.com/vercel/next.js/issues/86577)),
+  and its caching semantics are designed around server-rendered data caching — there's no
+  confirmation it behaves sanely under this project's specific deployment shape (`output:
+  'export'`, served over a custom `app://` protocol inside Electron, no real Next.js server
+  at runtime at all). Not a fit right now — revisit only if/when a Next 16 upgrade happens
+  for its own independent reasons.
+- **Why not a third-party keep-alive library either** (`next-easy-keepalive`,
+  `react-next-keep-alive` both exist and do roughly this). Same judgment call this project
+  already made once this session for a similar reason (skipping React Query/SWR for IPC data:
+  "dependência desnecessária") — this app's deployment shape (static export, custom
+  protocol, no server) is unusual enough that a general-purpose community library's
+  assumptions may not hold, and the actual mechanism needed is small enough (~30 lines) to
+  just own directly, with full control for debugging when something in this non-standard
+  setup inevitably doesn't match the library author's assumptions.
+- **The mechanism this section actually specs**: a client component that watches
+  `usePathname()` and keeps a `Map<pathname, ReactNode>` of every currently-open tab's
+  rendered subtree, captured from `children` at the moment each new pathname is first
+  visited. Renders every entry in the map simultaneously, `display:none` on all but the
+  active one. This is what makes "switch tabs without losing state" real — the hidden tabs'
+  React trees, hooks, and effects keep running exactly as if they were still visible, not
+  approximated via localStorage. Real Next.js routing (`<Link>`, `usePathname`) is untouched
+  underneath — only what happens to the *previous* route's rendered tree changes.
+- **Which routes become tabs**: only manifest `navbar`-registered top-level modules — the
+  same list `AppSidebar.tsx` already loads via `getModulosCarregados()` and filters through
+  `permissaoLiberada()`, so tab availability automatically matches sidebar-visibility
+  permission logic with zero duplicated code. Produtos' own internal Cadastro/Estoque/
+  Precificação sub-nav (`produtos/layout.tsx`) stays exactly as it is today — those are
+  sub-routes *within* one "Produtos" tab, not three separate header tabs; this matches how
+  they already behave and keeps the tab strip bounded to ~14 possible entries, not exploding
+  with every nested sub-route the app has.
+- **Dashboard is a tab like any other module now**, not the tab *host* it was in vanilla
+  (where `abas.js` ran inside `dashboard/index.html`, which no longer makes sense once every
+  module is its own real route). Reuses the existing `hrefDoModulo` special case (`m.id ===
+  "dashboard" → "/"`) already built this session. If every tab is closed, fall back to
+  auto-opening Dashboard rather than showing a blank shell.
+- **What happens to the header subtitle**: per the owner's own example ("tira o texto embaixo
+  ... faz uma caixa pra ser a nova guia"), `AppHeader.tsx` stops rendering
+  `cabecalho.subtitulo` once the tab strip replaces the title block — the tab chip itself
+  (icon + module label) is what the header shows now. `usePageHeader(titulo, subtitulo)`'s
+  API and all ~13 existing call sites are **not** touched in this pass — `subtitulo` becomes
+  inert data the header no longer reads, disclosed explicitly rather than either silently
+  left half-wired or turned into a 13-file cleanup that's out of this feature's scope. A
+  follow-up could route that description text into each page's own body instead (same
+  treatment already given to Importação's long subtitle earlier this session) — flagged as a
+  real option, not decided here.
+- **PDV / caixa-sensitive tabs, disclosed risk, not blocking**: a cashier can now background
+  an in-progress PDV sale by switching to another tab and leaving it open indefinitely — the
+  cart already persists via `localStorage` regardless (this session's earlier memória work),
+  so nothing is lost, but there's no visual reminder that a sale is sitting open in a
+  background tab. A small non-empty-cart indicator dot on the PDV tab chip would close that
+  gap — noted as a nice-to-have enhancement, not a required item for this section to be done.
+
+### Implementation
+
+- [x] **`context/TabsContext.tsx`** — new context: `{ abas: {id, moduloId, titulo, href,
+      icone}[], abaAtivaId }`. Auto-registers a tab whenever `usePathname()` resolves to a
+      new manifest-registered module route not already open (no explicit "open tab" call
+      needed from the sidebar or anywhere else — fully decoupled from any one click handler,
+      so no navigation path can accidentally bypass it). `fecharAba(id)` removes it from the
+      list; if it was active, activates the previously-active tab if still open, else the
+      next one in the list, else falls back to Dashboard (auto-opened). Persisted to
+      `localStorage` (open tabs + active id) so a reload/restart restores the same set —
+      same pattern as this session's `usePersistedState`/PDV-cart work, reused not
+      reinvented. New shared `hooks/useModulos.ts` extracted from `AppSidebar.tsx`'s own
+      inline manifest-fetch/permission-filter logic — both the sidebar and this context now
+      read the exact same list, no duplicated permission logic to drift apart.
+      **Real bug caught before shipping**: the first draft of `fecharAba` called
+      `router.push`/`setAbaAtivaId` *inside* the `setAbas` updater callback — an impure
+      updater, exactly what React Strict Mode double-invokes updaters to catch (would have
+      fired the navigation/state-set twice). Fixed by computing the next `abas` list first,
+      then calling the side effects separately using the closure's already-current
+      `abas`/`abaAtivaId` values (safe in an event handler, not inside a state updater).
+- [x] **Keep-alive render wrapper** (`layout/AbasAtivasWrapper.tsx`) — new client component
+      inside `(admin)/layout.tsx`, replacing the direct `{children}` render: keeps a
+      `Map<pathname, ReactNode>` keyed by every currently-open tab's pathname, captured from
+      `children` **only on first visit** to that pathname (captured during render, not an
+      effect — mutating the ref this way is the standard, safe version of this pattern,
+      since a revisit's freshly-resolved-but-discarded `children` never actually gets
+      inserted into the returned tree, so React never mounts/wastes a duplicate instance of
+      it). Renders every cached entry simultaneously, Tailwind `hidden` on all but the one
+      matching the current pathname. A separate effect prunes any cache entry whose href is
+      no longer in `TabsContext.abas` — actually frees the closed tab's mounted state/memory,
+      not just hides it. Researched the native alternative before building this by hand:
+      Next.js's own `cacheComponents`/`<Activity>` mechanism does exactly this, but
+      **requires Next.js 16** (confirmed via docs — this project is on 15.5.23) and has
+      multiple open GitHub issues describing real breakage even there; a major-version
+      upgrade just to unlock one UI feature mid-migration was judged too risky. Also
+      considered (found via search) two community keep-alive libraries
+      (`next-easy-keepalive`, `react-next-keep-alive`) and passed on both — same judgment
+      call this project already made once this session for React Query/SWR: this app's
+      deployment shape (static export, custom `app://` protocol, no real Next.js server at
+      runtime) is unusual enough that a general-purpose library's assumptions may not hold,
+      and the actual mechanism needed is small enough (~40 lines) to own directly.
+- [x] **`AppHeader.tsx` — tab strip replaces the title block.** Horizontal, horizontally-
+      scrollable row of chips (icon + label + ×), sourced from `TabsContext.abas`. Clicking
+      a chip's body navigates to its `href` (`router.push`, intercepted by the keep-alive
+      wrapper above so state isn't lost); clicking × calls `fecharAba(id)`. New shared
+      `components/common/IconeModulo.tsx` extracted (was a private function inside
+      `AppSidebar.tsx`) so the sidebar and the new tab strip render the exact same manifest
+      SVG icon without a second copy of that component. `cabecalho.subtitulo` from
+      `PageHeaderContext` no longer renders anywhere in the header — see design rationale
+      for why that's a disclosed, deliberate no-op rather than a 13-file cleanup pass.
+- [x] **Active-tab color** — `bg-blue-500` for the active chip, reusing the same blue family
+      already chosen this session for the PDV "Devolução / Troca" button (`blue-600`), a
+      lighter shade for better contrast against the navy header at chip scale. Inactive
+      chips use a muted `bg-white/5` tone. Final visual check (whether `blue-500` reads
+      right in practice, not just in isolation) still needs a live look — this session has
+      no way to screenshot the actual Electron window.
+- [x] **Header height pass** — right-side icon container's vertical padding cut from
+      `py-[14.4px]` (the "90%" pass from earlier this session, sized for the old two-line
+      title block) to `py-1.5` at desktop width — a fresh measurement against the new
+      single-row tab strip's actual height, not a repeat of the earlier percentage-based cut.
+- [x] **Sidebar `isActive` stays in sync.** Correction to the original claim above (this bullet
+      was wrong when first written): it does **not** "work unchanged" — see the root-cause bug
+      below, which broke this too. Fixed alongside the tab-registration bug.
+- [x] **Root-cause bug found and fixed (2026-08-27): tabs never registered for any module
+      except Dashboard.** Owner reported live: clicking Financeiro in the sidebar rendered
+      Financeiro's page (the keep-alive wrapper worked correctly) but the header still showed
+      only a "Dashboard" tab, active. Since `window.api`/DevTools aren't reachable directly
+      from this session, root-caused via `erp-crash.log`: while chasing this, found and fixed
+      an *unrelated* pre-existing bug first — `main.js`'s `console-message` handler used
+      Electron's old two-parameter callback signature (`(event, detail) => {...}`); Electron
+      35+ (this project is on ^43) changed it to a single destructured-object parameter, so
+      `detail` was always `undefined` and the handler threw on every console message, silently
+      disabling all console logging to the crash log. Fixed the handler signature (verified:
+      Electron's own CSP security warning appeared in the log post-fix, confirming the pipeline
+      works — see `main.js`'s `console-message` listener for the full writeup). With logging
+      restored, the owner reproduced the bug once more and the log showed the real cause:
+      `next.config.ts` sets `trailingSlash: true` (required for the static export — each route
+      needs to resolve to `route/index.html`), so `usePathname()` returns `"/financeiro/"` (and
+      the same for every other module), while `hrefDoModulo()` builds hrefs as `"/financeiro"`
+      (no trailing slash — what `<Link>` targets use). `hrefDoModulo(m) === pathname` therefore
+      never matched for any module except Dashboard, whose href is the special-cased root `"/"`
+      (already slash-free, so it's the one case that happened to match). Fixed with a new
+      `normalizarPathname()` helper in `hooks/useModulos.ts` (strips a trailing slash except on
+      bare `"/"`), applied everywhere a raw `pathname` was compared against a `hrefDoModulo()`
+      value: `TabsContext.tsx`'s auto-register effect and its localStorage-restore effect,
+      `AppSidebar.tsx`'s `isActive()`, and — same bug, same fix, found while grepping for other
+      `=== pathname` comparisons — Produtos' own internal Cadastro/Estoque/Precificação sub-tab
+      highlighting in `(admin)/produtos/layout.tsx`, which had never highlighted any sub-tab as
+      active for the same reason. New tabs now store their `href` via `hrefDoModulo()` (canonical,
+      slash-free) instead of the raw `pathname`. The temporary `[TabsDebug]` `console.warn` lines
+      used to catch this are removed. Typecheck, lint, and `next build` all clean; frontend
+      static export rebuilt. Not yet re-verified live against the running app.
+
+### Tests (manual — this project has no automated UI/browser test suite; every item here is
+verified live against the running app, same discipline as every other frontend item in this
+file)
+
+- [ ] Open 3+ different modules via the sidebar; confirm each becomes its own tab in the
+      header, all simultaneously listed, none replacing another.
+- [ ] Type into a form field (or add items to a cart) in one tab, switch to another tab and
+      back — confirm the first tab's in-progress state is still there, not reset. This is
+      the actual point of the whole feature — verify it doesn't silently degrade into "looks
+      like tabs, behaves like normal navigation" (i.e. Option A from the architecture
+      decision, which was explicitly not what was chosen).
+- [ ] Close a tab (×) — confirm its content is genuinely gone from the keep-alive cache
+      (e.g. reopening the same module shows a fresh fetch, not instantly-restored stale
+      data from before it was closed) and that closing the *active* tab falls back sensibly
+      (previous tab, or Dashboard if none left) — never a blank screen.
+- [ ] Restart the Electron app with several tabs open — confirm they're restored from
+      `localStorage` in the same state (open + which was active).
+- [ ] Confirm the header is visibly shorter than before this section.
+- [ ] Confirm the active tab's chip renders in the chosen lighter blue, visually distinct
+      from both inactive chips and the navy header background, in both light and dark app
+      theme if that setting still applies to the header (it currently has a fixed navy
+      background regardless of light/dark mode — confirm that's still the intent here, not
+      a new question this feature needs to also answer).
+- [ ] PDV specifically: open a sale in progress, switch away to another tab, switch back —
+      confirm the cart, caixa badge state, and any in-progress payment fields are exactly as
+      left, not reset, and that the caixa-closed checkout guard (built earlier this session)
+      still works correctly on a tab that was just reactivated from the background, not only
+      on a freshly-navigated-to one.
+
+### Registration
+
+- [ ] Every manifest module with a `navbar` entry gets tab behavior automatically via the
+      shared manifest-list mechanism — verify against the **real, current** manifest list
+      (`window.api.getModulosCarregados()`), not just the modules already built this
+      session, so a module added later doesn't need this feature re-wired by hand.
+- [ ] `GOALS.md` items in this section checked off only after live verification, per this
+      file's own established discipline for the rest of the frontend migration — not when
+      the code merely compiles.
 
 ---
 

@@ -1,3 +1,4 @@
+import path from "path";
 import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
 	/* config options here */
@@ -5,6 +6,11 @@ const nextConfig: NextConfig = {
 	// main.js) — sem basePath, já que app://renderer/ É a origem, não um
 	// subcaminho dentro de um domínio maior.
 	output: "export",
+	// frontend/ é um projeto npm isolado de propósito (package.json/lockfile
+	// próprios, ver README) dentro do repo raiz do Electron, que também tem
+	// seu próprio lockfile — sem isso o Next infere a raiz errada e avisa em
+	// todo build ("multiple lockfiles detected").
+	outputFileTracingRoot: path.join(__dirname),
 	trailingSlash: true,
 	images: {
 		unoptimized: true,

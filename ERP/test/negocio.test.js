@@ -15,6 +15,9 @@ const pagamentos = require("../db/pagamentos");
 before(async () => {
 	db.setDBPath(TMP);
 	await db.desbloquearBanco("senha-teste-123");
+	// finalizarVenda (status "finalizada") agora exige caixa aberto — ver
+	// teste dedicado abaixo pra esse guard especificamente.
+	await db.abrirCaixa(0, null);
 });
 
 after(async () => {
@@ -172,4 +175,42 @@ test("pagamentos: registrar -> listar -> marcar como recebido (round-trip)", asy
 
 	const pendentesDepois = await pagamentos.listarPagamentosPendentes();
 	assert.strictEqual(pendentesDepois.length, 0);
+});
+
+test("finalizarVenda: rejeita venda finalizada com caixa fechado, mas orçamento continua permitido", async () => {
+	await db.fecharCaixa(0, null, null);
+	const variacaoId = await criarVariacao(10);
+
+	await assert.rejects(
+		() =>
+			db.finalizarVenda(
+				{
+					itens: [
+						{ variacao_id: variacaoId, quantidade: 1, preco_unitario: 100 },
+					],
+					total: 100,
+				},
+				null,
+			),
+		/caixa fechado/i,
+	);
+	const depoisRejeicao = await estoqueAtual(variacaoId);
+	assert.strictEqual(
+		depoisRejeicao.quantidade_estoque,
+		10,
+		"venda rejeitada por caixa fechado não pode alterar o estoque",
+	);
+
+	// Orçamento não move dinheiro — não precisa de caixa aberto.
+	const orcamento = await db.finalizarVenda(
+		{
+			itens: [{ variacao_id: variacaoId, quantidade: 1, preco_unitario: 100 }],
+			total: 100,
+			status: "orcamento",
+		},
+		null,
+	);
+	assert.ok(orcamento.success);
+
+	await db.abrirCaixa(0, null);
 });

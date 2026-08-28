@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { usePageHeader } from "@/context/PageHeaderContext";
 import { useUsuarios } from "@/hooks/useUsuarios";
 import UsuariosTable from "@/components/acessos/UsuariosTable";
 import UsuarioFormModal from "@/components/acessos/UsuarioFormModal";
@@ -8,6 +9,10 @@ import Button from "@/components/ui/button/Button";
 import type { Usuario } from "@/lib/erpApi";
 
 export default function AcessosPage() {
+	usePageHeader(
+		"Gerenciar Acessos",
+		"Usuários do sistema e suas credenciais de login",
+	);
 	const { usuarios, carregando, erro, recarregar } = useUsuarios();
 	const [modalAberto, setModalAberto] = useState(false);
 	const [usuarioEditando, setUsuarioEditando] = useState<Usuario | null>(null);
@@ -24,15 +29,7 @@ export default function AcessosPage() {
 
 	return (
 		<div className="grid grid-cols-1 gap-4">
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-						Gerenciar Acessos
-					</h1>
-					<p className="text-sm text-gray-500 dark:text-gray-400">
-						Usuários do sistema e suas credenciais de login
-					</p>
-				</div>
+			<div className="flex justify-end">
 				<Button onClick={abrirNovo}>Novo Usuário</Button>
 			</div>
 

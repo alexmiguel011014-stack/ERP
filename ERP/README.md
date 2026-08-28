@@ -33,6 +33,34 @@ ERP/
                           precificacao, relatorios, acessos, pagamentos, auth, dashboard)
 ```
 
+## Frontend (Next.js)
+
+Desde o cutover (2026-08-28), `npm start` / `ERP_Launcher.bat` abrem o frontend novo em
+`frontend/` — Next.js 15 + React 19 + Tailwind v4, build estático (`output: 'export'`),
+servido pelo Electron via protocolo customizado `app://renderer/` (ver `main.js`). É o
+único frontend usado por padrão agora.
+
+`modules/` (HTML/CSS/JS puro, o app antigo) continua no repo como rede de segurança —
+ainda não apagado — acessível só via uma env var interna, nunca exposta ao usuário final:
+
+```powershell
+$env:ERP_LEGACY_FRONTEND = "1"; npm start   # força o app antigo (modules/), só pra emergência
+```
+
+`frontend/` é um projeto npm isolado (`package.json`/lockfile próprios — nunca roda
+`npm install` nele a partir da raiz):
+
+```powershell
+cd frontend
+npm install
+npm run dev          # next dev, hot reload — aponte main.js pra http://localhost:3000 pra usar
+npm run build         # gera frontend/out/, o que o Electron empacotado de fato serve
+npm run lint            # eslint .
+npm run typecheck      # tsc --noEmit
+```
+
+Progresso da migração módulo-por-módulo: [GOALS.md](GOALS.md).
+
 ## Banco de dados
 
 - Arquivo `erp.sqlite`, criptografado com SQLCipher. Dev: `./data/` · Produção: `%APPDATA%/ERP/`.

@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { normalizarPathname } from "@/hooks/useModulos";
 
 const ABAS = [
 	{ href: "/produtos/cadastro", label: "Cadastro de Produto" },
@@ -23,7 +24,7 @@ export default function ProdutosLayout({
 						key={a.href}
 						href={a.href}
 						className={
-							pathname === a.href
+							normalizarPathname(pathname) === a.href
 								? "border-b-2 border-brand-500 px-3 py-2 text-sm font-semibold text-brand-600 dark:text-brand-400"
 								: "px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
 						}

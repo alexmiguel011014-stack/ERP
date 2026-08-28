@@ -1,12 +1,14 @@
 "use client";
 import { useState } from "react";
 import Button from "@/components/ui/button/Button";
+import { usePageHeader } from "@/context/PageHeaderContext";
 import EstoqueReposicaoForm from "@/components/produtos/EstoqueReposicaoForm";
 import EstoqueBaixaForm from "@/components/produtos/EstoqueBaixaForm";
 import MovimentacoesList from "@/components/produtos/MovimentacoesList";
 import EstoqueListaView from "@/components/produtos/EstoqueListaView";
 
 export default function EstoquePage() {
+	usePageHeader("Estoque", "Entradas, ajustes e histórico de movimentações.");
 	const [listaAberta, setListaAberta] = useState(false);
 	const [buscaLista, setBuscaLista] = useState("");
 	const [movimentacoesAbertas, setMovimentacoesAbertas] = useState(false);
@@ -27,15 +29,6 @@ export default function EstoquePage() {
 
 	return (
 		<div className="grid grid-cols-1 gap-4">
-			<div>
-				<h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-					Estoque
-				</h1>
-				<p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-					Entradas, ajustes e histórico de movimentações.
-				</p>
-			</div>
-
 			<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
 				<div>
 					<h2 className="text-base font-semibold text-gray-800 dark:text-white/90">

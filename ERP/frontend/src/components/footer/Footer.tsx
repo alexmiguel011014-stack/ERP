@@ -1,11 +1,13 @@
-import React from 'react';
+import React from "react";
 
 const Footer = () => {
-    return (
-        <div className='flex justify-center mt-5'>
-            <p>Designed and Developed by <a href="https://tailadmin.com/" target='_blank' className='text-green-400'>TailAdmin</a> ~ Distributed by <a href="https://www.themewagon.com" target='_blank' className='text-green-400'>ThemeWagon</a>.</p>
-        </div>
-    );
+	return (
+		<div className="flex justify-center mt-5">
+			<p className="text-sm text-gray-400 dark:text-gray-500">
+				Desenvolvido por Allu Enterprise
+			</p>
+		</div>
+	);
 };
 
 export default Footer;

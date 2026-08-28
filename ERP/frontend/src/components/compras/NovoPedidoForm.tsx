@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import Button from "@/components/ui/button/Button";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import {
 	erpApi,
 	type CotacaoFornecedor,
@@ -29,7 +30,10 @@ export default function NovoPedidoForm({
 	onMensagem: (texto: string, sucesso: boolean) => void;
 }) {
 	const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
-	const [fornecedorId, setFornecedorId] = useState("");
+	const [fornecedorId, setFornecedorId, limparFornecedorId] = usePersistedState(
+		"compras_form_fornecedor_id",
+		"",
+	);
 	const [sku, setSku] = useState("");
 	const [qtd, setQtd] = useState("1");
 	const [custo, setCusto] = useState("0");
@@ -38,8 +42,16 @@ export default function NovoPedidoForm({
 	);
 	const [previewTexto, setPreviewTexto] = useState("");
 	const [cotacao, setCotacao] = useState<CotacaoFornecedor[]>([]);
-	const [itens, setItens] = useState<ItemCarrinho[]>([]);
-	const [observacao, setObservacao] = useState("");
+	// Carrinho do pedido persiste — o mais custoso de perder numa navegação
+	// acidental, igual o carrinho do PDV.
+	const [itens, setItens, limparItens] = usePersistedState<ItemCarrinho[]>(
+		"compras_form_itens",
+		[],
+	);
+	const [observacao, setObservacao, limparObservacao] = usePersistedState(
+		"compras_form_observacao",
+		"",
+	);
 	const [criando, setCriando] = useState(false);
 
 	useEffect(() => {
@@ -167,9 +179,9 @@ export default function NovoPedidoForm({
 	const total = itens.reduce((s, i) => s + i.quantidade * i.custo_unitario, 0);
 
 	function limpar() {
-		setItens([]);
-		setObservacao("");
-		setFornecedorId("");
+		limparItens();
+		limparObservacao();
+		limparFornecedorId();
 	}
 
 	async function criarPedido() {
@@ -188,8 +200,8 @@ export default function NovoPedidoForm({
 				})),
 			});
 			onMensagem(`Pedido #${r.pedidoId} criado com sucesso!`, true);
-			setItens([]);
-			setObservacao("");
+			limparItens();
+			limparObservacao();
 			onCriado();
 		} catch (e) {
 			onMensagem(
