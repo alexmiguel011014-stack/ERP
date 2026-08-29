@@ -11,6 +11,14 @@ const COR_STATUS_HEADER: Record<string, string> = {
 	verde: "font-semibold text-success-400",
 };
 
+// Mesmo status, cores pro corpo da página (fundo claro/escuro normal) — ver
+// COR_STATUS_HEADER acima pro porquê de existirem os dois.
+const COR_STATUS_CORPO: Record<string, string> = {
+	normal: "text-gray-500 dark:text-gray-400",
+	vermelho: "font-semibold text-error-600 dark:text-error-400",
+	verde: "font-semibold text-success-600 dark:text-success-400",
+};
+
 const COR_MENSAGEM: Record<string, string> = {
 	success:
 		"border-success-200 bg-success-50 text-success-700 dark:border-success-800 dark:bg-success-500/10 dark:text-success-400",
@@ -47,8 +55,8 @@ export default function AtualizacaoPage() {
 				<h2 className="text-base font-semibold text-gray-800 dark:text-white/90">
 					Status
 				</h2>
-				<p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-					Buscamos uma nova versão em segundo plano.
+				<p className={`mt-1 text-sm ${COR_STATUS_CORPO[statusCor]}`}>
+					{status}
 				</p>
 				{progresso !== null && (
 					<>
