@@ -52,6 +52,7 @@ module.exports = {
 	finalizarVenda: vendas.finalizarVenda,
 	setDBPath: conexao.setDBPath,
 	getDBPath: conexao.getDBPath,
+	setPastaExecutavel: conexao.setPastaExecutavel,
 	getProximoCodigoCliente: clientes.getProximoCodigoCliente,
 	getDashboardStats: dashboard.getDashboardStats,
 	getClientes: clientes.getClientes,

@@ -2,7 +2,12 @@ const { app, BrowserWindow, ipcMain, Menu, protocol } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { autoUpdater } = require("electron-updater");
-const { setDBPath, registrarLog, backupAutomatico } = require("./database");
+const {
+	setDBPath,
+	setPastaExecutavel,
+	registrarLog,
+	backupAutomatico,
+} = require("./database");
 
 // Fase 0 (spike) do novo frontend Next.js/React — ver plano de migração.
 // Protocolo customizado, não servidor HTTP local: zero porta escutando na
@@ -339,6 +344,12 @@ app.whenReady().then(async () => {
 	Menu.setApplicationMenu(null);
 
 	setDBPath(app.getPath("userData"));
+	// Backup local (db/banco-admin.js:exportarBancoJSON) precisa ficar do
+	// lado de fora do app, visível pro dono — pasta do .exe empacotado, ou
+	// raiz do projeto em dev (mesma lógica de DIR_FRONTEND_NOVO acima).
+	setPastaExecutavel(
+		app.isPackaged ? path.dirname(app.getPath("exe")) : __dirname,
+	);
 
 	if (!CARREGAR_FRONTEND_ANTIGO) {
 		registrarProtocoloFrontendNovo();

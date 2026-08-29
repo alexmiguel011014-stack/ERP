@@ -69,7 +69,16 @@ export default function BancoPage() {
 	}
 
 	return (
-		<div className="grid grid-cols-1 gap-4">
+		<div className="relative grid grid-cols-1 gap-4">
+			{exportando && (
+				<div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 rounded-xl bg-white/80 backdrop-blur-sm dark:bg-gray-900/80">
+					<div className="size-10 animate-spin rounded-full border-4 border-brand-200 border-t-brand-500 dark:border-brand-500/20" />
+					<p className="text-sm font-medium text-gray-600 dark:text-gray-300">
+						Exportando banco de dados para Backup local...
+					</p>
+				</div>
+			)}
+
 			<div className="flex justify-end gap-2">
 				<Button variant="outline" onClick={atualizar}>
 					Atualizar

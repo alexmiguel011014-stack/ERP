@@ -4,7 +4,7 @@ const {
 	runAsync,
 	allAsync,
 	getAsync,
-	getDBPath,
+	getPastaExecutavel,
 } = require("./conexao");
 const { colunasDaTabela } = require("./schema");
 const { verificarHashSenha, hashSenhaUsuario } = require("./usuarios");
@@ -35,29 +35,54 @@ async function resumoTabelasBanco() {
 	return resumo;
 }
 
+// Dois dígitos com zero à esquerda (dia/mês/hora do nome da pasta abaixo).
+function doisDigitos(n) {
+	return String(n).padStart(2, "0");
+}
+
 // Exporta o conteúdo completo do banco (todas as tabelas, sem limite de
-// linhas) para um arquivo JSON legível, para backup/auditoria fora do app.
+// linhas) para "Backup local", na pasta do executável (não userData — o dono
+// quer isso visível de fora do app, do lado do .exe, não escondido dentro de
+// AppData). Uma subpasta por exportação (backup-DD-MM-AAAA-HH) com um
+// arquivo JSON por tabela, mais um _info.json com o resumo — mais fácil de
+// abrir/conferir uma tabela específica do que vasculhar um único JSON gigante.
 async function exportarBancoJSON() {
 	const fs = require("fs");
 	const tabelas = await listarTabelasBanco();
-	const dados = {};
+
+	const agora = new Date();
+	const nomePasta =
+		"backup-" +
+		doisDigitos(agora.getDate()) +
+		"-" +
+		doisDigitos(agora.getMonth() + 1) +
+		"-" +
+		agora.getFullYear() +
+		"-" +
+		doisDigitos(agora.getHours());
+	const pastaBackup = path.join(getPastaExecutavel(), "Backup local");
+	const pastaExportacao = path.join(pastaBackup, nomePasta);
+	fs.mkdirSync(pastaExportacao, { recursive: true });
+
 	let totalRegistros = 0;
 	for (const tabela of tabelas) {
 		const linhas = await allAsync("SELECT * FROM " + tabela, []);
-		dados[tabela] = linhas;
 		totalRegistros += linhas.length;
+		fs.writeFileSync(
+			path.join(pastaExportacao, tabela + ".json"),
+			JSON.stringify(linhas, null, 2),
+			"utf8",
+		);
 	}
 
-	const dbDir = path.dirname(getDBPath());
-	const exportDir = path.join(dbDir, "exports");
-	if (!fs.existsSync(exportDir)) fs.mkdirSync(exportDir, { recursive: true });
-
-	const carimbo = new Date().toISOString().replace(/[:.]/g, "-");
-	const destino = path.join(exportDir, "banco_export_" + carimbo + ".json");
 	fs.writeFileSync(
-		destino,
+		path.join(pastaExportacao, "_info.json"),
 		JSON.stringify(
-			{ exportadoEm: new Date().toISOString(), tabelas: dados },
+			{
+				exportadoEm: agora.toISOString(),
+				tabelas: tabelas.length,
+				registros: totalRegistros,
+			},
 			null,
 			2,
 		),
@@ -65,7 +90,7 @@ async function exportarBancoJSON() {
 	);
 
 	return {
-		caminho: destino,
+		caminho: pastaExportacao,
 		tabelas: tabelas.length,
 		registros: totalRegistros,
 	};

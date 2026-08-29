@@ -9,6 +9,22 @@ function setDBPath(basePath) {
 	DB_PATH = path.join(basePath, "erp_housekimono.sqlite");
 }
 
+// Pasta do executável (onde "ALLU ERP.exe" fica, num build empacotado) —
+// diferente de userData (onde o banco/backups automáticos moram). Usada só
+// pela "Backup local" (ver db/banco-admin.js:exportarBancoJSON): o dono quer
+// esses exports visíveis do lado de fora do app, num lugar óbvio, não
+// escondidos dentro de AppData. main.js define o valor real no boot
+// (app.isPackaged ? pasta do .exe : raiz do projeto em dev).
+let PASTA_EXECUTAVEL = path.join(__dirname, "..");
+
+function setPastaExecutavel(caminho) {
+	PASTA_EXECUTAVEL = caminho;
+}
+
+function getPastaExecutavel() {
+	return PASTA_EXECUTAVEL;
+}
+
 let db = null;
 let currentKey = null;
 
@@ -224,6 +240,8 @@ function getDBPath() {
 module.exports = {
 	setDBPath,
 	getDBPath,
+	setPastaExecutavel,
+	getPastaExecutavel,
 	derivarChave,
 	runOn,
 	fecharConn,

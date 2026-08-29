@@ -6,12 +6,38 @@ import { useTabs } from "@/context/TabsContext";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+
+// Abaixo desta largura por aba, o rótulo não cabe de forma legível — troca
+// pro "modo compacto" (bolinha com a primeira letra + x, igual o Chrome faz
+// quando muitas abas estão abertas) em vez de deixar o texto ilegível ou
+// estourar a faixa. Acima disso, cada aba encolhe proporcionalmente sozinha
+// via flexbox (flex-shrink), sem precisar de JS pra isso.
+const LARGURA_MIN_ABA_NORMAL = 96;
 
 const AppHeader: React.FC = () => {
 	const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
 	const { abas, abaAtivaId, fecharAba } = useTabs();
 	const router = useRouter();
+	const faixaAbasRef = useRef<HTMLDivElement>(null);
+	const [modoCompacto, setModoCompacto] = useState(false);
+
+	// Recalcula sempre que o número de abas muda ou a faixa é redimensionada
+	// (janela, sidebar recolhendo/expandindo no hover) — largura disponível
+	// dividida pelo número de abas é o mesmo cálculo que decide se cada aba
+	// ainda cabe no piso de 96px ou se precisa virar modo compacto.
+	useEffect(() => {
+		const el = faixaAbasRef.current;
+		if (!el || abas.length === 0) return;
+		function recalcular() {
+			if (!el || abas.length === 0) return;
+			setModoCompacto(el.clientWidth / abas.length < LARGURA_MIN_ABA_NORMAL);
+		}
+		recalcular();
+		const observer = new ResizeObserver(recalcular);
+		observer.observe(el);
+		return () => observer.disconnect();
+	}, [abas.length]);
 
 	const toggleApplicationMenu = () => {
 		setApplicationMenuOpen(!isApplicationMenuOpen);
@@ -19,7 +45,16 @@ const AppHeader: React.FC = () => {
 
 	return (
 		<header className="sticky top-0 flex w-full bg-[#0F172A] border-white/10 z-99999 lg:border-b">
-			<div className="flex flex-col items-center justify-between grow lg:flex-row lg:px-4">
+			{/* Achado real (2026-08-29, correção da compactação de abas): sem
+			    min-w-0 aqui, este div (único filho flex do <header>) nunca
+			    encolhia abaixo da largura "natural" do seu conteúdo — o
+			    default de flexbox é min-width:auto num item flex, que recusa
+			    encolher além do que o conteúdo pede. Era por isso que a faixa
+			    de abas nunca era genuinamente compactada antes: a faixa em si
+			    até tinha min-w-0/flex-shrink corretos, mas o PAI dela (este
+			    div) já vazava pra fora do header sem nunca ficar pequeno o
+			    bastante pra forçar o encolhimento a acontecer. */}
+			<div className="flex min-w-0 flex-col items-center justify-between grow lg:flex-row lg:px-4">
 				<div className="flex items-center justify-between w-full gap-2 px-3 py-2.5 border-b border-gray-200 dark:border-gray-800 sm:gap-4 lg:hidden">
 					<Link href="/" className="lg:hidden">
 						<Image
@@ -59,59 +94,87 @@ const AppHeader: React.FC = () => {
 					</button>
 				</div>
 				{abas.length > 0 && (
-					<div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto py-1">
+					<div
+						ref={faixaAbasRef}
+						className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-1"
+					>
 						{abas.map((aba) => {
 							const ativa = aba.id === abaAtivaId;
 							const fechavel = aba.id !== "dashboard";
+							const corAtiva = ativa
+								? "bg-blue-500 text-white"
+								: "bg-white/5 text-gray-300 hover:bg-white/10";
+							const botaoFechar = fechavel && (
+								<button
+									type="button"
+									onClick={() => fecharAba(aba.id)}
+									title={`Fechar ${aba.titulo}`}
+									className={`flex size-4 shrink-0 items-center justify-center rounded-full ${
+										ativa
+											? "hover:bg-white/20"
+											: "hover:bg-white/10 group-hover:text-white"
+									}`}
+								>
+									<svg
+										width="10"
+										height="10"
+										viewBox="0 0 24 24"
+										fill="none"
+										xmlns="http://www.w3.org/2000/svg"
+									>
+										<path
+											d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+											fill="currentColor"
+										/>
+									</svg>
+								</button>
+							);
+
+							// Modo compacto (faixa lotada demais pro rótulo caber
+							// legível): só a primeira letra do módulo + o x, igual o
+							// Chrome faz quando abre muitas abas — em vez de deixar o
+							// texto ilegível ou a faixa estourar a largura da tela.
+							if (modoCompacto) {
+								return (
+									<div
+										key={aba.id}
+										className={`group flex shrink-0 items-center gap-0.5 rounded-lg p-1 transition-colors ${corAtiva}`}
+									>
+										<button
+											type="button"
+											onClick={() => router.push(aba.href)}
+											title={aba.titulo}
+											className="flex size-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-[11px] font-semibold uppercase"
+										>
+											{aba.titulo.trim().charAt(0) || "?"}
+										</button>
+										{botaoFechar}
+									</div>
+								);
+							}
+
 							return (
 								<div
 									key={aba.id}
-									className={`group flex shrink-0 items-center gap-1.5 rounded-lg py-1 pl-2 text-sm transition-colors ${
+									style={{ minWidth: LARGURA_MIN_ABA_NORMAL }}
+									className={`group flex flex-[0_1_170px] items-center gap-1.5 rounded-lg py-1 pl-2 text-sm transition-colors ${
 										fechavel ? "pr-1" : "pr-2"
-									} ${
-										ativa
-											? "bg-blue-500 text-white"
-											: "bg-white/5 text-gray-300 hover:bg-white/10"
-									}`}
+									} ${corAtiva}`}
 								>
 									<button
 										type="button"
 										onClick={() => router.push(aba.href)}
-										className="flex items-center gap-1.5"
+										className="flex min-w-0 flex-1 items-center gap-1.5"
 										title={aba.titulo}
 									>
-										<span className="[&>svg]:size-4">
+										<span className="shrink-0 [&>svg]:size-4">
 											<IconeModulo svg={aba.icone} />
 										</span>
-										<span className="max-w-[120px] truncate font-medium">
+										<span className="min-w-0 flex-1 truncate font-medium">
 											{aba.titulo}
 										</span>
 									</button>
-									{fechavel && (
-										<button
-											type="button"
-											onClick={() => fecharAba(aba.id)}
-											title={`Fechar ${aba.titulo}`}
-											className={`flex size-4 shrink-0 items-center justify-center rounded-full ${
-												ativa
-													? "hover:bg-white/20"
-													: "hover:bg-white/10 group-hover:text-white"
-											}`}
-										>
-											<svg
-												width="10"
-												height="10"
-												viewBox="0 0 24 24"
-												fill="none"
-												xmlns="http://www.w3.org/2000/svg"
-											>
-												<path
-													d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
-													fill="currentColor"
-												/>
-											</svg>
-										</button>
-									)}
+									{botaoFechar}
 								</div>
 							);
 						})}

@@ -9,6 +9,11 @@ data/
 *.sqlite3
 *.log
 
+# Export "Backup local" (db/banco-admin.js:exportarBancoJSON) — em dev, cai
+# na raiz do projeto (pastaExecutavel = __dirname quando !app.isPackaged);
+# empacotado, cai do lado do .exe, fora do repo por definição.
+Backup local/
+
 # Repos de referencia (baixados pelo bootstrap)
 external/
 mcp-servers/

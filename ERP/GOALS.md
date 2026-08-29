@@ -2431,6 +2431,49 @@ it's actually just their own bootstrap account that happens to share a name.
 
 ---
 
+## Pre-production QA pass (2026-08-29, owner's final test before real company use)
+
+Owner's request: two live-tested corrections, ahead of using this ERP for real at their own
+business and rolling the update out from GitHub Releases.
+
+- [x] **Header tab strip never actually compacted — root cause was a flexbox `min-width:auto`
+      trap, two levels up from the tab strip itself.** `AppHeader.tsx`'s tab row already had
+      correct `min-w-0`/`flex-shrink` — but its own parent (`<header>`'s single flex child,
+      `flex flex-col ... grow lg:flex-row`) and, one level further up,
+      `(admin)/layout.tsx`'s main-content `flex-1` div, both lacked `min-w-0`. A flex item's
+      default `min-width` is `auto` (never shrink below content's intrinsic size) — without
+      the fix, the whole chain silently grew to fit the tab strip's *unshrunk* content instead
+      of ever handing it a real constrained width, which is exactly why nothing ever
+      compacted and the page just grew a horizontal scrollbar instead (matching the owner's
+      screenshots). Fixed by adding `min-w-0` at both levels
+      (`frontend/src/layout/AppHeader.tsx`, `frontend/src/app/(admin)/layout.tsx`).
+- [x] **Tabs now shrink proportionally (CSS-only) down to a 96px floor**, then switch to a
+      Chrome-style compact mode (first-letter badge + × only, no label) via a `ResizeObserver`
+      watching the tab strip's real available width divided by tab count
+      (`LARGURA_MIN_ABA_NORMAL = 96` in `AppHeader.tsx`). Verified live via an isolated
+      Playwright repro script (11 tabs open, viewport narrowed to 1080px): all 11 render as
+      compact letter+× badges, no scrollbar needed; with only 4 tabs at 1280px, full
+      icon+label+× renders normally with visible ellipsis truncation on longer labels
+      (confirmed "Fornece…", "Banco d…" truncating correctly).
+- [x] **"Backup local" export**: `exportarBancoJSON()` (`db/banco-admin.js`) rewritten —
+      was a single combined JSON file in `userData/exports/` (invisible to the store owner,
+      buried in AppData); now writes to `<pasta do executável>/Backup local/backup-DD-MM-AAAA-HH/`
+      (new `getPastaExecutavel()`/`setPastaExecutavel()` in `db/conexao.js`, set from `main.js`
+      at boot — `app.isPackaged ? path.dirname(app.getPath("exe")) : __dirname`), one `.json`
+      file per table plus `_info.json` with the export summary. Two exports within the same
+      hour reuse the same subfolder (files just overwrite in place) rather than erroring or
+      duplicating. Loading overlay added to `banco/page.tsx` for the `exportando` state
+      (spinner + message, `absolute inset-0` over the page). Verified live: real export
+      produced 22 table files + `_info.json` in a correctly-named
+      `backup-29-08-2026-15/` folder at the project root (dev-mode `pastaExecutavel`); result
+      banner showed the right path and counts. New test coverage:
+      `test/banco-admin-export.test.js` (3 tests: location, per-table files + `_info.json`,
+      same-hour reuse).
+- [x] Full regression after both fixes: `npm run lint` clean, `npm test` 65/65,
+      `npx playwright test` 5/5 (no e2e locator broke from the tab-strip markup changes).
+
+---
+
 ## Suggested order
 
 1. ~~P0 fix (pagamentos migration)~~ — done. Also found and fixed, beyond the missing table:
