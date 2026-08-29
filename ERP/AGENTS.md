@@ -90,6 +90,25 @@ npx asar list "dist\win-unpacked\resources\app.asar" | Select-String "^/frontend
 # ou, se usar extraResources: dir "dist\win-unpacked\resources\frontend\out"
 ```
 
+**Mesmo bug voltou de outro jeito, achado de novo em 2026-08-29 (a v1.1.7 publicada de
+verdade no GitHub saiu SEM `frontend/out` — mesmo depois do fix do `extraResources`
+acima).** Causa desta vez não foi config, foi **processo**: o build local que eu verifiquei
+manualmente (`--dir`, checando `resources/frontend/out/index.html`) não era o MESMO build
+que efetivamente virou o `.exe` publicado — nada garantia que `frontend/out/` estava fresco
+no exato momento em que o `electron-builder --publish always` rodou de verdade. Sintoma:
+app abre e mostra literalmente `Not Found` (a resposta 404 do próprio `main.js`) em vez de
+tela branca — mais fácil de reconhecer que o bug anterior, mas raiz idêntica (frontend
+faltando no pacote).
+
+**Corrigido pra nunca mais depender de lembrar manualmente**: `package.json` →
+`build.beforePack` aponta pra `scripts/before-pack.js`, que roda automaticamente ANTES do
+electron-builder copiar qualquer arquivo — não importa como ele foi invocado (`--dir`,
+`--publish always`, via `npm run build`). O hook builda `frontend/` do zero e **falha o
+build inteiro** se `frontend/out/index.html` não existir depois. Testado de propósito:
+apaguei `frontend/out/` manualmente, rodei `electron-builder --dir`, confirmei que o hook
+rebuildou sozinho e o pacote final tinha o arquivo — não é só "parece certo no código", foi
+verificado ao vivo partindo do estado quebrado.
+
 ## Comandos Essenciais
 
 ```powershell

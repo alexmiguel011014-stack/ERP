@@ -22,6 +22,7 @@ module.exports = [
 			"main.js",
 			"database.js",
 			"modulos.js",
+			"atualizacao-automatica.js",
 			"db/**/*.js",
 			"ipc/**/*.js",
 			"integracoes/**/*.js",

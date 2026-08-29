@@ -1,6 +1,6 @@
 {
 	"name": "erp",
-	"version": "1.1.7",
+	"version": "1.1.8",
 	"description": "ERP local (offline) da ALLU",
 	"main": "main.js",
 	"scripts": {
@@ -27,6 +27,7 @@
 		"asarUnpack": [
 			"**/node_modules/@journeyapps/sqlcipher/**/*"
 		],
+		"beforePack": "scripts/before-pack.js",
 		"publish": {
 			"provider": "github",
 			"owner": "alexmiguel011014-stack",
@@ -38,6 +39,7 @@
 			"preload.js",
 			"database.js",
 			"modulos.js",
+			"atualizacao-automatica.js",
 			"db/**/*",
 			"ipc/**/*",
 			"integracoes/**/*",

@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useTabs } from "@/context/TabsContext";
+import { normalizarPathname } from "@/hooks/useModulos";
 
 // Mantém o conteúdo de cada aba aberta genuinamente montado (não só
 // escondido por CSS depois de recriado) — troca de aba não perde formulário
@@ -17,7 +18,13 @@ export default function AbasAtivasWrapper({
 }: {
 	children: React.ReactNode;
 }) {
-	const pathname = usePathname();
+	// normalizarPathname: mesma pegadinha do trailingSlash:true de sempre —
+	// usePathname() pode devolver a rota com barra no final; sem normalizar
+	// aqui, uma visita cujo pathname bruto ainda não tinha estabilizado no
+	// formato com barra criava uma SEGUNDA entrada de cache pra "a mesma"
+	// rota (uma visível, outra escondida, os dois com o mesmo conteúdo) —
+	// bug real que quebrava toda navegação depois de abrir uma aba assim.
+	const pathname = normalizarPathname(usePathname());
 	const { abas } = useTabs();
 	const cacheRef = useRef<Map<string, React.ReactNode>>(new Map());
 	const [, forcarRender] = useState(0);

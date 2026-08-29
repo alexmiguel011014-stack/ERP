@@ -94,6 +94,18 @@ function registrar(ipcMain, deps) {
 
 	ipcMain.handle("check-for-updates", async () => {
 		try {
+			// Só pra e2e (ver e2e/tab-system.spec.ts) — sem isso, testar o fluxo
+			// de Atualizações exige rede real de verdade, o que não dá pra
+			// confiar num sandbox de CI. Emite os MESMOS eventos que
+			// main.js:autoUpdater.on(...) já escuta e repassa pro renderer, então
+			// o frontend não sabe a diferença de um check de verdade.
+			if (process.env.ERP_MOCK_UPDATER === "1") {
+				autoUpdater.emit("checking-for-update");
+				autoUpdater.emit("update-not-available", {
+					version: require("../package.json").version,
+				});
+				return null;
+			}
 			const online = await temConectividade(5000);
 			if (!online) {
 				throw new Error(

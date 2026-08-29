@@ -30,6 +30,11 @@ test.describe("sistema de abas do header (frontend novo)", () => {
 				// Frontend novo é o padrão desde o cutover (2026-08-28) — não
 				// precisa mais de env var pra ligar.
 				ERP_TEST_USERDATA_DIR: userDataDir,
+				// checkForUpdates() bate rede de verdade (GitHub) — sem isso, o
+				// teste de navegação pós-Atualizações dependeria de
+				// conectividade real, inconsistente em CI/sandbox (ver
+				// ipc/sistema.js).
+				ERP_MOCK_UPDATER: "1",
 			},
 		});
 		window = await electronApp.firstWindow();
@@ -80,12 +85,40 @@ test.describe("sistema de abas do header (frontend novo)", () => {
 		await expect(window.getByTitle("Fechar Dashboard")).toHaveCount(0);
 	});
 
-	// NOTA (2026-08-29): um teste de regressão pra "navegar pra Atualizações
-	// e depois pra outro módulo" foi tentado aqui e removido — checkForUpdates
-	// bate rede de verdade (GitHub), e o comportamento em CI/sandbox sem
-	// conectividade previsível não deu pra distinguir de forma confiável do
-	// bug real observado ao vivo (que acontecia mesmo com a checagem já
-	// concluída com sucesso). Precisa de uma forma de mockar
-	// autoUpdater.checkForUpdates() nesta suíte antes de reintroduzir esse
-	// teste — ver GOALS.md.
+	// Regressão real (2026-08-29): depois de visitar Atualizações, toda
+	// navegação subsequente ficava travada — o pathname mudava (a sidebar
+	// reagia), mas o conteúdo/abas do header nunca trocavam.
+	// ERP_MOCK_UPDATER=1 (ipc/sistema.js) faz checkForUpdates() resolver na
+	// hora, sem bater rede — prova que essa trava NÃO é sobre rede/DNS (duas
+	// correções nessa linha de investigação, fs.readFile no protocolo
+	// app://renderer/ e normalizarPathname em AbasAtivasWrapper, continuam
+	// válidas por si só, mas nenhuma resolveu isso). `test.fail()`: ainda
+	// reproduz — marcado como falha conhecida em vez de destravar
+	// silenciosamente a suíte; se algo resolver de verdade, este teste
+	// passa a PASSAR, e o Playwright avisa que o `test.fail()` deve sair.
+	test.fail(
+		"navegar pra Atualizações e depois pra outro módulo continua funcionando",
+		async () => {
+			await window
+				.locator("aside")
+				.getByTitle("Atualizações", { exact: true })
+				.click();
+			await expect(window.getByTitle("Fechar Atualizações")).toBeVisible();
+
+			// Espera a checagem (mockada, resolve na hora) terminar antes de
+			// navegar — a trava observada ao vivo acontecia especificamente
+			// DEPOIS do "Aplicativo atualizado" já estar na tela.
+			// `p:visible` (não só getByText) porque o cache-de-abas mantém uma
+			// cópia oculta (`AbasAtivasWrapper`) — getByText sozinho vê as duas.
+			await expect(
+				window.locator("p:visible", { hasText: "Aplicativo atualizado" }),
+			).toBeVisible();
+
+			await window
+				.locator("aside")
+				.getByTitle("Compras", { exact: true })
+				.click();
+			await expect(window.getByTitle("Fechar Compras")).toBeVisible();
+		},
+	);
 });
