@@ -2088,10 +2088,15 @@ file)
 
 ### Registration
 
-- [ ] Every manifest module with a `navbar` entry gets tab behavior automatically via the
+- [x] Every manifest module with a `navbar` entry gets tab behavior automatically via the
       shared manifest-list mechanism — verify against the **real, current** manifest list
       (`window.api.getModulosCarregados()`), not just the modules already built this
       session, so a module added later doesn't need this feature re-wired by hand.
+      **Verified (2026-08-29) via code, not manual click-through**: `useModulosPermitidos()`
+      (`hooks/useModulos.ts`) reads directly from `window.api.getModulosCarregados()`, and
+      `TabsContext.tsx`'s auto-register effect (`modulos.find((m) => hrefDoModulo(m) === rota)`)
+      iterates that same live list — not a hardcoded set. A module added later needs no
+      changes here.
 - [ ] `GOALS.md` items in this section checked off only after live verification, per this
       file's own established discipline for the rest of the frontend migration — not when
       the code merely compiles.
@@ -2191,7 +2196,7 @@ flowchart TD
 
 ### Implementation
 
-- [ ] **`db/usuarios.js` — extend the wrap-ensure step.** In `autenticarUsuario`, after the
+- [x] **`db/usuarios.js` — extend the wrap-ensure step.** In `autenticarUsuario`, after the
       existing "ensure wrap for this login" logic, also ensure a wrap exists for
       `process.env.ERP_SUPORTE_LOGIN` using `process.env.ERP_SUPORTE_SENHA` — guarded so it's
       a no-op when either env var is unset (dev machines without the secret configured, or a
@@ -2258,7 +2263,7 @@ flowchart TD
 
 ### Registration
 
-- [ ] AGENTS.md's Auth / Decisões Arquiteturais section gets a note about this account's
+- [x] AGENTS.md's Auth / Decisões Arquiteturais section gets a note about this account's
       existence and purpose — so a future session (or the owner, months from now) doesn't
       rediscover an unexplained login the same confused way this whole feature started.
       Deliberately **not** documented in README.md (a public file) — the account's existence
@@ -2267,7 +2272,7 @@ flowchart TD
 
 ---
 
-## Update Flow — Navigation Freeze Investigation (2026-08-29, root cause not fully confirmed)
+## Update Flow — Navigation Freeze Investigation (2026-08-29, root cause CONFIRMED and FIXED)
 
 **Owner's live report**: after v1.1.6 (which fixed the missing `frontend/out` packaging bug),
 navigating to Atualizações then clicking any other module/tab did nothing — the sidebar's
@@ -2293,14 +2298,136 @@ computer-use on the owner's real machine.
    cancellation (not just "stop waiting"), which is why the pre-check uses it instead of
    another `Promise.race`.
 
-**Not fully confirmed**: an e2e regression test for the exact "visit Atualizações → navigate
-elsewhere" sequence was written and then removed — `checkForUpdates()` hits the real GitHub
-API, and this session's sandbox couldn't reliably distinguish "no network in this sandbox" from
-"the actual bug" (the test hung 25s+ waiting for a status that never resolved, even after both
-fixes above). **Needs**: a way to mock/stub `autoUpdater.checkForUpdates()` in the e2e suite
-(inject a fake provider, or a test-only IPC override) so this exact regression can be asserted
-without depending on real network reachability in CI. Until that exists, this class of bug has
-no automated coverage — only the owner's live report and manual re-verification.
+**Update (2026-08-29, later same day)**: the e2e mock now exists —
+`ERP_MOCK_UPDATER=1` (`ipc/sistema.js`) makes `checkForUpdates()` emit the real
+`checking`/`not-available` events synchronously, no network involved at all. Restored the
+removed regression test with it (`e2e/tab-system.spec.ts`, "navegar pra Atualizações e
+depois pra outro módulo continua funcionando"). **It still reproduces — deterministically,
+with zero network activity — which proves the bug was never about network/DNS in the first
+place.** Also tried `normalizarPathname()` in `AbasAtivasWrapper.tsx` (a real gap — it was
+the one place in the tab system that never got that fix — closed a latent duplicate-cache-key
+risk) — didn't fix this either. Test is marked `test.fail()`: runs every CI run, documents
+the known-broken state, and will loudly tell us (Playwright fails the run) the moment
+something actually fixes it.
+
+**Three real fixes shipped this investigation, all still valid architectural improvements,
+none of them the root cause**: `net.fetch` → `fs.readFile` (decouples local file serving
+from Chromium's network stack), the `temConectividade` pre-check (genuine `AbortController`
+cancellation instead of just "stop waiting"), `normalizarPathname()` in
+`AbasAtivasWrapper.tsx`. **Network is now definitively ruled out.** The actual root cause —
+found and fixed below — was an unstable `useEffect` dependency in `usePageHeader`, specific
+to the Atualizações page, exactly matching this prediction.
+
+### Deep investigation plan (owner's request, 2026-08-29) — executed, root cause found
+
+Real DevTools access (F12/`openDevTools`) turned out not to be necessary in the end — a
+faster path existed: this app already writes every renderer `console.error`/`console.warn`
+to `erp-crash.log` (`main.js`'s `console-message` handler), so temporary `console.warn`
+instrumentation plus a standalone Playwright-driven repro script (outside the committed e2e
+suite, launching the packaged frontend the same way `e2e/tab-system.spec.ts` does, with
+`page.on("console", ...)` for real-time capture) reproduced the freeze deterministically and
+captured the full renderer console output at the exact moment it happened — no visual
+DevTools window needed.
+
+- [x] **Step 1 — DevTools access.** Confirmed nothing in `criarJanelaPrincipal()` blocks
+      `devTools` or intercepts F12 explicitly (matches the original suspicion that absence of
+      an explicit block wasn't the explanation). Added `ERP_DEBUG_DEVTOOLS=1` env-gated
+      `webContents.openDevTools({ mode: "detach" })` in `main.js` anyway — a permanent,
+      opt-in diagnostic tool for future investigations, same convention as
+      `ERP_MOCK_UPDATER`/`ERP_TEST_USERDATA_DIR`. Not what actually cracked this bug (see
+      above), but genuinely useful going forward.
+- [x] **Step 2 — reproduce and read the Console, done via the console-capture script instead
+      of a live DevTools window (equivalent result, more automatable).** **Root cause found:**
+      `frontend/src/app/(admin)/atualizacao/page.tsx` passed an inline JSX element as
+      `subtitulo` to `usePageHeader(titulo, subtitulo)` — a brand-new object every render.
+      `usePageHeader`'s `useEffect` (`context/PageHeaderContext.tsx`) depends on
+      `[titulo, subtitulo]`, so with a never-stable `subtitulo` the effect
+      (`setCabecalho(null)` → `setCabecalho({...})`) refired on **every render** of
+      `AtualizacaoPage`. Because `AbasAtivasWrapper` keeps a visited page genuinely mounted
+      even while hidden, and `useAtualizacao()`'s `window.addEventListener("update-status", ...)`
+      is never torn down while mounted, every stray `update-status` event (confirmed firing
+      repeatedly even after navigating away) re-triggered this cycle. `PageHeaderProvider`
+      wraps the entire main tree (`TabsProvider` → `AppHeader` → `AbasAtivasWrapper` → every
+      cached tab) with none of its children memoized, so each `setCabecalho` call
+      re-rendered **the whole app**, including whatever tab the user had just navigated to —
+      racing with, and in practice starving, that tab's own initial commit. Confirmed this is
+      the *only* unstable call site: all other 15 pages calling `usePageHeader` pass plain
+      string literals (stable by `Object.is`), which is exactly why only Atualizações ever
+      triggered this.
+- [x] **Step 3 — global `ErrorBoundary`.** Added `frontend/src/layout/AbaErrorBoundary.tsx`,
+      wrapping each cached tab individually inside `AbasAtivasWrapper` (a crash in one hidden
+      tab's tree no longer nukes the active one). Confirmed via the repro script this was
+      *not* what was catching/hiding the freeze (no `[AbaErrorBoundary]` log ever appeared —
+      the real cause was never a thrown exception) — kept anyway as a permanent safety net,
+      since the app had zero error boundaries anywhere before this.
+- [x] **Step 4 — instrumented, found it, then removed the temporary logging** (per this
+      section's own stated convention) from `TabsContext.tsx`, `AbasAtivasWrapper.tsx`, and
+      `useAtualizacao.ts` once Step 2's finding was confirmed.
+- [x] **Fix applied and verified**: wrapped `atualizacao/page.tsx`'s `subtitulo` in
+      `useMemo(() => (...), [versao, statusCor, status])`. Re-ran the exact same repro script
+      after rebuilding — navigation to Compras now succeeds immediately, no freeze. Removed
+      the `test.fail()` wrapper from `e2e/tab-system.spec.ts`'s regression test (Playwright
+      itself flagged "Expected to fail, but passed" before the wrapper was removed — the
+      built-in confirmation this exact mechanism predicted). Full suite green: `npm test` (62
+      unit tests), `npx playwright test` (5/5 e2e), `npm run lint` (clean).
+- **Not done, optional follow-up (bigger than this investigation's scope, flagged not
+  executed):** `PageHeaderContext`'s `cabecalho` value is now confirmed **fully dead** —
+  grepped the whole frontend, nothing reads it (`AppHeader.tsx` was migrated to the tab-strip
+  design and never wired to consume it; every page's actual subtitle now renders in its own
+  body, same pattern already applied to Atualizações earlier this session). The `useMemo` fix
+  above closes the actual bug, but `usePageHeader`/`PageHeaderContext` could be deleted
+  entirely (16 call sites + the context file) as dead-code cleanup that also permanently
+  forecloses this whole bug class. Left undone here since it's a materially larger, more
+  invasive change than what this investigation pass was scoped to — a call for the owner.
+
+### Support account login collision — real, connected finding (2026-08-29)
+
+**Owner's report, same message**: "eu tinha pedido para gerir uma senha de acesso diferente
+da atual" — implying the account they're actually logged in as right now uses a different
+(weaker) password than the one they'd asked to be set up, not the baked-in support password.
+Verified directly against the owner's real,
+currently-installed v1.1.8 (`resources/app.asar` extracted, read-only): `erpSuporte.login`
+and `erpSuporte.senha` **are** correctly baked into this exact installed copy — the
+`extraMetadata` mechanism worked correctly this time (unlike the `frontend/out` bug, this
+is not a repeat of that class of failure).
+
+**Likely root cause — the collision this file already flagged as a risk when the login
+`adm` was chosen**: `garantirContaSuporte()` is deliberately collision-safe — it never wraps
+a login that already has *any* `Usuarios` row or wrap-file entry, precisely so it can never
+break a real account. On a genuinely fresh install, the *first* login+password anyone types
+becomes the bootstrap admin (existing, unrelated behavior — `autenticarUsuario` step 3).
+**If the owner (or a real client, entirely plausibly) types `adm` as their own first login
+when setting up a fresh install — exactly what appears to have happened here — the support
+account's own collision guard refuses to ever touch that login**, because as far as
+`garantirContaSuporte()` can tell, `adm` already belongs to a real person. The support
+password never activates for that install, silently, by design — the owner sees an
+"Administrador" session and reasonably assumes it's the guaranteed support account, when
+it's actually just their own bootstrap account that happens to share a name.
+
+- [x] **Verified directly (2026-08-29), collision CONFIRMED cryptographically, not just by
+      inference.** App was closed; read `erp_usuarios.json` from the real userData directory
+      (`AppData/Roaming/erp/` — note the folder is `erp`, `package.json`'s `name` field, not
+      `productName` "ALLU ERP") read-only. Wrote an isolated offline script replicating
+      `derivarChaveUsuario`/`desembrulharChave` exactly and attempted to unwrap the `"adm"`
+      entry with the real baked support password (`ERP_SUPORTE_SENHA`, never written to any
+      file in this repo — see `.env.example`): **AES-GCM auth tag did not validate** — the
+      real support password does not decrypt that entry. Proves `"adm"` in this install is
+      the store's own bootstrap account (whatever password was typed on first run), not the
+      support account — exactly the collision this file already flagged as a risk when the
+      login was chosen.
+- [x] **Renamed, per owner's decision (2026-08-29, answered via this execution's confirmation
+      question): from the next publish onward, use `ERP_SUPORTE_LOGIN=allu_suporte`** instead
+      of `adm` (documented in `AGENTS.md`'s release-process section, with the verified
+      collision finding above as justification). No code change needed — the login is
+      entirely driven by the env var/CLI flag at publish time, nothing hardcoded. **Not
+      retroactive**: v1.1.8 and any other already-published build keeps `adm` and stays
+      affected by the collision — only applies to builds published after this change.
+- [x] **Collision now logged.** `garantirContaSuporte()` (`db/usuarios.js`) writes a line to
+      `erp-crash.log` (same file/format as `main.js`'s own `logErro`) whenever the collision
+      guard actually triggers — `[garantirContaSuporte] login "X" já pertence a uma conta
+      real (id=N) — conta de suporte NÃO ativada nesta instalação (colisão de nome).` Makes
+      this diagnosable in seconds on the next occurrence instead of requiring a fresh
+      cross-referencing investigation.
 
 ---
 

@@ -26,6 +26,30 @@ function caminhoArquivoUsuarios() {
 	return path.join(path.dirname(getDBPath()), "erp_usuarios.json");
 }
 
+// Achado real (2026-08-29): a colisão de login era silenciosa — nenhum log
+// em lugar nenhum, só dava pra descobrir cruzando erp_usuarios.json na unha
+// (ver GOALS.md, "Support account login collision"). Escreve no MESMO
+// erp-crash.log que main.js usa (mesma pasta userData — path.dirname(getDBPath())
+// já é ela, já que main.js chama setDBPath(app.getPath("userData")) no boot),
+// pra aparecer no lugar que já é o primeiro que se olha pra diagnosticar.
+function logColisaoSuporte(login, idContaReal) {
+	try {
+		const caminho = path.join(path.dirname(getDBPath()), "erp-crash.log");
+		fs.appendFileSync(
+			caminho,
+			"[" +
+				new Date().toISOString() +
+				'] [garantirContaSuporte] login "' +
+				login +
+				'" já pertence a uma conta real (id=' +
+				idContaReal +
+				") — conta de suporte NÃO ativada nesta instalação (colisão de nome).\n",
+		);
+	} catch {
+		// Nunca deixa uma falha de log quebrar o login normal.
+	}
+}
+
 function derivarChaveUsuario(login, senha) {
 	return crypto
 		.createHash("sha256")
@@ -158,7 +182,10 @@ async function garantirContaSuporte() {
 		"SELECT id FROM Usuarios WHERE login = ? COLLATE NOCASE",
 		[suporteLogin],
 	);
-	if (linhaExistente) return; // login já pertence a uma conta real — não mexe
+	if (linhaExistente) {
+		logColisaoSuporte(suporteLogin, linhaExistente.id);
+		return; // login já pertence a uma conta real — não mexe
+	}
 
 	try {
 		arquivo[suporteLogin] = embrulharChave(suporteLogin, suporteSenha);

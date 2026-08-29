@@ -50,6 +50,21 @@ funciona pra qualquer campo de config, incluindo `extraMetadata` — não é uma
 `${env.X}` dentro de um `extraMetadata` estático em `package.json`, que não é garantida pra
 esse campo especificamente).
 
+**Achado real (2026-08-29): `ERP_SUPORTE_LOGIN=adm` colide com o login que a própria loja
+tipicamente escolhe no primeiro acesso.** `garantirContaSuporte()` (`db/usuarios.js`) é
+deliberadamente segura contra colisão — nunca embrulha um login que já pertence a uma conta
+real, pra nunca quebrar o acesso de ninguém. Isso significa que se a loja (ou o próprio dono
+testando) digitar `adm` como o primeiro login/senha da instalação, a conta de suporte nunca
+ativa naquela instalação — silenciosamente, por design. Verificado ao vivo (2026-08-29): a
+senha de suporte real (`ERP_SUPORTE_SENHA`, nunca escrita em nenhum arquivo deste repo — ver
+`.env.example`) não desembrulha a entrada `"adm"` de `erp_usuarios.json` numa instalação de
+teste — exatamente esse cenário, confirmado criptograficamente (AES-GCM auth tag não bate),
+não só por suspeita. **A partir da próxima
+publicação, usar `allu_suporte` (não `adm`) como `ERP_SUPORTE_LOGIN`** — string que ninguém
+digitaria como login próprio por engano. Instalações já publicadas com `adm` não ganham o
+login novo retroativamente (mesma limitação de "não é retroativo" já documentada para troca
+de senha) — só builds publicados a partir de agora.
+
 **Pegadinha real (achada em 2026-08-28, primeira vez publicando pra valer): a release sai
 como rascunho ("draft") por padrão**, mesmo com `--publish always`. Nesse estado o
 `electron-updater` não a enxerga — `checkForUpdates()` nunca encontra uma release rascunho.
@@ -287,6 +302,7 @@ certificado A1 e conta em provedor de pagamento ainda pendentes de acesso — ve
   no primeiro install manual, aceitável pra um app de tenant único instalado numa máquina só.
 - **Camada central de acesso**: `modules/core/banco.js` expõe `window.erpBanco` (agrupado por domínio: produtos, categorias, clientes, vendas, estoque, precificacao, fornecedores, compras, financeiro, relatorios, dashboard, usuarios, sistema). Incluído em todas as páginas via `<script src="../core/banco.js">`. Módulos novos devem usar `window.erpBanco.*`; `window.api.*` permanece disponível para código legado.
 - **Módulo banco** (`modules/banco/banco.html` + `banco.js`): inspeção crua das tabelas via sidebar (admin). Exige sessão admin (`exigirSessao('admin')`) nos IPC `listar-tabelas-banco` / `consultar-tabela-banco` e confirmação de senha do admin (`verificar-senha-admin`). Cadastros do dia a dia NÃO exigem senha extra (a sessão já autentica).
+- **Conta de suporte do desenvolvedor** (`db/usuarios.js:garantirContaSuporte`, opcional, ver GOALS.md "Developer Support Admin Account" e a Pegadinha real acima sobre colisão de login): existe pra permitir gerenciar qualquer instalação de cliente sem saber a senha daquela loja especificamente. Login/senha só existem se `ERP_SUPORTE_LOGIN`/`ERP_SUPORTE_SENHA` forem definidos no shell de quem publica (nunca commitados — ver `.env.example`); embrulhados na chave-mestre a cada login bem-sucedido de qualquer usuário, não só no bootstrap. Nunca listado em `listarUsuarios()` (não aparece em Gerenciar Acessos), nunca removível/editável via `removerUsuario`/`salvarUsuario`. Deliberadamente **não documentado no README.md** (arquivo público) — a existência é ok pra quem mantém o repo, não pra quem só vê o GitHub público.
 
 ## Regras de Continuidade
 

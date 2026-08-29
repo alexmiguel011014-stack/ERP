@@ -1,4 +1,5 @@
 "use client";
+import { useMemo } from "react";
 import Button from "@/components/ui/button/Button";
 import { usePageHeader } from "@/context/PageHeaderContext";
 import { useAtualizacao } from "@/hooks/useAtualizacao";
@@ -40,14 +41,31 @@ export default function AtualizacaoPage() {
 		clicarBotao,
 	} = useAtualizacao();
 
-	usePageHeader(
-		"Atualizações",
-		<>
-			Versão atual: <strong className="text-white">{versao}</strong>
-			{" · "}
-			<span className={COR_STATUS_HEADER[statusCor]}>{status}</span>
-		</>,
+	// Achado real (2026-08-29, investigação do travamento de navegação): sem
+	// useMemo, esse JSX é um objeto NOVO a cada render — a dependência do
+	// efeito dentro de usePageHeader (`[titulo, subtitulo]`) nunca era igual
+	// à anterior, então o efeito reexecutava (setCabecalho(null) seguido de
+	// setCabecalho({...})) a CADA render desta página. Como AtualizacaoPage
+	// fica genuinamente montada mesmo escondida (AbasAtivasWrapper) e
+	// useAtualizacao() mantém o listener de "update-status" vivo pra sempre,
+	// cada evento reacendia esse ciclo — e PageHeaderProvider embrulha a
+	// árvore inteira (TabsProvider/AppHeader/AbasAtivasWrapper), sem memo em
+	// nenhum filho, então cada setCabecalho re-renderiza TODAS as abas em
+	// cache, inclusive competindo com o commit da aba pra qual o usuário
+	// acabou de navegar. Confirmado ao vivo: instrumentação temporária neste
+	// arquivo (ver GOALS.md) mostrou o ciclo disparando repetidamente numa
+	// aba escondida bem no momento em que a navegação pra outra aba travava.
+	const subtituloHeader = useMemo(
+		() => (
+			<>
+				Versão atual: <strong className="text-white">{versao}</strong>
+				{" · "}
+				<span className={COR_STATUS_HEADER[statusCor]}>{status}</span>
+			</>
+		),
+		[versao, statusCor, status],
 	);
+	usePageHeader("Atualizações", subtituloHeader);
 
 	return (
 		<div className="grid grid-cols-1 gap-4">

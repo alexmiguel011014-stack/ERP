@@ -208,6 +208,15 @@ function criarJanelaPrincipal() {
 	janela.maximize();
 	janela.show();
 
+	// Diagnóstico opt-in (2026-08-29, investigação do travamento em
+	// Atualizações): F12 não abriu DevTools numa tentativa ao vivo e a causa
+	// nunca foi confirmada (nada aqui desativa `devTools` nem intercepta F12
+	// explicitamente) — em vez de depender do atalho, abre sozinho quando essa
+	// var estiver setada, inclusive em build empacotado.
+	if (process.env.ERP_DEBUG_DEVTOOLS === "1") {
+		janela.webContents.openDevTools({ mode: "detach" });
+	}
+
 	janela.webContents.on("preload-error", (event, preloadPath, error) => {
 		logErro(
 			"PRELOAD-ERROR " +

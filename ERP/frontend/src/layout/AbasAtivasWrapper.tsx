@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useTabs } from "@/context/TabsContext";
 import { normalizarPathname } from "@/hooks/useModulos";
+import AbaErrorBoundary from "./AbaErrorBoundary";
 
 // Mantém o conteúdo de cada aba aberta genuinamente montado (não só
 // escondido por CSS depois de recriado) — troca de aba não perde formulário
@@ -58,7 +59,7 @@ export default function AbasAtivasWrapper({
 		<>
 			{Array.from(cacheRef.current.entries()).map(([path, node]) => (
 				<div key={path} className={path === pathname ? "" : "hidden"}>
-					{node}
+					<AbaErrorBoundary pathname={path}>{node}</AbaErrorBoundary>
 				</div>
 			))}
 		</>
