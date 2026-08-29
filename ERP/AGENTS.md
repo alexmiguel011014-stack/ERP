@@ -60,6 +60,36 @@ gh release view vX.Y.Z --repo alexmiguel011014-stack/ERP    # confere "draft: tr
 gh release edit vX.Y.Z --repo alexmiguel011014-stack/ERP --draft=false   # publica de verdade
 ```
 
+**Bug real e grave, achado em 2026-08-29 (causou tela branca em todo build empacotado desde
+o cutover): `frontend/out/**/*` em `build.files` nunca incluía nenhum arquivo no pacote
+final**, apesar do padrão aparecer corretamente resolvido em `dist/builder-debug.yml` —
+comportamento/bug do electron-builder com essa combinação específica de padrões, não
+confirmado a causa raiz exata (tentativa de isolar via leitura de código-fonte do
+electron-builder não foi conclusiva). Só `modules/**/*` (o app antigo) chegava no pacote;
+`frontend/` sumia inteiro. Sintoma: tela branca total, **sem nenhum erro no
+`erp-crash.log`** (o protocolo `app://renderer/` simplesmente não tinha nada pra servir).
+Diagnosticado extraindo o `app.asar` de verdade (`npx asar extract`) e comparando com o
+código-fonte — nenhum teste automatizado (lint/typecheck/unit/e2e) pega esse tipo de bug,
+porque todos rodam contra o **source**, nunca contra o **pacote final**; e2e roda via
+`electron .` (não empacotado), então nunca exercitou esse caminho.
+
+**Corrigido trocando pra `extraResources`** (mecanismo mais robusto e documentado pra
+diretórios grandes pré-buildados, ao invés de depender do glob matching de `files` pra uma
+combinação que aparentemente ele resolve mal): `frontend/out` agora copia via
+`build.extraResources` pra `resources/frontend/out` (fora do asar, não dentro). `main.js`
+resolve o caminho condicionalmente: `app.isPackaged ? path.join(process.resourcesPath,
+"frontend", "out") : path.join(__dirname, "frontend", "out")` — em dev continua igual, só o
+caminho empacotado mudou.
+
+**Lição pra próxima vez**: depois de qualquer mudança em `build.files`/`extraResources`,
+verificar de verdade que o pacote final tem o que devia, não só que o `files` config parece
+certo:
+```powershell
+npx electron-builder --dir --win               # build rápido, sem publish/assinatura
+npx asar list "dist\win-unpacked\resources\app.asar" | Select-String "^/frontend"
+# ou, se usar extraResources: dir "dist\win-unpacked\resources\frontend\out"
+```
+
 ## Comandos Essenciais
 
 ```powershell

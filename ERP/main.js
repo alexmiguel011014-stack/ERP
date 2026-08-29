@@ -29,7 +29,19 @@ protocol.registerSchemesAsPrivileged([
 // env var é só uma válvula de escape interna pra voltar pro antigo se algo
 // aparecer quebrado, nunca documentada/usada pelo usuário final.
 const CARREGAR_FRONTEND_ANTIGO = process.env.ERP_LEGACY_FRONTEND === "1";
-const DIR_FRONTEND_NOVO = path.join(__dirname, "frontend", "out");
+// frontend/out fica FORA do asar (extraResources, não `files`) — achado real
+// (2026-08-29): o glob `frontend/out/**/*` em `files` nunca incluía nenhum
+// arquivo no pacote final (bug/comportamento do electron-builder com essa
+// combinação específica de padrões, confirmado empiricamente comparando
+// `dist/builder-debug.yml`, que mostrava o padrão resolvido corretamente,
+// contra o asar de saída, que não tinha nem um arquivo de frontend/ dentro).
+// Empacotado, extraResources copia pra `resources/frontend/out`
+// (`process.resourcesPath`), fora do asar — daí o app não estar mais em
+// `__dirname` nesse caso. Em dev (`electron .` direto do source, não
+// empacotado), `__dirname` já é a raiz do projeto e continua correto.
+const DIR_FRONTEND_NOVO = app.isPackaged
+	? path.join(process.resourcesPath, "frontend", "out")
+	: path.join(__dirname, "frontend", "out");
 
 // Carrega .env (chaves Pix/NF-e etc.) se existir — nunca obrigatório, o app
 // funciona normalmente sem ele (integrações opcionais caem no fallback
