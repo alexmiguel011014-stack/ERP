@@ -1,13 +1,6 @@
-const {
-	app,
-	BrowserWindow,
-	ipcMain,
-	Menu,
-	protocol,
-	net,
-} = require("electron");
+const { app, BrowserWindow, ipcMain, Menu, protocol } = require("electron");
 const path = require("path");
-const { pathToFileURL } = require("url");
+const fs = require("fs");
 const { autoUpdater } = require("electron-updater");
 const { setDBPath, registrarLog, backupAutomatico } = require("./database");
 
@@ -102,7 +95,6 @@ const LIMITE_LOG_ERRO_BYTES = 2 * 1024 * 1024; // 2MB, evita crescimento indefin
 function logErro(texto) {
 	try {
 		const caminho = CAMINHO_LOG_ERRO();
-		const fs = require("fs");
 		if (
 			fs.existsSync(caminho) &&
 			fs.statSync(caminho).size > LIMITE_LOG_ERRO_BYTES
@@ -193,11 +185,17 @@ function pararBackupAutomatico() {
 var intervaloAtualizacao = null;
 
 // electron-updater não tem timeout embutido — numa conexão ruim,
-// checkForUpdates() fica pendente pra sempre. Sem isso, um PC com rede
-// instável nunca completa a checagem em segundo plano (e, se o
-// electron-updater serializa chamadas internamente, a próxima 24h depois
-// também nunca roda, presa atrás da primeira que nunca termina).
-function checarAtualizacoesComTimeout() {
+// checkForUpdates() fica pendente pra sempre, e o Promise.race sozinho não
+// é garantia suficiente (ver ipc/sistema.js:temConectividade — resolução de
+// DNS sem resposta pode prender a threadpool do libuv, a mesma que
+// fs.readFile usa pra servir o frontend, travando a navegação do app
+// inteiro). Confirma conectividade com um pré-check cancelável de verdade
+// antes de chamar checkForUpdates() — mesma função que o check manual usa.
+async function checarAtualizacoesComTimeout() {
+	const online = await require("./ipc/sistema")
+		.temConectividade(5000)
+		.catch(() => false);
+	if (!online) return;
 	Promise.race([
 		autoUpdater.checkForUpdates(),
 		new Promise((_resolver, rejeitar) =>
@@ -347,11 +345,37 @@ function criarJanelaPrincipal() {
 	}
 }
 
+// Extensão -> Content-Type, só o necessário pro export estático do Next.js
+// (ver frontend/out/ — nenhum outro tipo de arquivo aparece lá hoje).
+const TIPOS_MIME = {
+	".html": "text/html; charset=utf-8",
+	".js": "text/javascript; charset=utf-8",
+	".css": "text/css; charset=utf-8",
+	".json": "application/json; charset=utf-8",
+	".svg": "image/svg+xml",
+	".png": "image/png",
+	".jpg": "image/jpeg",
+	".jpeg": "image/jpeg",
+	".gif": "image/gif",
+	".webp": "image/webp",
+	".ico": "image/x-icon",
+	".woff": "font/woff",
+	".woff2": "font/woff2",
+	".txt": "text/plain; charset=utf-8",
+};
+
 // Serve o export estático do Next.js (frontend/out/) via app://renderer/...
-// — mesma técnica de pacotes como electron-serve. Só registrado quando o
-// spike está ligado; o app antigo (file://) nunca passa por aqui.
+// Lê o arquivo direto do disco (fs), não via net.fetch — bug real achado
+// (2026-08-29): net.fetch passa pela MESMA stack de rede do Chromium que o
+// electron-updater usa pra falar com o GitHub. Depois de visitar a tela de
+// Atualizações, navegar pra qualquer rota nova ficava pendurada
+// indefinidamente (usePathname() atualizava — a sidebar reagia — mas o
+// conteúdo/abas do header nunca chegavam a trocar, sinal de que o fetch da
+// PRÓXIMA rota nunca resolvia). Servir arquivo local não tem nenhum motivo
+// pra depender da stack de rede — fs.readFile decepara completamente a
+// leitura de arquivo estático de qualquer atividade de rede real do app.
 function registrarProtocoloFrontendNovo() {
-	protocol.handle("app", (request) => {
+	protocol.handle("app", async (request) => {
 		const url = new URL(request.url);
 		let caminhoRelativo = decodeURIComponent(url.pathname);
 		if (caminhoRelativo === "" || caminhoRelativo.endsWith("/")) {
@@ -365,7 +389,15 @@ function registrarProtocoloFrontendNovo() {
 		) {
 			return new Response("Forbidden", { status: 403 });
 		}
-		return net.fetch(pathToFileURL(caminhoArquivo).toString());
+		try {
+			const dados = await fs.promises.readFile(caminhoArquivo);
+			const tipo =
+				TIPOS_MIME[path.extname(caminhoArquivo).toLowerCase()] ||
+				"application/octet-stream";
+			return new Response(dados, { headers: { "Content-Type": tipo } });
+		} catch {
+			return new Response("Not Found", { status: 404 });
+		}
 	});
 }
 

@@ -2267,6 +2267,43 @@ flowchart TD
 
 ---
 
+## Update Flow — Navigation Freeze Investigation (2026-08-29, root cause not fully confirmed)
+
+**Owner's live report**: after v1.1.6 (which fixed the missing `frontend/out` packaging bug),
+navigating to Atualizações then clicking any other module/tab did nothing — the sidebar's
+active-item highlight *did* update (proving `usePathname()` genuinely changed), but the
+header tab strip and page content stayed frozen on Atualizações. Reproduced live via
+computer-use on the owner's real machine.
+
+**Two fixes shipped, both real architectural improvements, root cause not 100% pinned down**:
+
+1. **`main.js`'s custom `app://renderer/` protocol switched from `net.fetch()` to
+   `fs.promises.readFile()`.** `net.fetch` for a `file://` URL still routes through Chromium's
+   network service — the same infrastructure `electron-updater` uses to reach GitHub. Serving
+   a local static file has no reason to depend on network machinery at all; this fully
+   decouples the two regardless of the exact interaction that was happening.
+2. **`ipc/sistema.js`'s `check-for-updates`/`download-update` now pre-check connectivity**
+   (`temConectividade`: a 5s `fetch` + real `AbortController`) before ever calling
+   `autoUpdater.checkForUpdates()`/`downloadUpdate()`. The existing `comTimeout`
+   (`Promise.race` + `setTimeout`) turned out not to be sufficient on its own — in testing,
+   the race's own `setTimeout` sometimes never fired either, which points at something
+   deeper than "the promise just doesn't resolve": DNS resolution (`getaddrinfo`) runs on
+   Node's libuv threadpool, the same fixed-size pool `fs.readFile` needs a slot from — a
+   hung DNS lookup can plausibly starve that pool. `fetch`'s `AbortController` is a genuine
+   cancellation (not just "stop waiting"), which is why the pre-check uses it instead of
+   another `Promise.race`.
+
+**Not fully confirmed**: an e2e regression test for the exact "visit Atualizações → navigate
+elsewhere" sequence was written and then removed — `checkForUpdates()` hits the real GitHub
+API, and this session's sandbox couldn't reliably distinguish "no network in this sandbox" from
+"the actual bug" (the test hung 25s+ waiting for a status that never resolved, even after both
+fixes above). **Needs**: a way to mock/stub `autoUpdater.checkForUpdates()` in the e2e suite
+(inject a fake provider, or a test-only IPC override) so this exact regression can be asserted
+without depending on real network reachability in CI. Until that exists, this class of bug has
+no automated coverage — only the owner's live report and manual re-verification.
+
+---
+
 ## Suggested order
 
 1. ~~P0 fix (pagamentos migration)~~ — done. Also found and fixed, beyond the missing table:

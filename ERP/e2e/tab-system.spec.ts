@@ -79,4 +79,13 @@ test.describe("sistema de abas do header (frontend novo)", () => {
 	test("fechar uma aba não fechável (Dashboard) — botão não existe", async () => {
 		await expect(window.getByTitle("Fechar Dashboard")).toHaveCount(0);
 	});
+
+	// NOTA (2026-08-29): um teste de regressão pra "navegar pra Atualizações
+	// e depois pra outro módulo" foi tentado aqui e removido — checkForUpdates
+	// bate rede de verdade (GitHub), e o comportamento em CI/sandbox sem
+	// conectividade previsível não deu pra distinguir de forma confiável do
+	// bug real observado ao vivo (que acontecia mesmo com a checagem já
+	// concluída com sucesso). Precisa de uma forma de mockar
+	// autoUpdater.checkForUpdates() nesta suíte antes de reintroduzir esse
+	// teste — ver GOALS.md.
 });

@@ -31,6 +31,36 @@ function comTimeout(promessa, ms, mensagemErro) {
 	]);
 }
 
+// Achado real (2026-08-29): o `comTimeout` acima não é suficiente sozinho —
+// quando a rede está genuinamente inalcançável (DNS não resolve, sem
+// resposta nenhuma), a chamada interna do electron-updater pode ficar presa
+// de um jeito que nem o próprio setTimeout do comTimeout dispara a tempo
+// (resolução de DNS via getaddrinfo usa a threadpool do libuv — a MESMA
+// usada por fs.readFile, inclusive pelo protocolo app://renderer/ que serve
+// o frontend inteiro). Resultado observado: não só a checagem trava, a
+// navegação inteira do app trava junto, porque as leituras de arquivo do
+// próximo módulo ficam sem thread livre na pool pra rodar.
+// Correção: nunca chama checkForUpdates() sem antes confirmar conectividade
+// com um pré-check curto e genuinamente cancelável (fetch nativo +
+// AbortController — ao contrário da chamada do electron-updater, um
+// AbortController de verdade interrompe a requisição, não só desiste de
+// esperar por ela).
+async function temConectividade(timeoutMs) {
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), timeoutMs);
+	try {
+		await fetch("https://api.github.com/", {
+			method: "HEAD",
+			signal: controller.signal,
+		});
+		return true;
+	} catch {
+		return false;
+	} finally {
+		clearTimeout(timer);
+	}
+}
+
 function registrar(ipcMain, deps) {
 	const { exigirSessao } = deps;
 
@@ -64,6 +94,12 @@ function registrar(ipcMain, deps) {
 
 	ipcMain.handle("check-for-updates", async () => {
 		try {
+			const online = await temConectividade(5000);
+			if (!online) {
+				throw new Error(
+					"Sem conexão com a internet. Verifique sua rede e tente de novo.",
+				);
+			}
 			const result = await comTimeout(
 				autoUpdater.checkForUpdates(),
 				20000,
@@ -78,6 +114,12 @@ function registrar(ipcMain, deps) {
 	ipcMain.handle("download-update", async () => {
 		try {
 			exigirSessao("admin");
+			const online = await temConectividade(5000);
+			if (!online) {
+				throw new Error(
+					"Sem conexão com a internet. Verifique sua rede e tente de novo.",
+				);
+			}
 			const result = await comTimeout(
 				autoUpdater.downloadUpdate(),
 				120000,
@@ -122,4 +164,4 @@ function registrar(ipcMain, deps) {
 	});
 }
 
-module.exports = { registrar };
+module.exports = { registrar, temConectividade };
