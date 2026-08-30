@@ -41,3 +41,7 @@ Thumbs.db
 test-results/
 playwright-report/
 blob-report/
+
+# Frontend (Next.js): cache de build e output dev
+frontend/.next/
+frontend/out/
