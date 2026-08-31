@@ -37,6 +37,10 @@ Thumbs.db
 # Segredos
 .env
 
+# Config de MCP é global (~/.config/opencode/mcp.json ou escopo de usuário do
+# Claude Code), nunca de projeto — evita repetir o vazamento do commit beb22d8.
+.mcp.json
+
 # Playwright (e2e)
 test-results/
 playwright-report/
