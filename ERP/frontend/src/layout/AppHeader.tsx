@@ -57,19 +57,16 @@ const AppHeader: React.FC = () => {
 			<div className="flex min-w-0 flex-col items-center justify-between grow lg:flex-row lg:px-4">
 				<div className="flex items-center justify-between w-full gap-2 px-3 py-2.5 border-b border-gray-200 dark:border-gray-800 sm:gap-4 lg:hidden">
 					<Link href="/" className="lg:hidden">
+						{/* Cabeçalho é sempre #0F172A (não muda com o tema claro/escuro
+						    do resto do app) — por isso aqui é sempre a versão branca do
+						    logo, sem alternância dark:/light:, diferente da tela de
+						    login onde o fundo do formulário de fato muda com o tema. */}
 						<Image
 							width={154}
-							height={32}
-							className="dark:hidden"
-							src="./images/logo/logo.svg"
-							alt="Logo"
-						/>
-						<Image
-							width={154}
-							height={32}
-							className="hidden dark:block"
-							src="./images/logo/logo-dark.svg"
-							alt="Logo"
+							height={68}
+							className="h-8 w-auto"
+							src="/images/logo/allu-logo-dark.png"
+							alt="Allu"
 						/>
 					</Link>
 

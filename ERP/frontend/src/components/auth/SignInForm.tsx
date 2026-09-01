@@ -5,6 +5,7 @@ import Button from "@/components/ui/button/Button";
 import { EyeCloseIcon, EyeIcon } from "@/icons";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import React, { useState } from "react";
 
 export default function SignInForm() {
@@ -35,10 +36,18 @@ export default function SignInForm() {
 			<div className="flex flex-col justify-center flex-1 w-full max-w-md mx-auto">
 				<div>
 					<div className="mb-6">
-						<h1 className="mb-1.5 text-2xl font-semibold text-gray-800 dark:text-white/90">
-							ALLU ERP
-						</h1>
-						<p className="text-sm text-gray-500 dark:text-gray-400">
+						{/* Tela de login não segue o tema claro/escuro do resto do app —
+						    é sempre essa cara (branco à esquerda, azul à direita), de
+						    propósito, então sempre a versão preta da logo aqui. */}
+						<Image
+							src="/images/logo/allu-logo.png"
+							alt="Allu"
+							width={220}
+							height={98}
+							className="mb-3 h-11 w-auto"
+							priority
+						/>
+						<p className="text-sm text-gray-500">
 							Digite seu usuário e senha para continuar
 						</p>
 					</div>
@@ -71,15 +80,15 @@ export default function SignInForm() {
 										className="absolute z-30 -translate-y-1/2 cursor-pointer right-4 top-1/2"
 									>
 										{showPassword ? (
-											<EyeIcon className="fill-gray-500 dark:fill-gray-400" />
+											<EyeIcon className="fill-gray-500" />
 										) : (
-											<EyeCloseIcon className="fill-gray-500 dark:fill-gray-400" />
+											<EyeCloseIcon className="fill-gray-500" />
 										)}
 									</span>
 								</div>
 							</div>
 							{erro && (
-								<div className="rounded-lg border border-error-300 bg-error-50 px-4 py-3 text-sm text-error-600 dark:border-error-800 dark:bg-error-500/10 dark:text-error-400">
+								<div className="rounded-lg border border-error-300 bg-error-50 px-4 py-3 text-sm text-error-600">
 									{erro}
 								</div>
 							)}

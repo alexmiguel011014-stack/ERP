@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "../context/SidebarContext";
 import { useAuth } from "../context/AuthContext";
@@ -58,11 +59,22 @@ const AppSidebar: React.FC = () => {
 				}`}
 			>
 				<Link href="/" className="flex items-center gap-2.5">
-					<span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-xs font-extrabold text-white">
-						AE
-					</span>
-					{isHovered && (
-						<span className="text-base font-bold text-white">ALLU ERP</span>
+					{isHovered ? (
+						<Image
+							src="/images/logo/allu-logo-dark.png"
+							alt="Allu"
+							width={220}
+							height={98}
+							className="h-8 w-auto"
+						/>
+					) : (
+						<Image
+							src="/images/logo/allu-mark-white.png"
+							alt="Allu"
+							width={454}
+							height={601}
+							className="h-8 w-8 shrink-0 object-contain"
+						/>
 					)}
 				</Link>
 			</div>
