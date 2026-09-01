@@ -2429,6 +2429,41 @@ it's actually just their own bootstrap account that happens to share a name.
       this diagnosable in seconds on the next occurrence instead of requiring a fresh
       cross-referencing investigation.
 
+### Final decision (2026-08-31): `adm` reserved, not renamed
+
+Owner reconsidered the `allu_suporte` rename two days later — wanted `adm` back
+specifically ("consigo gerenciar melhor"), but with the collision **eliminated**, not just
+avoided by picking an obscure string. Implemented as a genuine reservation instead of a
+rename:
+
+- [x] **`ERP_SUPORTE_LOGIN` reverted to `adm`** (was `allu_suporte`), password changed to a
+      new value provided directly by the owner. Publish command in `AGENTS.md` updated. No
+      `.env`/repo file ever holds the real value (same discipline as before).
+- [x] **`autenticarUsuario()` (`db/usuarios.js`) refuses to bootstrap a fresh install with the
+      reserved login** when `ERP_SUPORTE_LOGIN` is configured — checked *before* the database
+      is ever opened/keyed, specifically because `desbloquearBanco()` creates the schema (a
+      real write) on first unlock; rejecting after that point would leave a `.sqlite` file
+      permanently keyed with a now-abandoned password and zero users, worse than allowing the
+      collision. Detection signal: the `.sqlite` file doesn't exist on disk yet (unambiguous
+      "this is a genuine first-ever bootstrap" check that needs no live connection).
+- [x] **`salvarUsuario()` refuses to create a new user with the reserved login** via Gerenciar
+      Acessos, for existing installs where a store is adding accounts after their own
+      bootstrap.
+- [x] Existing protections (hidden from `listarUsuarios()`, can't be edited/removed) already
+      applied automatically once the login changed back to `adm` — they key off
+      `ehLoginDeSuporte()`, which reads `ERP_SUPORTE_LOGIN` dynamically, not a hardcoded
+      string.
+- [x] **The original collision-safety guard in `garantirContaSuporte()` stays as-is,
+      deliberately** — it's still the correct backstop for installs published *before* this
+      change (where `adm` may already be a real store's own account) and for the edge case
+      where `ERP_SUPORTE_LOGIN` wasn't configured at the exact moment of bootstrap. It should
+      just never need to fire on a fresh install going forward.
+- [x] Test coverage added (`test/suporte-admin.test.js`): bootstrap rejection when reserved,
+      `salvarUsuario` rejection when reserved, and the original collision test kept
+      unmodified (still describes a real, still-valid edge case: bootstrapping before
+      `ERP_SUPORTE_LOGIN` was ever configured on that install). 67/67 unit tests, 5/5 e2e.
+- [x] Published as v1.1.12 with the baked `adm` credentials.
+
 ---
 
 ## Pre-production QA pass (2026-08-29, owner's final test before real company use)

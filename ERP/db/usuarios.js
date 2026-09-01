@@ -215,6 +215,23 @@ async function autenticarUsuario(login, senha) {
 	const s = String(senha || "");
 	if (!l || !s) throw new Error("Informe usuário e senha.");
 
+	// Achado real (2026-08-31, decisão do dono): o login reservado pra conta
+	// de suporte (ERP_SUPORTE_LOGIN) nunca pode virar o bootstrap de uma loja
+	// nova — antes disso, quem digitasse "adm" primeiro (loja ou suporte)
+	// ficava com o login pra sempre, e o outro lado nunca ativava
+	// (colisão silenciosa, ver GOALS.md). Checa ANTES de abrir o banco de
+	// propósito: desbloquearBanco() já cria o schema (escreve de verdade no
+	// arquivo .sqlite) no primeiro unlock — rejeitar DEPOIS deixaria o banco
+	// keyed com essa senha rejeitada e zero usuários, pior que deixar passar.
+	// Só se aplica quando o banco ainda nem existe no disco (bootstrap
+	// genuíno); depois de criado, é o schema.js's Usuarios vazio ou não que
+	// decide (verificado só depois de conectar, caso legado).
+	if (ehLoginDeSuporte(l) && !fs.existsSync(getDBPath())) {
+		throw new Error(
+			"Este login não está disponível. Escolha outro para o administrador da loja.",
+		);
+	}
+
 	const arquivo = lerArquivoUsuarios();
 	const entrada = arquivo[l];
 	let desbloqueado = false;
@@ -384,6 +401,13 @@ async function salvarUsuario(dados, ator) {
 	const inserindo = !dados.id;
 	const senha = String(dados.senha || "");
 	if (inserindo) {
+		// Mesma reserva de login aplicada no bootstrap (autenticarUsuario) —
+		// ninguém cria um usuário novo com o login da conta de suporte pela
+		// tela de Gerenciar Acessos, só o mecanismo automático
+		// (garantirContaSuporte) pode ocupar esse login.
+		if (ehLoginDeSuporte(l)) {
+			throw new Error("Este login não está disponível. Escolha outro.");
+		}
 		if (senha.length < 4)
 			throw new Error("Defina uma senha com pelo menos 4 caracteres.");
 		const existente = await getAsync(

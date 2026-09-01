@@ -56,14 +56,23 @@ deliberadamente segura contra colisão — nunca embrulha um login que já perte
 real, pra nunca quebrar o acesso de ninguém. Isso significa que se a loja (ou o próprio dono
 testando) digitar `adm` como o primeiro login/senha da instalação, a conta de suporte nunca
 ativa naquela instalação — silenciosamente, por design. Verificado ao vivo (2026-08-29): a
-senha de suporte real (`ERP_SUPORTE_SENHA`, nunca escrita em nenhum arquivo deste repo — ver
-`.env.example`) não desembrulha a entrada `"adm"` de `erp_usuarios.json` numa instalação de
-teste — exatamente esse cenário, confirmado criptograficamente (AES-GCM auth tag não bate),
-não só por suspeita. **A partir da próxima
-publicação, usar `allu_suporte` (não `adm`) como `ERP_SUPORTE_LOGIN`** — string que ninguém
-digitaria como login próprio por engano. Instalações já publicadas com `adm` não ganham o
-login novo retroativamente (mesma limitação de "não é retroativo" já documentada para troca
-de senha) — só builds publicados a partir de agora.
+senha de suporte real não desembrulha a entrada `"adm"` de `erp_usuarios.json` numa
+instalação de teste — exatamente esse cenário, confirmado criptograficamente (AES-GCM auth
+tag não bate), não só por suspeita.
+
+**Decisão final (2026-08-31): `adm` voltou a ser `ERP_SUPORTE_LOGIN`** (não mais
+`allu_suporte`, que só durou dois dias) — mas dessa vez com a colisão eliminada, não só
+evitada. `adm` agora é um login **reservado**: `autenticarUsuario()` recusa usá-lo como
+bootstrap de instalação nova quando `ERP_SUPORTE_LOGIN` já está configurado (checado ANTES
+de abrir/chavear o banco, pra nunca deixar o arquivo `.sqlite` keyed com uma senha rejeitada
+e zero usuários), e `salvarUsuario()` recusa criar um usuário novo com esse login pela tela
+de Gerenciar Acessos. Com isso a loja nunca mais consegue reivindicar `adm` por engano — o
+login fica garantido pro mecanismo de suporte em toda instalação nova, sem exceção. A
+proteção de colisão em `garantirContaSuporte()` continua existindo como rede de segurança
+(cobre instalações antigas publicadas antes desta mudança, e qualquer cenário onde
+`ERP_SUPORTE_LOGIN` não estava configurado no momento exato do bootstrap), mas não deveria
+mais disparar em instalações novas. Senha atual: fornecida diretamente pelo dono, nunca
+escrita em nenhum arquivo deste repo (ver `.env.example`).
 
 **Pegadinha real (achada em 2026-08-28, primeira vez publicando pra valer): a release sai
 como rascunho ("draft") por padrão**, mesmo com `--publish always`. Nesse estado o

@@ -89,6 +89,58 @@ test("sem as env vars configuradas, nenhuma conta de suporte é criada (opt-in d
 	}
 });
 
+test("bootstrap com o login reservado é recusado ANTES de criar/chavear o banco", async () => {
+	const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "erp-suporte-"));
+	db.setDBPath(TMP);
+	process.env.ERP_SUPORTE_LOGIN = "adm";
+	process.env.ERP_SUPORTE_SENHA = "senha-suporte-teste";
+	try {
+		// Decisão do dono (2026-08-31): "adm" nunca pode virar o bootstrap de
+		// uma loja nova quando ERP_SUPORTE_LOGIN já está configurado nesta
+		// instalação — reservado só pro mecanismo automático de suporte.
+		await assert.rejects(() =>
+			db.autenticarUsuario("adm", "senhaQualquerDaLoja"),
+		);
+
+		// A recusa acontece ANTES de abrir o banco de propósito — senão o
+		// arquivo .sqlite ficaria chaveado com essa senha rejeitada e zero
+		// usuários, pior que deixar passar (ver comentário em
+		// autenticarUsuario). Prova indireta: um bootstrap normal LOGO DEPOIS,
+		// com outro login, ainda funciona nesta mesma instalação.
+		const resultado = await db.autenticarUsuario(
+			"dona-da-loja",
+			"senhaDaLojaDeVerdade",
+		);
+		assert.strictEqual(resultado.success, true);
+		assert.strictEqual(resultado.usuario.login, "dona-da-loja");
+	} finally {
+		await db.bloquearBanco();
+		delete process.env.ERP_SUPORTE_LOGIN;
+		delete process.env.ERP_SUPORTE_SENHA;
+	}
+});
+
+test("salvarUsuario recusa criar um usuário novo com o login reservado", async () => {
+	const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "erp-suporte-"));
+	db.setDBPath(TMP);
+	process.env.ERP_SUPORTE_LOGIN = "adm";
+	process.env.ERP_SUPORTE_SENHA = "senha-suporte-teste";
+	try {
+		await db.autenticarUsuario("dona-da-loja", "senhaDaLojaDeVerdade");
+		await assert.rejects(() =>
+			db.salvarUsuario({
+				login: "adm",
+				nome: "Tentativa de recriar adm",
+				senha: "outraSenhaQualquer",
+			}),
+		);
+	} finally {
+		await db.bloquearBanco();
+		delete process.env.ERP_SUPORTE_LOGIN;
+		delete process.env.ERP_SUPORTE_SENHA;
+	}
+});
+
 test("colisão: login que já pertence a uma conta real nunca é sobrescrito pela conta de suporte", async () => {
 	novoBancoTemp();
 	try {
@@ -104,7 +156,9 @@ test("colisão: login que já pertence a uma conta real nunca é sobrescrito pel
 		await db.autenticarUsuario("adm", "senhaEscolhidaPelaLoja"); // login normal de novo
 
 		// A senha de suporte NUNCA deve abrir essa conta — ela pertence à loja.
-		await assert.rejects(() => db.autenticarUsuario("adm", "senha-suporte-teste"));
+		await assert.rejects(() =>
+			db.autenticarUsuario("adm", "senha-suporte-teste"),
+		);
 		// E a loja continua entrando normalmente com a senha dela.
 		const resultado = await db.autenticarUsuario(
 			"adm",
