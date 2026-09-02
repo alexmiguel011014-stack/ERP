@@ -1,5 +1,6 @@
 "use client";
 import { useEffect } from "react";
+import LoginGrid from "@/components/common/LoginGrid";
 
 export default function AuthLayout({
 	children,
@@ -41,7 +42,8 @@ export default function AuthLayout({
 				    dithering real oscilando frame a frame, impedindo um match
 				    100% — essa não. Não é #000066, o azul pedido originalmente;
 				    a escolha (2026-08-30/31) foi casar com o GIF exatamente. */}
-				<div className="lg:w-1/2 w-full h-full bg-[#071440] lg:grid items-center hidden">
+				<div className="relative lg:w-1/2 w-full h-full bg-[#071440] lg:grid items-center hidden overflow-hidden">
+					<LoginGrid />
 					<div className="relative items-center justify-center  flex z-1">
 						{/* eslint-disable-next-line @next/next/no-img-element -- GIF
 						    animado: next/image otimiza como estático (perderia a

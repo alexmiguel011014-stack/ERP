@@ -99,6 +99,13 @@ export default function SignInForm() {
 							</div>
 						</div>
 					</form>
+					{/* Pedido do dono (2026-09-01): reaproveita o texto que existia no
+					    painel direito do login antes do GIF entrar no lugar — agora
+					    embaixo do formulário, no painel esquerdo. */}
+					<p className="mt-6 text-center text-sm text-gray-400">
+						Sistema de gestão para lojas — vendas, estoque, financeiro e
+						relatórios em um só lugar.
+					</p>
 				</div>
 			</div>
 		</div>
