@@ -1,4 +1,12 @@
 (() => {
+	function esc(t) {
+		return String(t == null ? "" : t)
+			.replace(/&/g, "&amp;")
+			.replace(/</g, "&lt;")
+			.replace(/>/g, "&gt;")
+			.replace(/"/g, "&quot;");
+	}
+
 	var abaAtual = "receber";
 	var tabBtns = document.querySelectorAll(".tab-btn");
 	var abaLancamentos = document.getElementById("abaLancamentos");
@@ -124,7 +132,7 @@
 						formatarMoeda(f.diferenca) +
 						"</td>" +
 						"<td>" +
-						(f.observacao || "---") +
+						esc(f.observacao || "---") +
 						"</td></tr>";
 				});
 				html += "</tbody></table>";

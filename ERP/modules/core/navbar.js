@@ -377,7 +377,7 @@
 				? '<div class="sidebar-user"><span class="sidebar-user-avatar">' +
 					iniciais(nomeUsuario) +
 					'</span><span class="sidebar-user-info"><span class="sidebar-user-name">' +
-					nomeUsuario +
+					escBusca(nomeUsuario) +
 					'</span><span class="sidebar-user-role">' +
 					String(perfil).toUpperCase() +
 					"</span></span></div>"

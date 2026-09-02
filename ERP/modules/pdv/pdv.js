@@ -584,13 +584,13 @@
 			tipo +
 			"</div>" +
 			"<div>" +
-			produto.nome +
+			esc(produto.nome) +
 			"</div>" +
 			"<div>SKU: " +
-			produto.sku +
+			esc(produto.sku) +
 			"</div>" +
 			"<div>Detalhes: " +
-			formatarAtributos(produto.atributos, produto.tamanho, produto.cor) +
+			esc(formatarAtributos(produto.atributos, produto.tamanho, produto.cor)) +
 			"</div>" +
 			"<div>Estoque: " +
 			produto.quantidade_estoque +
@@ -625,10 +625,10 @@
 		alerta.innerHTML =
 			'<div style="font-weight: 600; margin-bottom: 4px;">Sem preço definido</div>' +
 			"<div>" +
-			produto.nome +
+			esc(produto.nome) +
 			"</div>" +
 			"<div>SKU: " +
-			produto.sku +
+			esc(produto.sku) +
 			"</div>" +
 			"<div>Configure o preço na aba Precificação.</div>";
 		document.body.appendChild(alerta);
@@ -1031,12 +1031,12 @@
 			"</span></div>";
 		html +=
 			"<div style='font-size: 10px; margin-bottom: 4px;'><span style='display:inline-block;width:50%;'>Pagamento:</span><span style='display:inline-block;width:50%; text-align:right;'>" +
-			dados.forma_pagamento +
+			esc(dados.forma_pagamento) +
 			"</span></div>";
 		if (dados.cliente_nome) {
 			html +=
 				"<div style='font-size: 10px; margin-bottom: 4px;'><span style='display:inline-block;width:30%;'>Cliente:</span><span style='display:inline-block;width:70%; text-align:right;'>" +
-				dados.cliente_nome +
+				esc(dados.cliente_nome) +
 				"</span></div>";
 		}
 		html +=
@@ -1047,9 +1047,9 @@
 			var detalhes =
 				item.detalhes ||
 				formatarAtributos(item.atributos, item.tamanho, item.cor);
-			var nomeLinha = item.nome;
+			var nomeLinha = esc(item.nome);
 			if (detalhes && detalhes !== "---") {
-				nomeLinha += " (" + detalhes + ")";
+				nomeLinha += " (" + esc(detalhes) + ")";
 			}
 			html += "<div style='font-size: 9px; margin-bottom: 2px;'>";
 			html +=

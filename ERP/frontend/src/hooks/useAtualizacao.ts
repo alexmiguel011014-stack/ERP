@@ -82,6 +82,12 @@ export function useAtualizacao() {
 				baixandoRef.current = false;
 				setBaixando(false);
 				setBaixado(true);
+				// Achado real (2026-09-01): electron-updater não garante que o
+				// último evento "download-progress" chegue exatamente em 100%
+				// antes de "update-downloaded" disparar — a barra desta página
+				// ficava visualmente travada em qualquer que fosse o último valor
+				// (às vezes 0%), mesmo com o texto já dizendo "concluído".
+				setProgresso(100);
 				setStatus("Download concluído. Clique para instalar.");
 				setStatusCor("normal");
 				mostrarMensagem(

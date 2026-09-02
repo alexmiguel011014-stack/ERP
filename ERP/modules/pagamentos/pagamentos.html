@@ -73,6 +73,14 @@
     <script src="../core/navbar.js"></script>
     <script src="../core/formatos.js"></script>
     <script>
+      function esc(t) {
+        return String(t == null ? "" : t)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
       carregarLista();
 
       const inputFiltro = document.getElementById("filtroMetodo");
@@ -106,13 +114,13 @@
           const statusText = p.status || "pendente";
 
           tr.innerHTML =
-            `<td>${p.numero_venda || "—"}</td>` +
-            `<td>${p.cliente_nome || "—"}</td>` +
-            `<td>${p.metodo || "—"}</td>` +
-            `<td>${p.numero_identificador || "—"}</td>` +
-            `<td>${p.data_recebimento || "—"}</td>` +
+            `<td>${esc(p.numero_venda || "—")}</td>` +
+            `<td>${esc(p.cliente_nome || "—")}</td>` +
+            `<td>${esc(p.metodo || "—")}</td>` +
+            `<td>${esc(p.numero_identificador || "—")}</td>` +
+            `<td>${esc(p.data_recebimento || "—")}</td>` +
             `<td>${formatarMoeda(p.valor_recebido)}</td>` +
-            `<td><span class="badge ${statusClass}">${statusText}</span></td>` +
+            `<td><span class="badge ${statusClass}">${esc(statusText)}</span></td>` +
             `<td>
               <button class="btn-acoes" onclick="marcarComoRecebido(${p.id})">Receber</button>
               <button class="btn-acoes" onclick="excluirPagamento(${p.id})">Excluir</button>

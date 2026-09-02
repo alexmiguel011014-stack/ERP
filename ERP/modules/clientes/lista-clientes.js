@@ -340,7 +340,7 @@
 								(it) =>
 									esc(it.produto_nome) +
 									" (" +
-									(it.sku || "") +
+									esc(it.sku || "") +
 									") — " +
 									it.quantidade +
 									"x R$ " +

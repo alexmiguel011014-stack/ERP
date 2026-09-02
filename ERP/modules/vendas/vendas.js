@@ -1,4 +1,12 @@
 (() => {
+	function esc(t) {
+		return String(t == null ? "" : t)
+			.replace(/&/g, "&amp;")
+			.replace(/</g, "&lt;")
+			.replace(/>/g, "&gt;")
+			.replace(/"/g, "&quot;");
+	}
+
 	var filterDataInicio = document.getElementById("filterDataInicio");
 	var filterDataFim = document.getElementById("filterDataFim");
 	var btnFilter = document.getElementById("btnFilter");
@@ -163,13 +171,13 @@
 					item.cor,
 				);
 				var nomeCell =
-					(item.produto_nome || "---") +
-					(detalhes !== "---" ? " (" + detalhes + ")" : "");
+					esc(item.produto_nome || "---") +
+					(detalhes !== "---" ? " (" + esc(detalhes) + ")" : "");
 				return (
 					"<tr><td>" +
 					nomeCell +
 					"</td><td>" +
-					(item.sku || "---") +
+					esc(item.sku || "---") +
 					'</td><td class="col-num">' +
 					(item.quantidade || 1) +
 					'</td><td class="col-num">' +
@@ -305,7 +313,7 @@
 				v.id +
 				"</td>" +
 				'<td class="venda-cliente">' +
-				(v.cliente_nome || "Cliente não informado") +
+				esc(v.cliente_nome || "Cliente não informado") +
 				"</td>" +
 				"<td>" +
 				badgeStatus +
@@ -314,7 +322,7 @@
 				formatarData(v.data_venda) +
 				"</td>" +
 				"<td>" +
-				(v.forma_pagamento || "---") +
+				esc(v.forma_pagamento || "---") +
 				"</td>" +
 				'<td class="col-valor"><span class="venda-total' +
 				(ehOrcamento ? " orcamento" : "") +
@@ -597,7 +605,7 @@
 							"<div style='display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #E2E8F0;'>";
 						html +=
 							"<span style='color:#64748B; font-size:0.8rem;'>Observação</span><span style='color:#1E293B; font-weight:600;'>" +
-							venda.observacao +
+							esc(venda.observacao) +
 							"</span>";
 						html += "</div>";
 					}
@@ -625,13 +633,13 @@
 							item.cor,
 						);
 						var nomeCell =
-							(item.produto_nome || "---") +
-							(detalhes !== "---" ? " (" + detalhes + ")" : "");
+							esc(item.produto_nome || "---") +
+							(detalhes !== "---" ? " (" + esc(detalhes) + ")" : "");
 						html +=
 							"<tr style='border-bottom:1px solid #F1F5F9;'><td style='padding:6px; color:#1E293B;'>" +
 							nomeCell +
 							"</td><td style='padding:6px; color:#64748B; font-size:0.8rem;'>" +
-							(item.sku || "---") +
+							esc(item.sku || "---") +
 							"</td><td style='padding:6px; text-align:center; color:#1E293B;'>" +
 							(item.quantidade || 1) +
 							"</td><td style='padding:6px; text-align:right; color:#1E293B;'>" +

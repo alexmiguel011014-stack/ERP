@@ -2509,6 +2509,98 @@ business and rolling the update out from GitHub Releases.
 
 ---
 
+## Security audit (2026-09-01)
+
+Owner's request: "procura qualquer tipo de falha de segurança que existir." `npm audit` clean
+on both manifests (root 0/441 deps, frontend 0/639 deps). Full git-history secret scan clean
+(gitleaks/trufflehog unavailable — grepped all commits + current tree for common credential
+patterns by hand). `strix` (AI pentest scanner, already configured with a Gemini key) couldn't
+run — needs Docker, not available on this machine.
+
+- [x] **No Content-Security-Policy anywhere** — Electron's own security warning flagged this
+      every session. Added one to the `app://` protocol's response headers (`main.js`).
+      `script-src`/`style-src` need `'unsafe-inline'` — confirmed by reading the built
+      `frontend/out/index.html`: Next.js's App Router injects real executable inline
+      `<script>` tags for hydration (`self.__next_f.push(...)`), not just JSON, and React's
+      `style={{...}}` usage is pervasive — neither is avoidable in a static export without a
+      framework change. `connect-src`/`img-src` restricted to `'self'` — confirmed no
+      renderer-side code makes direct external `fetch()` calls (everything routes through
+      IPC), so this blocks exfiltration even from a script that does manage to run. Verified
+      live: 0 CSP violations navigating through 10 modules, and the Electron warning is gone.
+- [x] **Stored XSS in the legacy `modules/` frontend** — found one confirmed gap
+      (`lista-clientes.js`: `it.sku` interpolated raw while the sibling `it.produto_nome` on
+      the same line was escaped), then had an agent sweep the other 22 files for the same
+      "escaped sibling, unescaped victim" pattern. Found 11 more gaps across 6 files
+      (`pdv.js` ×5, `clientes.js`, `navbar.js`, `acessos.js`, `relatorios.js`, plus 3 files —
+      `vendas.js`, `financeiro.js`, `compras.js` — that had no `esc()` helper at all, and
+      `pagamentos.html`). Fixed all 12 (found 2 more than the agent's report while applying
+      the fixes — `compras.js` had a third `i.sku` spot). Not reachable in the shipped app
+      today (legacy frontend only loads via the internal `ERP_LEGACY_FRONTEND` dev escape
+      hatch, cutover to the Next.js frontend is the real default) but still shipped in every
+      release build, so worth closing regardless.
+- [x] **`get-db-path` IPC handler had no session gate** — discloses the absolute local
+      filesystem path (Windows username, folder layout). No real caller exists anywhere in
+      the app today (confirmed via grep) — gated with `exigirSessao("admin")` for
+      least-privilege consistency, not because anything was actually exploiting it.
+- [x] **`check-for-updates` IPC handler had no session gate**, unlike its siblings
+      (`download-update`, `quit-and-install`, `backup-automatico`, all admin-gated). Fixed
+      the same way. Confirmed the automatic boot/daily check doesn't go through this IPC
+      handler at all (calls `autoUpdater.checkForUpdates()` directly from
+      `atualizacao-automatica.js`) — only the manual button in the Atualizações page uses it,
+      and that page is only reachable logged in.
+- [x] **`nodeIntegrationInSubFrames: true`** removed from `criarJanelaPrincipal()` — no
+      known justification, confirmed no page in the app uses iframe/webview.
+- [x] Confirmed (not a fix, a finding worth recording): every SQL query that concatenates a
+      variable into the string uses either a whitelisted/validated source (table names
+      checked against `sqlite_master`) or a numerically-clamped value (`Math.min`/`Math.max`
+      before concatenation) — no raw user string ever reaches a query unparameterized. The
+      131-method `contextBridge` surface in `preload.js` is all individually-named methods
+      bound to fixed IPC channels, never a generic `invoke(channel, ...args)` passthrough —
+      confirmed a renderer-side XSS couldn't call arbitrary IPC channels even if one existed.
+- [x] Full regression after all fixes: lint clean, 67/67 unit tests, 5/5 e2e, plus a live
+      10-module navigation pass confirming zero CSP violations.
+
+## Update flow — quit-and-install silently no-op'd (2026-09-01)
+
+Owner's live report: download completed, UI said "vai fechar e reabrir sozinho", but the app
+never actually closed — had to close it manually. Also: the Atualizações page's own progress
+bar stayed stuck (looked like 0%) even after the status text said "Download concluído",
+while the global toast card's progress bar correctly showed 100% for the same download.
+
+**Root cause, confirmed by reading the installed `electron-updater` source directly, not
+guessed**: `ipc/sistema.js`'s `download-update` handler checked `result.path` on
+`autoUpdater.downloadUpdate()`'s resolved value to decide whether a real file had been
+downloaded — but that promise resolves with an **array** of file path strings
+(`node_modules/electron-updater/out/AppUpdater.js:601`,
+`return packageFile == null ? [updateFile] : [updateFile, packageFile]`), never an object
+with a `.path` property. `result.path` was always `undefined`, so the tracking flag never
+became truthy, so `quit-and-install`'s `if (downloadedUpdateExePath)` guard always silently
+no-op'd — the download genuinely succeeded every time, but the app never actually quit and
+reinstalled itself. This single bug explains both symptoms: the "took forever to restart"
+report was the user waiting for a restart that was never going to happen on its own.
+
+- [x] Replaced the broken `.path` extraction with a plain boolean (`downloadConcluido`), set
+      `true` once `downloadUpdate()`'s promise resolves at all (success = the file is on
+      disk, regardless of the exact resolved shape) — `ipc/sistema.js`.
+- [x] Fixed the stuck-progress-bar symptom too: `electron-updater` doesn't guarantee the last
+      `download-progress` event lands exactly at 100 before `update-downloaded` fires.
+      Explicitly `setProgresso(100)` in the `update-downloaded` handler in both
+      `useAtualizacao.ts` (the page) and `UpdateAvailableCard.tsx` (the global toast) —
+      previously only the toast happened to read correctly, and only by chance of timing.
+- [x] Lint clean, 67/67 unit tests, 5/5 e2e (unchanged — the existing `ERP_MOCK_UPDATER`
+      mock doesn't cover `download-update`/`quit-and-install`, only `check-for-updates`;
+      extending it to safely simulate a full download+quit+relaunch cycle without ever
+      calling the real `autoUpdater.quitAndInstall()` — which would actually try to relaunch
+      the test process — wasn't attempted here, out of scope for this specific fix).
+- [ ] **(manual) Full live verification** — the actual "does it restart quickly and cleanly"
+      behavior can only be confirmed by publishing a build and running the real
+      download → quit → relaunch cycle, same as every other update-flow fix this project has
+      needed. Root cause is confirmed with certainty (read directly from the library source,
+      not inferred from symptoms), but the fix hasn't been exercised against a real
+      published release yet.
+
+---
+
 ## Suggested order
 
 1. ~~P0 fix (pagamentos migration)~~ — done. Also found and fixed, beyond the missing table:

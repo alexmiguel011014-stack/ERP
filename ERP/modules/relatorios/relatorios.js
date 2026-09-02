@@ -271,9 +271,7 @@
 							"<td>" +
 							(i + 1) +
 							"</td>" +
-							"<td>" +
-							l.produto_nome +
-							"</td>" +
+							"<td></td>" +
 							"<td style='text-align:center;'>" +
 							l.quantidade +
 							"</td>" +

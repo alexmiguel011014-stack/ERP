@@ -13,7 +13,7 @@ const { carregarModulos, aplicarEntitlements } = require("../modulos.js");
 // abaixo. autoUpdater.autoDownload/autoInstallOnAppQuit são configurados uma
 // vez em main.js — o electron-updater é um singleton (módulo cacheado pelo
 // Node), então a config feita lá continua valendo aqui.
-let downloadedUpdateExePath = null;
+let downloadConcluido = false;
 
 // electron-updater não tem timeout embutido pras próprias chamadas de rede —
 // numa conexão ruim (ou bloqueada por firewall), checkForUpdates()/
@@ -94,6 +94,14 @@ function registrar(ipcMain, deps) {
 
 	ipcMain.handle("check-for-updates", async () => {
 		try {
+			// Achado real (2026-09-01, auditoria de segurança): faltava esse gate
+			// — era o único handler de atualização sem exigirSessao, diferente de
+			// download-update/quit-and-install/backup-automatico, que já exigem
+			// admin. Único chamador de verdade é a tela de Atualizações
+			// (useAtualizacao.ts), que só é alcançável logado (o (admin)/layout.tsx
+			// redireciona pra /signin sem sessão) — não quebra o e2e, que sempre
+			// loga antes de visitar essa aba.
+			exigirSessao("admin");
 			// Só pra e2e (ver e2e/tab-system.spec.ts) — sem isso, testar o fluxo
 			// de Atualizações exige rede real de verdade, o que não dá pra
 			// confiar num sandbox de CI. Emite os MESMOS eventos que
@@ -132,14 +140,22 @@ function registrar(ipcMain, deps) {
 					"Sem conexão com a internet. Verifique sua rede e tente de novo.",
 				);
 			}
-			const result = await comTimeout(
+			// Achado real (2026-09-01): autoUpdater.downloadUpdate() resolve com
+			// um ARRAY de caminhos de arquivo (ver
+			// node_modules/electron-updater/out/AppUpdater.js:601 —
+			// `return packageFile == null ? [updateFile] : [updateFile, packageFile]`),
+			// nunca um objeto com propriedade `.path`. `result.path` sempre dava
+			// undefined, então downloadConcluido nunca ficava truthy — quit-and-install
+			// (abaixo) sempre entrava no if() e não fazia nada, silenciosamente.
+			// Era a causa raiz de "baixou mas não fechou/reabriu sozinho" — não é
+			// sobre o CAMINHO do arquivo (o autoUpdater já sabe onde está o que
+			// baixou, internamente), só precisa saber SE terminou.
+			await comTimeout(
 				autoUpdater.downloadUpdate(),
 				120000,
 				"Tempo esgotado ao baixar a atualização. Verifique sua conexão.",
 			);
-			if (result && result.path) {
-				downloadedUpdateExePath = result.path;
-			}
+			downloadConcluido = true;
 			return { success: true };
 		} catch (erro) {
 			throw erro.message;
@@ -148,10 +164,10 @@ function registrar(ipcMain, deps) {
 
 	ipcMain.handle("quit-and-install", async () => {
 		exigirSessao("admin");
-		if (downloadedUpdateExePath) {
+		if (downloadConcluido) {
 			setImmediate(() => {
 				autoUpdater.quitAndInstall(false, true);
-				downloadedUpdateExePath = null;
+				downloadConcluido = false;
 			});
 		}
 	});
@@ -160,7 +176,15 @@ function registrar(ipcMain, deps) {
 		return app.getVersion();
 	});
 
-	ipcMain.handle("get-db-path", async () => getDBPath());
+	// Achado real (2026-09-01, auditoria de segurança): sem gate nenhum,
+	// qualquer chamador descobria o caminho absoluto do banco no disco
+	// (revela o usuário do Windows e a estrutura de pastas). Não tem
+	// nenhum chamador de verdade hoje (nem frontend novo, nem legado) —
+	// gate por consistência/least-privilege, não porque algo quebraria.
+	ipcMain.handle("get-db-path", async () => {
+		exigirSessao("admin");
+		return getDBPath();
+	});
 
 	// navbar.js roda no renderer (sem fs/require de Node) e precisa da lista
 	// de módulos pra montar a sidebar — ver docs/MODULE_MANIFEST.md e

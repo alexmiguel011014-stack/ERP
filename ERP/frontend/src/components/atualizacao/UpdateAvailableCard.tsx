@@ -38,6 +38,10 @@ export default function UpdateAvailableCard() {
 			} else if (data.status === "download-progress") {
 				setProgresso(Math.round(data.progress || 0));
 			} else if (data.status === "update-downloaded") {
+				// electron-updater não garante progress-event=100 antes deste
+				// evento (ver useAtualizacao.ts) — força a barra pra cheia antes
+				// de continuar, mesmo que o app feche/reabra rápido em seguida.
+				setProgresso(100);
 				// Continua sozinho pro install, sem esperar um segundo clique —
 				// pedido explícito: "termina de atualizar depois inicia o app
 				// sozinho".

@@ -1,4 +1,12 @@
 (() => {
+	function esc(t) {
+		return String(t == null ? "" : t)
+			.replace(/&/g, "&amp;")
+			.replace(/</g, "&lt;")
+			.replace(/>/g, "&gt;")
+			.replace(/"/g, "&quot;");
+	}
+
 	var fornecedorSelect = document.getElementById("fornecedorSelect");
 	var skuInput = document.getElementById("skuInput");
 	var qtdInput = document.getElementById("qtdInput");
@@ -94,18 +102,27 @@
 				produtoAtual = p;
 				if (p.preco_custo) custoInput.value = Number(p.preco_custo).toFixed(2);
 
-				var fornecedorId = fornecedorSelect.value ? Number(fornecedorSelect.value) : null;
+				var fornecedorId = fornecedorSelect.value
+					? Number(fornecedorSelect.value)
+					: null;
 				var previewBase =
-					p.nome + " (" + detalhesDe(p) + ") — estoque atual: " + p.quantidade_estoque;
+					p.nome +
+					" (" +
+					detalhesDe(p) +
+					") — estoque atual: " +
+					p.quantidade_estoque;
 
 				if (fornecedorId && window.erpBanco.fornecedores.custoProduto) {
 					window.erpBanco.fornecedores
 						.custoProduto(fornecedorId, p.id)
 						.then((precoFornecedor) => {
 							if (precoFornecedor) {
-								custoInput.value = Number(precoFornecedor.preco_custo).toFixed(2);
+								custoInput.value = Number(precoFornecedor.preco_custo).toFixed(
+									2,
+								);
 								produtoPreview.textContent =
-									previewBase + " — custo deste fornecedor: R$ " +
+									previewBase +
+									" — custo deste fornecedor: R$ " +
 									Number(precoFornecedor.preco_custo).toFixed(2) +
 									(precoFornecedor.prazo_entrega_dias != null
 										? " (prazo " + precoFornecedor.prazo_entrega_dias + "d)"
@@ -282,26 +299,54 @@
 						total += subtotal;
 						return (
 							"<tr>" +
-							"<td style='padding:6px; border-bottom:1px solid #E2E8F0;'>" + (i.produto_nome || "") + " (" + detalhesDe(i) + ")</td>" +
-							"<td style='padding:6px; border-bottom:1px solid #E2E8F0;'>" + (i.sku || "") + "</td>" +
-							"<td style='padding:6px; border-bottom:1px solid #E2E8F0; text-align:right;'>" + i.quantidade + "</td>" +
-							"<td style='padding:6px; border-bottom:1px solid #E2E8F0; text-align:right;'>" + formatarMoeda(i.custo_unitario) + "</td>" +
-							"<td style='padding:6px; border-bottom:1px solid #E2E8F0; text-align:right;'>" + formatarMoeda(subtotal) + "</td>" +
+							"<td style='padding:6px; border-bottom:1px solid #E2E8F0;'>" +
+							esc(i.produto_nome || "") +
+							" (" +
+							esc(detalhesDe(i)) +
+							")</td>" +
+							"<td style='padding:6px; border-bottom:1px solid #E2E8F0;'>" +
+							esc(i.sku || "") +
+							"</td>" +
+							"<td style='padding:6px; border-bottom:1px solid #E2E8F0; text-align:right;'>" +
+							i.quantidade +
+							"</td>" +
+							"<td style='padding:6px; border-bottom:1px solid #E2E8F0; text-align:right;'>" +
+							formatarMoeda(i.custo_unitario) +
+							"</td>" +
+							"<td style='padding:6px; border-bottom:1px solid #E2E8F0; text-align:right;'>" +
+							formatarMoeda(subtotal) +
+							"</td>" +
 							"</tr>"
 						);
 					})
 					.join("");
 				var html =
 					"<div style='font-family: system-ui, sans-serif; color:#1E293B;'>" +
-					"<h2 style='margin-bottom:4px;'>Pedido de Compra #" + p.id + "</h2>" +
-					"<p style='color:#64748B; margin-bottom:16px;'>Data: " + data + " | Status: " + p.status + "</p>" +
-					"<p style='margin-bottom:16px;'><strong>Fornecedor:</strong> " + (p.fornecedor_nome || "não informado") + "</p>" +
-					(p.observacao ? "<p style='margin-bottom:16px;'><strong>Observação:</strong> " + p.observacao + "</p>" : "") +
+					"<h2 style='margin-bottom:4px;'>Pedido de Compra #" +
+					p.id +
+					"</h2>" +
+					"<p style='color:#64748B; margin-bottom:16px;'>Data: " +
+					data +
+					" | Status: " +
+					p.status +
+					"</p>" +
+					"<p style='margin-bottom:16px;'><strong>Fornecedor:</strong> " +
+					(p.fornecedor_nome || "não informado") +
+					"</p>" +
+					(p.observacao
+						? "<p style='margin-bottom:16px;'><strong>Observação:</strong> " +
+							p.observacao +
+							"</p>"
+						: "") +
 					"<table style='width:100%; border-collapse:collapse; font-size:0.85rem;'>" +
 					"<thead><tr style='background:#F8FAFC;'><th style='padding:6px; text-align:left;'>Produto</th><th style='padding:6px; text-align:left;'>SKU</th><th style='padding:6px; text-align:right;'>Qtd</th><th style='padding:6px; text-align:right;'>Custo Unit.</th><th style='padding:6px; text-align:right;'>Subtotal</th></tr></thead>" +
-					"<tbody>" + linhas + "</tbody>" +
+					"<tbody>" +
+					linhas +
+					"</tbody>" +
 					"</table>" +
-					"<p style='text-align:right; font-size:1.1rem; font-weight:700; margin-top:12px;'>Total: " + formatarMoeda(total) + "</p>" +
+					"<p style='text-align:right; font-size:1.1rem; font-weight:700; margin-top:12px;'>Total: " +
+					formatarMoeda(total) +
+					"</p>" +
 					"</div>";
 				document.getElementById("printContent").innerHTML = html;
 				document.getElementById("printOverlay").style.display = "flex";
@@ -327,7 +372,8 @@
 				'<div class="empty-state">API indisponível.</div>';
 			return;
 		}
-		if (window.erpSkeletonCards) listaPedidos.innerHTML = window.erpSkeletonCards(4);
+		if (window.erpSkeletonCards)
+			listaPedidos.innerHTML = window.erpSkeletonCards(4);
 		window.erpBanco.compras
 			.pedidos()
 			.then((rows) => {
@@ -446,9 +492,9 @@
 								"<div>" +
 								i.quantidade +
 								"x " +
-								i.produto_nome +
+								esc(i.produto_nome) +
 								" (" +
-								detalhesDe(i) +
+								esc(detalhesDe(i)) +
 								") — " +
 								formatarMoeda(i.custo_unitario) +
 								" un." +
@@ -474,9 +520,9 @@
 							falta +
 							'">' +
 							'<span style="flex:1;">' +
-							i.produto_nome +
+							esc(i.produto_nome) +
 							" (" +
-							detalhesDe(i) +
+							esc(detalhesDe(i)) +
 							") — falta " +
 							falta +
 							" de " +
@@ -505,10 +551,7 @@
 					.addEventListener("click", () => {
 						var itensRecebidos = [];
 						box.querySelectorAll("[data-item-id]").forEach((linha) => {
-							var qtd = parseInt(
-								linha.querySelector(".qtd-receber").value,
-								10,
-							);
+							var qtd = parseInt(linha.querySelector(".qtd-receber").value, 10);
 							if (Number.isInteger(qtd) && qtd > 0) {
 								itensRecebidos.push({
 									item_id: Number(linha.getAttribute("data-item-id")),
@@ -517,7 +560,10 @@
 							}
 						});
 						if (itensRecebidos.length === 0) {
-							mostrarMensagem("Informe ao menos uma quantidade a receber.", "erro");
+							mostrarMensagem(
+								"Informe ao menos uma quantidade a receber.",
+								"erro",
+							);
 							return;
 						}
 						window.erpBanco.compras

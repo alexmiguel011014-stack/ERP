@@ -1,4 +1,12 @@
 (() => {
+	function esc(t) {
+		return String(t == null ? "" : t)
+			.replace(/&/g, "&amp;")
+			.replace(/</g, "&lt;")
+			.replace(/>/g, "&gt;")
+			.replace(/"/g, "&quot;");
+	}
+
 	var form = document.getElementById("formUsuario");
 	var editandoId = document.getElementById("usuarioEditandoId");
 	var nome = document.getElementById("nome");
@@ -159,7 +167,7 @@
 			div.querySelector(".titulo").textContent =
 				(u.nome || u.login) + (eu ? " (você)" : "");
 			div.querySelector(".detalhe").innerHTML =
-				"Login: <b>" + u.login + "</b> · " + perfilBadge + " · " + status;
+				"Login: <b>" + esc(u.login) + "</b> · " + perfilBadge + " · " + status;
 
 			var btnEditar = div.querySelector('[data-acao="editar"]');
 			if (btnEditar) {

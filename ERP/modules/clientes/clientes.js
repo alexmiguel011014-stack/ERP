@@ -34,7 +34,9 @@
 	var modalMovimentacoes = document.getElementById("modalMovimentacoes");
 	var modalClose = document.getElementById("modalClose");
 
-	var precosEspeciaisSection = document.getElementById("precosEspeciaisSection");
+	var precosEspeciaisSection = document.getElementById(
+		"precosEspeciaisSection",
+	);
 	var pePreSku = document.getElementById("pePreSku");
 	var pePreco = document.getElementById("pePreco");
 	var pePreview = document.getElementById("pePreview");
@@ -188,7 +190,10 @@
 				}
 				produtoPrecoEspecialAtual = p;
 				pePreview.textContent =
-					p.nome + " (" + detalhesProdutoPreco(p) + ") — preço padrão: R$ " +
+					p.nome +
+					" (" +
+					detalhesProdutoPreco(p) +
+					") — preço padrão: R$ " +
 					Number(p.preco).toFixed(2);
 				pePreco.focus();
 			})
@@ -199,7 +204,8 @@
 
 	function carregarPrecosEspeciais(clienteId) {
 		if (!window.erpBanco.clientes.precos) return;
-		if (window.erpSkeletonCards) listaPrecosEspeciais.innerHTML = window.erpSkeletonCards(2);
+		if (window.erpSkeletonCards)
+			listaPrecosEspeciais.innerHTML = window.erpSkeletonCards(2);
 		window.erpBanco.clientes
 			.precos(clienteId)
 			.then((rows) => {
@@ -218,11 +224,16 @@
 					div.querySelector(".titulo").textContent =
 						r.produto_nome + " (" + detalhesProdutoPreco(r) + ")";
 					div.querySelector(".detalhe").textContent =
-						"SKU: " + r.sku + " | Preço especial: R$ " +
+						"SKU: " +
+						r.sku +
+						" | Preço especial: R$ " +
 						Number(r.preco).toFixed(2) +
-						" | Padrão: R$ " + Number(r.preco_padrao).toFixed(2);
+						" | Padrão: R$ " +
+						Number(r.preco_padrao).toFixed(2);
 					div.querySelector("button").addEventListener("click", () => {
-						if (!confirm("Remover o preço especial para " + r.produto_nome + "?"))
+						if (
+							!confirm("Remover o preço especial para " + r.produto_nome + "?")
+						)
 							return;
 						window.erpBanco.clientes
 							.removerPreco(r.id)
@@ -242,9 +253,14 @@
 	}
 
 	btnAddPrecoEspecial.addEventListener("click", () => {
-		var clienteId = clienteEditandoId.value ? Number(clienteEditandoId.value) : null;
+		var clienteId = clienteEditandoId.value
+			? Number(clienteEditandoId.value)
+			: null;
 		if (!clienteId) {
-			mostrarMensagem("Salve o cliente antes de definir preços especiais.", "error");
+			mostrarMensagem(
+				"Salve o cliente antes de definir preços especiais.",
+				"error",
+			);
 			return;
 		}
 		if (!produtoPrecoEspecialAtual) {
@@ -401,7 +417,7 @@
 								(it) =>
 									esc(it.produto_nome) +
 									" (" +
-									(it.sku || "") +
+									esc(it.sku || "") +
 									") � " +
 									it.quantidade +
 									"x R$ " +

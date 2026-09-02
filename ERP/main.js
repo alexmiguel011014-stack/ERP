@@ -204,7 +204,6 @@ function criarJanelaPrincipal() {
 		webPreferences: {
 			nodeIntegration: false,
 			contextIsolation: true,
-			nodeIntegrationInSubFrames: true,
 			preload: path.join(__dirname, "preload.js"),
 		},
 	});
@@ -284,6 +283,30 @@ function criarJanelaPrincipal() {
 	}
 }
 
+// Achado real (2026-09-01, auditoria de segurança): o app não tinha
+// Content-Security-Policy nenhuma — Electron avisa isso toda vez
+// (erp-crash.log, "Insecure Content-Security-Policy"). `script-src`/
+// `style-src` precisam de 'unsafe-inline' porque o App Router do Next.js
+// injeta <script> inline de verdade pra hidratação (self.__next_f.push(...),
+// confirmado lendo frontend/out/index.html — não dá pra evitar isso num
+// export estático sem trocar de arquitetura de framework) e o React usa
+// muito style={{...}} (vira atributo style="" inline). Mesmo assim, ainda
+// vale a pena: sem external hosts em connect-src/img-src, um XSS que
+// consiga rodar não consegue exfiltrar dado nenhum pra fora — só pra
+// dentro da própria origem app://renderer. Renderer nunca faz fetch()
+// direto pra fora (tudo passa por IPC pro processo principal), então
+// connect-src 'self' não quebra nada de verdade nesta aplicação.
+const CSP = [
+	"default-src 'self'",
+	"script-src 'self' 'unsafe-inline'",
+	"style-src 'self' 'unsafe-inline'",
+	"img-src 'self' data:",
+	"font-src 'self' data:",
+	"connect-src 'self'",
+	"object-src 'none'",
+	"base-uri 'self'",
+].join("; ");
+
 // Extensão -> Content-Type, só o necessário pro export estático do Next.js
 // (ver frontend/out/ — nenhum outro tipo de arquivo aparece lá hoje).
 const TIPOS_MIME = {
@@ -333,7 +356,9 @@ function registrarProtocoloFrontendNovo() {
 			const tipo =
 				TIPOS_MIME[path.extname(caminhoArquivo).toLowerCase()] ||
 				"application/octet-stream";
-			return new Response(dados, { headers: { "Content-Type": tipo } });
+			return new Response(dados, {
+				headers: { "Content-Type": tipo, "Content-Security-Policy": CSP },
+			});
 		} catch {
 			return new Response("Not Found", { status: 404 });
 		}
