@@ -217,19 +217,32 @@ async function autenticarUsuario(login, senha) {
 
 	// Achado real (2026-08-31, decisão do dono): o login reservado pra conta
 	// de suporte (ERP_SUPORTE_LOGIN) nunca pode virar o bootstrap de uma loja
-	// nova — antes disso, quem digitasse "adm" primeiro (loja ou suporte)
-	// ficava com o login pra sempre, e o outro lado nunca ativava
-	// (colisão silenciosa, ver GOALS.md). Checa ANTES de abrir o banco de
-	// propósito: desbloquearBanco() já cria o schema (escreve de verdade no
-	// arquivo .sqlite) no primeiro unlock — rejeitar DEPOIS deixaria o banco
-	// keyed com essa senha rejeitada e zero usuários, pior que deixar passar.
-	// Só se aplica quando o banco ainda nem existe no disco (bootstrap
-	// genuíno); depois de criado, é o schema.js's Usuarios vazio ou não que
-	// decide (verificado só depois de conectar, caso legado).
+	// nova COM UMA SENHA DIFERENTE DA DE SUPORTE — antes disso, quem
+	// digitasse "adm" primeiro (loja ou suporte) ficava com o login pra
+	// sempre, e o outro lado nunca ativava (colisão silenciosa, ver
+	// GOALS.md). Bug encontrado depois (2026-09-02, reportado pelo dono: PC
+	// novo, instalação limpa, "adm"/senha de suporte real rejeitados): a
+	// primeira versão dessa checagem bloqueava ehLoginDeSuporte(l) sozinho,
+	// sem olhar a senha — isso também derrubava a PRÓPRIA conta de suporte
+	// tentando fazer o bootstrap genuíno dela num banco novo, já que
+	// ehLoginDeSuporte só compara o nome do login. A senha certa PASSA (vira
+	// o bootstrap normal, funcionalmente idêntico a ter sido criada por
+	// garantirContaSuporte); só uma senha diferente da de suporte é
+	// bloqueada — é isso que impede a loja de "roubar" o login reservado.
+	// Checa ANTES de abrir o banco de propósito: desbloquearBanco() já cria
+	// o schema (escreve de verdade no arquivo .sqlite) no primeiro unlock —
+	// rejeitar DEPOIS deixaria o banco keyed com essa senha rejeitada e zero
+	// usuários, pior que deixar passar. Só se aplica quando o banco ainda
+	// nem existe no disco (bootstrap genuíno); depois de criado, é o
+	// schema.js's Usuarios vazio ou não que decide (verificado só depois de
+	// conectar, caso legado).
 	if (ehLoginDeSuporte(l) && !fs.existsSync(getDBPath())) {
-		throw new Error(
-			"Este login não está disponível. Escolha outro para o administrador da loja.",
-		);
+		const suporteSenha = String(process.env.ERP_SUPORTE_SENHA || "");
+		if (!suporteSenha || s !== suporteSenha) {
+			throw new Error(
+				"Este login não está disponível. Escolha outro para o administrador da loja.",
+			);
+		}
 	}
 
 	const arquivo = lerArquivoUsuarios();

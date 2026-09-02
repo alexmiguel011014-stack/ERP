@@ -120,6 +120,27 @@ test("bootstrap com o login reservado é recusado ANTES de criar/chavear o banco
 	}
 });
 
+test("bootstrap com o login reservado E A SENHA DE SUPORTE CORRETA é aceito (PC novo, banco genuinamente vazio)", async () => {
+	// Regressão real (2026-09-02, reportado pelo dono): instalação limpa num
+	// PC novo, primeiro login já era "adm" com a senha de suporte real — a
+	// checagem acima (linha 92) bloqueava isso também, porque só olhava o
+	// login, nunca a senha. Sem esse caso passando, a conta de suporte nunca
+	// consegue nascer num banco que ainda não existe.
+	const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "erp-suporte-"));
+	db.setDBPath(TMP);
+	process.env.ERP_SUPORTE_LOGIN = "adm";
+	process.env.ERP_SUPORTE_SENHA = "senha-suporte-teste";
+	try {
+		const resultado = await db.autenticarUsuario("adm", "senha-suporte-teste");
+		assert.strictEqual(resultado.success, true);
+		assert.strictEqual(resultado.usuario.login, "adm");
+	} finally {
+		await db.bloquearBanco();
+		delete process.env.ERP_SUPORTE_LOGIN;
+		delete process.env.ERP_SUPORTE_SENHA;
+	}
+});
+
 test("salvarUsuario recusa criar um usuário novo com o login reservado", async () => {
 	const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "erp-suporte-"));
 	db.setDBPath(TMP);
