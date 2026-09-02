@@ -15,6 +15,10 @@
 	"keywords": [],
 	"author": "Alex Miguel",
 	"license": "ISC",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/alexmiguel011014-stack/ERP.git"
+	},
 	"type": "commonjs",
 	"build": {
 		"appId": "com.erpsystem.erp",
