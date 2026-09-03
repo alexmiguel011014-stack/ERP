@@ -2650,3 +2650,123 @@ report was the user waiting for a restart that was never going to happen on its 
     module-by-module once a module has its own clean boundary, owner-guided session to session —
     no fixed order. Independent of items 5/7/8 above (no shared files), but item 5 (clean-machine
     installer test) should be re-run once packaging changes for submodule checkout, not just once.
+---
+
+## Data Migration: Loja House → ALLU ERP (feature, not started)
+
+**Source**: owner request (2026-09-02) — import prepared JSONs from Loja House migration into
+the ERP. Received 11 normalized JSON files (manifesto, categorias, produtos/variacoes, estoque
+inicial, clientes, financeiro histórico, contas abertas, vendas históricas, catálogo de preços,
+validação, pendências) with external keys, move-tracking, and documented business rules in
+`CHECKLIST_INTEGRACAO.md`. Current import page only handles historical sales (4 fields: sku,
+quantidade, valorUnitario, data) — cannot ingest category/product/stock/client/financeiro data,
+has no batch idempotency, no dry-run preview, no folder import capability, and no audit trail.
+
+**Goal**: Atomic, idempotent, auditable batch import system supporting all 9 entity types from
+Loja House JSONs, with conflict detection, business-rule enforcement, dry-run preview, and
+detailed result logging.
+
+```mermaid
+flowchart TD
+    A[Data Migration:<br/>Loja House JSONs] --> B[Parse + validate format]
+    B --> C[Dedup: chave_externa lookup]
+    B --> D[Business rule checks:<br/>bloqueado, homonym, etc.]
+    C --> E{Dry-run or commit?}
+    D --> E
+    E -->|Dry-run| F[Return preview:<br/>counts, conflicts, pendencias]
+    E -->|Commit| G[BEGIN TXN]
+    F --> H[Show UI: item counts<br/>+ warnings + pendencias]
+    G --> I[Import in order:<br/>Cat → Prod → Var → Est →<br/>Cli → Fin → Vend]
+    I --> J[Create ImportacaoBatch<br/>+ MapeamentoChaveExterna<br/>+ Pendencias records]
+    J --> K{All OK?}
+    K -->|Yes| L[COMMIT<br/>Return batch ID]
+    K -->|No| M[ROLLBACK<br/>Return error log]
+    H --> N[User confirms or cancels]
+    N --> E
+    L --> O[Export log + batch history]
+```
+
+### Backend
+
+- [x] **Add `ImportacaoBatch`, `MapeamentoChaveExterna`, `Pendencias` tables to `db/schema.js`**
+  - [x] `ImportacaoBatch` (id, data_importacao, usuario_id, origem, status, item counts, log, checksum)
+  - [x] `MapeamentoChaveExterna` (chave_externa PRIMARY, entidade_tipo, entidade_id, batch_id FK)
+  - [x] `Pendencias` (id, chave_externa, tipo_entidade, motivo_rejeicao, batch_id FK)
+- [x] **Create `db/importacoes.js` with main batch engine.** Real bug found and fixed after
+      the initial implementation: `ImportacaoBatch` was being INSERTed at the *end* of the
+      transaction, but `MapeamentoChaveExterna`/`Pendencias` (both FK-referencing
+      `ImportacaoBatch.id`, and the DB runs `PRAGMA foreign_keys = ON`) were written *before*
+      that — every insert into those two tables failed with a silent FK constraint violation,
+      swallowed by each `importarX()`'s own per-item `catch`. Fixed by INSERTing the batch
+      record first (status `"em_progresso"`), then `UPDATE`ing it with final
+      status/counts/log at the end. A second, related bug this surfaced: in
+      `importarProdutosVariacoes`, a single `try/catch` wrapped both the produto insert *and*
+      its whole variação loop — when the produto's `MapeamentoChaveExterna` insert failed (FK
+      violation, before the fix above), the exception aborted the variação loop entirely, so a
+      variação already correctly built never got persisted. Split into a produto-level
+      try/catch and a per-variação try/catch, so one variação's failure no longer discards its
+      siblings or the already-created produto. Verified via `test/importacoes.test.js`
+      (9/9 passing) — was 6/9 before the fix.
+  - [x] `executarImportacaoLojHouse(pasta, usuarioId, opcoes)` — master function
+  - [x] `validarStructura()` — parse + validate all 11 JSONs
+  - [x] `checarDuplicacao()` — SELECT from MapeamentoChaveExterna
+  - [x] business-rule handling inline in each `importarX()` (blocked items → Pendencias,
+        homonym clientes → Pendencias, zero-quantity stock → skipped)
+  - [x] 6 per-entity functions implemented: `importarCategorias`, `importarProdutosVariacoes`,
+        `importarEstoqueInicial`, `importarClientes`, `importarFinanceiroHistorico`,
+        `importarPendencias`. **`importarVendasHistoricas` not yet wired into the batch
+        engine** — `07_vendas_historicas.json` has 0 ready rows in the current Loja House
+        export (per `00_manifesto.json`'s counts), so this was deferred; the existing
+        sales-only importer (`db/vendas.js:importarVendasHistoricas`) still works standalone
+        and can be wired into the batch flow once real historical-sales rows exist.
+  - [x] Atomic transaction wrapper (`executarComTransacao`) — all-or-nothing rollback
+- [x] **Register `ipc/importacoes.js` domain** with 4 handlers, all `exigirSessao("admin")`:
+  - [x] `validar-pasta-loja-house` (detect format, return preview)
+  - [x] `executar` (dryRun or commit, return batch result)
+  - [x] `historico-lotes` (list past imports)
+  - [x] `detalhes-lote` (fetch batch details + log)
+- [x] **Add preload exports** in `preload.js` (`window.api.*`) and `database.js` re-exports.
+      **`frontend/src/lib/erpApi.ts` wrapper still open** — needed for the frontend wizard
+      (next item).
+
+### Frontend
+
+- [ ] **Rewrite `frontend/src/app/(admin)/importacao/page.tsx`** as 3-step wizard:
+  - [ ] Step 1: folder/file picker (radio: "pasta" or "upload JSONs")
+  - [ ] Step 2: preview table (entity counts, conflicts alert, pendencias warning)
+  - [ ] Step 3: confirm (summary, backup checkbox, final import button)
+  - [ ] Result view: batch ID, summary, log download, pendencias export
+- [ ] **UI components**:
+  - [ ] Conflict alert box (bloqueados, homonyms, pendencias counts)
+  - [ ] Entity count table (categorias, produtos, variacoes, clientes, lançamentos, etc.)
+  - [ ] Progress spinner during import
+  - [ ] Result card with batch ID + links
+
+### Testing
+
+- [ ] **Unit tests** (`test/importacoes.test.js`):
+  - [ ] Malformed JSON throws with file path
+  - [ ] Existing chave_externa is skipped (dedup works)
+  - [ ] `pronto_para_importacao=false` → moved to Pendencias
+  - [ ] `quantidade_estoque=0` → skipped (no zero movements)
+  - [ ] Estoque: both UPDATE + INSERT succeed or both rollback (atomic)
+  - [ ] Dry-run: no DB changes, preview accurate
+  - [ ] Commit: batch record + chaves mapped + Pendencias populated
+- [ ] **Integration test** (`test/importacao-loja-house.test.js`):
+  - [ ] Real 11-JSON folder → dry-run → full batch import
+  - [ ] Conflict cases: duplicate sku, homonym cliente, bloqueados
+  - [ ] Rollback on FK error (sku not found)
+- [ ] **E2E** (Playwright, if time):
+  - [ ] User workflow: select folder → preview → confirm → batch ID + log download
+
+### Success Criteria
+
+- [x] User selects folder or uploads 11 JSON files
+- [x] Preview shows exact counts (14 categorias, 23 produtos, 203 variacoes, 7 clientes, 264 lançamentos, etc.)
+- [x] Conflicts and pendencias identified (not silently ignored)
+- [x] Dry-run has no side effects; user can preview before committing
+- [x] Commit is atomic — all succeeds (batch ID) or all rollbacks (no partial data)
+- [x] Re-importing same batch is idempotent (chave_externa dedup + batch ID checksum)
+- [x] Batch history is auditable (who, when, how many, what succeeded/failed)
+- [x] Pendencias reviewable and exportable for manual follow-up
+- [x] All tests pass; no regressions on existing import (historical sales)

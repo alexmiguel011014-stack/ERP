@@ -20,6 +20,7 @@ const dashboard = require("./db/dashboard");
 const sistema = require("./db/sistema");
 const bancoAdmin = require("./db/banco-admin");
 const usuarios = require("./db/usuarios");
+const importacoes = require("./db/importacoes");
 
 module.exports = {
 	db: conexao.getConexao,
@@ -153,4 +154,8 @@ module.exports = {
 	removerImagemProduto: produtos.removerImagemProduto,
 	getCaminhoImagemProduto: produtos.getCaminhoImagemProduto,
 	buscaGlobal: vendas.buscaGlobal,
+	executarImportacaoLojHouse: importacoes.executarImportacaoLojHouse,
+	obterHistoricoLotes: importacoes.obterHistoricoLotes,
+	obterDetalhesLote: importacoes.obterDetalhesLote,
+	normalizarConteudoArquivoImportacao: importacoes.normalizarConteudoArquivo,
 };

@@ -630,6 +630,126 @@ export type GiroEstoqueLinha = {
 	diasParaReposicao: number | null;
 };
 
+// Importação de dados da Loja House (pasta com JSONs 01_categorias.json,
+// 02_produtos_variacoes.json, etc — ver db/importacoes.js). Duas rotas
+// diferentes trazem "preview" com formas diferentes: validarPastaImportacao
+// conta lancamentos/pendencias já somados, enquanto o dry-run de
+// executarImportacao devolve os totais brutos por arquivo — não são o
+// mesmo shape, por isso dois types (ver ipc/importacoes.js e db/importacoes.js).
+export type PreviewImportacao = {
+	categorias: number;
+	produtos: number;
+	variacoes: number;
+	estoque: number;
+	clientes: number;
+	lancamentos: number;
+	pendencias: number;
+};
+
+export type ValidacaoPastaImportacao =
+	| { cancelado: true }
+	| { erro: string }
+	| {
+			formato: "loja_house";
+			pasta: string;
+			arquivos: string[];
+			preview: PreviewImportacao;
+	  };
+
+export type PreviewDryRunImportacao = {
+	categorias: number;
+	produtos: number;
+	variacoes: number;
+	estoque: number;
+	clientes: number;
+	lancamentosHistoricos: number;
+	contasAbertas: number;
+	vendasHistoricas: number;
+	pendenciasOrigem: number;
+};
+
+export type ConflitosImportacao = {
+	duplicadasJaImportadas: number;
+	alertasRegrasNegocio: string[];
+};
+
+export type ResultadoDryRunImportacao = {
+	dryRun: true;
+	preview: PreviewDryRunImportacao;
+	conflitos: ConflitosImportacao;
+	checksum: string;
+};
+
+export type ItensImportadosLote = {
+	categorias: number;
+	produtos: number;
+	variacoes: number;
+	estoque: number;
+	clientes: number;
+	lancamentos: number;
+};
+
+export type ErroImportacaoItem = {
+	chave_externa: string;
+	motivo: string;
+};
+
+export type ResultadoImportacaoLote = {
+	batchId: string;
+	importadas: ItensImportadosLote;
+	ignoradas: number;
+	pendencias: number;
+	erros: ErroImportacaoItem[];
+};
+
+export type ErroImportacao = { erro: string };
+
+// Retorno de executarImportacao: dry-run devolve preview leve, execução real
+// devolve o lote gravado, e qualquer exceção vira { erro }. As duas variantes
+// de sucesso ficam distintas por checagem de runtime ("dryRun" in resultado).
+export type ResultadoExecucaoImportacao =
+	| ResultadoDryRunImportacao
+	| ResultadoImportacaoLote
+	| ErroImportacao;
+
+export type StatusLoteImportacao =
+	| "sucesso"
+	| "parcial"
+	| "erro"
+	| "em_progresso";
+
+export type LoteImportacao = {
+	id: string;
+	data_importacao: string;
+	usuario_id: number | null;
+	origem: string;
+	status: StatusLoteImportacao;
+	total_itens: number;
+	itens_importados: number;
+	itens_ignorados: number;
+	itens_erro: number;
+};
+
+export type PendenciaImportacao = {
+	id: string;
+	chave_externa: string | null;
+	tipo_entidade: string;
+	descricao: string | null;
+	valor: number | null;
+	motivo_rejeicao: string | null;
+	sugestao: string | null;
+	batch_id: string | null;
+	data_criacao: string;
+};
+
+export type DetalhesLoteImportacao = {
+	batch: LoteImportacao & { log: string; checksum: string };
+	pendencias: PendenciaImportacao[];
+	// JSON.parse(batch.log) no backend — mesmo shape de ResultadoImportacaoLote
+	// quando o lote terminou de rodar, {} se log ainda não foi gravado.
+	log: ResultadoImportacaoLote | Record<string, never>;
+};
+
 export const erpApi = {
 	clientes: {
 		listar: (incluirInativos?: boolean) =>
@@ -875,5 +995,19 @@ export const erpApi = {
 			invocar<PontoDeEquilibrioResultado>("getPontoDeEquilibrio", inicio, fim),
 		giroEstoque: (inicio: string | null, fim: string | null) =>
 			invocar<GiroEstoqueLinha[]>("getGiroEstoque", inicio, fim),
+	},
+	importacoes: {
+		// Sem argumento: o próprio backend abre o dialog nativo do Electron
+		// (dialog.showOpenDialog) e devolve a pasta escolhida.
+		validarPasta: (pasta?: string) =>
+			invocar<ValidacaoPastaImportacao>("validarPastaImportacao", pasta),
+		executar: (
+			pasta: string,
+			opcoes: { dryRun: boolean; dataMovimentacao?: string },
+		) =>
+			invocar<ResultadoExecucaoImportacao>("executarImportacao", pasta, opcoes),
+		historico: () => invocar<LoteImportacao[]>("historicoImportacoes"),
+		detalhes: (batchId: string) =>
+			invocar<DetalhesLoteImportacao>("detalhesImportacao", batchId),
 	},
 };

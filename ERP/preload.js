@@ -201,6 +201,13 @@ contextBridge.exposeInMainWorld("api", {
 	exportarBancoJSON: () => ipcRenderer.invoke("exportar-banco-json"),
 	verificarSenhaAdmin: (senha) =>
 		ipcRenderer.invoke("verificar-senha-admin", senha),
+	validarPastaImportacao: (pasta) =>
+		ipcRenderer.invoke("importacoes:validar-pasta-loja-house", pasta),
+	executarImportacao: (pasta, opcoes) =>
+		ipcRenderer.invoke("importacoes:executar", pasta, opcoes),
+	historicoImportacoes: () => ipcRenderer.invoke("importacoes:historico-lotes"),
+	detalhesImportacao: (batchId) =>
+		ipcRenderer.invoke("importacoes:detalhes-lote", batchId),
 });
 
 ipcRenderer.on("update-status", (event, data) => {

@@ -399,12 +399,13 @@ const deps = {
 	getMainWindow: () => mainWindow,
 };
 
-// auth e fiscal são infraestrutura do core (sessão central + integração
-// fiscal cross-cutting, usada internamente por vendas/caixa) — não são
-// "módulos" plugáveis no sentido de docs/MODULE_MANIFEST.md, então ficam de
-// fora do loop de manifesto, registrados direto, como sempre foram.
+// auth, fiscal e importacoes são infraestrutura do core (sessão central +
+// integração fiscal cross-cutting + importação de dados) — não são "módulos"
+// plugáveis no sentido de docs/MODULE_MANIFEST.md, então ficam de fora do
+// loop de manifesto, registrados direto, como sempre foram.
 require("./ipc/auth").registrar(ipcMain, deps);
 require("./ipc/fiscal").registrar(ipcMain, deps);
+require("./ipc/importacoes").registrar(ipcMain, deps);
 
 // Registro de IPC dos módulos plugáveis, orientado por manifesto — ver
 // docs/MODULE_MANIFEST.md e modulos.js. Substitui a lista fixa de 19

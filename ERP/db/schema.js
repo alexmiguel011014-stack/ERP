@@ -498,6 +498,60 @@ async function iniciarBanco() {
 	});
 	await criarVariacoesPadrao(conexao);
 
+	// Importações: rastreamento de lotes de importação, mapeamento de chaves
+	// externas para idempotência, e itens pendentes que falharam regras de negócio.
+	await runOn(
+		conexao,
+		`
+    CREATE TABLE IF NOT EXISTS ImportacaoBatch (
+      id TEXT PRIMARY KEY,
+      data_importacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+      usuario_id INTEGER,
+      origem TEXT,
+      status TEXT,
+      total_itens INTEGER,
+      itens_importados INTEGER,
+      itens_ignorados INTEGER,
+      itens_erro INTEGER,
+      log TEXT,
+      checksum TEXT,
+      FOREIGN KEY (usuario_id) REFERENCES Usuarios(id) ON DELETE SET NULL
+    )
+  `,
+	);
+
+	await runOn(
+		conexao,
+		`
+    CREATE TABLE IF NOT EXISTS MapeamentoChaveExterna (
+      chave_externa TEXT PRIMARY KEY,
+      entidade_tipo TEXT,
+      entidade_id INTEGER,
+      data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+      batch_id TEXT,
+      FOREIGN KEY (batch_id) REFERENCES ImportacaoBatch(id) ON DELETE SET NULL
+    )
+  `,
+	);
+
+	await runOn(
+		conexao,
+		`
+    CREATE TABLE IF NOT EXISTS Pendencias (
+      id TEXT PRIMARY KEY,
+      chave_externa TEXT,
+      tipo_entidade TEXT,
+      descricao TEXT,
+      valor DECIMAL,
+      motivo_rejeicao TEXT,
+      sugestao TEXT,
+      batch_id TEXT,
+      data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (batch_id) REFERENCES ImportacaoBatch(id) ON DELETE SET NULL
+    )
+  `,
+	);
+
 	// Grava a versão do schema por último, só depois de toda migração acima
 	// já ter rodado com sucesso — se `iniciarBanco` falhar no meio, o marcador
 	// não avança, então uma nova tentativa no próximo start ainda vê a versão
