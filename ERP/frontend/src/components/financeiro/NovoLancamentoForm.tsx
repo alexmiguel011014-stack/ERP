@@ -4,7 +4,11 @@ import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import Button from "@/components/ui/button/Button";
 import { usePersistedState } from "@/hooks/usePersistedState";
-import { erpApi, type NovoLancamento } from "@/lib/erpApi";
+import {
+	erpApi,
+	CATEGORIAS_FINANCEIRAS,
+	type NovoLancamento,
+} from "@/lib/erpApi";
 
 export default function NovoLancamentoForm({
 	onSalvo,
@@ -33,6 +37,10 @@ export default function NovoLancamentoForm({
 		"financeiro_lancamento_parcelas",
 		"1",
 	);
+	const [categoria, setCategoria, limparCategoria] = usePersistedState(
+		"financeiro_lancamento_categoria",
+		"",
+	);
 	const [salvando, setSalvando] = useState(false);
 
 	async function adicionar() {
@@ -43,6 +51,7 @@ export default function NovoLancamentoForm({
 			valor: Number(valor),
 			data_vencimento: vencimento || null,
 			parcelas: parcelasNum,
+			categoria: categoria || null,
 		};
 		if (!dados.descricao) {
 			onErro("Informe a descrição.");
@@ -65,6 +74,7 @@ export default function NovoLancamentoForm({
 			limparValor();
 			limparVencimento();
 			limparParcelas();
+			limparCategoria();
 		} catch (e) {
 			onErro(e instanceof Error ? e.message : String(e));
 		} finally {
@@ -126,6 +136,21 @@ export default function NovoLancamentoForm({
 						min="1"
 						step={1}
 					/>
+				</div>
+				<div>
+					<Label>Categoria (opcional)</Label>
+					<select
+						value={categoria}
+						onChange={(e) => setCategoria(e.target.value)}
+						className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+					>
+						<option value="">Sem categoria</option>
+						{CATEGORIAS_FINANCEIRAS.map((c) => (
+							<option key={c} value={c}>
+								{c}
+							</option>
+						))}
+					</select>
 				</div>
 			</div>
 			<div className="mt-4 flex justify-end">

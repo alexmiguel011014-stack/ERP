@@ -207,10 +207,11 @@ async function salvarProduto(produto, variacoes) {
 				obterAtributoLegado(atributos, "tamanho") || v.tamanho || null;
 			const cor = obterAtributoLegado(atributos, "cor") || v.cor || null;
 			await run(
-				"INSERT INTO Variacoes (produto_id, sku, tamanho, cor, preco, preco_custo, quantidade_estoque, estoque_minimo, atributos) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+				"INSERT INTO Variacoes (produto_id, sku, codigo_barras, tamanho, cor, preco, preco_custo, quantidade_estoque, estoque_minimo, atributos) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 				[
 					produtoId,
 					String(v.sku).trim().toUpperCase(),
+					String(v.codigo_barras || "").trim() || null,
 					tamanho,
 					cor,
 					v.preco,
@@ -243,18 +244,19 @@ async function buscarSKU(sku) {
 			});
 		});
 
+	const termo = String(sku).trim().toUpperCase();
 	const row = await get(
 		`SELECT v.id AS id, p.id AS produto_id, p.nome, p.categoria AS categoria_legada,
             c.nome AS categoria_nome, s.nome AS subcategoria_nome,
             v.tamanho, v.cor, v.preco, v.preco_custo, v.quantidade_estoque, v.quantidade_reservada,
             (v.quantidade_estoque - v.quantidade_reservada) AS quantidade_disponivel,
-            v.estoque_minimo, v.sku, v.atributos, p.imagem
+            v.estoque_minimo, v.sku, v.codigo_barras, v.atributos, p.imagem
      FROM Variacoes v
      JOIN Produtos p ON p.id = v.produto_id
      LEFT JOIN Categorias c ON c.id = p.categoria_id
      LEFT JOIN Categorias s ON s.id = p.subcategoria_id
-     WHERE UPPER(v.sku) = ? AND p.ativo = 1`,
-		[String(sku).trim().toUpperCase()],
+     WHERE (UPPER(v.sku) = ? OR UPPER(v.codigo_barras) = ?) AND p.ativo = 1`,
+		[termo, termo],
 	);
 
 	return row || null;
@@ -273,7 +275,7 @@ async function buscarProdutosPorTermo(termo) {
 	const codigo = Number(texto.replace(/^#/, ""));
 	const alvo = normalizarBusca(texto);
 	const linhas = await all(
-		`SELECT v.id AS id, p.id AS produto_id, v.sku, p.nome, v.tamanho, v.cor, v.preco,
+		`SELECT v.id AS id, p.id AS produto_id, v.sku, v.codigo_barras, p.nome, v.tamanho, v.cor, v.preco,
               v.quantidade_estoque, v.quantidade_reservada,
               (v.quantidade_estoque - v.quantidade_reservada) AS quantidade_disponivel,
               v.estoque_minimo, v.atributos, p.imagem
@@ -288,6 +290,7 @@ async function buscarProdutosPorTermo(termo) {
 			(l) =>
 				normalizarBusca(l.nome).indexOf(alvo) !== -1 ||
 				normalizarBusca(l.sku).indexOf(alvo) !== -1 ||
+				normalizarBusca(l.codigo_barras).indexOf(alvo) !== -1 ||
 				(Number.isInteger(codigo) && l.produto_id === codigo),
 		)
 		.slice(0, 100);
@@ -319,7 +322,16 @@ function validarVariacao(v) {
 		throw new Error("Todos os atributos precisam de chave e valor.");
 	}
 
-	return { sku, preco, precoCusto, estoque, atributos };
+	const codigoBarras = String(v.codigo_barras || "").trim() || null;
+
+	return {
+		sku,
+		preco,
+		precoCusto,
+		estoque,
+		atributos,
+		codigo_barras: codigoBarras,
+	};
 }
 
 // Código morto herdado do database.js original (nunca era chamado nem exportado ali).
@@ -367,7 +379,7 @@ async function listProdutosDetalhados(incluirInativos) {
 		[incluirInativos ? 1 : 0],
 	);
 	const variacoes = await all(
-		`SELECT v.produto_id, v.id AS variacao_id, v.sku, v.tamanho, v.cor,
+		`SELECT v.produto_id, v.id AS variacao_id, v.sku, v.codigo_barras, v.tamanho, v.cor,
             v.preco, v.preco_custo, v.quantidade_estoque, v.atributos
      FROM Variacoes v
      ORDER BY v.id`,
@@ -405,6 +417,7 @@ async function listProdutosDetalhados(incluirInativos) {
 			.map((v) => ({
 				variacao_id: v.variacao_id,
 				sku: v.sku,
+				codigo_barras: v.codigo_barras,
 				tamanho: v.tamanho,
 				cor: v.cor,
 				preco: v.preco,
@@ -608,10 +621,11 @@ async function atualizarProduto(id, produto, variacoes) {
 				// Já existia: preserva id, preço e saldo de estoque (quantidade só
 				// muda pela aba Estoque) — só os dados descritivos são atualizados.
 				await run(
-					"UPDATE Variacoes SET tamanho = ?, cor = ?, atributos = ?, estoque_minimo = ? WHERE id = ?",
+					"UPDATE Variacoes SET tamanho = ?, cor = ?, codigo_barras = ?, atributos = ?, estoque_minimo = ? WHERE id = ?",
 					[
 						tamanho,
 						cor,
+						v.codigo_barras,
 						JSON.stringify(v.atributos),
 						estoqueMinimo,
 						existente.id,
@@ -622,10 +636,11 @@ async function atualizarProduto(id, produto, variacoes) {
 				// não nascer com preço zerado enquanto as demais já têm preço.
 				const irma = existentes[0];
 				await run(
-					"INSERT INTO Variacoes (produto_id, sku, tamanho, cor, preco, preco_custo, quantidade_estoque, estoque_minimo, atributos) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+					"INSERT INTO Variacoes (produto_id, sku, codigo_barras, tamanho, cor, preco, preco_custo, quantidade_estoque, estoque_minimo, atributos) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 					[
 						id,
 						v.sku,
+						v.codigo_barras,
 						tamanho,
 						cor,
 						irma ? irma.preco : 0,

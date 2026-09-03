@@ -401,9 +401,9 @@ async function salvarUsuario(dados, ator) {
 		);
 	}
 	if (!nome) throw new Error("Informe o nome do usuário.");
-	const perfil = ["dono", "vendedor"].includes(dados.perfil)
+	const perfil = ["admin", "dono", "vendedor"].includes(dados.perfil)
 		? dados.perfil
-		: "admin";
+		: "vendedor";
 	const comissao = Math.max(0, Number(dados.comissao_percentual) || 0);
 	const permissoes = JSON.stringify(
 		dados.permissoes && typeof dados.permissoes === "object"
@@ -420,6 +420,16 @@ async function salvarUsuario(dados, ator) {
 		// (garantirContaSuporte) pode ocupar esse login.
 		if (ehLoginDeSuporte(l)) {
 			throw new Error("Este login não está disponível. Escolha outro.");
+		}
+		// Hierarquia (achado real, 2026-09-02: dono via a opção "Adm" no
+		// formulário e conseguia criar outro admin): "dono" tem o mesmo nível
+		// de acesso de admin no resto do app (ehNivelAdmin em main.js), mas
+		// nunca pode criar nem se autopromover a admin — só quem já é admin
+		// cria admin.
+		if (perfil === "admin" && (!ator || ator.perfil !== "admin")) {
+			throw new Error(
+				"Somente o administrador pode criar outra conta administradora.",
+			);
 		}
 		if (senha.length < 4)
 			throw new Error("Defina uma senha com pelo menos 4 caracteres.");
@@ -454,6 +464,20 @@ async function salvarUsuario(dados, ator) {
 		// de IPC com o id certo).
 		if (ehLoginDeSuporte(alvo.login)) {
 			throw new Error("Este usuário não pode ser editado.");
+		}
+		// Mesma regra de hierarquia da criação: dono continua podendo editar
+		// o resto do cadastro do admin (nome, ativo — por pedido explícito,
+		// só a senha é bloqueada, ver donoBloqueadoNaSenha no
+		// UsuarioFormModal), então só bloqueia aqui quando o perfil está de
+		// fato MUDANDO para admin — não quando já era admin e continua sendo.
+		if (
+			perfil === "admin" &&
+			alvo.perfil !== "admin" &&
+			(!ator || ator.perfil !== "admin")
+		) {
+			throw new Error(
+				"Somente o administrador pode promover alguém a administrador.",
+			);
 		}
 
 		if (senha) {

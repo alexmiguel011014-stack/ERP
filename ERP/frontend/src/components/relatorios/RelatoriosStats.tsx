@@ -1,7 +1,27 @@
 "use client";
-import { BoxIcon, DollarLineIcon, AlertIcon } from "@/icons";
-import { formatarMoeda } from "./formatos";
+import {
+	BoxIcon,
+	DollarLineIcon,
+	AlertIcon,
+	ArrowUpIcon,
+	ArrowDownIcon,
+} from "@/icons";
+import Badge from "@/components/ui/badge/Badge";
+import { formatarMoeda, formatarPercentual } from "./formatos";
 import type { RelatorioVendasResultado } from "@/lib/erpApi";
+
+// Mesmo componente de badge de variação já usado no Dashboard
+// (DashboardStatCards.tsx) — aqui compara contra o período anterior de igual
+// duração em vez de "hoje vs. ontem".
+function Variacao({ valor }: { valor: number | null }) {
+	if (valor === null) return null;
+	return (
+		<Badge size="sm" color={valor >= 0 ? "success" : "error"}>
+			{valor >= 0 ? <ArrowUpIcon /> : <ArrowDownIcon />}
+			{formatarPercentual(valor)}
+		</Badge>
+	);
+}
 
 function CardStat({
 	icone,
@@ -9,12 +29,14 @@ function CardStat({
 	valor,
 	corIcone = "primary",
 	progresso,
+	variacao,
 }: {
 	icone: React.ReactNode;
 	label: string;
 	valor: string;
 	corIcone?: "primary" | "success" | "error" | "warning";
 	progresso?: number;
+	variacao?: number | null;
 }) {
 	const fundoIcone: Record<string, string> = {
 		primary: "bg-brand-500 text-white",
@@ -34,9 +56,12 @@ function CardStat({
 					{label}
 				</span>
 			</div>
-			<h4 className="mt-2 text-lg font-semibold text-gray-800 dark:text-white/90">
-				{valor}
-			</h4>
+			<div className="mt-2 flex items-center gap-2">
+				<h4 className="text-lg font-semibold text-gray-800 dark:text-white/90">
+					{valor}
+				</h4>
+				{variacao !== undefined && <Variacao valor={variacao} />}
+			</div>
 			{progresso !== undefined && (
 				<div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-white/10">
 					<div
@@ -65,12 +90,14 @@ export default function RelatoriosStats({
 				icone={<BoxIcon className="size-4" />}
 				label="Vendas"
 				valor={String(resumo.vendas)}
+				variacao={resumo.vendasVariacao}
 			/>
 			<CardStat
 				icone={<DollarLineIcon className="size-4" />}
 				label="Faturamento"
 				valor={formatarMoeda(resumo.faturamento)}
 				corIcone="success"
+				variacao={resumo.faturamentoVariacao}
 			/>
 			<CardStat
 				icone={<DollarLineIcon className="size-4" />}

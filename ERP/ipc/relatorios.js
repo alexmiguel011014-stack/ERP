@@ -6,6 +6,10 @@ const {
 	getMargemContribuicao,
 	getPontoDeEquilibrio,
 	getGiroEstoque,
+	getSegmentacaoClientes,
+	getProdutosParados,
+	getSazonalidade,
+	getConversaoOrcamentos,
 } = require("../database");
 
 function registrar(ipcMain, deps) {
@@ -76,6 +80,48 @@ function registrar(ipcMain, deps) {
 			throw erro.message;
 		}
 	});
+
+	ipcMain.handle("get-segmentacao-clientes", async () => {
+		try {
+			exigirPermissao("relatorios");
+			return await getSegmentacaoClientes();
+		} catch (erro) {
+			throw erro.message;
+		}
+	});
+
+	ipcMain.handle("get-produtos-parados", async (event, dataInicio, dataFim) => {
+		try {
+			exigirPermissao("relatorios");
+			return await getProdutosParados(dataInicio || null, dataFim || null);
+		} catch (erro) {
+			throw erro.message;
+		}
+	});
+
+	ipcMain.handle("get-sazonalidade", async () => {
+		try {
+			exigirPermissao("relatorios");
+			return await getSazonalidade();
+		} catch (erro) {
+			throw erro.message;
+		}
+	});
+
+	ipcMain.handle(
+		"get-conversao-orcamentos",
+		async (event, dataInicio, dataFim) => {
+			try {
+				exigirPermissao("relatorios");
+				return await getConversaoOrcamentos(
+					dataInicio || null,
+					dataFim || null,
+				);
+			} catch (erro) {
+				throw erro.message;
+			}
+		},
+	);
 }
 
 module.exports = { registrar };

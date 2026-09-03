@@ -4,6 +4,7 @@ import Button from "@/components/ui/button/Button";
 import Input from "@/components/form/input/InputField";
 import { useFluxoCaixa } from "@/hooks/useFluxoCaixa";
 import { formatarMoeda } from "@/components/dashboard/formatos";
+import FluxoCaixaProjetadoCard from "./FluxoCaixaProjetadoCard";
 
 function formatarData(iso: string | null): string {
 	if (!iso) return "---";
@@ -23,16 +24,23 @@ export default function FluxoCaixaTab() {
 		fluxo,
 		aliquota,
 		provisao,
+		metaFaturamento,
 		carregando,
 		erro,
 		erroDAS,
+		erroMeta,
 		filtrar,
 		salvarAliquota,
+		salvarMeta,
 	} = useFluxoCaixa();
 	const [aliquotaInput, setAliquotaInput] = useState("");
 	const [salvandoAliquota, setSalvandoAliquota] = useState(false);
+	const [metaInput, setMetaInput] = useState("");
+	const [salvandoMeta, setSalvandoMeta] = useState(false);
 
 	const aliquotaExibida = aliquotaInput || (aliquota ? String(aliquota) : "");
+	const metaExibida =
+		metaInput || (metaFaturamento ? String(metaFaturamento) : "");
 
 	async function handleSalvarAliquota() {
 		const valor = parseFloat(aliquotaInput || String(aliquota || 0)) || 0;
@@ -45,8 +53,26 @@ export default function FluxoCaixaTab() {
 		}
 	}
 
+	async function handleSalvarMeta() {
+		const valor = parseFloat(metaInput || String(metaFaturamento || 0)) || 0;
+		if (valor < 0) return;
+		setSalvandoMeta(true);
+		try {
+			await salvarMeta(valor);
+		} finally {
+			setSalvandoMeta(false);
+		}
+	}
+
+	const percentualMeta =
+		metaFaturamento && fluxo
+			? Math.min(100, (fluxo.totalEntradas / metaFaturamento) * 100)
+			: null;
+
 	return (
 		<div className="grid grid-cols-1 gap-4">
+			<FluxoCaixaProjetadoCard />
+
 			<div className="flex flex-wrap items-end gap-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
 				<div>
 					<label className="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -221,6 +247,54 @@ export default function FluxoCaixaTab() {
 							? `Recebido no período: ${formatarMoeda(provisao.totalRecebido)} — DAS provisionado (${aliquota}%): ${formatarMoeda(provisao.valorProvisionado)}`
 							: ""}
 				</p>
+			</div>
+
+			<div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+				<h2 className="text-base font-semibold text-gray-800 dark:text-white/90">
+					Meta de faturamento mensal
+				</h2>
+				<p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+					Compara o total de entradas do período filtrado acima contra a meta
+					informada — não é automaticamente &ldquo;do mês&rdquo;, ajuste as
+					datas acima pro mês que quiser comparar.
+				</p>
+				{erroMeta && (
+					<div className="mt-3 rounded-lg border border-error-300 bg-error-50 px-4 py-3 text-sm text-error-600 dark:border-error-800 dark:bg-error-500/10 dark:text-error-400">
+						{erroMeta}
+					</div>
+				)}
+				<div className="mt-3 flex items-end gap-3">
+					<div>
+						<label className="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">
+							Meta (R$)
+						</label>
+						<Input
+							type="number"
+							value={metaExibida}
+							onChange={(e) => setMetaInput(e.target.value)}
+							placeholder="Ex: 30000"
+							min="0"
+							step={0.01}
+						/>
+					</div>
+					<Button size="sm" onClick={handleSalvarMeta} disabled={salvandoMeta}>
+						{salvandoMeta ? "Salvando..." : "Salvar"}
+					</Button>
+				</div>
+				{metaFaturamento && fluxo && (
+					<div className="mt-3">
+						<p className="text-sm font-medium text-gray-800 dark:text-white/90">
+							{formatarMoeda(fluxo.totalEntradas)} de{" "}
+							{formatarMoeda(metaFaturamento)} ({percentualMeta?.toFixed(0)}%)
+						</p>
+						<div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+							<div
+								className="h-full rounded-full bg-brand-500"
+								style={{ width: `${percentualMeta}%` }}
+							/>
+						</div>
+					</div>
+				)}
 			</div>
 		</div>
 	);

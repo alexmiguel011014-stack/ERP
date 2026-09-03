@@ -141,6 +141,7 @@ export type Lancamento = {
 	grupo_id: string | null;
 	parcela_num: number | null;
 	parcela_total: number | null;
+	categoria: string | null;
 };
 
 export type NovoLancamento = {
@@ -149,7 +150,20 @@ export type NovoLancamento = {
 	valor: number;
 	data_vencimento: string | null;
 	parcelas: number;
+	categoria: string | null;
 };
+
+// Lista fechada — precisa bater com CATEGORIAS_FINANCEIRAS em db/financeiro.js
+// (o backend valida contra essa mesma lista; ver comentário lá).
+export const CATEGORIAS_FINANCEIRAS = [
+	"Aluguel",
+	"Fornecedores",
+	"Folha/Comissão",
+	"Marketing",
+	"Impostos",
+	"Manutenção",
+	"Outros",
+] as const;
 
 export type DiaFluxo = {
 	dia: string;
@@ -164,6 +178,29 @@ export type FluxoCaixa = {
 	totalEntradas: number;
 	totalSaidas: number;
 	saldo: number;
+};
+
+export type FluxoCaixaProjetado = FluxoCaixa & {
+	periodo: { inicio: string; fim: string };
+};
+
+export type LancamentoRecorrente = {
+	id: number;
+	tipo: "receber" | "pagar";
+	descricao: string;
+	valor: number;
+	dia_mes: number;
+	categoria: string | null;
+	ativo: number;
+	criado_em: string;
+};
+
+export type NovoLancamentoRecorrente = {
+	tipo: "receber" | "pagar";
+	descricao: string;
+	valor: number;
+	dia_mes: number;
+	categoria: string | null;
 };
 
 export type ProvisaoDAS = {
@@ -409,6 +446,7 @@ export type ItemRecebido = { item_id: number; quantidade: number };
 export type VariacaoProduto = {
 	variacao_id: number;
 	sku: string;
+	codigo_barras: string | null;
 	tamanho: string | null;
 	cor: string | null;
 	preco: number;
@@ -452,6 +490,7 @@ export type NovoProdutoDados = {
 	categoriasSelecionadas: number[];
 	variacoes: {
 		sku: string;
+		codigo_barras?: string | null;
 		preco: number;
 		preco_custo: number;
 		quantidade_estoque: number;
@@ -558,6 +597,9 @@ export type RelatorioVendasResultado = {
 		faturamento: number;
 		descontos: number;
 		ticketMedio: number;
+		vendasVariacao: number | null;
+		faturamentoVariacao: number | null;
+		periodoAnterior: { inicio: string; fim: string };
 	};
 	porDia: {
 		dia: string;
@@ -628,6 +670,63 @@ export type GiroEstoqueLinha = {
 	estoqueAtual: number;
 	giro: number | null;
 	diasParaReposicao: number | null;
+};
+
+export type SegmentacaoClienteLinha = {
+	cliente_id: number;
+	nome: string;
+	telefone: string | null;
+	frequencia: number;
+	valorTotal: number;
+	ultimaCompra: string | null;
+	diasDesdeUltimaCompra: number | null;
+	segmento: "Frequente" | "Ativo" | "Em risco" | "Inativo" | "Nunca comprou";
+};
+
+export type ProdutoParadoLinha = {
+	produto_id: number;
+	produto_nome: string;
+	sku: string;
+	quantidadeEstoque: number;
+};
+
+export type SazonalidadeResultado = {
+	porDiaSemana: {
+		diaSemana: number;
+		nome: string;
+		vendas: number;
+		faturamento: number;
+	}[];
+	porHora: { hora: number; vendas: number; faturamento: number }[];
+};
+
+export type ConversaoOrcamentosResultado = {
+	periodo: { inicio: string; fim: string };
+	convertidas: number;
+	canceladas: number;
+	abertas: number;
+	taxaConversaoPercentual: number | null;
+};
+
+export type AgingGrupo = {
+	itens: {
+		id: number;
+		descricao: string;
+		valor: number;
+		data_vencimento: string;
+		diasAtraso: number;
+	}[];
+	total: number;
+	quantidade: number;
+};
+
+export type AgingRecebiveisResultado = {
+	aVencer: AgingGrupo;
+	atraso0a30: AgingGrupo;
+	atraso31a60: AgingGrupo;
+	atraso61a90: AgingGrupo;
+	atraso90mais: AgingGrupo;
+	totalGeral: number;
 };
 
 // Importação de dados da Loja House (pasta com JSONs 01_categorias.json,
@@ -882,6 +981,14 @@ export const erpApi = {
 		taxaAdquirente: () => invocar<number>("getTaxaAdquirente"),
 		salvarTaxaAdquirente: (valor: number) =>
 			invocar<{ success: boolean }>("saveTaxaAdquirente", valor),
+		taxaAdquirentePorMetodo: (metodo: "pix" | "cartao") =>
+			invocar<number | null>("getTaxaAdquirentePorMetodo", metodo),
+		salvarTaxaAdquirentePorMetodo: (metodo: "pix" | "cartao", valor: number) =>
+			invocar<{ success: boolean }>(
+				"saveTaxaAdquirentePorMetodo",
+				metodo,
+				valor,
+			),
 	},
 	usuarios: {
 		listar: () => invocar<Usuario[]>("listarUsuarios"),
@@ -939,6 +1046,29 @@ export const erpApi = {
 			invocar<{ success: boolean }>("saveAliquotaDAS", valor),
 		provisaoDAS: (inicio: string | null, fim: string | null) =>
 			invocar<ProvisaoDAS>("getProvisaoDAS", inicio, fim),
+		metaFaturamentoMensal: () => invocar<number>("getMetaFaturamentoMensal"),
+		salvarMetaFaturamentoMensal: (valor: number) =>
+			invocar<{ success: boolean }>("saveMetaFaturamentoMensal", valor),
+		lancamentosVencendoHoje: () =>
+			invocar<
+				Pick<
+					Lancamento,
+					"id" | "tipo" | "descricao" | "valor" | "data_vencimento"
+				>[]
+			>("getLancamentosVencendoHoje"),
+		fluxoCaixaProjetado: (inicio: string | null, fim: string | null) =>
+			invocar<FluxoCaixaProjetado>("getFluxoCaixaProjetado", inicio, fim),
+		lancamentosRecorrentes: () =>
+			invocar<LancamentoRecorrente[]>("listarLancamentosRecorrentes"),
+		criarLancamentoRecorrente: (dados: NovoLancamentoRecorrente) =>
+			invocar<{ success: boolean; id: number }>(
+				"criarLancamentoRecorrente",
+				dados,
+			),
+		alternarLancamentoRecorrente: (id: number, ativo: boolean) =>
+			invocar<{ success: boolean }>("alternarLancamentoRecorrente", id, ativo),
+		removerLancamentoRecorrente: (id: number) =>
+			invocar<{ success: boolean }>("removerLancamentoRecorrente", id),
 	},
 	caixa: {
 		historico: (limite?: number) =>
@@ -995,6 +1125,19 @@ export const erpApi = {
 			invocar<PontoDeEquilibrioResultado>("getPontoDeEquilibrio", inicio, fim),
 		giroEstoque: (inicio: string | null, fim: string | null) =>
 			invocar<GiroEstoqueLinha[]>("getGiroEstoque", inicio, fim),
+		segmentacaoClientes: () =>
+			invocar<SegmentacaoClienteLinha[]>("getSegmentacaoClientes"),
+		produtosParados: (inicio: string | null, fim: string | null) =>
+			invocar<ProdutoParadoLinha[]>("getProdutosParados", inicio, fim),
+		sazonalidade: () => invocar<SazonalidadeResultado>("getSazonalidade"),
+		conversaoOrcamentos: (inicio: string | null, fim: string | null) =>
+			invocar<ConversaoOrcamentosResultado>(
+				"getConversaoOrcamentos",
+				inicio,
+				fim,
+			),
+		agingRecebiveis: () =>
+			invocar<AgingRecebiveisResultado>("getAgingRecebiveis"),
 	},
 	importacoes: {
 		// Sem argumento: o próprio backend abre o dialog nativo do Electron

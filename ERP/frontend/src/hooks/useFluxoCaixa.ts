@@ -8,9 +8,11 @@ export function useFluxoCaixa() {
 	const [fluxo, setFluxo] = useState<FluxoCaixa | null>(null);
 	const [aliquota, setAliquota] = useState<number | null>(null);
 	const [provisao, setProvisao] = useState<ProvisaoDAS | null>(null);
+	const [metaFaturamento, setMetaFaturamento] = useState<number | null>(null);
 	const [carregando, setCarregando] = useState(true);
 	const [erro, setErro] = useState<string | null>(null);
 	const [erroDAS, setErroDAS] = useState<string | null>(null);
+	const [erroMeta, setErroMeta] = useState<string | null>(null);
 
 	const carregarFluxo = useCallback(async () => {
 		setCarregando(true);
@@ -38,9 +40,19 @@ export function useFluxoCaixa() {
 		}
 	}, [inicio, fim]);
 
+	const carregarMeta = useCallback(async () => {
+		setErroMeta(null);
+		try {
+			setMetaFaturamento(await erpApi.financeiro.metaFaturamentoMensal());
+		} catch (e) {
+			setErroMeta(e instanceof Error ? e.message : String(e));
+		}
+	}, []);
+
 	useEffect(() => {
 		carregarFluxo();
 		carregarDAS();
+		carregarMeta();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
@@ -54,6 +66,11 @@ export function useFluxoCaixa() {
 		await carregarDAS();
 	}
 
+	async function salvarMeta(valor: number) {
+		await erpApi.financeiro.salvarMetaFaturamentoMensal(valor);
+		await carregarMeta();
+	}
+
 	return {
 		inicio,
 		setInicio,
@@ -62,10 +79,13 @@ export function useFluxoCaixa() {
 		fluxo,
 		aliquota,
 		provisao,
+		metaFaturamento,
 		carregando,
 		erro,
 		erroDAS,
+		erroMeta,
 		filtrar,
 		salvarAliquota,
+		salvarMeta,
 	};
 }

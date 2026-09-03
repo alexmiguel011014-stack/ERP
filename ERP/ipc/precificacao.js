@@ -12,6 +12,8 @@ const {
 	massUpdateMargem,
 	getTaxaAdquirente,
 	saveTaxaAdquirente,
+	getTaxaAdquirentePorMetodo,
+	saveTaxaAdquirentePorMetodo,
 } = require("../database");
 
 function registrar(ipcMain, deps) {
@@ -141,6 +143,27 @@ function registrar(ipcMain, deps) {
 			throw erro.message;
 		}
 	});
+
+	ipcMain.handle("get-taxa-adquirente-por-metodo", async (event, metodo) => {
+		try {
+			exigirSessao("admin");
+			return await getTaxaAdquirentePorMetodo(metodo);
+		} catch (erro) {
+			throw erro.message;
+		}
+	});
+
+	ipcMain.handle(
+		"save-taxa-adquirente-por-metodo",
+		async (event, metodo, valor) => {
+			try {
+				exigirSessao("admin");
+				return await saveTaxaAdquirentePorMetodo(metodo, valor);
+			} catch (erro) {
+				throw erro.message;
+			}
+		},
+	);
 }
 
 module.exports = { registrar };

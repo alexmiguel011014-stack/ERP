@@ -209,12 +209,18 @@ async function finalizarVenda(dados, usuarioId) {
 	const clienteId = dados.cliente_id ? Number(dados.cliente_id) : null;
 	const formaPagamento = dados.forma_pagamento || null;
 	const observacao = dados.observacao || null;
+	// origem='orcamento' fica gravado mesmo depois de converterOrcamento() virar
+	// 'finalizada' (esse UPDATE nunca toca em origem) — é o único jeito de saber,
+	// depois do fato, que uma venda nasceu como orçamento (usado por
+	// getConversaoOrcamentos em db/relatorios.js). Sem isso: default 'pdv',
+	// igual sempre foi antes desta coluna existir ganhar esse terceiro valor.
+	const origemVenda = status === "orcamento" ? "orcamento" : "pdv";
 
 	await run("BEGIN TRANSACTION");
 
 	try {
 		const result = await run(
-			"INSERT INTO Vendas (cliente_id, total, forma_pagamento, data_venda, desconto, observacao, status, usuario_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+			"INSERT INTO Vendas (cliente_id, total, forma_pagamento, data_venda, desconto, observacao, status, usuario_id, origem) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
 			[
 				clienteId,
 				total,
@@ -224,6 +230,7 @@ async function finalizarVenda(dados, usuarioId) {
 				observacao,
 				status,
 				usuarioId || null,
+				origemVenda,
 			],
 		);
 		const vendaId = result.lastID;

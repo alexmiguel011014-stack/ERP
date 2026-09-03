@@ -227,6 +227,37 @@ async function saveTaxaAdquirente(valor) {
 	return { success: true };
 }
 
+// Taxa por forma de pagamento (Pix ≠ Cartão de verdade — taxas bem
+// diferentes), opcional: null quando não configurada, e getMargemContribuicao
+// cai de volta pra taxa_adquirente_media acima nesse caso (comportamento de
+// quem nunca configurar isso continua idêntico ao de antes desta feature
+// existir — não é substituição, é refinamento por cima).
+const METODOS_TAXA_ADQUIRENTE = ["pix", "cartao"];
+
+function chaveTaxaMetodo(metodo) {
+	if (!METODOS_TAXA_ADQUIRENTE.includes(metodo)) {
+		throw new Error("Forma de pagamento inválida para taxa de adquirente.");
+	}
+	return "taxa_adquirente_" + metodo;
+}
+
+async function getTaxaAdquirentePorMetodo(metodo) {
+	const row = await getAsync("SELECT valor FROM Configuracao WHERE chave = ?", [
+		chaveTaxaMetodo(metodo),
+	]);
+	return row ? parseFloat(row.valor) || 0 : null;
+}
+
+async function saveTaxaAdquirentePorMetodo(metodo, valor) {
+	const v = Number(valor);
+	if (!Number.isFinite(v) || v < 0) throw new Error("Taxa inválida.");
+	await runAsync(
+		"INSERT OR REPLACE INTO Configuracao (chave, valor) VALUES (?, ?)",
+		[chaveTaxaMetodo(metodo), String(v)],
+	);
+	return { success: true };
+}
+
 async function saveAplicarCustoFixo(produtoId, aplicar) {
 	await runAsync(
 		"UPDATE Precificacao SET aplicar_custo_fixo = ? WHERE produto_id = ?",
@@ -338,6 +369,8 @@ module.exports = {
 	saveCustoFixoConfig,
 	getTaxaAdquirente,
 	saveTaxaAdquirente,
+	getTaxaAdquirentePorMetodo,
+	saveTaxaAdquirentePorMetodo,
 	saveAplicarCustoFixo,
 	saveProductMargin,
 	saveProductPrice,

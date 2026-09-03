@@ -2,12 +2,20 @@
 import { useState } from "react";
 import { usePageHeader } from "@/context/PageHeaderContext";
 import NovoLancamentoForm from "@/components/financeiro/NovoLancamentoForm";
+import AlertaVencimentoHoje from "@/components/financeiro/AlertaVencimentoHoje";
 import LancamentosTab from "@/components/financeiro/LancamentosTab";
 import FluxoCaixaTab from "@/components/financeiro/FluxoCaixaTab";
 import FechamentosTab from "@/components/financeiro/FechamentosTab";
 import PagamentosTab from "@/components/financeiro/PagamentosTab";
+import LancamentosRecorrentesTab from "@/components/financeiro/LancamentosRecorrentesTab";
 
-type Aba = "receber" | "pagar" | "fluxo" | "fechamentos" | "pagamentos";
+type Aba =
+	| "receber"
+	| "pagar"
+	| "fluxo"
+	| "fechamentos"
+	| "pagamentos"
+	| "recorrentes";
 
 const ABAS: { id: Aba; label: string }[] = [
 	{ id: "receber", label: "A Receber" },
@@ -15,6 +23,7 @@ const ABAS: { id: Aba; label: string }[] = [
 	{ id: "fluxo", label: "Fluxo de Caixa" },
 	{ id: "fechamentos", label: "Fechamentos de Caixa" },
 	{ id: "pagamentos", label: "Pagamentos" },
+	{ id: "recorrentes", label: "Recorrentes" },
 ];
 
 export default function FinanceiroPage() {
@@ -58,10 +67,12 @@ export default function FinanceiroPage() {
 				))}
 			</div>
 
-			<NovoLancamentoForm
-				onSalvo={handleLancamentoSalvo}
-				onErro={(texto) => mostrarMensagem(texto, false)}
-			/>
+			{aba !== "recorrentes" && (
+				<NovoLancamentoForm
+					onSalvo={handleLancamentoSalvo}
+					onErro={(texto) => mostrarMensagem(texto, false)}
+				/>
+			)}
 
 			{mensagem && (
 				<div
@@ -75,6 +86,8 @@ export default function FinanceiroPage() {
 				</div>
 			)}
 
+			{(aba === "receber" || aba === "pagar") && <AlertaVencimentoHoje />}
+
 			{(aba === "receber" || aba === "pagar") && (
 				<LancamentosTab
 					key={aba + refreshTick}
@@ -85,6 +98,7 @@ export default function FinanceiroPage() {
 			{aba === "fluxo" && <FluxoCaixaTab />}
 			{aba === "fechamentos" && <FechamentosTab />}
 			{aba === "pagamentos" && <PagamentosTab />}
+			{aba === "recorrentes" && <LancamentosRecorrentesTab />}
 		</div>
 	);
 }

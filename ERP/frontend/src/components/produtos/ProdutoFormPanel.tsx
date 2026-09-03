@@ -51,6 +51,7 @@ export default function ProdutoFormPanel({
 		"",
 	);
 	const [sku, setSku] = useState("");
+	const [codigoBarras, setCodigoBarras] = useState("");
 	const [estoque, setEstoque, limparEstoque] = usePersistedState(
 		"produtos_form_estoque",
 		"0",
@@ -75,6 +76,7 @@ export default function ProdutoFormPanel({
 			setNome(produtoEditando.nome || "");
 			const variacao = produtoEditando.variacoes[0] || null;
 			setSku(variacao ? variacao.sku : "");
+			setCodigoBarras(variacao ? variacao.codigo_barras || "" : "");
 			setEstoque(
 				String(variacao ? Number(variacao.quantidade_estoque || 0) : 0),
 			);
@@ -102,6 +104,7 @@ export default function ProdutoFormPanel({
 		limparNome();
 		limparEstoque();
 		setImagem(null);
+		setCodigoBarras("");
 		limparCategorias();
 		if (!editandoId) buscarProximoSku();
 	}
@@ -144,6 +147,7 @@ export default function ProdutoFormPanel({
 			variacoes: [
 				{
 					sku: sku.trim().toUpperCase(),
+					codigo_barras: codigoBarras.trim() || null,
 					preco: 0,
 					preco_custo: 0,
 					quantidade_estoque: estoqueNum,
@@ -222,6 +226,15 @@ export default function ProdutoFormPanel({
 							step={1}
 						/>
 					</div>
+				</div>
+
+				<div>
+					<Label>Código de barras (EAN)</Label>
+					<Input
+						value={codigoBarras}
+						onChange={(e) => setCodigoBarras(e.target.value)}
+						placeholder="Opcional — leia com o leitor ou digite o código do fabricante"
+					/>
 				</div>
 
 				<div>

@@ -49,7 +49,7 @@ const FORM_VAZIO: FormState = {
 };
 
 function perfilValido(v: string): "admin" | "dono" | "vendedor" {
-	return v === "dono" || v === "vendedor" ? v : "admin";
+	return v === "admin" || v === "dono" ? v : "vendedor";
 }
 
 // Só os campos sem senha — nunca persistir credencial em localStorage.
@@ -108,7 +108,13 @@ export default function UsuarioFormModal({
 				permissoes: parsePermissoesUsuario(usuarioEditando.permissoes),
 			});
 		} else {
-			setForm({ ...FORM_VAZIO, ...rascunho });
+			const base = { ...FORM_VAZIO, ...rascunho };
+			// Dono não pode criar admin — se o padrão (ou um rascunho salvo
+			// antes desta correção) ainda apontar "admin", cai pra "dono".
+			if (sessao.perfil !== "admin" && base.perfil === "admin") {
+				base.perfil = "dono";
+			}
+			setForm(base);
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [isOpen, usuarioEditando]);
@@ -144,6 +150,14 @@ export default function UsuarioFormModal({
 
 	const ehVendedor = form.perfil === "vendedor";
 	const editando = !!usuarioEditando;
+	// Achado real (2026-09-02): dono via a opção "Adm" aqui e conseguia criar
+	// outro admin — só quem já é admin pode criar/promover admin (o backend
+	// também bloqueia isso, esta é só a UI não oferecer a opção). Continua
+	// aparecendo ao editar a própria conta do admin já existente, porque
+	// dono ainda pode tocar no resto do cadastro dele (nome, ativo — pedido
+	// explícito anterior, ver donoBloqueadoNaSenha abaixo).
+	const mostrarOpcaoAdmin =
+		sessao.perfil === "admin" || usuarioEditando?.perfil === "admin";
 	const editandoASiMesmo =
 		editando && sessao.usuario?.id === usuarioEditando!.id;
 	// Dono nunca mexe na senha do admin — mas pode editar o resto do cadastro
@@ -307,7 +321,7 @@ export default function UsuarioFormModal({
 							onChange={(e) => campo("perfil", perfilValido(e.target.value))}
 							className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
 						>
-							<option value="admin">Adm</option>
+							{mostrarOpcaoAdmin && <option value="admin">Adm</option>}
 							<option value="dono">Dono</option>
 							<option value="vendedor">Funcionário</option>
 						</select>

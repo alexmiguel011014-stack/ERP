@@ -293,6 +293,26 @@ async function iniciarBanco() {
   `,
 	);
 
+	// Templates de lançamento recorrente (aluguel todo dia 5, etc.) — cada
+	// login gera (idempotente, ver gerarLancamentosRecorrentesDoMes em
+	// db/financeiro.js) o LancamentosFinanceiros do mês corrente se ainda não
+	// existir, mesmo padrão idempotente do backup automático (main.js).
+	await runOn(
+		conexao,
+		`
+    CREATE TABLE IF NOT EXISTS LancamentosRecorrentes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tipo TEXT NOT NULL,
+      descricao TEXT NOT NULL,
+      valor REAL NOT NULL,
+      dia_mes INTEGER NOT NULL,
+      categoria TEXT,
+      ativo INTEGER NOT NULL DEFAULT 1,
+      criado_em TEXT
+    )
+  `,
+	);
+
 	// Recebimentos (Pix/Boleto/etc.) vinculados a uma venda.
 	await runOn(
 		conexao,
@@ -495,6 +515,17 @@ async function iniciarBanco() {
 	// o pedido só vira 'recebido' quando todo item atingir sua quantidade.
 	await migrarColunas(conexao, "ItensPedidoCompra", {
 		quantidade_recebida: "quantidade_recebida INTEGER NOT NULL DEFAULT 0",
+	});
+	// Código de barras/EAN do fabricante — separado do sku (gerado pela loja),
+	// nem toda variação tem um, e duas marcas podem colidir na prática, então
+	// fica nullable e sem UNIQUE (dedupe é aviso na UI, não trava no banco).
+	await migrarColunas(conexao, "Variacoes", {
+		codigo_barras: "codigo_barras TEXT",
+	});
+	// Categoria do lançamento financeiro (aluguel, fornecedores, ...) — opcional,
+	// lançamentos antigos ficam sem categoria até serem editados.
+	await migrarColunas(conexao, "LancamentosFinanceiros", {
+		categoria: "categoria TEXT",
 	});
 	await criarVariacoesPadrao(conexao);
 

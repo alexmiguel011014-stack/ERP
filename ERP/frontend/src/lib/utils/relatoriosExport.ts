@@ -4,6 +4,9 @@ import type {
 	ComissaoLinha,
 	CurvaAbcLinha,
 	DreResultado,
+	GiroEstoqueLinha,
+	MargemContribuicaoResultado,
+	PontoDeEquilibrioResultado,
 	RelatorioVendasResultado,
 } from "@/lib/erpApi";
 
@@ -44,17 +47,26 @@ export function exportarCurvaAbcCsv(linhas: CurvaAbcLinha[]) {
 }
 
 // Réplica do relatório gerencial em PDF que a versão vanilla já gera
-// (jsPDF, client-side, sem plugin de tabela). Igual à vanilla, não inclui
-// Margem de Contribuição / Ponto de Equilíbrio / Giro de Estoque — só as
-// seções que já existiam no export original. Diferente da vanilla: a
+// (jsPDF, client-side, sem plugin de tabela). Diferente da vanilla: a
 // tabela de Comissões era impressa duas vezes por um bug de copy-paste no
 // código original — corrigido aqui, não replicado.
+//
+// Achado real (2026-09-02): quando esta função foi portada, ficou faltando
+// Margem de Contribuição / Ponto de Equilíbrio / Giro de Estoque mesmo essas
+// três já aparecendo na tela (PainelMargemPontoEquilibrio/PainelGiroEstoque)
+// — o que o dono vê e o que sai no PDF exportado estavam mostrando coisas
+// diferentes. Corrigido: os três parâmetros abaixo são opcionais (`| null`)
+// só porque a tela pode não ter carregado ainda, não porque a seção seja
+// dispensável.
 export function exportarRelatorioPdf(dados: {
 	periodo: { inicio: string; fim: string };
 	resumo: RelatorioVendasResultado | null;
 	dre: DreResultado | null;
 	comissoes: ComissaoLinha[];
 	curvaAbc: CurvaAbcLinha[];
+	margemContribuicao: MargemContribuicaoResultado | null;
+	pontoDeEquilibrio: PontoDeEquilibrioResultado | null;
+	giroEstoque: GiroEstoqueLinha[];
 }) {
 	const doc = new jsPDF({ unit: "pt", format: "a4" });
 	const margem = 40;
@@ -157,6 +169,45 @@ export function exportarRelatorioPdf(dados: {
 			`Lucro Líquido (${dados.dre.margemLiquidaPercentual.toFixed(1)}%): ${formatarMoeda(dados.dre.lucroLiquido)}`,
 		);
 		y += 8;
+	}
+
+	if (dados.margemContribuicao) {
+		titulo("Margem de Contribuição");
+		linhaTexto(
+			`Total no período: ${formatarMoeda(dados.margemContribuicao.margemContribuicaoTotal)}`,
+		);
+		linhaTexto(
+			`Média por unidade: ${formatarMoeda(dados.margemContribuicao.margemContribuicaoUnitariaMedia)} (${dados.margemContribuicao.margemContribuicaoPercentualMedia.toFixed(1)}%)`,
+		);
+		y += 8;
+	}
+
+	if (dados.pontoDeEquilibrio) {
+		titulo("Ponto de Equilíbrio");
+		linhaTexto(
+			`Custo fixo mensal: ${formatarMoeda(dados.pontoDeEquilibrio.custoFixoMensal)}`,
+		);
+		linhaTexto(
+			dados.pontoDeEquilibrio.faturamentoNecessario != null
+				? `Faturamento necessário: ${formatarMoeda(dados.pontoDeEquilibrio.faturamentoNecessario)} (${dados.pontoDeEquilibrio.quantidadeNecessaria} unidades)`
+				: "Sem margem de contribuição suficiente para calcular.",
+		);
+		y += 8;
+	}
+
+	if (dados.giroEstoque.length > 0) {
+		titulo("Giro de Estoque");
+		tabela(
+			["Produto", "Vendido", "Estoque", "Giro", "Dias p/ reposição"],
+			dados.giroEstoque.map((g) => [
+				g.produto_nome,
+				g.quantidadeVendida,
+				g.estoqueAtual,
+				g.giro != null ? g.giro.toFixed(2) : "-",
+				g.diasParaReposicao != null ? g.diasParaReposicao : "-",
+			]),
+			[180, 60, 60, 60, 110],
+		);
 	}
 
 	if (dados.comissoes.length > 0) {

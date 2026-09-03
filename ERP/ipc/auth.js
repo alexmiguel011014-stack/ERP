@@ -3,7 +3,14 @@ const {
 	desbloquearBanco,
 	trocarChave,
 	bloquearBanco,
+	gerarLancamentosRecorrentesDoMes,
 } = require("../database");
+
+// Mesmo padrão fire-and-forget de log() em main.js — nunca deve interromper
+// o login se o gerador falhar por qualquer motivo.
+function gerarRecorrentesSemQuebrarLogin() {
+	gerarLancamentosRecorrentesDoMes().catch(() => {});
+}
 
 function registrar(ipcMain, deps) {
 	const {
@@ -26,6 +33,7 @@ function registrar(ipcMain, deps) {
 				permissoes: resultado.usuario.permissoes || {},
 			});
 			iniciarBackupAutomatico();
+			gerarRecorrentesSemQuebrarLogin();
 			log("login", "Usuarios", resultado.usuario.id, null);
 			return resultado;
 		} catch (erro) {
@@ -38,6 +46,7 @@ function registrar(ipcMain, deps) {
 			const resultado = await desbloquearBanco(senha);
 			setSessao({ perfil: "admin" });
 			iniciarBackupAutomatico();
+			gerarRecorrentesSemQuebrarLogin();
 			return resultado;
 		} catch (erro) {
 			throw erro.message;

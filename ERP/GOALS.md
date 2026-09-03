@@ -2601,6 +2601,262 @@ report was the user waiting for a restart that was never going to happen on its 
 
 ---
 
+## Produtos, Financeiro & Relatórios — Module Improvement Pass (feature, not started)
+
+**Source**: owner request (2026-09-02) — "revisar 3 módulos", specifically named product
+images as one known gap and asked for a real audit of the other two plus web research on
+what's plausible. First pass came back too shallow per the owner's own read of it, so it was
+re-run deeper — that pass also strayed into two adjacent modules (Vendas/PDV, Compras); the
+owner then explicitly redrew the boundary: **stay inside Produtos/Financeiro/Relatórios only,
+don't stray** (2026-09-02). The Vendas/PDV split-payment and Compras auto-restock findings
+from that pass were real and stay noted below under "Out of scope" so the research isn't lost
+and isn't silently redone later, but neither is part of this plan.
+
+Every item was checked against the actual code first, never assumed from the module name. One
+correction came out of that discipline: the owner believed product image upload didn't exist
+yet — it does, already wired end-to-end (`db/produtos.js:736-788`
+`salvarImagemProduto`/`removerImagemProduto` → `ProdutoImagemPicker.tsx` inside
+`ProdutoFormPanel.tsx`). Web research (product catalog/PIM practices, small-business AP/AR
+module scope, retail analytics/RFM) backs the items that come from outside this codebase
+rather than from reading it.
+
+**Out of scope, explicitly**: fiscal (NF-e/NFC-e) and Pix — both already have working
+integrations in this codebase (`integracoes/fiscal/provider.js` + `providers/focusnfe.js`;
+`integracoes/pix/{payload,provider,qrimage}.js` + `providers/efi.js`), but the owner decided
+(2026-09-02) not to pursue further integration work there — closed, same status as the paused
+Payment Processor Integration section above, don't reopen without the owner raising it. Also
+out of scope: Vendas/PDV split payment (`Vendas.forma_pagamento` is a single column, no way to
+record part-Pix-part-cartão in one sale — real finding, but a different module than the three
+named here) and Compras' automatic reorder suggestion (joining `getEstoqueBaixo` +
+`getGiroEstoque` into a pre-filled `PedidoCompra` — also real, also a different module) — both
+noted here only so a future pass on those specific modules doesn't have to re-derive them from
+scratch. Also out of scope, from the first pass: bank reconciliation / OFX import and multiple
+bank/cash accounts (no bank data integration point in this local-only app), and a full
+DAS/Simples Nacional calculator (accountant's job, already excluded by the Financial/
+Accounting Depth section above).
+
+```mermaid
+flowchart TD
+    subgraph Produtos
+        P1[codigo_barras column on Variacoes] --> P2[PDV/cadastro search by SKU or EAN]
+        P1 --> P9[Etiqueta/label printing]
+        P3[Variacoes.imagem column] --> P4[Per-variação image UI]
+        P4 --> P5[ProdutoImagens table + gallery]
+        P6[Bulk catalog import]
+        P7[Kits/combos]
+        P8[Histórico de custo]
+    end
+    subgraph Financeiro
+        F1[categoria column on LancamentosFinanceiros] --> F2[Aging de recebíveis]
+        F3[Cash-flow forecast from open lançamentos]
+        F4[Recurring lançamento template]
+        F5[Taxa de adquirente por forma de pagamento]
+        F6[Meta financeira mensal] --> R8[Meta vs. realizado panel]
+    end
+    subgraph Relatorios
+        F2 --> R1[Aging report panel]
+        F1 --> R2[Spend-by-category panel]
+        R3[RFM client segmentation]
+        R4[Período anterior comparison]
+        R5[Produtos parados]
+        R6[Sazonalidade heatmap]
+        R7[Taxa de conversão orçamento→venda]
+        R9[PDF export: add margem/PE/giro]
+    end
+```
+
+### Produtos — Catalog & Image Depth
+
+- [x] **Barcode/EAN field, separate from internal SKU.** No `codigo_barras`/EAN column exists
+      anywhere in `db/schema.js` today — `Variacoes.sku` is the only identifier, and it's
+      store-generated, not the manufacturer barcode already printed on many products. Add
+      `codigo_barras TEXT` to `Variacoes` (via `migrarColunas`, same pattern as every other
+      post-launch column in this schema). Design decision: nullable, not unique-enforced at
+      the DB level (a store may not have barcodes for everything, and secondhand/duplicate
+      barcodes across brands happen in practice) — dedupe as a soft warning in the UI, not a
+      hard constraint.
+- [x] **Wire barcode into search.** Corrected mid-implementation: `buscarProdutosPDV02` turned
+      out to be dead code (kept but never exported/called) — the real PDV search path is
+      `buscarProdutosPorTermo`. Extended `buscarSKU` and `buscarProdutosPorTermo`
+      (`db/produtos.js`) to also match `codigo_barras`, plus the input field in
+      `ProdutoFormPanel.tsx` to actually populate it (the plan's original wording only covered
+      search, not entry — without a way to type/scan the value in, the column would exist but
+      nobody could ever fill it). Tests: `test/produtos-financeiro-melhorias.test.js`.
+- [ ] **Per-variação image**, not just per-produto. Today `Produtos.imagem` is one photo shared
+      by every color/size of that product — a shirt in "Azul" and "Branco" show the same
+      picture. Add `imagem TEXT` to `Variacoes` (parallel column, same
+      `salvarImagemProduto`/`removerImagemProduto` functions generalized to take either a
+      `produtoId` or `variacaoId`), fall back to the product-level image when a variação has
+      none set (avoids forcing a photo re-upload for every existing SKU). UI: the variação
+      editor rows in `ProdutoFormPanel.tsx` gain their own small `ProdutoImagemPicker` instance
+      next to each color/size, not just the one at the top.
+- [ ] **Multiple images per product (gallery), not just one.** Requires replacing the single
+      `Produtos.imagem` TEXT column with a proper `ProdutoImagens` table
+      (`id, produto_id, variacao_id NULL, caminho, ordem`) — a real schema change, not another
+      column. Migration: on first run after this ships, backfill one `ProdutoImagens` row per
+      product/variação that already has a legacy `imagem` value, so existing photos aren't
+      lost. UI: `ProdutoImagemPicker` becomes a horizontal strip (thumbnail + "add" tile) instead
+      of the current single 80×80 box; PDV/catalog views keep using image #1 (lowest `ordem`) as
+      the primary thumbnail, unchanged.
+- [ ] **Drag-and-drop image area**, matching what the owner actually asked for ("uma área para
+      por imagem") — today `ProdutoImagemPicker.tsx` is a button ("Escolher imagem...") that
+      opens a native OS file dialog via IPC, not a drop zone. Add HTML5 drag-and-drop
+      (`onDragOver`/`onDrop`) to the same picker component; in Electron's renderer, a dropped
+      `File` needs its real filesystem path resolved via `webUtils.getPathForFile` (Electron
+      ≥32, confirm the pinned Electron version in `package.json` supports it before
+      implementing) to reuse the existing `salvarImagemProduto(caminhoOrigem)` IPC path — this
+      is the one item here with a real API-availability check before implementation, flag it in
+      the architect pass.
+- [ ] **Bulk product/catalog import.** Confirmed this session while reviewing a separate
+      migration request: the only existing JSON importer
+      (`modules/importacao/importacao.js` → `db/vendas.js:importarVendasHistoricas`) is scoped
+      to historical sales rows only — it does not create Produtos, Variações, or Categorias.
+      There is currently no way to seed a new store's catalog except one product at a time
+      through `ProdutoFormPanel`. A bounded, separate importer (categorias → produtos →
+      variações → estoque, same staged-JSON approach already designed for the Loja House
+      migration) would close this — reuse that design rather than inventing a second one.
+      **Out of scope for this item specifically**: this is the same "importador de migração"
+      already scoped as its own effort elsewhere in this conversation, not a new design — listed
+      here only so it isn't lost as a Produtos-module gap.
+- [ ] **Kits/combos (bundle SKU).** Confirmed absent: `ItensVenda.variacao_id` points at one
+      real `Variacoes` row per line — there is no concept of a composite SKU that, when sold,
+      decrements several underlying variações at once (e.g. "kit iniciante" = 1 kimono + 1
+      faixa + 1 rash, sold and stocked as one line but consuming three real stock rows). New
+      `KitItens` table (`kit_variacao_id, componente_variacao_id, quantidade`) plus a check in
+      `finalizarVenda`/`registrarVendaComEstoque` (`db/vendas.js`) that expands a kit line into
+      its components before the existing stock-debit logic runs — reuses the existing
+      atomic-transaction debit path rather than adding a parallel one. Real retail feature (not
+      speculative): common in exactly the vertical this ERP already serves (kimono + faixa +
+      rash combos), not a generic "might be useful someday" abstraction.
+- [ ] **Histórico de custo (cost trend over time).** `Variacoes.preco_custo` is a single
+      current value, overwritten by `aplicarEntradaEstoque`'s weighted-average calc
+      (`db/estoque.js:31`) every time new stock comes in — there is no time series showing how a
+      SKU's cost moved over the last 6 months, so margin erosion from a supplier's price
+      increase is invisible until the owner notices it manually. `MovimentacoesEstoque` already
+      stores `custo_unitario` per entrada row — the raw data survives, it's just never
+      queried as a trend. New `getHistoricoCusto(variacaoId)` in `db/relatorios.js`: the
+      existing `custo_unitario` column from `MovimentacoesEstoque` (`tipo='entrada'`), ordered
+      by `data`, no new storage needed.
+- [ ] **Etiqueta/label printing (código de barras + preço).** Pairs directly with the
+      `codigo_barras` item above — once a SKU has a barcode value (owner-entered or
+      manufacturer's), there's still no way to print a physical price tag with that barcode for
+      products that don't already carry one from the manufacturer (common for locally-made or
+      relabeled items in this vertical). New: a printable label view (HTML template rendered to
+      the browser's native print dialog — Electron's `webContents.print()`/`printToPDF`, no new
+      dependency needed for a first version) generating a barcode graphic from
+      `codigo_barras`/`sku` client-side (a small barcode-rendering library, e.g. JsBarcode, is
+      the standard choice here — confirm bundle-size impact is acceptable before adding it) plus
+      `nome`/`preco`, one label per selected SKU, sized for common label sheet formats (confirm
+      which label size/printer the store actually has before hardcoding a layout).
+
+### Financeiro — Scope Gaps
+
+- [x] **Cash-flow forecast (projected), not only realized.** New
+      `getFluxoCaixaProjetado(dataInicio, dataFim)` (`db/financeiro.js`) — same day-bucket/
+      running-balance shape as `getFluxoCaixa`, sourced from open lançamentos by
+      `data_vencimento`, default window today→+30 days. `FluxoCaixaProjetadoCard.tsx`, fixed
+      to the rolling 30-day window (independent of `FluxoCaixaTab`'s own inicio/fim filter,
+      which is for the *realized* view — mixing the two under one filter would be confusing:
+      one looks backward, one forward). Tests: `test/financeiro-melhorias-batch3.test.js`.
+- [x] **`categoria` column on `LancamentosFinanceiros`.** Owner confirmed the standard list
+      (2026-09-02): Aluguel, Fornecedores, Folha/Comissão, Marketing, Impostos, Manutenção,
+      Outros — fixed in `CATEGORIAS_FINANCEIRAS` (`db/financeiro.js`), validated server-side
+      (`validarCategoria`, rejects anything not in the list), same array duplicated in
+      `erpApi.ts` for the dropdown (no IPC round-trip for a static list). Optional, as planned —
+      `criarLancamento`/`criarLancamentoParcelado` accept `categoria: null`. Tests:
+      `test/produtos-financeiro-melhorias.test.js`.
+- [x] **Aging de recebíveis (overdue receivables by days-late bucket).** New
+      `getAgingRecebiveis()` (`db/financeiro.js`) — buckets `aVencer`/`atraso0a30`/`atraso31a60`/
+      `atraso61a90`/`atraso90mais`, each with itens/total/quantidade. Gated by
+      `exigirPermissao("relatorios")`, not `"financeiro"` (the panel lives on the Relatórios
+      page — see below — a vendedor with relatorios-but-not-financeiro access shouldn't see that
+      one panel break). Tests: `test/relatorios-melhorias.test.js`.
+- [x] **Recurring lançamento template**, distinct from the existing installment split. Owner
+      confirmed (2026-09-02): auto-generate on login, same idempotent pattern as
+      `iniciarBackupAutomatico`. New `LancamentosRecorrentes` table (tipo, descrição, valor,
+      dia_mes, categoria, ativo) + CRUD in `db/financeiro.js` +
+      `gerarLancamentosRecorrentesDoMes()`, called fire-and-forget from `ipc/auth.js` on every
+      login (never blocks/breaks login if it fails, same contract as `log()`). Idempotency key:
+      checks for an existing `LancamentosFinanceiros` row with `origem='recorrente' AND
+      referencia_id=<template.id>` in the current year-month before inserting — not "only run
+      once a month," "always safe to run, checks first." `dia_mes` clamps to the real last day
+      of the month (e.g. 31 → 30 in a 30-day month), not a blanket cap. UI:
+      `LancamentosRecorrentesTab.tsx`, new "Recorrentes" tab on `FinanceiroPage`. Tests:
+      `test/financeiro-melhorias-batch3.test.js` (including the idempotency check itself: calling
+      the generator twice in the same month produces exactly one row, not two).
+- [x] **Taxa de adquirente por forma de pagamento, not one flat average.** Corrected mid-
+      implementation: the plan assumed a credit/debit split that doesn't exist in this app — PDV
+      only accepts "PIX"/"Cartão"/"Dinheiro"/"Fiado" (`PagamentoPainel.tsx`), no separate
+      crédito/débito. Built as `taxa_adquirente_pix`/`taxa_adquirente_cartao`
+      (`getTaxaAdquirentePorMetodo`/`saveTaxaAdquirentePorMetodo`, `db/precificacao.js`) —
+      **additive, not a replacement**: each is `null` until the owner explicitly sets it, and
+      `getMargemContribuicao` falls back to the existing flat `taxa_adquirente_media` per sale
+      when no method-specific rate is configured. This means the pre-existing
+      `test/relatorios-financeiro.test.js` margem test needed zero changes — verified passing
+      unchanged, not just assumed. `getMargemContribuicao`'s query changed from `GROUP BY p.id`
+      to `GROUP BY p.id, forma_pagamento` (re-aggregated back to per-produto for the same output
+      shape) since the rate can now vary within one product's sales in the same period. New UI
+      fields on the Precificação page, additive next to the existing flat-rate field, not
+      replacing it. Tests: `test/financeiro-melhorias-batch3.test.js`.
+- [x] **Alertas de vencimento dentro do módulo.** New `getLancamentosVencendoHoje()`
+      (`db/financeiro.js`, filters `status='aberto' AND DATE(data_vencimento) = hoje`) +
+      `AlertaVencimentoHoje.tsx`, shown above `LancamentosTab` when the "A Pagar"/"A Receber"
+      tabs are open, same as planned. Tests: `test/produtos-financeiro-melhorias.test.js`.
+- [x] **Meta financeira mensal (orçamento vs. realizado).** `Configuracao` key
+      `meta_faturamento_mensal`, same manual-entry pattern as `aliquotaDAS` — get/save functions
+      plus a card in `FluxoCaixaTab.tsx` (natural home: same tab already shows the period's real
+      `totalEntradas`) comparing it against the filtered period with a progress bar. Tests:
+      `test/produtos-financeiro-melhorias.test.js`.
+
+### Relatórios — New Evaluation Metrics
+
+- [x] **RFM-style client segmentation.** New `getSegmentacaoClientes()` (`db/relatorios.js`) —
+      tiers Frequente/Ativo/Em risco/Inativo/Nunca comprou from recency+frequency, no statistical
+      RFM scoring (matches the "practical numbers" judgment already made for Curva ABC/DRE).
+      `PainelSegmentacaoClientes.tsx`. Tests: `test/relatorios-melhorias.test.js`.
+- [x] **Período anterior comparison (% growth vs. previous period), extended to Relatórios.**
+      `getRelatorioVendas` now also returns `vendasVariacao`/`faturamentoVariacao`/
+      `periodoAnterior`, same `variacaoPercentual()` null-when-no-base convention as the
+      dashboard's hoje/ontem calc (`db/dashboard.js`). Surfaced as the same `Badge`+arrow-icon
+      component from `DashboardStatCards.tsx`, replicated in `RelatoriosStats.tsx`. Tests:
+      `test/relatorios-melhorias.test.js`.
+- [x] **Taxa de conversão orçamento → venda.** Confirmed the suspected gap for real: `Vendas`
+      had no marker surviving `converterOrcamento` back to its creation. Fixed at the source —
+      `db/vendas.js`'s `finalizarVenda` now writes `origem = 'orcamento'` (vs. the existing
+      `'pdv'` default) when a sale starts as an orçamento; `converterOrcamento` never touches
+      `origem`, so it survives conversion. New `getConversaoOrcamentos()` — documented, real
+      caveat: "convertidas" is anchored to the *conversion* date (`data_venda` gets overwritten
+      on conversion), while "canceladas"/"abertas" are anchored to the *creation* date (never
+      rewritten for those two outcomes) — inherent to what the schema retains, not a bug.
+      `PainelConversaoOrcamentos.tsx`. Tests: `test/relatorios-melhorias.test.js`.
+- [x] **Aging de recebíveis report panel** — `PainelAgingRecebiveis.tsx`, consuming the
+      `getAgingRecebiveis()` backend function (see Financeiro section above).
+- [x] **Produtos parados (stale/no-movement stock).** New `getProdutosParados()`
+      (`db/relatorios.js`) — groups by **variação** (`v.id`), not by produto like
+      `getGiroEstoque` does, since color/size of the same product can sell very differently.
+      `PainelProdutosParados.tsx`. Tests: `test/relatorios-melhorias.test.js`.
+- [x] **Sazonalidade (weekday/hour sales pattern).** New `getSazonalidade()` — whole sales
+      history (no period filter, a long-term pattern isn't meaningful restricted to one month),
+      `strftime('%w'/'%H', data_venda)` grouping. `PainelSazonalidade.tsx` (simple CSS bars, no
+      new chart dependency — this app already uses ApexCharts for the Dashboard's one real chart,
+      judged not worth adding here for two small bar lists). Tests:
+      `test/relatorios-melhorias.test.js`.
+- [x] **PDF export is missing 3 of the 7 panels already on screen — a real, verified gap, not a
+      hypothetical addition.** Fixed: `exportarRelatorioPdf` now takes `margemContribuicao`,
+      `pontoDeEquilibrio`, `giroEstoque` too, `relatorios/page.tsx` passes them (already
+      available from `useRelatorios()`, no new fetch), `relatoriosExport.ts` renders all three
+      right after the DRE section. No backend change, as planned. No dedicated test (this is a
+      jsPDF layout function — no existing test in this repo exercises PDF rendering, and adding
+      PDF-content assertion infra wasn't judged worth it for this fix; verified by reading the
+      generated code path instead).
+- [ ] **Meta vs. realizado panel** — the Relatórios-side view of the Financeiro `meta
+      financeira mensal` item above: a new `PainelMetaRealizado` component comparing the
+      period's actual `faturamento` (already computed by `getRelatorioVendas`) against the
+      owner-set `meta_faturamento_mensal`, with a simple progress bar — same page, next to
+      `RelatoriosStats`.
+
+---
+
 ## Suggested order
 
 1. ~~P0 fix (pagamentos migration)~~ — done. Also found and fixed, beyond the missing table:
@@ -2650,6 +2906,31 @@ report was the user waiting for a restart that was never going to happen on its 
     module-by-module once a module has its own clean boundary, owner-guided session to session —
     no fixed order. Independent of items 5/7/8 above (no shared files), but item 5 (clean-machine
     installer test) should be re-run once packaging changes for submodule checkout, not just once.
+12. **Produtos, Financeiro & Relatórios — Module Improvement Pass (see section above) — in
+    progress, split into 4 batches at the owner's request (go slow, verify each before the
+    next).** Scope explicitly confirmed with the owner (2026-09-02): these three modules only —
+    Vendas/PDV and Compras findings noted as "out of scope" in that section, not part of this
+    item. Independent of items 7/8/11 (no shared files).
+    - ~~Batch 1~~ — done (2026-09-02): `codigo_barras` field+search, Financeiro `categoria`
+      (owner-confirmed standard list) + meta financeira mensal + alerta de vencimento, PDF export
+      fix. 81/81 tests passing.
+    - ~~Batch 2~~ — done (2026-09-02): RFM segmentation, período anterior comparison, taxa de
+      conversão orçamento (required a real fix in `finalizarVenda` to track `origem='orcamento'`
+      through conversion — the plan correctly flagged this needed checking before assuming no
+      schema change), aging de recebíveis (function + panel), produtos parados, sazonalidade.
+      87/87 tests passing. Not yet committed.
+    - ~~Batch 3~~ — done (2026-09-02): cash-flow forecast, taxa de adquirente por forma de
+      pagamento (owner-confirmed the generation mechanism was auto-on-login for the recurring
+      item; the "credito/debito" split in the original item text turned out not to match this
+      app's real payment methods — corrected to pix/cartão mid-implementation), recurring
+      lançamento template (new table + idempotent generator + UI tab). 102/102 tests passing,
+      pre-existing margem-de-contribuição test verified passing unchanged (additive design, not
+      a replacement). Not yet committed.
+    - **Batch 4 (next, last, most schema-heavy)** — Produtos: per-variação image, multi-image gallery
+      (real schema change — new `ProdutoImagens` table), drag-and-drop area (needs an Electron
+      API-version check first), kits/combos (new `KitItens` table), histórico de custo, etiqueta/
+      label printing (needs an owner decision on label size/printer before starting).
+
 ---
 
 ## Data Migration: Loja House → ALLU ERP (feature, not started)

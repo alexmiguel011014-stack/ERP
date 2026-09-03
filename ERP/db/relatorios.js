@@ -1,7 +1,30 @@
 const { allAsync, getAsync } = require("./conexao");
-const { getTaxaAdquirente, getCustoFixoConfig } = require("./precificacao");
+const {
+	getTaxaAdquirente,
+	getTaxaAdquirentePorMetodo,
+	getCustoFixoConfig,
+} = require("./precificacao");
 
 /* ============ Relatórios ============ */
+
+function diasEntre(inicio, fim) {
+	const a = new Date(inicio + "T00:00:00Z");
+	const b = new Date(fim + "T00:00:00Z");
+	return Math.round((b - a) / 86400000) + 1;
+}
+
+function somarDias(dataStr, dias) {
+	const d = new Date(dataStr + "T00:00:00Z");
+	d.setUTCDate(d.getUTCDate() + dias);
+	return d.toISOString().slice(0, 10);
+}
+
+// Mesma convenção do comparativo "hoje vs. ontem" do dashboard
+// (db/dashboard.js) — null quando não há base de comparação, não 0/Infinity.
+function variacaoPercentual(atual, anterior) {
+	if (!anterior) return null;
+	return ((atual - anterior) / anterior) * 100;
+}
 
 // DRE simplificado (regime de caixa para despesas, já que é isso que o
 // Fluxo de Caixa também usa): Receita líquida - CMV = Lucro Bruto;
@@ -77,12 +100,31 @@ async function getRelatorioVendas(dataInicio, dataFim) {
 		[inicio, fim],
 	);
 
+	// Período anterior de igual duração, pra comparação — generaliza o mesmo
+	// cálculo "hoje vs. ontem" que o dashboard já faz (db/dashboard.js), mas
+	// pro range arbitrário que o dono escolher aqui em vez de fixo em 1 dia.
+	const fimAnterior = somarDias(inicio, -1);
+	const inicioAnterior = somarDias(fimAnterior, -(diasEntre(inicio, fim) - 1));
+	const resumoAnterior = await getAsync(
+		"SELECT COUNT(*) AS vendas, COALESCE(SUM(total), 0) AS faturamento FROM Vendas WHERE status = 'finalizada' AND DATE(data_venda) BETWEEN ? AND ?",
+		[inicioAnterior, fimAnterior],
+	);
+
 	return {
 		resumo: {
 			vendas: resumo.vendas,
 			faturamento: resumo.faturamento,
 			descontos: resumo.descontos,
 			ticketMedio: resumo.vendas > 0 ? resumo.faturamento / resumo.vendas : 0,
+			vendasVariacao: variacaoPercentual(
+				resumo.vendas,
+				Number(resumoAnterior.vendas) || 0,
+			),
+			faturamentoVariacao: variacaoPercentual(
+				resumo.faturamento,
+				Number(resumoAnterior.faturamento) || 0,
+			),
+			periodoAnterior: { inicio: inicioAnterior, fim: fimAnterior },
 		},
 		porDia,
 		porPagamento,
@@ -176,10 +218,30 @@ async function getMargemContribuicao(dataInicio, dataFim) {
 	const inicio = dataInicio || hoje.slice(0, 8) + "01";
 	const fim = dataFim || hoje;
 
-	const taxaAdquirente = await getTaxaAdquirente();
+	// taxaPix/taxaCartao ficam null quando o dono nunca configurou a taxa por
+	// forma de pagamento — cai pra taxaAdquirente (a média antiga) nesse caso,
+	// então quem nunca mexer nessa config nova tem o cálculo idêntico a antes
+	// dela existir. Achado real ao implementar (2026-09-02): PDV só aceita
+	// "PIX"/"Cartão"/"Dinheiro"/"Fiado" — não existe distinção crédito/débito
+	// neste app, diferente do que o plano original supôs.
+	const [taxaAdquirente, taxaPix, taxaCartao] = await Promise.all([
+		getTaxaAdquirente(),
+		getTaxaAdquirentePorMetodo("pix"),
+		getTaxaAdquirentePorMetodo("cartao"),
+	]);
+	function taxaParaForma(forma) {
+		const chave = String(forma || "").toLowerCase();
+		if (chave === "pix" && taxaPix !== null) return taxaPix;
+		if (chave === "cartão" && taxaCartao !== null) return taxaCartao;
+		return taxaAdquirente;
+	}
 
+	// Agrupado por (produto, forma de pagamento) — não só por produto — porque
+	// a taxa agora pode variar por forma de pagamento dentro do mesmo produto
+	// no mesmo período. Reagregado por produto logo abaixo pra manter a mesma
+	// forma de retorno (porProduto) de antes desta mudança.
 	const linhas = await allAsync(
-		`SELECT p.id AS produto_id, p.nome AS produto_nome,
+		`SELECT p.id AS produto_id, p.nome AS produto_nome, v2.forma_pagamento,
    SUM(iv.quantidade) AS quantidade,
    SUM(iv.quantidade * iv.preco_unitario) AS receita,
    SUM(iv.quantidade * var.preco_custo) AS cmv,
@@ -192,21 +254,22 @@ async function getMargemContribuicao(dataInicio, dataFim) {
    LEFT JOIN Precificacao pr ON pr.produto_id = p.id
    LEFT JOIN Usuarios v ON v.id = v2.usuario_id
    WHERE v2.status = 'finalizada' AND DATE(v2.data_venda) BETWEEN ? AND ?
-   GROUP BY p.id`,
+   GROUP BY p.id, v2.forma_pagamento`,
 		[inicio, fim],
 	);
 
 	let margemTotal = 0;
 	let receitaTotal = 0;
 	let quantidadeTotal = 0;
+	const porProdutoMap = new Map();
 
-	const porProduto = linhas.map((l) => {
+	for (const l of linhas) {
 		const receita = Number(l.receita) || 0;
 		const cmv = Number(l.cmv) || 0;
 		const quantidade = Number(l.quantidade) || 0;
 		const comissaoValor =
 			(receita * (Number(l.comissao_percentual) || 0)) / 100;
-		const taxaValor = (receita * taxaAdquirente) / 100;
+		const taxaValor = (receita * taxaParaForma(l.forma_pagamento)) / 100;
 		const impostos = (Number(l.impostos_extras) || 0) * quantidade;
 		const margemContribuicao =
 			receita - cmv - comissaoValor - taxaValor - impostos;
@@ -215,18 +278,26 @@ async function getMargemContribuicao(dataInicio, dataFim) {
 		receitaTotal += receita;
 		quantidadeTotal += quantidade;
 
-		return {
+		const acumulado = porProdutoMap.get(l.produto_id) || {
 			produto_id: l.produto_id,
 			produto_nome: l.produto_nome,
-			quantidade,
-			receita,
-			margemContribuicao,
-			margemContribuicaoUnitaria:
-				quantidade > 0 ? margemContribuicao / quantidade : 0,
-			margemContribuicaoPercentual:
-				receita > 0 ? (margemContribuicao / receita) * 100 : 0,
+			quantidade: 0,
+			receita: 0,
+			margemContribuicao: 0,
 		};
-	});
+		acumulado.quantidade += quantidade;
+		acumulado.receita += receita;
+		acumulado.margemContribuicao += margemContribuicao;
+		porProdutoMap.set(l.produto_id, acumulado);
+	}
+
+	const porProduto = Array.from(porProdutoMap.values()).map((p) => ({
+		...p,
+		margemContribuicaoUnitaria:
+			p.quantidade > 0 ? p.margemContribuicao / p.quantidade : 0,
+		margemContribuicaoPercentual:
+			p.receita > 0 ? (p.margemContribuicao / p.receita) * 100 : 0,
+	}));
 
 	return {
 		periodo: { inicio, fim },
@@ -306,6 +377,162 @@ async function getGiroEstoque(dataInicio, dataFim) {
 	});
 }
 
+// Segmentação simples de clientes (recência/frequência/valor) — tiers
+// práticos pra loja pequena, não um score RFM estatístico de verdade (mesmo
+// nível de profundidade já usado pra Curva ABC/DRE neste projeto).
+async function getSegmentacaoClientes() {
+	const agora = Date.now();
+	const linhas = await allAsync(
+		`SELECT c.id AS cliente_id, c.nome, c.telefone,
+     COUNT(v.id) AS frequencia,
+     COALESCE(SUM(v.total), 0) AS valor_total,
+     MAX(v.data_venda) AS ultima_compra
+     FROM Clientes c
+     LEFT JOIN Vendas v ON v.cliente_id = c.id AND v.status = 'finalizada'
+     GROUP BY c.id
+     ORDER BY valor_total DESC`,
+	);
+
+	return linhas.map((l) => {
+		const frequencia = Number(l.frequencia) || 0;
+		const valorTotal = Number(l.valor_total) || 0;
+		const diasDesdeUltimaCompra = l.ultima_compra
+			? Math.floor((agora - new Date(l.ultima_compra).getTime()) / 86400000)
+			: null;
+
+		let segmento;
+		if (diasDesdeUltimaCompra === null) segmento = "Nunca comprou";
+		else if (diasDesdeUltimaCompra <= 60 && frequencia >= 3)
+			segmento = "Frequente";
+		else if (diasDesdeUltimaCompra <= 60) segmento = "Ativo";
+		else if (diasDesdeUltimaCompra <= 180) segmento = "Em risco";
+		else segmento = "Inativo";
+
+		return {
+			cliente_id: l.cliente_id,
+			nome: l.nome,
+			telefone: l.telefone,
+			frequencia,
+			valorTotal,
+			ultimaCompra: l.ultima_compra,
+			diasDesdeUltimaCompra,
+			segmento,
+		};
+	});
+}
+
+// Produtos com estoque real e ZERO venda no período — pergunta diferente da
+// Curva ABC (que ranqueia por lucro/receita, não aponta o que não vendeu
+// nada). Agrupa por VARIAÇÃO (não por produto, ao contrário de
+// getGiroEstoque acima) porque cor/tamanho de um mesmo produto podem vender
+// de forma bem diferente.
+async function getProdutosParados(dataInicio, dataFim) {
+	const hoje = new Date().toISOString().slice(0, 10);
+	const inicio = dataInicio || hoje.slice(0, 8) + "01";
+	const fim = dataFim || hoje;
+
+	const linhas = await allAsync(
+		`SELECT p.id AS produto_id, p.nome AS produto_nome, v.sku, v.quantidade_estoque,
+   COALESCE(SUM(CASE WHEN vd.status = 'finalizada' AND DATE(vd.data_venda) BETWEEN ? AND ? THEN iv.quantidade ELSE 0 END), 0) AS vendido_no_periodo
+   FROM Variacoes v
+   JOIN Produtos p ON p.id = v.produto_id
+   LEFT JOIN ItensVenda iv ON iv.variacao_id = v.id
+   LEFT JOIN Vendas vd ON vd.id = iv.venda_id
+   WHERE p.ativo = 1
+   GROUP BY v.id
+   HAVING v.quantidade_estoque > 0 AND vendido_no_periodo = 0
+   ORDER BY v.quantidade_estoque DESC`,
+		[inicio, fim],
+	);
+
+	return linhas.map((l) => ({
+		produto_id: l.produto_id,
+		produto_nome: l.produto_nome,
+		sku: l.sku,
+		quantidadeEstoque: Number(l.quantidade_estoque) || 0,
+	}));
+}
+
+const NOMES_DIA_SEMANA = [
+	"Domingo",
+	"Segunda",
+	"Terça",
+	"Quarta",
+	"Quinta",
+	"Sexta",
+	"Sábado",
+];
+
+// Sazonalidade por dia da semana e por hora — todo o histórico de vendas
+// finalizadas, sem filtro de período (é um padrão de longo prazo, não algo
+// que faça sentido restringir a um mês).
+async function getSazonalidade() {
+	const porDiaSemanaLinhas = await allAsync(
+		"SELECT CAST(strftime('%w', data_venda) AS INTEGER) AS dia_semana, COUNT(*) AS vendas, COALESCE(SUM(total), 0) AS faturamento FROM Vendas WHERE status = 'finalizada' GROUP BY dia_semana ORDER BY dia_semana",
+	);
+	const porHoraLinhas = await allAsync(
+		"SELECT CAST(strftime('%H', data_venda) AS INTEGER) AS hora, COUNT(*) AS vendas, COALESCE(SUM(total), 0) AS faturamento FROM Vendas WHERE status = 'finalizada' GROUP BY hora ORDER BY hora",
+	);
+
+	return {
+		porDiaSemana: porDiaSemanaLinhas.map((l) => ({
+			diaSemana: Number(l.dia_semana),
+			nome: NOMES_DIA_SEMANA[Number(l.dia_semana)] || "?",
+			vendas: Number(l.vendas) || 0,
+			faturamento: Number(l.faturamento) || 0,
+		})),
+		porHora: porHoraLinhas.map((l) => ({
+			hora: Number(l.hora),
+			vendas: Number(l.vendas) || 0,
+			faturamento: Number(l.faturamento) || 0,
+		})),
+	};
+}
+
+// Taxa de conversão orçamento -> venda. Limitação real do schema, documentada
+// em vez de escondida: Vendas.origem='orcamento' é gravado na criação e
+// SOBREVIVE à conversão (converterOrcamento nunca toca em origem), mas
+// data_venda É sobrescrito na conversão (vira a data da conversão, não mais a
+// da criação do orçamento) — então "convertidas" abaixo é ancorado na DATA DE
+// CONVERSÃO, enquanto "canceladas"/"abertas" são ancoradas na DATA DE CRIAÇÃO
+// do orçamento (nunca reescrita nesses dois casos). É a melhor pergunta
+// respondível com o dado que existe hoje, não uma taxa de conversão "por
+// coorte de criação" perfeita.
+async function getConversaoOrcamentos(dataInicio, dataFim) {
+	const hoje = new Date().toISOString().slice(0, 10);
+	const inicio = dataInicio || hoje.slice(0, 8) + "01";
+	const fim = dataFim || hoje;
+
+	const [convertidas, canceladas, abertas] = await Promise.all([
+		getAsync(
+			"SELECT COUNT(*) AS n FROM Vendas WHERE origem = 'orcamento' AND status = 'finalizada' AND DATE(data_venda) BETWEEN ? AND ?",
+			[inicio, fim],
+		),
+		getAsync(
+			"SELECT COUNT(*) AS n FROM Vendas WHERE origem = 'orcamento' AND status = 'cancelado' AND DATE(data_venda) BETWEEN ? AND ?",
+			[inicio, fim],
+		),
+		getAsync(
+			"SELECT COUNT(*) AS n FROM Vendas WHERE origem = 'orcamento' AND status = 'orcamento' AND DATE(data_venda) BETWEEN ? AND ?",
+			[inicio, fim],
+		),
+	]);
+
+	const nConvertidas = Number(convertidas.n) || 0;
+	const nCanceladas = Number(canceladas.n) || 0;
+	const nAbertas = Number(abertas.n) || 0;
+	const denominador = nConvertidas + nCanceladas;
+
+	return {
+		periodo: { inicio, fim },
+		convertidas: nConvertidas,
+		canceladas: nCanceladas,
+		abertas: nAbertas,
+		taxaConversaoPercentual:
+			denominador > 0 ? (nConvertidas / denominador) * 100 : null,
+	};
+}
+
 module.exports = {
 	getDRE,
 	getRelatorioVendas,
@@ -314,4 +541,8 @@ module.exports = {
 	getMargemContribuicao,
 	getPontoDeEquilibrio,
 	getGiroEstoque,
+	getSegmentacaoClientes,
+	getProdutosParados,
+	getSazonalidade,
+	getConversaoOrcamentos,
 };

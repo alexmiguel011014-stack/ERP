@@ -30,6 +30,10 @@ export default function PrecificacaoPage() {
 		custoFixoConfig,
 		taxaAdquirente,
 		setTaxaAdquirente,
+		taxaAdquirentePix,
+		setTaxaAdquirentePix,
+		taxaAdquirenteCartao,
+		setTaxaAdquirenteCartao,
 		carregando,
 		erro,
 		recarregar,
@@ -39,9 +43,13 @@ export default function PrecificacaoPage() {
 	const [margemGlobalInput, setMargemGlobalInput] = useState("");
 	const [custoFixoInput, setCustoFixoInput] = useState("");
 	const [taxaInput, setTaxaInput] = useState("");
+	const [taxaPixInput, setTaxaPixInput] = useState("");
+	const [taxaCartaoInput, setTaxaCartaoInput] = useState("");
 	const [salvandoGlobal, setSalvandoGlobal] = useState(false);
 	const [salvandoCustoFixo, setSalvandoCustoFixo] = useState(false);
 	const [salvandoTaxa, setSalvandoTaxa] = useState(false);
+	const [salvandoTaxaPix, setSalvandoTaxaPix] = useState(false);
+	const [salvandoTaxaCartao, setSalvandoTaxaCartao] = useState(false);
 
 	const [busca, setBusca] = useState("");
 	const [categoriaFiltro, setCategoriaFiltro] = useState("");
@@ -151,6 +159,33 @@ export default function PrecificacaoPage() {
 			);
 		} finally {
 			setSalvandoTaxa(false);
+		}
+	}
+
+	async function salvarTaxaPorMetodo(
+		metodo: "pix" | "cartao",
+		valorInput: string,
+		valorAtual: number | null,
+		setValorAtual: (v: number | null) => void,
+		setSalvando: (v: boolean) => void,
+	) {
+		const taxa = parseFloat(valorInput || String(valorAtual ?? 0)) || 0;
+		if (taxa < 0) {
+			mostrarMensagem("Informe um valor válido.", false);
+			return;
+		}
+		setSalvando(true);
+		try {
+			await erpApi.precificacao.salvarTaxaAdquirentePorMetodo(metodo, taxa);
+			setValorAtual(taxa);
+			mostrarMensagem("Taxa atualizada!", true);
+		} catch (e) {
+			mostrarMensagem(
+				"Erro: " + (e instanceof Error ? e.message : String(e)),
+				false,
+			);
+		} finally {
+			setSalvando(false);
 		}
 	}
 
@@ -269,6 +304,83 @@ export default function PrecificacaoPage() {
 					<p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
 						Taxa média de cartão/Pix, usada na Margem de Contribuição
 						(Relatórios).
+					</p>
+				</div>
+			</div>
+
+			<div className="grid grid-cols-1 gap-4 rounded-xl border border-gray-200 bg-white p-4 sm:grid-cols-2 dark:border-gray-800 dark:bg-white/[0.03]">
+				<div>
+					<Label>Taxa de Adquirente — Pix (%, opcional)</Label>
+					<div className="flex gap-2">
+						<Input
+							type="number"
+							value={
+								taxaPixInput ||
+								(taxaAdquirentePix !== null ? String(taxaAdquirentePix) : "")
+							}
+							onChange={(e) => setTaxaPixInput(e.target.value)}
+							min="0"
+							max="100"
+							step={0.01}
+							placeholder="Ex: 0.5"
+						/>
+						<Button
+							size="sm"
+							onClick={() =>
+								salvarTaxaPorMetodo(
+									"pix",
+									taxaPixInput,
+									taxaAdquirentePix,
+									setTaxaAdquirentePix,
+									setSalvandoTaxaPix,
+								)
+							}
+							disabled={salvandoTaxaPix}
+						>
+							Salvar
+						</Button>
+					</div>
+					<p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+						Sobrepõe a taxa média acima só pras vendas via Pix. Deixe em branco
+						pra continuar usando a média.
+					</p>
+				</div>
+				<div>
+					<Label>Taxa de Adquirente — Cartão (%, opcional)</Label>
+					<div className="flex gap-2">
+						<Input
+							type="number"
+							value={
+								taxaCartaoInput ||
+								(taxaAdquirenteCartao !== null
+									? String(taxaAdquirenteCartao)
+									: "")
+							}
+							onChange={(e) => setTaxaCartaoInput(e.target.value)}
+							min="0"
+							max="100"
+							step={0.01}
+							placeholder="Ex: 4"
+						/>
+						<Button
+							size="sm"
+							onClick={() =>
+								salvarTaxaPorMetodo(
+									"cartao",
+									taxaCartaoInput,
+									taxaAdquirenteCartao,
+									setTaxaAdquirenteCartao,
+									setSalvandoTaxaCartao,
+								)
+							}
+							disabled={salvandoTaxaCartao}
+						>
+							Salvar
+						</Button>
+					</div>
+					<p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+						Sobrepõe a taxa média acima só pras vendas via Cartão. Deixe em
+						branco pra continuar usando a média.
 					</p>
 				</div>
 			</div>

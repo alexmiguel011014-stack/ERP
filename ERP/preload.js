@@ -67,6 +67,10 @@ contextBridge.exposeInMainWorld("api", {
 	getTaxaAdquirente: () => ipcRenderer.invoke("get-taxa-adquirente"),
 	saveTaxaAdquirente: (valor) =>
 		ipcRenderer.invoke("save-taxa-adquirente", valor),
+	getTaxaAdquirentePorMetodo: (metodo) =>
+		ipcRenderer.invoke("get-taxa-adquirente-por-metodo", metodo),
+	saveTaxaAdquirentePorMetodo: (metodo, valor) =>
+		ipcRenderer.invoke("save-taxa-adquirente-por-metodo", metodo, valor),
 	saveAplicarCustoFixo: (produtoId, aplicar) =>
 		ipcRenderer.invoke("save-aplicar-custo-fixo", produtoId, aplicar),
 	saveProductMargin: (produtoId, margem) =>
@@ -151,10 +155,26 @@ contextBridge.exposeInMainWorld("api", {
 	excluirLancamento: (id) => ipcRenderer.invoke("excluir-lancamento", id),
 	getFluxoCaixa: (inicio, fim) =>
 		ipcRenderer.invoke("get-fluxo-caixa", inicio, fim),
+	getFluxoCaixaProjetado: (inicio, fim) =>
+		ipcRenderer.invoke("get-fluxo-caixa-projetado", inicio, fim),
+	criarLancamentoRecorrente: (dados) =>
+		ipcRenderer.invoke("criar-lancamento-recorrente", dados),
+	listarLancamentosRecorrentes: () =>
+		ipcRenderer.invoke("listar-lancamentos-recorrentes"),
+	alternarLancamentoRecorrente: (id, ativo) =>
+		ipcRenderer.invoke("alternar-lancamento-recorrente", id, ativo),
+	removerLancamentoRecorrente: (id) =>
+		ipcRenderer.invoke("remover-lancamento-recorrente", id),
 	getAliquotaDAS: () => ipcRenderer.invoke("get-aliquota-das"),
 	saveAliquotaDAS: (valor) => ipcRenderer.invoke("save-aliquota-das", valor),
 	getProvisaoDAS: (inicio, fim) =>
 		ipcRenderer.invoke("get-provisao-das", inicio, fim),
+	getMetaFaturamentoMensal: () =>
+		ipcRenderer.invoke("get-meta-faturamento-mensal"),
+	saveMetaFaturamentoMensal: (valor) =>
+		ipcRenderer.invoke("save-meta-faturamento-mensal", valor),
+	getLancamentosVencendoHoje: () =>
+		ipcRenderer.invoke("get-lancamentos-vencendo-hoje"),
 	abrirCaixa: (valorAbertura) =>
 		ipcRenderer.invoke("abrir-caixa", valorAbertura),
 	fecharCaixa: (valorInformado, observacao) =>
@@ -176,6 +196,13 @@ contextBridge.exposeInMainWorld("api", {
 		ipcRenderer.invoke("get-ponto-equilibrio", inicio, fim),
 	getGiroEstoque: (inicio, fim) =>
 		ipcRenderer.invoke("get-giro-estoque", inicio, fim),
+	getSegmentacaoClientes: () => ipcRenderer.invoke("get-segmentacao-clientes"),
+	getProdutosParados: (inicio, fim) =>
+		ipcRenderer.invoke("get-produtos-parados", inicio, fim),
+	getSazonalidade: () => ipcRenderer.invoke("get-sazonalidade"),
+	getConversaoOrcamentos: (inicio, fim) =>
+		ipcRenderer.invoke("get-conversao-orcamentos", inicio, fim),
+	getAgingRecebiveis: () => ipcRenderer.invoke("get-aging-recebiveis"),
 	listarPagamentos: (metodo) => ipcRenderer.invoke("listar-pagamentos", metodo),
 	registrarPagamento: (dados) =>
 		ipcRenderer.invoke("registrar-pagamento", dados),

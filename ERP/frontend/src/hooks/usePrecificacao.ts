@@ -19,6 +19,12 @@ export function usePrecificacao() {
 	const [custoFixoConfig, setCustoFixoConfig] =
 		useState<CustoFixoConfig>(CUSTO_FIXO_VAZIO);
 	const [taxaAdquirente, setTaxaAdquirente] = useState(0);
+	const [taxaAdquirentePix, setTaxaAdquirentePix] = useState<number | null>(
+		null,
+	);
+	const [taxaAdquirenteCartao, setTaxaAdquirenteCartao] = useState<
+		number | null
+	>(null);
 	const [carregando, setCarregando] = useState(true);
 	const [erro, setErro] = useState<string | null>(null);
 
@@ -26,16 +32,21 @@ export function usePrecificacao() {
 		setCarregando(true);
 		setErro(null);
 		try {
-			const [margem, linhas, custoFixo, taxa] = await Promise.all([
-				erpApi.precificacao.margemGlobal(),
-				erpApi.precificacao.dados(),
-				erpApi.precificacao.custoFixoConfig(),
-				erpApi.precificacao.taxaAdquirente(),
-			]);
+			const [margem, linhas, custoFixo, taxa, taxaPix, taxaCartao] =
+				await Promise.all([
+					erpApi.precificacao.margemGlobal(),
+					erpApi.precificacao.dados(),
+					erpApi.precificacao.custoFixoConfig(),
+					erpApi.precificacao.taxaAdquirente(),
+					erpApi.precificacao.taxaAdquirentePorMetodo("pix"),
+					erpApi.precificacao.taxaAdquirentePorMetodo("cartao"),
+				]);
 			setMargemGlobal(Number(margem) || 40);
 			setDados(linhas);
 			setCustoFixoConfig(custoFixo || CUSTO_FIXO_VAZIO);
 			setTaxaAdquirente(Number(taxa) || 0);
+			setTaxaAdquirentePix(taxaPix);
+			setTaxaAdquirenteCartao(taxaCartao);
 		} catch (e) {
 			setErro(e instanceof Error ? e.message : String(e));
 		} finally {
@@ -56,6 +67,10 @@ export function usePrecificacao() {
 		setCustoFixoConfig,
 		taxaAdquirente,
 		setTaxaAdquirente,
+		taxaAdquirentePix,
+		setTaxaAdquirentePix,
+		taxaAdquirenteCartao,
+		setTaxaAdquirenteCartao,
 		carregando,
 		erro,
 		recarregar,

@@ -9,6 +9,11 @@ import {
 	type MargemContribuicaoResultado,
 	type PontoDeEquilibrioResultado,
 	type RelatorioVendasResultado,
+	type SegmentacaoClienteLinha,
+	type ProdutoParadoLinha,
+	type SazonalidadeResultado,
+	type ConversaoOrcamentosResultado,
+	type AgingRecebiveisResultado,
 } from "@/lib/erpApi";
 
 export function useRelatorios() {
@@ -25,6 +30,18 @@ export function useRelatorios() {
 	const [pontoDeEquilibrio, setPontoDeEquilibrio] =
 		useState<PontoDeEquilibrioResultado | null>(null);
 	const [giroEstoque, setGiroEstoque] = useState<GiroEstoqueLinha[]>([]);
+	const [segmentacaoClientes, setSegmentacaoClientes] = useState<
+		SegmentacaoClienteLinha[]
+	>([]);
+	const [produtosParados, setProdutosParados] = useState<ProdutoParadoLinha[]>(
+		[],
+	);
+	const [sazonalidade, setSazonalidade] =
+		useState<SazonalidadeResultado | null>(null);
+	const [conversaoOrcamentos, setConversaoOrcamentos] =
+		useState<ConversaoOrcamentosResultado | null>(null);
+	const [agingRecebiveis, setAgingRecebiveis] =
+		useState<AgingRecebiveisResultado | null>(null);
 
 	const [carregando, setCarregando] = useState(true);
 	const [erros, setErros] = useState<Record<string, string>>({});
@@ -45,10 +62,27 @@ export function useRelatorios() {
 			erpApi.relatorios.margemContribuicao(inicio, fim),
 			erpApi.relatorios.pontoDeEquilibrio(inicio, fim),
 			erpApi.relatorios.giroEstoque(inicio, fim),
+			erpApi.relatorios.segmentacaoClientes(),
+			erpApi.relatorios.produtosParados(inicio, fim),
+			erpApi.relatorios.sazonalidade(),
+			erpApi.relatorios.conversaoOrcamentos(inicio, fim),
+			erpApi.relatorios.agingRecebiveis(),
 		]);
 
-		const [rVendas, rAbc, rComissoes, rDre, rMargem, rPonto, rGiro] =
-			resultados;
+		const [
+			rVendas,
+			rAbc,
+			rComissoes,
+			rDre,
+			rMargem,
+			rPonto,
+			rGiro,
+			rSegmentacao,
+			rParados,
+			rSazonalidade,
+			rConversao,
+			rAging,
+		] = resultados;
 
 		if (rVendas.status === "fulfilled") setVendasPeriodo(rVendas.value);
 		else
@@ -75,6 +109,31 @@ export function useRelatorios() {
 		if (rGiro.status === "fulfilled") setGiroEstoque(rGiro.value);
 		else novosErros.giro = rGiro.reason?.message || String(rGiro.reason);
 
+		if (rSegmentacao.status === "fulfilled")
+			setSegmentacaoClientes(rSegmentacao.value);
+		else
+			novosErros.segmentacao =
+				rSegmentacao.reason?.message || String(rSegmentacao.reason);
+
+		if (rParados.status === "fulfilled") setProdutosParados(rParados.value);
+		else
+			novosErros.parados = rParados.reason?.message || String(rParados.reason);
+
+		if (rSazonalidade.status === "fulfilled")
+			setSazonalidade(rSazonalidade.value);
+		else
+			novosErros.sazonalidade =
+				rSazonalidade.reason?.message || String(rSazonalidade.reason);
+
+		if (rConversao.status === "fulfilled")
+			setConversaoOrcamentos(rConversao.value);
+		else
+			novosErros.conversao =
+				rConversao.reason?.message || String(rConversao.reason);
+
+		if (rAging.status === "fulfilled") setAgingRecebiveis(rAging.value);
+		else novosErros.aging = rAging.reason?.message || String(rAging.reason);
+
 		setErros(novosErros);
 		setCarregando(false);
 	}, [dataInicio, dataFim]);
@@ -96,6 +155,11 @@ export function useRelatorios() {
 		margemContribuicao,
 		pontoDeEquilibrio,
 		giroEstoque,
+		segmentacaoClientes,
+		produtosParados,
+		sazonalidade,
+		conversaoOrcamentos,
+		agingRecebiveis,
 		carregando,
 		erros,
 		gerar,

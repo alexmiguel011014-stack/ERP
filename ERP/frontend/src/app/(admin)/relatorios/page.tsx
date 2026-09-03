@@ -13,6 +13,11 @@ import PainelComissoes from "@/components/relatorios/PainelComissoes";
 import PainelDre from "@/components/relatorios/PainelDre";
 import PainelMargemPontoEquilibrio from "@/components/relatorios/PainelMargemPontoEquilibrio";
 import PainelGiroEstoque from "@/components/relatorios/PainelGiroEstoque";
+import PainelSegmentacaoClientes from "@/components/relatorios/PainelSegmentacaoClientes";
+import PainelProdutosParados from "@/components/relatorios/PainelProdutosParados";
+import PainelSazonalidade from "@/components/relatorios/PainelSazonalidade";
+import PainelConversaoOrcamentos from "@/components/relatorios/PainelConversaoOrcamentos";
+import PainelAgingRecebiveis from "@/components/relatorios/PainelAgingRecebiveis";
 import VendasFiltros from "@/components/vendas/VendasFiltros";
 import VendasStats from "@/components/vendas/VendasStats";
 import VendasTable from "@/components/vendas/VendasTable";
@@ -45,6 +50,11 @@ export default function RelatoriosPage() {
 		margemContribuicao,
 		pontoDeEquilibrio,
 		giroEstoque,
+		segmentacaoClientes,
+		produtosParados,
+		sazonalidade,
+		conversaoOrcamentos,
+		agingRecebiveis,
 		carregando,
 		erros,
 		gerar,
@@ -63,6 +73,9 @@ export default function RelatoriosPage() {
 			dre,
 			comissoes,
 			curvaAbc,
+			margemContribuicao,
+			pontoDeEquilibrio,
+			giroEstoque,
 		});
 	}
 
@@ -182,6 +195,11 @@ export default function RelatoriosPage() {
 						/>
 					)}
 					<PainelGiroEstoque dados={giroEstoque} />
+					<PainelConversaoOrcamentos dados={conversaoOrcamentos} />
+					<PainelAgingRecebiveis dados={agingRecebiveis} />
+					<PainelProdutosParados dados={produtosParados} />
+					<PainelSegmentacaoClientes dados={segmentacaoClientes} />
+					<PainelSazonalidade dados={sazonalidade} />
 				</>
 			)}
 		</div>
