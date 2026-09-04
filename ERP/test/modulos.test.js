@@ -178,7 +178,9 @@ test("carregarModulos: ids duplicados entre manifestos lança erro", () => {
 // duplicado. Recalcula a mesma lógica de dedupe que main.js usa (Set por
 // nome de arquivo) e compara contra a lista antiga, registrada aqui como
 // dado fixo justamente para detectar se algum handler silenciosamente
-// deixasse de ser registrado numa mudança futura.
+// deixasse de ser registrado numa mudança futura. "consignacoes.js" foi
+// adicionado deliberadamente ao módulo "produtos" (GOALS.md, seção "2.
+// Consignação") — atualizado aqui junto, não uma regressão da lista antiga.
 test("carregarModulos: loop de registro de IPC cobre o mesmo conjunto de arquivos que a lista antiga hardcoded", () => {
 	const ANTIGA_LISTA_HARDCODED = [
 		"produtos.js",
@@ -200,6 +202,7 @@ test("carregarModulos: loop de registro de IPC cobre o mesmo conjunto de arquivo
 		"pagamentos.js",
 		"pix.js",
 		"fiscal.js",
+		"consignacoes.js",
 	].sort();
 
 	const modulos = carregarModulos(path.join(__dirname, "..", "modules"));

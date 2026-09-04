@@ -9,6 +9,7 @@ import {
 	erpApi,
 	type ConflitosImportacao,
 	type DetalhesLoteImportacao,
+	type EntradaImportacao,
 	type LinhaImportacaoVenda,
 	type LoteImportacao,
 	type PreviewDryRunImportacao,
@@ -17,7 +18,7 @@ import {
 	type StatusLoteImportacao,
 } from "@/lib/erpApi";
 
-type Modo = "loja_house" | "legado";
+type Modo = "loja_house" | "excel" | "legado";
 
 function formatarDataHora(iso: string | null | undefined): string {
 	if (!iso) return "---";
@@ -49,46 +50,55 @@ const LABEL_POR_STATUS: Record<StatusLoteImportacao, string> = {
 	em_progresso: "Em progresso",
 };
 
+const TITULO_POR_MODO: Record<Modo, string> = {
+	loja_house: "Importação de Dados — Loja House",
+	excel: "Importação de Dados — Planilha Excel",
+	legado: "Importação de Vendas Históricas",
+};
+
+const DESCRICAO_POR_MODO: Record<Modo, string> = {
+	loja_house:
+		"Importa categorias, produtos, estoque, clientes e financeiro a partir da pasta exportada do sistema antigo.",
+	excel:
+		"Importa categorias, produtos, estoque e financeiro diretamente da planilha .xlsx da Loja House, sem passar pelos JSONs intermediários.",
+	legado: "Popula o histórico de vendas a partir de um arquivo já normalizado.",
+};
+
+const OPCOES_MODO: { modo: Modo; rotulo: string }[] = [
+	{ modo: "loja_house", rotulo: "Importação de dados (Loja House)" },
+	{ modo: "excel", rotulo: "Importar de planilha Excel (.xlsx)" },
+	{ modo: "legado", rotulo: "Importação de vendas históricas (legado)" },
+];
+
 export default function ImportacaoPage() {
 	const [modo, setModo] = useState<Modo>("loja_house");
 
-	usePageHeader(
-		modo === "loja_house"
-			? "Importação de Dados — Loja House"
-			: "Importação de Vendas Históricas",
-		modo === "loja_house"
-			? "Importa categorias, produtos, estoque, clientes e financeiro a partir da pasta exportada do sistema antigo."
-			: "Popula o histórico de vendas a partir de um arquivo já normalizado.",
-	);
+	usePageHeader(TITULO_POR_MODO[modo], DESCRICAO_POR_MODO[modo]);
 
 	return (
 		<div className="grid grid-cols-1 gap-4">
 			<div className="flex flex-wrap gap-2">
-				<button
-					type="button"
-					onClick={() => setModo("loja_house")}
-					className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-						modo === "loja_house"
-							? "bg-brand-500 text-white"
-							: "bg-white text-gray-600 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:bg-white/[0.03]"
-					}`}
-				>
-					Importação de dados (Loja House)
-				</button>
-				<button
-					type="button"
-					onClick={() => setModo("legado")}
-					className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-						modo === "legado"
-							? "bg-brand-500 text-white"
-							: "bg-white text-gray-600 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:bg-white/[0.03]"
-					}`}
-				>
-					Importação de vendas históricas (legado)
-				</button>
+				{OPCOES_MODO.map((opcao) => (
+					<button
+						key={opcao.modo}
+						type="button"
+						onClick={() => setModo(opcao.modo)}
+						className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+							modo === opcao.modo
+								? "bg-brand-500 text-white"
+								: "bg-white text-gray-600 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:bg-white/[0.03]"
+						}`}
+					>
+						{opcao.rotulo}
+					</button>
+				))}
 			</div>
 
-			{modo === "loja_house" ? <ImportacaoLojaHouse /> : <ImportacaoLegado />}
+			{modo === "legado" ? (
+				<ImportacaoLegado />
+			) : (
+				<ImportacaoLojaHouse modo={modo} />
+			)}
 		</div>
 	);
 }
@@ -97,7 +107,7 @@ type Passo = 1 | 2 | 3;
 
 function IndicadorPassos({ passo }: { passo: Passo }) {
 	const passos: { numero: Passo; titulo: string }[] = [
-		{ numero: 1, titulo: "Selecionar pasta" },
+		{ numero: 1, titulo: "Selecionar origem" },
 		{ numero: 2, titulo: "Conferir prévia" },
 		{ numero: 3, titulo: "Confirmar e importar" },
 	];
@@ -346,13 +356,18 @@ function HistoricoImportacoes({
 	);
 }
 
-function ImportacaoLojaHouse() {
+function ImportacaoLojaHouse({ modo }: { modo: "loja_house" | "excel" }) {
 	const [passo, setPasso] = useState<Passo>(1);
 	const [carregandoSelecao, setCarregandoSelecao] = useState(false);
 	const [erroSelecao, setErroSelecao] = useState<string | null>(null);
 
-	const [pasta, setPasta] = useState<string | null>(null);
-	const [arquivos, setArquivos] = useState<string[]>([]);
+	// `origem` é o valor bruto passado pra erpApi.importacoes.executar (pasta
+	// string no modo loja_house, { tipo: "excel", caminho } no modo excel).
+	// `caminhoExibicao` é só o texto mostrado pro usuário — precisa existir
+	// separado porque `origem` no modo excel não é uma string.
+	const [origem, setOrigem] = useState<EntradaImportacao | null>(null);
+	const [caminhoExibicao, setCaminhoExibicao] = useState<string | null>(null);
+	const [arquivos, setArquivos] = useState<string[]>([]); // só populado no modo loja_house
 	const [previewPasta, setPreviewPasta] = useState<PreviewImportacao | null>(
 		null,
 	);
@@ -407,7 +422,8 @@ function ImportacaoLojaHouse() {
 
 	function resetarWizard() {
 		setPasso(1);
-		setPasta(null);
+		setOrigem(null);
+		setCaminhoExibicao(null);
 		setArquivos([]);
 		setPreviewPasta(null);
 		setErroSelecao(null);
@@ -419,10 +435,27 @@ function ImportacaoLojaHouse() {
 		setResultadoFinal(null);
 	}
 
-	async function selecionarPasta() {
+	async function selecionarOrigem() {
 		setCarregandoSelecao(true);
 		setErroSelecao(null);
 		try {
+			if (modo === "excel") {
+				const resultado = await erpApi.importacoes.validarExcel();
+				if ("cancelado" in resultado) {
+					return;
+				}
+				if ("erro" in resultado) {
+					setErroSelecao(resultado.erro);
+					return;
+				}
+				setOrigem({ tipo: "excel", caminho: resultado.caminho });
+				setCaminhoExibicao(resultado.caminho);
+				setArquivos([]);
+				setPreviewPasta(resultado.preview);
+				setPasso(2);
+				return;
+			}
+
 			const resultado = await erpApi.importacoes.validarPasta();
 			if ("cancelado" in resultado) {
 				return;
@@ -431,13 +464,18 @@ function ImportacaoLojaHouse() {
 				setErroSelecao(resultado.erro);
 				return;
 			}
-			setPasta(resultado.pasta);
+			setOrigem(resultado.pasta);
+			setCaminhoExibicao(resultado.pasta);
 			setArquivos(resultado.arquivos);
 			setPreviewPasta(resultado.preview);
 			setPasso(2);
 		} catch (e) {
 			setErroSelecao(
-				e instanceof Error ? e.message : "Erro ao selecionar a pasta.",
+				e instanceof Error
+					? e.message
+					: modo === "excel"
+						? "Erro ao selecionar a planilha."
+						: "Erro ao selecionar a pasta.",
 			);
 		} finally {
 			setCarregandoSelecao(false);
@@ -445,13 +483,13 @@ function ImportacaoLojaHouse() {
 	}
 
 	async function verPreviaDetalhada() {
-		if (!pasta) return;
+		if (!origem) return;
 		setMostrarPreviaDetalhada((atual) => !atual);
 		if (previaDetalhada) return; // já carregada nesta sessão — só alterna a exibição
 		setCarregandoPreviaDetalhada(true);
 		setErroPreviaDetalhada(null);
 		try {
-			const resultado = await erpApi.importacoes.executar(pasta, {
+			const resultado = await erpApi.importacoes.executar(origem, {
 				dryRun: true,
 			});
 			if ("erro" in resultado) {
@@ -477,11 +515,11 @@ function ImportacaoLojaHouse() {
 	}
 
 	async function importarAgora() {
-		if (!pasta) return;
+		if (!origem) return;
 		setExecutando(true);
 		setErroExecucao(null);
 		try {
-			const resultado = await erpApi.importacoes.executar(pasta, {
+			const resultado = await erpApi.importacoes.executar(origem, {
 				dryRun: false,
 				dataMovimentacao,
 			});
@@ -529,9 +567,9 @@ function ImportacaoLojaHouse() {
 	return (
 		<div className="grid grid-cols-1 gap-4">
 			<p className="max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-				Importa os dados exportados da Loja House (categorias, produtos e
-				variações, estoque inicial, clientes e financeiro) a partir de uma pasta
-				com os arquivos JSON gerados na migração.
+				{modo === "excel"
+					? "Importa os dados diretamente da planilha .xlsx exportada pela loja (categorias, produtos, estoque inicial e financeiro), sem passar pelos JSONs intermediários."
+					: "Importa os dados exportados da Loja House (categorias, produtos e variações, estoque inicial, clientes e financeiro) a partir de uma pasta com os arquivos JSON gerados na migração."}
 			</p>
 
 			<IndicadorPassos passo={passo} />
@@ -539,23 +577,40 @@ function ImportacaoLojaHouse() {
 			{passo === 1 && (
 				<div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
 					<h2 className="text-base font-semibold text-gray-800 dark:text-white/90">
-						Passo 1 — Selecionar pasta
+						{modo === "excel"
+							? "Passo 1 — Selecionar planilha"
+							: "Passo 1 — Selecionar pasta"}
 					</h2>
-					<p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-						Selecione a pasta com os arquivos JSON exportados (
-						<code className="rounded bg-gray-100 px-1 py-0.5 text-xs dark:bg-white/10">
-							01_categorias.json
-						</code>
-						,{" "}
-						<code className="rounded bg-gray-100 px-1 py-0.5 text-xs dark:bg-white/10">
-							02_produtos_variacoes.json
-						</code>{" "}
-						e demais arquivos numerados da migração).
-					</p>
+					{modo === "excel" ? (
+						<p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+							Selecione o arquivo{" "}
+							<code className="rounded bg-gray-100 px-1 py-0.5 text-xs dark:bg-white/10">
+								.xlsx
+							</code>{" "}
+							exportado pela loja (a mesma planilha usada para gerar os JSONs da
+							migração).
+						</p>
+					) : (
+						<p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+							Selecione a pasta com os arquivos JSON exportados (
+							<code className="rounded bg-gray-100 px-1 py-0.5 text-xs dark:bg-white/10">
+								01_categorias.json
+							</code>
+							,{" "}
+							<code className="rounded bg-gray-100 px-1 py-0.5 text-xs dark:bg-white/10">
+								02_produtos_variacoes.json
+							</code>{" "}
+							e demais arquivos numerados da migração).
+						</p>
+					)}
 
 					<div className="mt-4">
-						<Button onClick={selecionarPasta} disabled={carregandoSelecao}>
-							{carregandoSelecao ? "Selecionando..." : "Selecionar pasta..."}
+						<Button onClick={selecionarOrigem} disabled={carregandoSelecao}>
+							{carregandoSelecao
+								? "Selecionando..."
+								: modo === "excel"
+									? "Selecionar planilha..."
+									: "Selecionar pasta..."}
 						</Button>
 					</div>
 
@@ -573,12 +628,16 @@ function ImportacaoLojaHouse() {
 						Passo 2 — Conferir prévia
 					</h2>
 					<p className="mt-1 max-w-2xl break-all text-sm text-gray-500 dark:text-gray-400">
-						Pasta selecionada:{" "}
+						{modo === "excel" ? "Arquivo selecionado" : "Pasta selecionada"}:{" "}
 						<span className="font-medium text-gray-700 dark:text-gray-300">
-							{pasta}
+							{caminhoExibicao}
 						</span>
-						{" · "}
-						{arquivos.length} arquivo(s) reconhecido(s).
+						{modo === "loja_house" && (
+							<>
+								{" · "}
+								{arquivos.length} arquivo(s) reconhecido(s).
+							</>
+						)}
 					</p>
 
 					<ContagemGrid preview={previewPasta} />

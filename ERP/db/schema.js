@@ -527,6 +527,13 @@ async function iniciarBanco() {
 	await migrarColunas(conexao, "LancamentosFinanceiros", {
 		categoria: "categoria TEXT",
 	});
+	// Vínculo com o cliente devedor — fecha a lacuna que deixava um recebível
+	// de Fiado sem jeito de consultar "quanto esse cliente deve" (crediário
+	// histórico e futuro relatório de aging por cliente). ON DELETE SET NULL:
+	// remover o cliente não deve apagar o histórico financeiro já lançado.
+	await migrarColunas(conexao, "LancamentosFinanceiros", {
+		cliente_id: "cliente_id INTEGER REFERENCES Clientes(id) ON DELETE SET NULL",
+	});
 	await criarVariacoesPadrao(conexao);
 
 	// Importações: rastreamento de lotes de importação, mapeamento de chaves
@@ -579,6 +586,31 @@ async function iniciarBanco() {
       batch_id TEXT,
       data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (batch_id) REFERENCES ImportacaoBatch(id) ON DELETE SET NULL
+    )
+  `,
+	);
+
+	// Consignação/comodato: itens físicos emprestados a um cliente (mostruário,
+	// venda "leve para casa e decide depois" etc.) — ficam fora do estoque
+	// vendável (via quantidade_reservada, mesmo mecanismo do orçamento) sem
+	// baixar quantidade_estoque até uma decisão final. status sem CHECK
+	// constraint no banco (mesmo padrão frouxo de Pendencias.tipo_entidade),
+	// validado em JS: 'emprestado' | 'devolvido' | 'vendido' | 'perdido'.
+	await runOn(
+		conexao,
+		`
+    CREATE TABLE IF NOT EXISTS Consignacoes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      cliente_id INTEGER,
+      variacao_id INTEGER NOT NULL,
+      quantidade INTEGER NOT NULL,
+      data_saida TEXT,
+      data_prevista_retorno TEXT,
+      status TEXT NOT NULL DEFAULT 'emprestado',
+      observacao TEXT,
+      criado_em TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (cliente_id) REFERENCES Clientes(id) ON DELETE SET NULL,
+      FOREIGN KEY (variacao_id) REFERENCES Variacoes(id) ON DELETE CASCADE
     )
   `,
 	);

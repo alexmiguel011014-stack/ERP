@@ -2,6 +2,7 @@ const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
 const { getConexao, runOn, allAsync, getAsync } = require("./conexao");
+const { registrarVendaFiadoHistorica } = require("./vendas");
 
 function gerarIdUnido() {
 	return crypto.randomBytes(8).toString("hex");
@@ -92,15 +93,96 @@ async function checarDuplicacao(chaves) {
 		return { existentes: [], novas: chaves || [] };
 	}
 
-	const placeholders = chaves.map(() => "?").join(",");
+	// A chave recebida pelo preview não informa a entidade. Como a gravação
+	// prefixa produto/variação/etc., verificamos todas as formas que o motor
+	// efetivamente persiste para não prometer um registro como "novo".
+	const chavesPersistidas = [
+		...new Set(
+			chaves.flatMap((chave) => [
+				chave,
+				chaveMapeamento("produto", chave),
+				chaveMapeamento("variacao", chave),
+				chaveMapeamento("estoque", chave),
+				chaveMapeamento("cliente", chave),
+				chaveMapeamento("lancamento", chave),
+			]),
+		),
+	];
+	const placeholders = chavesPersistidas.map(() => "?").join(",");
 	const linhas = await allAsync(
 		`SELECT DISTINCT chave_externa FROM MapeamentoChaveExterna WHERE chave_externa IN (${placeholders})`,
-		chaves,
+		chavesPersistidas,
 	);
-	const existentes = linhas.map((l) => l.chave_externa);
-	const novas = chaves.filter((c) => !existentes.includes(c));
+	const existentesPersistidas = new Set(linhas.map((l) => l.chave_externa));
+	const existentes = chaves.filter((chave) =>
+		[
+			chave,
+			chaveMapeamento("produto", chave),
+			chaveMapeamento("variacao", chave),
+			chaveMapeamento("estoque", chave),
+			chaveMapeamento("cliente", chave),
+			chaveMapeamento("lancamento", chave),
+		].some((persistida) => existentesPersistidas.has(persistida)),
+	);
+	const novas = chaves.filter((chave) => !existentes.includes(chave));
 
 	return { existentes, novas };
+}
+
+function chaveMapeamento(tipo, chaveExterna) {
+	const prefixos = {
+		categoria: "",
+		produto: "produto_",
+		variacao: "variacao_",
+		estoque: "estoque_",
+		cliente: "cliente_",
+		lancamento: "lancamento_",
+	};
+	return `${prefixos[tipo] || ""}${chaveExterna}`;
+}
+
+function getOn(conn, sql, parametros = []) {
+	return new Promise((resolve, reject) => {
+		conn.get(sql, parametros, (erro, linha) => {
+			if (erro) return reject(erro);
+			resolve(linha || null);
+		});
+	});
+}
+
+function allOn(conn, sql, parametros = []) {
+	return new Promise((resolve, reject) => {
+		conn.all(sql, parametros, (erro, linhas) => {
+			if (erro) return reject(erro);
+			resolve(linhas || []);
+		});
+	});
+}
+
+async function obterEntidadeMapeada(conn, tipo, chaveExterna) {
+	const linha = await getOn(
+		conn,
+		"SELECT entidade_id FROM MapeamentoChaveExterna WHERE chave_externa = ?",
+		[chaveMapeamento(tipo, chaveExterna)],
+	);
+	return linha?.entidade_id || null;
+}
+
+async function vincularChaveExterna(
+	conn,
+	tipo,
+	chaveExterna,
+	entidadeId,
+	batchId,
+) {
+	await runOn(
+		conn,
+		`INSERT INTO MapeamentoChaveExterna
+		(chave_externa, entidade_tipo, entidade_id, batch_id)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT(chave_externa) DO NOTHING`,
+		[chaveMapeamento(tipo, chaveExterna), tipo, entidadeId, batchId],
+	);
 }
 
 async function importarCategorias(dados, batchId, db) {
@@ -115,9 +197,30 @@ async function importarCategorias(dados, batchId, db) {
 	// cacheados = 17 no batch real da Loja House).
 	const mapaPorNome = new Map();
 	const erros = [];
+	let ignoradas = 0;
+	let importadas = 0;
 
 	for (const item of dados) {
 		try {
+			const categoriaMapeada = await obterEntidadeMapeada(
+				conn,
+				"categoria",
+				item.chave_externa,
+			);
+			if (categoriaMapeada) {
+				const existente = await getOn(
+					conn,
+					"SELECT id FROM Categorias WHERE id = ?",
+					[categoriaMapeada],
+				);
+				if (existente) {
+					mapa.set(item.chave_externa, existente.id);
+					mapaPorNome.set(item.nome, existente.id);
+					ignoradas++;
+					continue;
+				}
+			}
+
 			const chavePai = item.categoria_pai;
 			let paiId = null;
 
@@ -125,7 +228,8 @@ async function importarCategorias(dados, batchId, db) {
 				if (mapaPorNome.has(chavePai)) {
 					paiId = mapaPorNome.get(chavePai);
 				} else {
-					const paiExistente = await getAsync(
+					const paiExistente = await getOn(
+						conn,
 						"SELECT id FROM Categorias WHERE nome = ?",
 						[chavePai],
 					);
@@ -136,8 +240,14 @@ async function importarCategorias(dados, batchId, db) {
 				}
 			}
 
-			const resultado = await (async () => {
-				return new Promise((resolve, reject) => {
+			const categoriaComMesmoNome = await getOn(
+				conn,
+				"SELECT id FROM Categorias WHERE nome = ? ORDER BY id LIMIT 1",
+				[item.nome],
+			);
+			let resultado = categoriaComMesmoNome?.id;
+			if (!resultado) {
+				resultado = await new Promise((resolve, reject) => {
 					conn.run(
 						"INSERT INTO Categorias (nome, categoria_pai_id, ativo) VALUES (?, ?, 1)",
 						[item.nome, paiId],
@@ -147,16 +257,20 @@ async function importarCategorias(dados, batchId, db) {
 						},
 					);
 				});
-			})();
+				importadas++;
+			}
 
 			mapa.set(item.chave_externa, resultado);
 			mapaPorNome.set(item.nome, resultado);
 
-			await runOn(
+			await vincularChaveExterna(
 				conn,
-				"INSERT INTO MapeamentoChaveExterna (chave_externa, entidade_tipo, entidade_id, batch_id) VALUES (?, ?, ?, ?)",
-				[item.chave_externa, "categoria", resultado, batchId],
+				"categoria",
+				item.chave_externa,
+				resultado,
+				batchId,
 			);
+			if (categoriaComMesmoNome) ignoradas++;
 		} catch (erro) {
 			erros.push({
 				chave_externa: item.chave_externa,
@@ -165,7 +279,11 @@ async function importarCategorias(dados, batchId, db) {
 		}
 	}
 
-	return { mapa, erros };
+	// Produtos chegam com o nome da categoria (por exemplo, "Kimonos"),
+	// enquanto o mapa público acima é indexado pela chave externa da migração.
+	// Retornamos os dois índices sem misturá-los, para que a categoria do
+	// produto seja preservada no ERP.
+	return { mapa, mapaPorNome, erros, ignoradas, importadas };
 }
 
 async function importarProdutosVariacoes(dados, batchId, categoriasMapa, db) {
@@ -174,9 +292,9 @@ async function importarProdutosVariacoes(dados, batchId, categoriasMapa, db) {
 	const variacoesMapa = new Map();
 	const erros = [];
 	const pendencias = [];
-
-	// categoriasMapa tem chave_externa -> id, mas produtos vêm com categoria (nome)
-	// Então deixamos categoriaId=null se não encontrar, e o produto fica sem categoria
+	let ignoradas = 0;
+	let produtosImportados = 0;
+	let variacoesImportadas = 0;
 
 	for (const item of dados) {
 		if (item.pronto_para_importacao === false) {
@@ -192,28 +310,87 @@ async function importarProdutosVariacoes(dados, batchId, categoriasMapa, db) {
 
 		let produtoResult;
 		try {
-			const categoriaId = null; // Para testes, deixar sem categoria por enquanto
-
-			produtoResult = await (async () => {
-				return new Promise((resolve, reject) => {
-					conn.run(
-						"INSERT INTO Produtos (nome, categoria_id, ativo) VALUES (?, ?, 1)",
-						[item.nome, categoriaId],
-						function (erro) {
-							if (erro) return reject(erro);
-							resolve(this.lastID);
-						},
-					);
-				});
-			})();
+			const nomeCategoria = item.subcategoria || item.categoria;
+			const categoriaId = nomeCategoria
+				? categoriasMapa?.mapaPorNome?.get(nomeCategoria) || null
+				: null;
+			const produtoMapeado = await obterEntidadeMapeada(
+				conn,
+				"produto",
+				item.chave_externa,
+			);
+			const produtoJaMapeado = produtoMapeado
+				? await getOn(conn, "SELECT id FROM Produtos WHERE id = ?", [
+						produtoMapeado,
+					])
+				: null;
+			if (produtoJaMapeado) {
+				produtoResult = produtoJaMapeado.id;
+				ignoradas++;
+			} else {
+				const skusProntos = (item.variacoes || [])
+					.filter((variacao) => variacao.pronto_para_importacao !== false)
+					.map((variacao) => variacao.sku)
+					.filter(Boolean);
+				let produtoPorSku = null;
+				if (skusProntos.length > 0) {
+					const encontrados = await new Promise((resolve, reject) => {
+						const marcadores = skusProntos.map(() => "?").join(",");
+						conn.all(
+							`SELECT DISTINCT produto_id FROM Variacoes WHERE sku IN (${marcadores})`,
+							skusProntos,
+							(erro, linhas) => (erro ? reject(erro) : resolve(linhas)),
+						);
+					});
+					if (encontrados.length > 1) {
+						pendencias.push({
+							chave_externa: item.chave_externa,
+							tipo_entidade: "produto",
+							descricao: item.nome,
+							motivo_rejeicao:
+								"Os SKUs deste produto já pertencem a produtos diferentes no ERP",
+							sugestao:
+								"Revisar a mesclagem manualmente; nenhum produto foi criado ou alterado",
+						});
+						continue;
+					}
+					produtoPorSku = encontrados[0]?.produto_id || null;
+				}
+				const produtoComMesmoNome = produtoPorSku
+					? null
+					: await getOn(
+							conn,
+							`SELECT id FROM Produtos
+							 WHERE nome = ? AND (categoria_id = ? OR (categoria_id IS NULL AND ? IS NULL))
+							 ORDER BY id LIMIT 1`,
+							[item.nome, categoriaId, categoriaId],
+						);
+				produtoResult = produtoPorSku || produtoComMesmoNome?.id;
+				if (!produtoResult) {
+					produtoResult = await new Promise((resolve, reject) => {
+						conn.run(
+							"INSERT INTO Produtos (nome, categoria_id, ativo) VALUES (?, ?, 1)",
+							[item.nome, categoriaId],
+							function (erro) {
+								if (erro) return reject(erro);
+								resolve(this.lastID);
+							},
+						);
+					});
+					produtosImportados++;
+				} else {
+					ignoradas++;
+				}
+				await vincularChaveExterna(
+					conn,
+					"produto",
+					item.chave_externa,
+					produtoResult,
+					batchId,
+				);
+			}
 
 			produtosMapa.set(item.chave_externa, produtoResult);
-
-			await runOn(
-				conn,
-				"INSERT INTO MapeamentoChaveExterna (chave_externa, entidade_tipo, entidade_id, batch_id) VALUES (?, ?, ?, ?)",
-				["produto_" + item.chave_externa, "produto", produtoResult, batchId],
-			);
 		} catch (erro) {
 			erros.push({
 				chave_externa: item.chave_externa,
@@ -222,9 +399,6 @@ async function importarProdutosVariacoes(dados, batchId, categoriasMapa, db) {
 			continue; // produto falhou: não faz sentido tentar suas variações
 		}
 
-		// Importar variações — cada uma isolada num try/catch próprio, para que
-		// a falha de uma (SKU duplicado, etc.) não descarte as demais variações
-		// do mesmo produto nem o produto já criado com sucesso acima.
 		const variacoes = Array.isArray(item.variacoes) ? item.variacoes : [];
 		for (const variacao of variacoes) {
 			if (variacao.pronto_para_importacao === false) {
@@ -239,12 +413,44 @@ async function importarProdutosVariacoes(dados, batchId, categoriasMapa, db) {
 			}
 
 			try {
-				const variacaoResult = await (async () => {
-					return new Promise((resolve, reject) => {
+				const variacaoMapeada = await obterEntidadeMapeada(
+					conn,
+					"variacao",
+					variacao.chave_externa,
+				);
+				const variacaoExistente = variacaoMapeada
+					? await getOn(
+							conn,
+							"SELECT id, produto_id FROM Variacoes WHERE id = ?",
+							[variacaoMapeada],
+						)
+					: await getOn(
+							conn,
+							"SELECT id, produto_id FROM Variacoes WHERE sku = ?",
+							[variacao.sku],
+						);
+				if (
+					variacaoExistente &&
+					variacaoExistente.produto_id !== produtoResult
+				) {
+					pendencias.push({
+						chave_externa: variacao.chave_externa,
+						tipo_entidade: "variacao",
+						descricao: `${item.nome} - SKU: ${variacao.sku}`,
+						motivo_rejeicao:
+							"SKU já está vinculado a outro produto no ERP; não foi movido automaticamente",
+						sugestao:
+							"Revisar a mesclagem manualmente para não deslocar estoque ou histórico de vendas",
+					});
+					continue;
+				}
+				let variacaoResult = variacaoExistente?.id;
+				if (!variacaoResult) {
+					variacaoResult = await new Promise((resolve, reject) => {
 						conn.run(
 							`INSERT INTO Variacoes
-							(produto_id, sku, tamanho, cor, preco, preco_custo, quantidade_estoque, atributos)
-							VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+						(produto_id, sku, tamanho, cor, preco, preco_custo, quantidade_estoque, atributos)
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 							[
 								produtoResult,
 								variacao.sku,
@@ -261,20 +467,18 @@ async function importarProdutosVariacoes(dados, batchId, categoriasMapa, db) {
 							},
 						);
 					});
-				})();
+					variacoesImportadas++;
+				}
 
 				variacoesMapa.set(variacao.sku, variacaoResult);
-
-				await runOn(
+				await vincularChaveExterna(
 					conn,
-					"INSERT INTO MapeamentoChaveExterna (chave_externa, entidade_tipo, entidade_id, batch_id) VALUES (?, ?, ?, ?)",
-					[
-						"variacao_" + variacao.chave_externa,
-						"variacao",
-						variacaoResult,
-						batchId,
-					],
+					"variacao",
+					variacao.chave_externa,
+					variacaoResult,
+					batchId,
 				);
+				if (variacaoExistente) ignoradas++;
 			} catch (erro) {
 				erros.push({
 					chave_externa: variacao.chave_externa,
@@ -284,7 +488,15 @@ async function importarProdutosVariacoes(dados, batchId, categoriasMapa, db) {
 		}
 	}
 
-	return { produtosMapa, variacoesMapa, erros, pendencias };
+	return {
+		produtosMapa,
+		variacoesMapa,
+		erros,
+		pendencias,
+		ignoradas,
+		produtosImportados,
+		variacoesImportadas,
+	};
 }
 
 async function importarEstoqueInicial(
@@ -299,9 +511,20 @@ async function importarEstoqueInicial(
 	const skipped = [];
 	const pendencias = [];
 	let importados = 0;
+	let ignoradas = 0;
 
 	for (const item of dados) {
 		try {
+			const estoqueMapeado = await obterEntidadeMapeada(
+				conn,
+				"estoque",
+				item.chave_externa,
+			);
+			if (estoqueMapeado) {
+				ignoradas++;
+				continue;
+			}
+
 			if (item.quantidade_saldo === 0) {
 				skipped.push({
 					chave_externa: item.chave_externa,
@@ -310,7 +533,12 @@ async function importarEstoqueInicial(
 				continue;
 			}
 
-			const variacaoId = variacoesMapa.get(item.sku);
+			const variacaoExistente = await getOn(
+				conn,
+				"SELECT id FROM Variacoes WHERE sku = ?",
+				[item.sku],
+			);
+			const variacaoId = variacoesMapa.get(item.sku) || variacaoExistente?.id;
 			if (!variacaoId) {
 				// SKU não existe porque a variação correspondente ficou bloqueada
 				// (pronto_para_importacao=false) em importarProdutosVariacoes — o
@@ -346,16 +574,18 @@ async function importarEstoqueInicial(
 				[
 					variacaoId,
 					item.quantidade_saldo,
-					item.custo_unitario || 0,
+					item.movimentacao?.custo_unitario || 0,
 					dataMovimentacao,
 					"Importação Loja House - estoque inicial",
 				],
 			);
 
-			await runOn(
+			await vincularChaveExterna(
 				conn,
-				"INSERT INTO MapeamentoChaveExterna (chave_externa, entidade_tipo, entidade_id, batch_id) VALUES (?, ?, ?, ?)",
-				["estoque_" + item.chave_externa, "estoque", variacaoId, batchId],
+				"estoque",
+				item.chave_externa,
+				variacaoId,
+				batchId,
 			);
 
 			importados++;
@@ -367,18 +597,26 @@ async function importarEstoqueInicial(
 		}
 	}
 
-	return { erros, skipped, pendencias, importados };
+	return { erros, skipped, pendencias, importados, ignoradas };
 }
 
 async function importarClientes(dados, batchId, db) {
 	const conn = db || getConexao();
 	const erros = [];
 	const pendencias = [];
+	let ignoradas = 0;
+	let importados = 0;
 
 	for (const item of dados) {
 		try {
+			if (await obterEntidadeMapeada(conn, "cliente", item.chave_externa)) {
+				ignoradas++;
+				continue;
+			}
+
 			// Verificar homonyms
-			const existente = await getAsync(
+			const existente = await getOn(
+				conn,
 				"SELECT id FROM Clientes WHERE nome = ?",
 				[item.nome],
 			);
@@ -407,11 +645,14 @@ async function importarClientes(dados, batchId, db) {
 				});
 			})();
 
-			await runOn(
+			await vincularChaveExterna(
 				conn,
-				"INSERT INTO MapeamentoChaveExterna (chave_externa, entidade_tipo, entidade_id, batch_id) VALUES (?, ?, ?, ?)",
-				["cliente_" + item.chave_externa, "cliente", resultado, batchId],
+				"cliente",
+				item.chave_externa,
+				resultado,
+				batchId,
 			);
+			importados++;
 		} catch (erro) {
 			erros.push({
 				chave_externa: item.chave_externa,
@@ -420,15 +661,22 @@ async function importarClientes(dados, batchId, db) {
 		}
 	}
 
-	return { erros, pendencias };
+	return { erros, pendencias, ignoradas, importados };
 }
 
 async function importarFinanceiroHistorico(dados, batchId, db) {
 	const conn = db || getConexao();
 	const erros = [];
+	let importados = 0;
+	let ignoradas = 0;
 
 	for (const item of dados) {
 		try {
+			if (await obterEntidadeMapeada(conn, "lancamento", item.chave_externa)) {
+				ignoradas++;
+				continue;
+			}
+
 			// status vem do próprio item: 05_financeiro_historico.json sempre traz
 			// "pago" explícito; 06_contas_abertas.json (mesma função, chamada
 			// separadamente) traz "aberto" — sem o item.status como fonte, toda
@@ -448,18 +696,16 @@ async function importarFinanceiroHistorico(dados, batchId, db) {
 				],
 			);
 
-			const resultado = await getAsync("SELECT last_insert_rowid() as id");
+			const resultado = await getOn(conn, "SELECT last_insert_rowid() as id");
 
-			await runOn(
+			await vincularChaveExterna(
 				conn,
-				"INSERT INTO MapeamentoChaveExterna (chave_externa, entidade_tipo, entidade_id, batch_id) VALUES (?, ?, ?, ?)",
-				[
-					"lancamento_" + item.chave_externa,
-					"lancamento",
-					resultado.id,
-					batchId,
-				],
+				"lancamento",
+				item.chave_externa,
+				resultado.id,
+				batchId,
 			);
+			importados++;
 		} catch (erro) {
 			erros.push({
 				chave_externa: item.chave_externa,
@@ -468,15 +714,85 @@ async function importarFinanceiroHistorico(dados, batchId, db) {
 		}
 	}
 
-	return { erros };
+	return { erros, importados, ignoradas };
+}
+
+// Vendas históricas de crediário (Fiado) já vinculadas a um cliente real —
+// completa o passo que antes só contava dados.vendasHistoricas sem nunca
+// importar (ver GOALS.md "4. Crediário histórico" e
+// IMPORT_LOJA_HOUSE.md, que documentava isso como "0 ready in this batch,
+// skip for now"). Cada item precisa trazer cliente_id+sku+data prontos —
+// sem isso vira pendência, mesma regra de aceitar/rejeitar que toda outra
+// entidade deste arquivo já segue (produto bloqueado, cliente homônimo etc.).
+// Reusa `db` (a conexão já em transação de executarComTransacao) — por isso
+// registrarVendaFiadoHistorica recebe esse `db` e não abre um BEGIN próprio.
+async function importarVendasHistoricasFiado(dados, batchId, db) {
+	const conn = db || getConexao();
+	const erros = [];
+	const pendencias = [];
+	let importadas = 0;
+
+	for (const item of dados) {
+		const temCamposObrigatorios = item.cliente_id && item.sku && item.data;
+		if (!temCamposObrigatorios) {
+			pendencias.push({
+				chave_externa: item.chave_externa,
+				tipo_entidade: "venda_historica",
+				descricao: `SKU: ${item.sku || "?"} — ${item.data || "sem data"}`,
+				motivo_rejeicao:
+					"Faltam cliente_id, sku ou data para registrar a venda histórica",
+				sugestao:
+					"Informar cliente_id (id do cliente já importado), sku e data e reimportar",
+			});
+			continue;
+		}
+
+		try {
+			await registrarVendaFiadoHistorica(
+				{
+					cliente_id: item.cliente_id,
+					sku: item.sku,
+					quantidade: item.quantidade,
+					valorUnitario: item.valorUnitario ?? item.valor_unitario,
+					data: item.data,
+					statusRecebivel:
+						item.statusRecebivel || item.status_recebivel || "aberto",
+				},
+				conn,
+			);
+			importadas++;
+		} catch (erro) {
+			erros.push({
+				chave_externa: item.chave_externa,
+				motivo: erro.message,
+			});
+		}
+	}
+
+	return { erros, pendencias, importadas };
 }
 
 async function importarPendencias(dados, batchId, db) {
 	const conn = db || getConexao();
 	const erros = [];
+	let ignoradas = 0;
+	let importadas = 0;
 
 	for (const item of dados) {
 		try {
+			const chaveExterna = item.chave_externa || item.id || null;
+			const tipo = item.tipo_entidade || item.tipo || "outro";
+			if (
+				chaveExterna &&
+				(await getOn(
+					conn,
+					"SELECT id FROM Pendencias WHERE chave_externa = ? AND tipo_entidade = ? LIMIT 1",
+					[chaveExterna, tipo],
+				))
+			) {
+				ignoradas++;
+				continue;
+			}
 			const id = "pend_" + gerarIdUnido();
 			// Itens já vindos de 99_pendencias.json usam id/tipo/descricao/
 			// acao_sugerida (formato real da exportação); itens que chegam aqui
@@ -491,8 +807,8 @@ async function importarPendencias(dados, batchId, db) {
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 				[
 					id,
-					item.chave_externa || item.id || null,
-					item.tipo_entidade || item.tipo || "outro",
+					chaveExterna,
+					tipo,
 					item.descricao || null,
 					item.valor || null,
 					item.motivo_rejeicao || item.descricao || null,
@@ -500,6 +816,7 @@ async function importarPendencias(dados, batchId, db) {
 					batchId,
 				],
 			);
+			importadas++;
 		} catch (erro) {
 			erros.push({
 				chave_externa: item.chave_externa || item.id || "desconhecido",
@@ -508,7 +825,148 @@ async function importarPendencias(dados, batchId, db) {
 		}
 	}
 
-	return { erros };
+	return { erros, ignoradas, importadas };
+}
+
+function precificacoesIguais(a, b) {
+	return [
+		"preco_custo",
+		"impostos_extras",
+		"margem_percentual",
+		"preco_venda",
+		"status",
+	].every((campo) => a[campo] === b[campo]);
+}
+
+async function mesclarDuplicidadesImportacao(db) {
+	const conn = db || getConexao();
+	const resultado = {
+		categoriasMescladas: 0,
+		produtosMesclados: 0,
+		produtosComConflitoDePreco: 0,
+	};
+
+	const gruposCategoria = await allOn(
+		conn,
+		`SELECT nome, categoria_pai_id
+		 FROM Categorias
+		 GROUP BY nome, categoria_pai_id
+		 HAVING COUNT(*) > 1`,
+	);
+	for (const grupo of gruposCategoria) {
+		const categorias = await allOn(
+			conn,
+			`SELECT id FROM Categorias
+			 WHERE nome = ? AND (categoria_pai_id = ? OR (categoria_pai_id IS NULL AND ? IS NULL))
+			 ORDER BY id`,
+			[grupo.nome, grupo.categoria_pai_id, grupo.categoria_pai_id],
+		);
+		const [principal, ...duplicadas] = categorias;
+		for (const duplicada of duplicadas) {
+			await runOn(
+				conn,
+				"UPDATE Produtos SET categoria_id = ? WHERE categoria_id = ?",
+				[principal.id, duplicada.id],
+			);
+			await runOn(
+				conn,
+				"UPDATE Produtos SET subcategoria_id = ? WHERE subcategoria_id = ?",
+				[principal.id, duplicada.id],
+			);
+			await runOn(
+				conn,
+				"UPDATE Categorias SET categoria_pai_id = ? WHERE categoria_pai_id = ?",
+				[principal.id, duplicada.id],
+			);
+			await runOn(
+				conn,
+				`INSERT OR IGNORE INTO ProdutoCategorias (produto_id, categoria_id)
+				 SELECT produto_id, ? FROM ProdutoCategorias WHERE categoria_id = ?`,
+				[principal.id, duplicada.id],
+			);
+			await runOn(
+				conn,
+				"DELETE FROM ProdutoCategorias WHERE categoria_id = ?",
+				[duplicada.id],
+			);
+			await runOn(
+				conn,
+				"UPDATE MapeamentoChaveExterna SET entidade_id = ? WHERE entidade_tipo = 'categoria' AND entidade_id = ?",
+				[principal.id, duplicada.id],
+			);
+			await runOn(conn, "DELETE FROM Categorias WHERE id = ?", [duplicada.id]);
+			resultado.categoriasMescladas++;
+		}
+	}
+
+	const gruposProduto = await allOn(
+		conn,
+		`SELECT nome, categoria_id
+		 FROM Produtos
+		 GROUP BY nome, categoria_id
+		 HAVING COUNT(*) > 1`,
+	);
+	for (const grupo of gruposProduto) {
+		const produtos = await allOn(
+			conn,
+			`SELECT p.id, COUNT(v.id) AS variacoes
+			 FROM Produtos p LEFT JOIN Variacoes v ON v.produto_id = p.id
+			 WHERE p.nome = ? AND (p.categoria_id = ? OR (p.categoria_id IS NULL AND ? IS NULL))
+			 GROUP BY p.id ORDER BY variacoes DESC, p.id`,
+			[grupo.nome, grupo.categoria_id, grupo.categoria_id],
+		);
+		const [principal, ...duplicados] = produtos;
+		for (const duplicado of duplicados) {
+			const precoPrincipal = await getOn(
+				conn,
+				"SELECT * FROM Precificacao WHERE produto_id = ?",
+				[principal.id],
+			);
+			const precoDuplicado = await getOn(
+				conn,
+				"SELECT * FROM Precificacao WHERE produto_id = ?",
+				[duplicado.id],
+			);
+			if (
+				precoPrincipal &&
+				precoDuplicado &&
+				!precificacoesIguais(precoPrincipal, precoDuplicado)
+			) {
+				resultado.produtosComConflitoDePreco++;
+				continue;
+			}
+			if (!precoPrincipal && precoDuplicado) {
+				await runOn(
+					conn,
+					"UPDATE Precificacao SET produto_id = ? WHERE produto_id = ?",
+					[principal.id, duplicado.id],
+				);
+			}
+			await runOn(
+				conn,
+				`INSERT OR IGNORE INTO ProdutoCategorias (produto_id, categoria_id)
+				 SELECT ?, categoria_id FROM ProdutoCategorias WHERE produto_id = ?`,
+				[principal.id, duplicado.id],
+			);
+			await runOn(conn, "DELETE FROM ProdutoCategorias WHERE produto_id = ?", [
+				duplicado.id,
+			]);
+			await runOn(
+				conn,
+				"UPDATE Variacoes SET produto_id = ? WHERE produto_id = ?",
+				[principal.id, duplicado.id],
+			);
+			await runOn(
+				conn,
+				"UPDATE MapeamentoChaveExterna SET entidade_id = ? WHERE entidade_tipo = 'produto' AND entidade_id = ?",
+				[principal.id, duplicado.id],
+			);
+			await runOn(conn, "DELETE FROM Produtos WHERE id = ?", [duplicado.id]);
+			resultado.produtosMesclados++;
+		}
+	}
+
+	return resultado;
 }
 
 async function executarImportacaoLojHouse(
@@ -644,13 +1102,15 @@ async function executarImportacaoLojHouse(
 				estoque: 0,
 				clientes: 0,
 				lancamentos: 0,
+				vendasHistoricas: 0,
 			},
-			ignoradas: existentes.length,
+			ignoradas: 0,
 			pendencias: [],
 			erros: [],
 		};
+		resultado.reconciliacao = await mesclarDuplicidadesImportacao(connTxn);
 
-		let categoriasMapa = new Map();
+		let categoriasMapa = { mapa: new Map(), mapaPorNome: new Map() };
 		let variacoesMapa = new Map();
 
 		// 1. Categorias
@@ -659,8 +1119,9 @@ async function executarImportacaoLojHouse(
 			batchId,
 			connTxn,
 		);
-		categoriasMapa = resCateg.mapa;
-		resultado.importadas.categorias = categoriasMapa.size;
+		categoriasMapa = resCateg;
+		resultado.importadas.categorias = resCateg.importadas;
+		resultado.ignoradas += resCateg.ignoradas;
 		resultado.erros.push(...resCateg.erros);
 
 		// 2. Produtos e Variações
@@ -671,8 +1132,9 @@ async function executarImportacaoLojHouse(
 			connTxn,
 		);
 		variacoesMapa = resProd.variacoesMapa;
-		resultado.importadas.produtos = resProd.produtosMapa.size;
-		resultado.importadas.variacoes = variacoesMapa.size;
+		resultado.importadas.produtos = resProd.produtosImportados;
+		resultado.importadas.variacoes = resProd.variacoesImportadas;
+		resultado.ignoradas += resProd.ignoradas;
 		resultado.pendencias.push(...resProd.pendencias);
 		resultado.erros.push(...resProd.erros);
 
@@ -685,13 +1147,14 @@ async function executarImportacaoLojHouse(
 			connTxn,
 		);
 		resultado.importadas.estoque = resEst.importados;
+		resultado.ignoradas += resEst.ignoradas;
 		resultado.pendencias.push(...resEst.pendencias);
 		resultado.erros.push(...resEst.erros);
 
 		// 4. Clientes
 		const resCli = await importarClientes(dados.clientes, batchId, connTxn);
-		resultado.importadas.clientes =
-			dados.clientes.length - resCli.pendencias.length;
+		resultado.importadas.clientes = resCli.importados;
+		resultado.ignoradas += resCli.ignoradas;
 		resultado.pendencias.push(...resCli.pendencias);
 		resultado.erros.push(...resCli.erros);
 
@@ -701,8 +1164,8 @@ async function executarImportacaoLojHouse(
 			batchId,
 			connTxn,
 		);
-		resultado.importadas.lancamentos =
-			dados.financeiroHistorico.length - resFin.erros.length;
+		resultado.importadas.lancamentos = resFin.importados;
+		resultado.ignoradas += resFin.ignoradas;
 		resultado.erros.push(...resFin.erros);
 
 		// 6. Contas Abertas (mesmo que financeiro, mas status aberto)
@@ -711,8 +1174,8 @@ async function executarImportacaoLojHouse(
 			batchId,
 			connTxn,
 		);
-		resultado.importadas.lancamentos +=
-			dados.contasAbertas.length - resContasAbertas.erros.length;
+		resultado.importadas.lancamentos += resContasAbertas.importados;
+		resultado.ignoradas += resContasAbertas.ignoradas;
 		resultado.erros.push(...resContasAbertas.erros);
 
 		// 7. Pendências
@@ -721,9 +1184,42 @@ async function executarImportacaoLojHouse(
 			batchId,
 			connTxn,
 		);
-		resultado.pendencias =
-			resultado.pendencias.length + dados.pendenciasOrigem.length;
+		resultado.pendencias = resPend.importadas;
+		resultado.ignoradas += resPend.ignoradas;
 		resultado.erros.push(...resPend.erros);
+
+		// 8. Vendas Históricas de Crediário (Fiado com cliente_id vinculado) —
+		// completa o gap documentado em IMPORT_LOJA_HOUSE.md ("0 ready in this
+		// batch, skip for now"). Cada item precisa trazer cliente_id+sku+data
+		// prontos; sem isso vira pendência, mesmo padrão de aceitar/rejeitar de
+		// toda outra entidade acima. Fica depois do passo 7 porque suas próprias
+		// pendências só existem depois de tentar o registro — por isso persiste
+		// com uma segunda chamada a importarPendencias.
+		const resVendasHist = await importarVendasHistoricasFiado(
+			dados.vendasHistoricas,
+			batchId,
+			connTxn,
+		);
+		resultado.importadas.vendasHistoricas = resVendasHist.importadas;
+		resultado.erros.push(...resVendasHist.erros);
+		if (resVendasHist.pendencias.length > 0) {
+			const resPendVendasHist = await importarPendencias(
+				resVendasHist.pendencias,
+				batchId,
+				connTxn,
+			);
+			resultado.erros.push(...resPendVendasHist.erros);
+			resultado.pendencias += resPendVendasHist.importadas;
+			resultado.ignoradas += resPendVendasHist.ignoradas;
+		}
+
+		if (resultado.erros.length > 0) {
+			throw new Error(
+				`Importação cancelada para não deixar dados parciais: ${resultado.erros
+					.map((erro) => `${erro.chave_externa}: ${erro.motivo}`)
+					.join("; ")}`,
+			);
+		}
 
 		// Criar batch record
 		const totalItens =
@@ -736,7 +1232,7 @@ async function executarImportacaoLojHouse(
 			dados.vendasHistoricas.length +
 			dados.pendenciasOrigem.length;
 
-		const status = resultado.erros.length === 0 ? "sucesso" : "parcial";
+		const status = "sucesso";
 
 		await runOn(
 			connTxn,
@@ -796,4 +1292,5 @@ module.exports = {
 	validarStructura,
 	checarDuplicacao,
 	normalizarConteudoArquivo,
+	mesclarDuplicidadesImportacao,
 };

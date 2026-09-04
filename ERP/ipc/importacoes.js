@@ -6,7 +6,35 @@ const {
 	obterHistoricoLotes,
 	obterDetalhesLote,
 	normalizarConteudoArquivoImportacao,
+	parseExcelLojaHouse,
 } = require("../database");
+
+// parseExcelLojaHouse já devolve exatamente o shape de 8 arrays que
+// executarImportacaoLojHouse espera de um `arquivos["0X_....json"]` — então
+// em vez de ensinar o motor de importação (db/importacoes.js) a entender
+// mais um formato de entrada, convertemos aqui para o formato de array de
+// {arquivo, conteudo} que ele já aceita (upload de JSONs individuais).
+// Zero mudança no motor testado; o Excel só vira "JSONs já carregados em
+// memória" antes de chegar lá.
+function converterExcelParaArquivos(caminho) {
+	const dados = parseExcelLojaHouse(caminho);
+	return [
+		{ arquivo: "01_categorias.json", conteudo: dados.categorias },
+		{
+			arquivo: "02_produtos_variacoes.json",
+			conteudo: dados.produtosVariacoes,
+		},
+		{ arquivo: "03_estoque_inicial.json", conteudo: dados.estoqueInicial },
+		{ arquivo: "04_clientes.json", conteudo: dados.clientes },
+		{
+			arquivo: "05_financeiro_historico.json",
+			conteudo: dados.financeiroHistorico,
+		},
+		{ arquivo: "06_contas_abertas.json", conteudo: dados.contasAbertas },
+		{ arquivo: "07_vendas_historicas.json", conteudo: dados.vendasHistoricas },
+		{ arquivo: "99_pendencias.json", conteudo: dados.pendenciasOrigem },
+	];
+}
 
 function registrar(ipcMain, deps) {
 	const { exigirSessao, log, getMainWindow, getSessao } = deps;
@@ -122,6 +150,67 @@ function registrar(ipcMain, deps) {
 		},
 	);
 
+	ipcMain.handle(
+		"importacoes:validar-arquivo-excel",
+		async (event, caminho) => {
+			try {
+				exigirSessao("admin");
+
+				if (!caminho) {
+					const resultado = await dialog.showOpenDialog(getMainWindow(), {
+						title: "Selecionar planilha Excel (.xlsx) da Loja House",
+						properties: ["openFile"],
+						filters: [{ name: "Excel", extensions: ["xlsx"] }],
+					});
+
+					if (resultado.canceled || !resultado.filePaths[0]) {
+						return { cancelado: true };
+					}
+
+					caminho = resultado.filePaths[0];
+				}
+
+				if (!fs.existsSync(caminho)) {
+					throw new Error("Arquivo não encontrado: " + caminho);
+				}
+
+				let dados;
+				try {
+					dados = parseExcelLojaHouse(caminho);
+				} catch (erro) {
+					return {
+						erro: `Planilha inválida: ${erro.message}`,
+					};
+				}
+
+				const preview = {
+					categorias: dados.categorias.length,
+					produtos: dados.produtosVariacoes.length,
+					variacoes: dados.produtosVariacoes.reduce(
+						(acc, p) =>
+							acc + (Array.isArray(p.variacoes) ? p.variacoes.length : 0),
+						0,
+					),
+					estoque: dados.estoqueInicial.length,
+					clientes: dados.clientes.length,
+					lancamentos:
+						dados.financeiroHistorico.length + dados.contasAbertas.length,
+					pendencias: dados.pendenciasOrigem.length,
+				};
+
+				return {
+					formato: "excel",
+					caminho,
+					preview,
+				};
+			} catch (erro) {
+				return {
+					erro: erro.message,
+				};
+			}
+		},
+	);
+
 	ipcMain.handle("importacoes:executar", async (event, pasta, opcoes = {}) => {
 		try {
 			exigirSessao("admin");
@@ -130,8 +219,18 @@ function registrar(ipcMain, deps) {
 				throw new Error("Pasta de importação não informada");
 			}
 
+			// Terceiro formato de entrada: planilha .xlsx nativa
+			// ({ tipo: "excel", caminho }, ver db/excel-loja-house.js), convertida
+			// aqui para o array de {arquivo, conteudo} que
+			// executarImportacaoLojHouse já entende (mesmo caminho do upload de
+			// JSONs individuais) — o motor de importação em si não muda.
+			const entradaImportacao =
+				pasta && typeof pasta === "object" && pasta.tipo === "excel"
+					? converterExcelParaArquivos(pasta.caminho)
+					: pasta;
+
 			const resultado = await executarImportacaoLojHouse(
-				pasta,
+				entradaImportacao,
 				getSessao()?.id ?? null,
 				{
 					dryRun: opcoes.dryRun !== false,

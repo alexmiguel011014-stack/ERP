@@ -59,6 +59,16 @@ test("criarLancamento aceita categoria da lista fechada", async () => {
 	assert.strictEqual(resultado.success, true);
 });
 
+test("criarLancamento aceita categoria Investimento (capex, distinto de despesa recorrente)", async () => {
+	const resultado = await db.criarLancamento({
+		tipo: "pagar",
+		descricao: "Reforma da loja - tintas e cortinas",
+		valor: 830.29,
+		categoria: "Investimento",
+	});
+	assert.strictEqual(resultado.success, true);
+});
+
 test("criarLancamento recusa categoria fora da lista fechada", async () => {
 	await assert.rejects(() =>
 		db.criarLancamento({

@@ -53,6 +53,8 @@ contextBridge.exposeInMainWorld("api", {
 	getVendasHoje: () => ipcRenderer.invoke("get-vendas-hoje"),
 	importarVendasHistoricas: (linhas) =>
 		ipcRenderer.invoke("importar-vendas-historicas", linhas),
+	registrarVendaFiadoHistorica: (dados) =>
+		ipcRenderer.invoke("registrar-venda-fiado-historica", dados),
 	getItensVenda: (vendaId) => ipcRenderer.invoke("get-itens-venda", vendaId),
 	getEstoqueNegativo: () => ipcRenderer.invoke("get-estoque-negativo"),
 	getCategorias: () => ipcRenderer.invoke("get-categorias"),
@@ -237,11 +239,23 @@ contextBridge.exposeInMainWorld("api", {
 		ipcRenderer.invoke("verificar-senha-admin", senha),
 	validarPastaImportacao: (pasta) =>
 		ipcRenderer.invoke("importacoes:validar-pasta-loja-house", pasta),
+	validarArquivoExcelImportacao: (caminho) =>
+		ipcRenderer.invoke("importacoes:validar-arquivo-excel", caminho),
 	executarImportacao: (pasta, opcoes) =>
 		ipcRenderer.invoke("importacoes:executar", pasta, opcoes),
 	historicoImportacoes: () => ipcRenderer.invoke("importacoes:historico-lotes"),
 	detalhesImportacao: (batchId) =>
 		ipcRenderer.invoke("importacoes:detalhes-lote", batchId),
+	registrarConsignacao: (dados) =>
+		ipcRenderer.invoke("consignacoes:registrar", dados),
+	marcarConsignacaoDevolvida: (id) =>
+		ipcRenderer.invoke("consignacoes:marcar-devolvida", id),
+	marcarConsignacaoPerdida: (id) =>
+		ipcRenderer.invoke("consignacoes:marcar-perdida", id),
+	marcarConsignacaoVendida: (id, dados) =>
+		ipcRenderer.invoke("consignacoes:marcar-vendida", id, dados),
+	listarConsignacoes: (filtro) =>
+		ipcRenderer.invoke("consignacoes:listar", filtro),
 });
 
 ipcRenderer.on("update-status", (event, data) => {

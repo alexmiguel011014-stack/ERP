@@ -7,6 +7,7 @@ const ABAS = [
 	{ href: "/produtos/cadastro", label: "Cadastro de Produto" },
 	{ href: "/produtos/estoque", label: "Estoque" },
 	{ href: "/produtos/precificacao", label: "Precificação" },
+	{ href: "/produtos/consignacao", label: "Consignação" },
 ];
 
 export default function ProdutosLayout({

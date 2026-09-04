@@ -3,6 +3,7 @@ const {
 	getVendas,
 	getVendasHoje,
 	importarVendasHistoricas,
+	registrarVendaFiadoHistorica,
 	getItensVenda,
 	converterOrcamento,
 	cancelarOrcamento,
@@ -54,6 +55,26 @@ function registrar(ipcMain, deps) {
 		try {
 			exigirPermissao("estoque");
 			return await importarVendasHistoricas(linhas);
+		} catch (erro) {
+			throw erro.message;
+		}
+	});
+
+	// Crediário histórico com vínculo real (GOALS.md "4. Crediário histórico")
+	// — lançamento manual, um de cada vez, pelo dono/admin. admin-only: mesma
+	// sensibilidade dos importadores em lote acima (escreve histórico
+	// financeiro retroativo).
+	ipcMain.handle("registrar-venda-fiado-historica", async (event, dados) => {
+		try {
+			exigirSessao("admin");
+			const resultado = await registrarVendaFiadoHistorica(dados);
+			log(
+				"registrar-venda-fiado-historica",
+				"Vendas",
+				resultado.vendaId,
+				"Crediário histórico - cliente #" + dados.cliente_id,
+			);
+			return resultado;
 		} catch (erro) {
 			throw erro.message;
 		}

@@ -4,7 +4,7 @@
 	"versao": "1.0.0",
 	"tipo": "workspace-dashboard",
 	"entrada": null,
-	"ipc": ["produtos.js"],
+	"ipc": ["produtos.js", "consignacoes.js"],
 	"permissao": { "tipo": "modulo", "nomeModulo": "produtos" },
 	"navbar": {
 		"secao": "gestao",

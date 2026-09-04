@@ -162,6 +162,7 @@ export const CATEGORIAS_FINANCEIRAS = [
 	"Marketing",
 	"Impostos",
 	"Manutenção",
+	"Investimento",
 	"Outros",
 ] as const;
 
@@ -387,6 +388,23 @@ export type NovaVendaDados = {
 };
 
 export type ResultadoVenda = { success: boolean; vendaId: number };
+
+// Crediário histórico (GOALS.md "4. Crediário histórico") — lançamento
+// manual de uma dívida de Fiado antiga já vinculada a um cliente real.
+export type VendaFiadoHistoricaDados = {
+	cliente_id: number;
+	sku: string;
+	quantidade: number;
+	valorUnitario: number;
+	data: string;
+	statusRecebivel: "aberto" | "pago";
+};
+
+export type ResultadoVendaFiadoHistorica = {
+	success: boolean;
+	vendaId: number;
+	total: number;
+};
 
 export type DevolucaoDados = {
 	venda_id: number;
@@ -759,6 +777,24 @@ export type ValidacaoPastaImportacao =
 			preview: PreviewImportacao;
 	  };
 
+// Terceiro modo do wizard: planilha .xlsx nativa da Loja House (ver
+// db/excel-loja-house.js). Mesmo preview de contagens de validarPasta, só
+// muda "pasta"+"arquivos" por "caminho" (um arquivo só, não uma pasta).
+export type ValidacaoArquivoExcelImportacao =
+	| { cancelado: true }
+	| { erro: string }
+	| {
+			formato: "excel";
+			caminho: string;
+			preview: PreviewImportacao;
+	  };
+
+// Entrada aceita por executarImportacao: pasta de JSONs (string), ou
+// planilha Excel nativa — espelha os dois formatos que
+// executarImportacaoLojHouse (via ipc/importacoes.js) já aceita além do
+// array de {arquivo,conteudo} usado internamente para uploads de JSON.
+export type EntradaImportacao = string | { tipo: "excel"; caminho: string };
+
 export type PreviewDryRunImportacao = {
 	categorias: number;
 	produtos: number;
@@ -852,6 +888,51 @@ export type DetalhesLoteImportacao = {
 	// quando o lote terminou de rodar, {} se log ainda não foi gravado.
 	log: ResultadoImportacaoLote | Record<string, never>;
 };
+
+export type StatusConsignacao =
+	| "emprestado"
+	| "devolvido"
+	| "vendido"
+	| "perdido";
+
+export type Consignacao = {
+	id: number;
+	cliente_id: number | null;
+	variacao_id: number;
+	quantidade: number;
+	data_saida: string | null;
+	data_prevista_retorno: string | null;
+	status: StatusConsignacao;
+	observacao: string | null;
+	criado_em: string;
+	cliente_nome: string | null;
+	sku: string;
+	tamanho: string | null;
+	cor: string | null;
+	preco: number;
+	produto_nome: string;
+};
+
+export type NovaConsignacao = {
+	cliente_id: number | null;
+	variacao_id: number;
+	quantidade: number;
+	data_prevista_retorno: string | null;
+	observacao: string | null;
+};
+
+export type MarcarVendidaConsignacao = {
+	preco_unitario: number;
+	forma_pagamento?: string | null;
+	observacao?: string | null;
+};
+
+export type FiltroConsignacoes = {
+	cliente_id?: number;
+	status?: StatusConsignacao;
+};
+
+export type ErroConsignacao = { erro: string };
 
 export const erpApi = {
 	clientes: {
@@ -1047,6 +1128,11 @@ export const erpApi = {
 			invocar<ResultadoVenda>("finalizarVenda", dados),
 		registrarDevolucao: (dados: DevolucaoDados) =>
 			invocar<ResultadoDevolucao>("registrarDevolucao", dados),
+		registrarVendaFiadoHistorica: (dados: VendaFiadoHistoricaDados) =>
+			invocar<ResultadoVendaFiadoHistorica>(
+				"registrarVendaFiadoHistorica",
+				dados,
+			),
 	},
 	financeiro: {
 		lancamentos: (filtro: { tipo?: string; status?: string }) =>
@@ -1165,13 +1251,46 @@ export const erpApi = {
 		// (dialog.showOpenDialog) e devolve a pasta escolhida.
 		validarPasta: (pasta?: string) =>
 			invocar<ValidacaoPastaImportacao>("validarPastaImportacao", pasta),
+		// Mesma ideia, mas pra planilha Excel (.xlsx) nativa em vez de pasta
+		// de JSONs — sem argumento também abre o dialog nativo, já filtrado
+		// pra .xlsx.
+		validarExcel: (caminho?: string) =>
+			invocar<ValidacaoArquivoExcelImportacao>(
+				"validarArquivoExcelImportacao",
+				caminho,
+			),
 		executar: (
-			pasta: string,
+			pasta: EntradaImportacao,
 			opcoes: { dryRun: boolean; dataMovimentacao?: string },
 		) =>
 			invocar<ResultadoExecucaoImportacao>("executarImportacao", pasta, opcoes),
 		historico: () => invocar<LoteImportacao[]>("historicoImportacoes"),
 		detalhes: (batchId: string) =>
 			invocar<DetalhesLoteImportacao>("detalhesImportacao", batchId),
+	},
+	consignacoes: {
+		registrar: (dados: NovaConsignacao) =>
+			invocar<{ success: boolean; consignacaoId: number } | ErroConsignacao>(
+				"registrarConsignacao",
+				dados,
+			),
+		marcarDevolvida: (id: number) =>
+			invocar<{ success: boolean } | ErroConsignacao>(
+				"marcarConsignacaoDevolvida",
+				id,
+			),
+		marcarPerdida: (id: number) =>
+			invocar<{ success: boolean } | ErroConsignacao>(
+				"marcarConsignacaoPerdida",
+				id,
+			),
+		marcarVendida: (id: number, dados: MarcarVendidaConsignacao) =>
+			invocar<{ success: boolean; vendaId: number } | ErroConsignacao>(
+				"marcarConsignacaoVendida",
+				id,
+				dados,
+			),
+		listar: (filtro?: FiltroConsignacoes) =>
+			invocar<Consignacao[] | ErroConsignacao>("listarConsignacoes", filtro),
 	},
 };

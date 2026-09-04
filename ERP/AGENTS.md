@@ -324,6 +324,15 @@ certificado A1 e conta em provedor de pagamento ainda pendentes de acesso — ve
 
 Setup Electron seguro · SQLite 8 tabelas + extensões · SQLCipher (criptografia por senha) + migração automática plaintext→cipher · Migração de colunas (`migrarColunas`) · Cadastro de produtos c/ variações + SKU auto + estoque_mínimo · Clientes CRUD (CPF/CNPJ, e-mail, endereço) · Fornecedores CRUD · PDV (leitor SKU, carrinho, cliente, desconto, observação, fiado, orçamento, transação atômica com guarda de estoque, recibo) · Orçamentos (salvar → converter em venda; não movimenta estoque até conversão) · Histórico de vendas (filtro data+status, badge, detalhes modal, conversão de orçamento, CSV) · Entrada de mercadorias (custo médio ponderado, ledger `MovimentacoesEstoque`) · Alerta de estoque mínimo (dashboard, PDV, página de entrada) · Pedidos de compra (criar/receber/cancelar; recebimento gera conta a pagar) · Financeiro (contas a pagar/receber, baixa, fluxo de caixa por dia, provisão de DAS por regime de caixa) · Relatórios (vendas por período, por pagamento, ticket médio, Curva ABC A/B/C + CSV, DRE, margem de contribuição, ponto de equilíbrio, giro de estoque) · Dashboard (vendas/faturamento/estoque/hoje + a receber e a pagar hoje) · Navbar por perfil · Tema escuro · Login multi-usuário (admin) + Gerenciar Acessos · Backup/Restore + automático diário · Auto-update · Build NSIS v1.0.0 · Janela maximizada · Launcher silencioso (VBS)
 
+**Adicionado 2026-09-03** (ver `GOALS.md`, seção "Native Excel Parser + Structural Gaps
+Surfaced by Loja House Data"): Importação — 3º modo "Importar de planilha Excel (.xlsx)"
+(`db/excel-loja-house.js`), parser nativo que lê o `.xlsx` de migração direto, sem depender de
+pré-processamento externo em 11 JSONs · Produtos — aba **Consignação** (`Consignacoes`,
+reaproveita `quantidade_reservada`, mesmo mecanismo já usado por orçamento) · Financeiro —
+categoria **Investimento** (capex, distinta de despesa operacional recorrente) · Vendas — botão
+"Lançar Venda Histórica" (`registrarVendaFiadoHistorica`, cria venda+recebível vinculado a
+cliente com data passada, sem exigir caixa aberto nem baixar estoque atual).
+
 ## Fora de escopo (decidido)
 
 ~~Emissão de NF-e / NFC-e: requer integração ao SEFAZ... inviável em ERP desktop offline.~~

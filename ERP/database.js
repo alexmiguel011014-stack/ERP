@@ -21,6 +21,8 @@ const sistema = require("./db/sistema");
 const bancoAdmin = require("./db/banco-admin");
 const usuarios = require("./db/usuarios");
 const importacoes = require("./db/importacoes");
+const excelLojaHouse = require("./db/excel-loja-house");
+const consignacoes = require("./db/consignacoes");
 
 module.exports = {
 	db: conexao.getConexao,
@@ -67,6 +69,7 @@ module.exports = {
 	getVendas: vendas.getVendas,
 	getVendasHoje: vendas.getVendasHoje,
 	importarVendasHistoricas: vendas.importarVendasHistoricas,
+	registrarVendaFiadoHistorica: vendas.registrarVendaFiadoHistorica,
 	getFaturamentoMedioHistorico: precificacao.getFaturamentoMedioHistorico,
 	getItensVenda: vendas.getItensVenda,
 	getMovimentacoesCliente: clientes.getMovimentacoesCliente,
@@ -176,4 +179,10 @@ module.exports = {
 	obterHistoricoLotes: importacoes.obterHistoricoLotes,
 	obterDetalhesLote: importacoes.obterDetalhesLote,
 	normalizarConteudoArquivoImportacao: importacoes.normalizarConteudoArquivo,
+	parseExcelLojaHouse: excelLojaHouse.parseExcelLojaHouse,
+	registrarConsignacao: consignacoes.registrarConsignacao,
+	marcarDevolvida: consignacoes.marcarDevolvida,
+	marcarPerdida: consignacoes.marcarPerdida,
+	marcarVendida: consignacoes.marcarVendida,
+	listarConsignacoes: consignacoes.listarConsignacoes,
 };

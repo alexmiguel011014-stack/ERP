@@ -13,6 +13,7 @@ const CATEGORIAS_FINANCEIRAS = [
 	"Marketing",
 	"Impostos",
 	"Manutenção",
+	"Investimento",
 	"Outros",
 ];
 

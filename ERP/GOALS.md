@@ -3051,3 +3051,347 @@ flowchart TD
 - [x] Batch history is auditable (who, when, how many, what succeeded/failed)
 - [x] Pendencias reviewable and exportable for manual follow-up
 - [x] All tests pass; no regressions on existing import (historical sales)
+
+---
+
+## Native Excel Parser + Structural Gaps Surfaced by Loja House Data (feature, not started)
+
+**Source**: owner uploaded `Loja House.xlsx` directly (2026-09-03) — confirmed via SHA-256
+(`961997489311C5F2B5F3D66C287822BB38C8534524C1C18DC7037B7107CCA12A`) to be the exact same
+source file that already produced the 11 JSONs imported in the section above. Cross-referencing
+all 22 sheets against the existing `Pendencias` records confirmed the current import engine
+already accounts for 100% of this file's data (0 unexplained rows) — nothing here is a data
+gap. What's missing is **capability**: (1) the transformation from raw `.xlsx` to the JSON
+shape `db/importacoes.js` already consumes is done today by an external, undocumented process,
+not by this codebase; (2) three of the recurring `Pendencias` categories
+(`consignacao_sem_modelo_no_erp`, `investimento_sem_data`/no real "capex" categoria,
+`crediario_sem_produto_identificavel`) exist only as a dead-end text record — there's no
+module to promote a resolved pendência into a real, trackable entity once the owner supplies
+the missing information (SKU, date, etc.).
+
+**Research method**: read all 22 sheets directly with SheetJS (`sheet_to_json({header:1})`),
+cross-referenced cell values against the already-produced JSONs' `origem`/`origem_planilha`
+fields to confirm the mapping rules already applied, and read the actual current module/schema
+code (not assumed) to place each new capability precisely — see the placement rationale in each
+subsection below.
+
+```mermaid
+flowchart TD
+    A[Excel Native Parser] --> B[Feeds same 8-array shape\nexecutarImportacaoLojHouse already accepts]
+    C[Consignação tracking] --> F[New Produtos tab]
+    D[Investimento categoria] --> G[Extend CATEGORIAS_FINANCEIRAS,\nreuses Financeiro A Pagar tab]
+    E[Crediário histórico real] --> H[New db/vendas.js function\n+ LancamentosFinanceiros.cliente_id]
+    B --> I[Import wizard: 3rd mode]
+    H --> J[Wires the already-stubbed\n07_vendas_historicas.json step]
+    F --> K[Pendencias UI: resolve action\nlinks to the new module]
+    G --> K
+    H --> K
+```
+
+### 1. Native Excel → JSON Parser
+
+**Design rationale.** Today: `Excel → (external, undocumented tool) → 11 JSONs → db/importacoes.js`.
+This closes the loop so the ERP itself does the first step. **Placement decision (answers "which
+tab"): no new page** — added as a **3rd mode inside the existing `/importacao` page**
+(`frontend/src/app/(admin)/importacao/page.tsx`), alongside the current "Importação de dados
+(Loja House)" (folder of JSONs) and "Importação de vendas históricas (legado)" modes — call it
+**"Importar de planilha Excel (.xlsx)"**. Reason: it produces the exact same preview/confirm/
+execute UX already built for the folder-of-JSONs mode, just with a different Step-1 loader (one
+`.xlsx` file instead of a folder) — reusing steps 2–3 of the wizard verbatim is cheaper and more
+consistent than a new page, and keeps every future import entry point in one place.
+
+**Out of scope, explicitly**: this parser targets *this store's* sheet layout (matrix
+product blocks, one `Financeiro Loja<MÊS>` sheet per month, a `Valores` price-list sheet,
+etc.) — it is not a generic "any spreadsheet" importer. A different store's export would need
+its own parser module, not a rewrite of this one.
+
+- [x] **Add `xlsx` (SheetJS) as a real dependency** (`npm install xlsx`, `ERP/package.json`) —
+      currently not installed; used only for read-only parsing (`XLSX.readFile` +
+      `XLSX.utils.sheet_to_json`), no write-back to the spreadsheet.
+      Installed `xlsx@^0.18.5` as a runtime dependency (not dev).
+- [x] **New `db/excel-loja-house.js`** — `parseExcelLojaHouse(caminhoXlsx)` returns the exact
+      same `{ categorias, produtosVariacoes, estoqueInicial, clientes, financeiroHistorico,
+      contasAbertas, vendasHistoricas, pendenciasOrigem }` shape `executarImportacaoLojHouse`
+      already builds from folder JSONs (`db/importacoes.js:489-498`) — so **zero changes** are
+      needed to the tested import engine, business-rule handling, batch tracking, or atomic
+      transaction wrapper; this is purely a new loader plugged in front of it.
+      Confirmed zero-diff on `db/importacoes.js`: the IPC layer converts the parser's output
+      into the array-of-`{arquivo,conteudo}` format the engine already accepts (same path as
+      individual-JSON upload), so `validarStructura`/`checarDuplicacao`/the per-entity
+      `importarX()` functions/the transaction wrapper are all untouched and still enforced
+      (including free validation of the parser's own output shape).
+  - [x] **Product/stock sheets** (`Kimono Draken`, `Kimono Integuard`, `Kimono Brazil Combat`,
+        `Rashcojuntos`, `Estoque faixa`, `Camisas`, `Coleção House`): parse the repeated
+        side-by-side matrix blocks (a header cell like `"KIMONOS ADULTOS - BRANCO LIGHT"`
+        followed by `TAMANHO`/`Quantidade` or `TAMANHO`/`DESCRIÇÃO`/`COR`/`Quantidade` columns)
+        into `categorias` + `produtosVariacoes` + `estoqueInicial` entries. Generate
+        `chave_externa` deterministically (stable hash of brand+produto+atributos, not random,
+        so re-parsing the same Excel twice produces the same keys — needed for the existing
+        dedup-by-`chave_externa` logic in `checarDuplicacao` to actually catch re-imports).
+        Block detection scans every row×column for a `TAMANHO` header cell (handles "multiple
+        blocks per header row, offset in columns" without assuming fixed positions); SHA-1
+        (`crypto.createHash("sha1")`) over aba+título+coluna/tamanho/cor generates
+        `CAT-`/`PROD-`/`VAR-`/`EST-` keys and a readable deterministic SKU — verified
+        byte-identical across two parses of the same fixture in the determinism test.
+  - [x] **`Valores` sheet**: parse the 4 price-table blocks (Draken, Brazil Combat, Dragon,
+        Equipe UB — confirmed via `grep "Tabela de Preços"`) into `catalogo_precos`-equivalent
+        reference data, and use it to fill `preco`/`preco_custo` on matching produtos during
+        the parse above (regex-extract the "à vista" value from strings like `"R$558,80 à
+        vista ou 3xR$210,90 no cartão"` — same value-extraction rule the original JSONs already
+        applied, confirm by cross-checking a few known `origem_preco.celula` references).
+        `aplicarPrecos()` only assigns a price when both modelo (substring match against the
+        produto's título) AND tamanho match a `Valores` row (or the row has no tamanho) — a
+        size with no price row (tested with tamanho `G`) correctly stays at 0 instead of
+        inheriting a sibling size's price.
+  - [x] **`Financeiro Loja<MÊS>` sheets** (9 months, JANEIRO–SETEMBRO): parse
+        `DATA/DESCRIÇÃO/ENTRADA/SAÍDA/TOTAL` rows into `financeiro_historico` entries — skip the
+        running `TOTAL` column and any `"Saldo Anterior"` row (already-established rule, see
+        `pendencia` type `saldo_anterior_nao_importado` in the existing 99_pendencias.json).
+        Matched by sheet-name prefix (`/^financeiro\s*loja/i`), not a hardcoded list of 9 names.
+  - [x] **`Crediário`, `Contas a Pagar`, `Custos Fixos`+`Investimento Loja`, `Consignado`,
+        `analise2025`**: route straight to `pendenciasOrigem` with the same `tipo`/`motivo`
+        vocabulary the existing `99_pendencias.json` already uses
+        (`crediario_sem_produto_identificavel`, `conta_a_pagar_sem_data`,
+        `custo_fixo_sem_mes_ano`/`investimento_sem_data`, `consignacao_sem_modelo_no_erp`,
+        `resumo_analitico_nao_transacional`) — confirmed via this session's direct read that
+        `Contas a Pagar` has 0/32 rows with a date and `Crediário` has 0/38 rows with a real
+        SKU, so these are correctly *always* pendências, not an edge case to special-case away.
+        Each pendência item carries both vocabularies (`id`/`tipo`/`descricao`, required by
+        `validarStructura` for `99_pendencias.json`, and `chave_externa`/`tipo_entidade`/
+        `motivo_rejeicao`/`sugestao`, which `importarPendencias` actually persists) — no changes
+        needed to `db/importacoes.js` to accept them. `Contas a Pagar` rows **with** a date
+        route to `contasAbertas` instead (real, dated conta a pagar), not always to Pendencias.
+- [x] **`ipc/importacoes.js`**: extend `executarImportacaoLojHouse`'s `pastaOuArquivos` param to
+      also accept `{ tipo: "excel", caminho }`, dispatching to `parseExcelLojaHouse` internally
+      — single entry point, no new IPC channel needed beyond a new `validar-arquivo-excel`
+      handler mirroring `validar-pasta-loja-house`'s dialog-open pattern but with
+      `filters: [{ name: "Excel", extensions: ["xlsx"] }]`.
+      Implemented entirely in the IPC layer (`converterExcelParaArquivos()`): the `{tipo:
+      "excel", caminho}` input is parsed and repackaged into the array-of-`{arquivo,conteudo}`
+      shape `executarImportacaoLojHouse` already accepts, so `db/importacoes.js` itself has
+      zero diff — the safer reading of "no changes to the import engine itself".
+- [x] **Frontend**: add the 3rd mode tab to `importacao/page.tsx`'s existing mode-switcher
+      (`Modo` type currently `"loja_house" | "legado"` → add `"excel"`), reusing
+      `ImportacaoLojaHouse`'s Step 2/3 components with a different Step 1.
+      `ImportacaoLojaHouse` now takes a `modo: "loja_house" | "excel"` prop; Step 1 branches on
+      it (file picker + `erpApi.importacoes.validarExcel()` vs. folder picker), Steps 2–3 and
+      the result/history views are untouched and shared. Added
+      `erpApi.importacoes.validarExcel()` and widened `executar()`'s param to the
+      `EntradaImportacao` union (`string | { tipo: "excel"; caminho }`) in `erpApi.ts`. Frontend
+      `tsc --noEmit` and `eslint .` both clean.
+- [x] **Tests**: `test/excel-loja-house.test.js`. **Decided (2026-09-03): the real
+      `Loja House.xlsx` is never committed** — it's real customer/financial data. Instead, build
+      a small synthetic `.xlsx` fixture (`test/fixtures/loja-house-sintetico.xlsx`, generated by
+      a `scripts/gerar-fixture-xlsx.js` helper using the `xlsx` package, not hand-crafted in a
+      spreadsheet editor — reproducible and diffable) that mirrors the real file's *structure*
+      only (a couple of matrix product blocks, one `Financeiro Loja<MÊS>` sheet, a `Crediário`
+      row with no SKU, a `Contas a Pagar` row with no date) with invented names/values, and
+      assert the parser produces the right counts/pendências against that. The real file stays
+      local, used only for one manual end-to-end smoke check (owner runs it once against a
+      throwaway/dev database, confirms the same 14/23/203/7/264/404 numbers already verified in
+      the section above, does not commit the output).
+      Verified: 17/17 tests passing in `test/excel-loja-house.test.js` (pure helpers —
+      `paraNumero`/`extrairValorAVista`/`paraDataISO`/`hashChave` — plus fixture-driven counts
+      for every sheet type, a determinism check across two parses of the same file, and two
+      end-to-end tests feeding the parser's output through the real
+      `executarImportacaoLojHouse` for both dry-run and commit). Full suite: 139/139 passing
+      (`npm test`, includes this task's 17 new tests plus every pre-existing suite —
+      zero regressions); frontend `tsc --noEmit` and `eslint .` (both root and `frontend/`)
+      clean.
+
+### 2. Consignação (consigned/loaned stock tracking)
+
+**Design rationale.** The `Consignado` sheet lists items handed to specific people (free-text
+today: `"1 conjunto kids PP, 1 Conjunto kids M..."`) — store property, physically out of the
+shop, not sold. Confirmed via full-repo search: **no existing concept** covers this
+(`quantidade_reservada` is orçamento-only stock holding, `Devolucoes` is post-sale return, no
+`emprest*`/`consigna*`/`comodato` hit anywhere in the codebase). **Placement decision (answers
+"which tab"): new 4th tab in the existing Produtos module**
+(`frontend/src/app/(admin)/produtos/consignacao/`), added to `ABAS` in
+`produtos/layout.tsx:6-10` next to Cadastro/Estoque/Precificação — this is a stock-location
+concept, the same family as the existing Estoque tab, not a Clientes-module or standalone-module
+concept; every consignação still links to a `cliente_id`, same as `PrecoCliente` already links
+Produtos data to a specific client without living in the Clientes module.
+
+**Out of scope, explicitly**: no depreciation/valuation model, no automatic "expire and mark
+lost" — status transitions (`emprestado`→`devolvido`/`vendido`/`perdido`) are manual actions the
+owner takes, not a scheduled job.
+
+**Decided (2026-09-03): reuse the existing `quantidade_reservada` mechanism** — the same
+column/pattern orçamento reservation already uses (`db/vendas.js:248-260`), not a new parallel
+"available" calculation. Reason: `quantidade_disponivel = quantidade_estoque -
+quantidade_reservada` is already the number every existing query returns (`db/produtos.js:
+251-252,279-280` — PDV search, product listing all read this already-computed column), so
+reusing it means **zero query changes** anywhere else in the app, and it closes a real
+operational risk: without this, a consigned item still shows as sellable and the PDV could sell
+a physical item that's in someone else's hands. Lifecycle: `emprestado` → increments
+`quantidade_reservada` (same guarded UPDATE pattern as `db/vendas.js:248`, refusing to reserve
+more than what's actually free); `devolvido`/`perdido` → decrements `quantidade_reservada` back
+(mirrors `db/vendas.js:450`); `vendido` → decrements `quantidade_reservada` **and**
+`quantidade_estoque` together in one statement (mirrors the real-sale debit at
+`db/vendas.js:362`), i.e. a consignação that converts to a sale ends the same way a normal
+checkout does, not a special case.
+
+- [x] **New `Consignacoes` table** (`db/schema.js`): `id, cliente_id, variacao_id, quantidade,
+      data_saida, data_prevista_retorno, status ('emprestado'|'devolvido'|'vendido'|'perdido'),
+      observacao, criado_em` — FKs to `Clientes(id)` and `Variacoes(id)`. No CHECK constraint on
+      `status` (validated in JS via `STATUS_VALIDOS`), same loose pattern
+      `Pendencias.tipo_entidade` already uses.
+- [x] **`db/consignacoes.js`** + **`ipc/consignacoes.js`**: CRUD + status-transition functions:
+  - [x] `registrarConsignacao` — INSERT row (status `emprestado`) + guarded
+        `UPDATE Variacoes SET quantidade_reservada = quantidade_reservada + ? WHERE id = ? AND
+        (quantidade_estoque - quantidade_reservada) >= ?` in one transaction, same guard clause
+        `db/vendas.js:248` already uses — refuses if not enough disponível.
+  - [x] `marcarDevolvida` / `marcarPerdida` — UPDATE status + `quantidade_reservada = MAX(0,
+        quantidade_reservada - ?)`, mirroring `db/vendas.js:450`. Both refuse (no-op, throws) if
+        the consignação isn't currently `emprestado` — mirrors `cancelarOrcamento`'s status guard.
+  - [x] `marcarVendida` — UPDATE status + `quantidade_estoque = quantidade_estoque - ?,
+        quantidade_reservada = MAX(0, quantidade_reservada - ?)` in one statement, mirroring
+        `db/vendas.js:362`; also creates the actual `Vendas`/`ItensVenda` record. Decided: always
+        the normal "happening now" path (status `finalizada`, `data_venda = now`, `origem =
+        'consignacao'`) — the historical-sale path from section 4 doesn't apply here, since a
+        consignação resolving into a sale is always a present-tense event, not backdated data
+        migration. `forma_pagamento` stays `null` unless the caller passes one (no invented
+        default); `Fiado` still triggers the same automatic receivable `finalizarVenda`/
+        `converterOrcamento` create, for consistency.
+  - [x] `listarConsignacoes` filterable by cliente/status. `exigirPermissao("produtos")` gating
+        to match the rest of the Produtos IPC domain. Registered via the module-manifest loop
+        (`modules/produtos/modulo.json`'s `ipc` array, alongside `produtos.js`), not a direct
+        `require` in `main.js` — same path `ipc/produtos.js` itself uses.
+- [x] **Frontend**: `produtos/consignacao/page.tsx` (list + status actions) +
+      `ConsignacaoFormModal.tsx` (register new: cliente search reusing `ClienteSelector` from
+      PDV, variação/SKU search reusing `BuscaProduto`/`buscarProdutosPorTermo` from PDV). Added
+      the tab entry to `produtos/layout.tsx`. Estoque tab needed no changes — it already renders
+      `quantidade_disponivel`, which now correctly reflects consigned stock for free.
+- [x] **Excel parser hook** — confirmed: `db/excel-loja-house.js:631-650`
+      (`parseAbaConsignado`) routes every `Consignado` row to a `consignacao_sem_modelo_no_erp`
+      pendência (free text preserved as `descricao`), never attempts free-text-to-SKU matching,
+      exactly as scoped. The owner reviews each pendência and creates the real `Consignacoes`
+      record by hand through the new UI — no auto-linking built, as decided.
+- [x] **Tests**: `test/consignacoes.test.js` — `registrarConsignacao` refuses when
+      `quantidade_disponivel` is insufficient (same guard as orçamento), rollback confirmed atomic
+      (no row left in `Consignacoes`, no reserva left on `Variacoes`); `emprestado` reduces
+      `quantidade_disponivel` but not `quantidade_estoque`; `devolvido`/`perdido` restore
+      `quantidade_disponivel` without touching `quantidade_estoque`, and refuse a second
+      encerramento on an already-closed row; `vendido` decrements both together, atomically, and
+      asserts the `Vendas`/`ItensVenda` rows it creates (including `forma_pagamento` staying
+      `null` when not informed) — matching a normal sale's stock-debit test in
+      `test/negocio.test.js`. Verified: 7/7 tests pass (`npm test`, 122/122 total), root
+      `npm run lint` clean, frontend `npx tsc --noEmit` clean.
+
+### 3. Investimento (capital-expenditure categoria)
+
+**Design rationale.** `Custos Fixos`'s "Investimento Loja" block (tintas, cortinas, utensílios —
+one-off purchases, not recurring operating expense) has nowhere to go today:
+`LancamentosFinanceiros.categoria` is a closed 7-value list (`Aluguel`, `Fornecedores`,
+`Folha/Comissão`, `Marketing`, `Impostos`, `Manutenção`, `Outros` — `db/financeiro.js:9-17`,
+mirrored in `frontend/src/lib/erpApi.ts` `CATEGORIAS_FINANCEIRAS`, both sides explicitly
+commented as needing to stay in sync). **Placement decision (answers "which tab"): no new tab —
+add `"Investimento"` as an 8th value to the existing list**, reusing the Financeiro module's
+existing "A Pagar"/"A Receber" tabs exactly as-is. A full asset register (depreciation, residual
+value, linked physical asset record) was considered and rejected as overbuilt for this store's
+scale — tintas/cortinas/utensílios are small one-off purchases, not machinery; if the owner's
+real need turns out to be tracking asset *value over time* rather than just *categorizing the
+spend*, that's a distinct, larger feature to scope separately later, not assumed here.
+
+- [x] **`db/financeiro.js:9-17`**: added `"Investimento"` to `CATEGORIAS_FINANCEIRAS`
+      (8th value, between `Manutenção` and `Outros`).
+- [x] **`frontend/src/lib/erpApi.ts`**: added `"Investimento"` to the mirrored
+      `CATEGORIAS_FINANCEIRAS` constant — both lists confirmed byte-identical.
+- [x] **Excel parser hook** — confirmed: `db/excel-loja-house.js:601-628` always routes the
+      "Investimento Loja" block to a `investimento_sem_data` pendência. This block genuinely has
+      no date column in the source sheet (only nome/valor), so the `financeiro_historico`-direct
+      path in the original design was never reachable in practice — the pendência-only outcome
+      is correct, not a shortcut. Pendência's `sugestao` tells the owner to "informar a data e
+      lançar como categoria Investimento" by hand, which the now-existing Investimento categoria
+      (above) makes possible.
+- [x] **Tests**: extended `test/produtos-financeiro-melhorias.test.js` with
+      `"criarLancamento aceita categoria Investimento (capex, distinto de despesa
+      recorrente)"`. Verified: 8/8 tests pass, frontend `tsc --noEmit` clean.
+
+### 4. Crediário histórico com vínculo real (historical Fiado debt tied to a client)
+
+**Design rationale.** Two existing code paths each solve half the problem and neither solves
+both: `importarVendasHistoricas` (`db/vendas.js:739-802`) skips stock/caixa correctly for
+historical dates but never sets `cliente_id` or `forma_pagamento` and creates no receivable;
+`importarFinanceiroHistorico` (`db/importacoes.js`) creates a receivable-shaped
+`LancamentosFinanceiros` row but it isn't linked to any `Venda` or `cliente_id` at all — **the
+table has no `cliente_id` column**, confirmed by reading the schema directly
+(`db/schema.js:280-294`). This is also the concrete gap `db/importacoes.js` already flags: it
+reads and counts `07_vendas_historicas.json` (`vendasHistoricas`) but has no step that actually
+imports it (`IMPORT_LOJA_HOUSE.md:98-100` documents this as "0 ready in this batch, skip for
+now" — a deliberate deferral, not an oversight). **Placement decision (answers "which tab"): no
+new page.** Two distinct entry points, matching the two ways this data actually arrives:
+  - **Bulk** (once real ready rows exist in a future `07_vendas_historicas.json`): wire directly
+    into the existing `/importacao` → "Loja House" wizard — completing the already-stubbed step,
+    not adding a new UI surface.
+  - **Manual, one at a time** (today's actual need — the `Crediário` sheet's 38 rows have a name
+    and a value but **no SKU and almost no date**, so CHECKLIST_INTEGRACAO.md's own requirement
+    — "Informar produto/SKU e data das dívidas do crediário; sem isso, continuarão fora do ERP"
+    — means the owner has to supply the missing SKU+date by hand, per debt, before it can become
+    a real record): add a **"Lançar Venda Histórica"** action to the existing `/vendas` page
+    (`frontend/src/app/(admin)/vendas/page.tsx`) — this is a sales-history concern, the same
+    page that already lists historical `Vendas` rows, not a Clientes-module or Financeiro-module
+    concern (no per-client detail page exists to hang this off instead — confirmed, `/clientes`
+    is list+modal only).
+
+- [x] **`db/schema.js`**: added `cliente_id INTEGER REFERENCES Clientes(id) ON DELETE SET NULL`
+      to `LancamentosFinanceiros` via a second `migrarColunas` call right after the existing
+      `categoria` one (same pattern, own call — didn't touch the existing one) — closes the gap
+      that made a per-client receivable unqueryable; needed for both the manual form below and
+      any future aging-by-client report.
+- [x] **`db/vendas.js`**: added `registrarVendaFiadoHistorica(dados, db)` — same base as
+      `importarVendasHistoricas` (no caixa-aberto check, no `Variacoes.quantidade_estoque`
+      write, accepts a past `data`) plus: requires `cliente_id` (unlike `finalizarVenda`, where
+      it's optional), sets `forma_pagamento: "Fiado"`, `origem: "importado"`, and creates the
+      linked `LancamentosFinanceiros` receivable (`tipo: "receber"`, `cliente_id`,
+      `status: statusRecebivel`, `referencia_id: vendaId`) in the same transaction as the
+      `Vendas`/`ItensVenda` insert. Optional `db` param: manages its own `BEGIN`/`COMMIT` when
+      called standalone (IPC/tests), or reuses a caller-supplied connection without a nested
+      `BEGIN` when called from inside `executarComTransacao` (step 8 below) — SQLite has no
+      nested transactions.
+- [x] **`db/importacoes.js`**: wired `dados.vendasHistoricas` into `executarImportacaoLojHouse`
+      as step 8 (after Pendências, via new `importarVendasHistoricasFiado`), calling
+      `registrarVendaFiadoHistorica` per row with the shared `connTxn`. Each entry needs
+      `cliente_id`/`sku`/`data` present — rows still missing these become pendências
+      (`tipo_entidade: "venda_historica"`), same accept/reject rule every other entity already
+      follows; persisted via a second `importarPendencias` call, since this step's own
+      pendências only exist after step 7 already ran.
+- [x] **`ipc/vendas.js`** + **`preload.js`** + **`erpApi.ts`**: exposed
+      `registrarVendaFiadoHistorica`, gated with `exigirSessao("admin")` (same sensitivity as
+      the existing bulk importers) — `database.js` also updated to re-export it from `db/vendas.js`.
+- [x] **Frontend**: added the `"Lançar Venda Histórica"` button to `/vendas`
+      (`app/(admin)/vendas/page.tsx`) opening `components/vendas/VendaFiadoHistoricaModal.tsx` —
+      reuses `pdv/ClienteSelector.tsx` (fed by the existing `useClientes` hook) and
+      `pdv/BuscaProduto.tsx` (`buscarProdutosPorTermo`) as-is, no new search UI; date input capped
+      at today (`max`) plus a JS guard against a future date; status do recebível select
+      (aberto/pago).
+- [x] **Tests**: `test/vendas-fiado-historico.test.js` (9 tests) — no caixa required, no
+      `Variacoes.quantidade_estoque` change, creates `Vendas`+`ItensVenda`+`LancamentosFinanceiros`
+      (with `cliente_id`) atomically, `statusRecebivel: "pago"` sets `data_pagamento`, full
+      rollback when the SKU doesn't exist (row counts unchanged), missing `cliente_id` rejected
+      with a clear message, and the created receivable shows up both via a direct
+      `LancamentosFinanceiros WHERE cliente_id = ?` query and in `getAgingRecebiveis()`'s bucket
+      output. Also extended `test/importacoes.test.js` with a step-8 wiring test (accept path +
+      pendência path through the real nested-transaction call). Verified: 122/122 project tests
+      pass (`npm test`), `npm run lint` clean, frontend `tsc --noEmit` clean.
+
+### Registration
+
+- [x] Updated `AGENTS.md`'s "Funcionalidades Implementadas" — new dated paragraph covering all
+      4 items (Excel import mode, Consignação tab, Investimento categoria, historical-Fiado
+      entry point).
+- [x] Confirmed no separate `consignacao.modulo.json` was needed — `modules/produtos/modulo.json`
+      already lists `"ipc": ["produtos.js", "consignacoes.js"]`, and per this session's own
+      `/newgoal` research the Next.js sidebar only reads the manifest for top-level entries, not
+      per-tab; the tab itself is registered directly in `produtos/layout.tsx`'s `ABAS` array.
+
+### Final verification (2026-09-03)
+
+- [x] Full combined test suite: **139/139 passing** (all 3 workstreams' new tests run together
+      — 17 Excel parser, 7 Consignação, 9 Crediário histórico + 1 Investimento categoria case +
+      1 step-8 wiring case in `test/importacoes.test.js`, plus all pre-existing tests unaffected).
+- [x] `npm run lint` — clean, 0 warnings, across all 3 workstreams' combined changes.
+- [x] `frontend && npx tsc --noEmit` — clean, 0 errors.
+- [x] Confirmed no unauthorized git commits happened during the 3 parallel background agents'
+      run — `git log` unchanged at `3e2fd7b` throughout.

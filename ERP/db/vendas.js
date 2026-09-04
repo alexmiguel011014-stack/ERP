@@ -801,6 +801,113 @@ async function importarVendasHistoricas(linhas) {
 	return { importadas, puladas, total: linhas.length };
 }
 
+// Crediário histórico com vínculo real (GOALS.md "4. Crediário histórico"):
+// mesma base de importarVendasHistoricas (sem caixa aberto, sem baixar
+// Variacoes.quantidade_estoque, aceita data no passado — é histórico, não
+// deve mexer no estoque/caixa atuais) + cliente_id obrigatório +
+// forma_pagamento fixo 'Fiado' + cria o LancamentosFinanceiros a receber
+// vinculado (cliente_id + referencia_id=vendaId, mesmo vínculo que
+// criarLancamentoInterno usa pra Fiado normal em finalizarVenda/
+// converterOrcamento). statusRecebivel é decidido pelo dono no formulário
+// ('aberto' ou 'pago') — a dívida pode já ter sido quitada depois do fato.
+//
+// Aceita um `db` opcional: quando chamada isolada (IPC/testes) abre e
+// gerencia sua própria transação; quando chamada por dentro de
+// executarImportacaoLojHouse (db/importacoes.js), que já roda tudo dentro de
+// UMA transação própria via executarComTransacao, reusa essa conexão sem
+// abrir um BEGIN aninhado (SQLite não suporta transação dentro de transação).
+async function registrarVendaFiadoHistorica(dados, db) {
+	const conn = db || getConexao();
+	const gerenciaTransacao = !db;
+
+	const get = (sql, params = []) =>
+		new Promise((resolve, reject) => {
+			conn.get(sql, params, (erro, linha) => {
+				if (erro) return reject(erro);
+				resolve(linha);
+			});
+		});
+	const run = (sql, params = []) =>
+		new Promise((resolve, reject) => {
+			conn.run(sql, params, function (erro) {
+				if (erro) return reject(erro);
+				resolve(this);
+			});
+		});
+
+	const clienteId = Number(dados && dados.cliente_id);
+	if (!Number.isInteger(clienteId) || clienteId <= 0) {
+		throw new Error(
+			"Cliente é obrigatório para lançar uma venda fiado histórica.",
+		);
+	}
+	const sku = String((dados && dados.sku) || "")
+		.trim()
+		.toUpperCase();
+	if (!sku) throw new Error("SKU é obrigatório.");
+	const quantidade = Number(dados && dados.quantidade);
+	if (!Number.isFinite(quantidade) || quantidade <= 0) {
+		throw new Error("Quantidade inválida.");
+	}
+	const valorUnitario = Number(dados && dados.valorUnitario);
+	if (!Number.isFinite(valorUnitario) || valorUnitario < 0) {
+		throw new Error("Valor unitário inválido.");
+	}
+	const data = dados && dados.data ? String(dados.data) : null;
+	if (!data) throw new Error("Data é obrigatória.");
+	const statusRecebivel = dados && dados.statusRecebivel;
+	if (statusRecebivel !== "aberto" && statusRecebivel !== "pago") {
+		throw new Error("Status do recebível deve ser 'aberto' ou 'pago'.");
+	}
+
+	if (gerenciaTransacao) await runOn(conn, "BEGIN TRANSACTION");
+	try {
+		const variacao = await get(
+			"SELECT v.id, v.sku, p.nome FROM Variacoes v JOIN Produtos p ON p.id = v.produto_id WHERE UPPER(v.sku) = ?",
+			[sku],
+		);
+		if (!variacao) {
+			throw new Error(`SKU "${sku}" não encontrado.`);
+		}
+
+		const total = quantidade * valorUnitario;
+		const vendaResult = await run(
+			"INSERT INTO Vendas (cliente_id, total, forma_pagamento, data_venda, status, origem) VALUES (?, ?, 'Fiado', ?, 'finalizada', 'importado')",
+			[clienteId, total, data],
+		);
+		const vendaId = vendaResult.lastID;
+
+		await run(
+			"INSERT INTO ItensVenda (venda_id, variacao_id, quantidade, preco_unitario) VALUES (?, ?, ?, ?)",
+			[vendaId, variacao.id, quantidade, valorUnitario],
+		);
+
+		const rotuloProduto = variacao.nome
+			? variacao.nome + " (" + variacao.sku + ")"
+			: variacao.sku;
+		const dataPagamento = statusRecebivel === "pago" ? data : null;
+		await run(
+			"INSERT INTO LancamentosFinanceiros (tipo, descricao, valor, data_vencimento, data_pagamento, status, origem, referencia_id, forma_pagamento, cliente_id, data_criacao) VALUES ('receber', ?, ?, ?, ?, ?, 'manual', ?, 'Fiado', ?, ?)",
+			[
+				"Crediário histórico - " + rotuloProduto,
+				total,
+				data,
+				dataPagamento,
+				statusRecebivel,
+				vendaId,
+				clienteId,
+				new Date().toISOString(),
+			],
+		);
+
+		if (gerenciaTransacao) await runOn(conn, "COMMIT");
+		return { success: true, vendaId, total };
+	} catch (erro) {
+		if (gerenciaTransacao) await runOn(conn, "ROLLBACK");
+		throw erro;
+	}
+}
+
 async function getVendasHoje() {
 	const conn = getConexao();
 	const hoje = new Date().toISOString().slice(0, 10);
@@ -868,6 +975,7 @@ module.exports = {
 	getVendas,
 	getVendasHoje,
 	importarVendasHistoricas,
+	registrarVendaFiadoHistorica,
 	getItensVenda,
 	buscaGlobal,
 	registrarDevolucao,

@@ -15,6 +15,7 @@ const {
 	executarImportacaoLojHouse,
 	obterHistoricoLotes,
 	normalizarConteudoArquivo,
+	mesclarDuplicidadesImportacao,
 } = require("../db/importacoes");
 const { getAsync, allAsync } = require("../db/conexao");
 
@@ -461,5 +462,262 @@ test("clientes homonyms são detectados e movidos para Pendencias", async () => 
 	assert.ok(pendencias.length > 0);
 	assert.ok(
 		pendencias.some((p) => p.motivo_rejeicao.includes("mesmo nome já existe")),
+	);
+});
+
+test("07_vendas_historicas.json com cliente_id+sku+data registra a venda fiado histórica vinculada ao cliente (passo 8)", async () => {
+	// GOALS.md "4. Crediário histórico" — completa o gap que antes só contava
+	// dados.vendasHistoricas sem nunca importar. Pré-cria cliente e variação
+	// (o pipeline normal já teria feito isso nos passos 2/4 desta mesma
+	// importação) pra testar só o passo 8, isoladamente, sobre o resto do
+	// arquivo já em produção.
+	const pasta = path.join(TMP, "importacao-teste-8");
+	fs.mkdirSync(pasta, { recursive: true });
+
+	const clienteId = await new Promise((resolve, reject) => {
+		const conn = db.getConexao();
+		conn.run(
+			"INSERT INTO Clientes (nome, ativo) VALUES (?, 1)",
+			["Cliente Crediário 8"],
+			function (erro) {
+				if (erro) return reject(erro);
+				resolve(this.lastID);
+			},
+		);
+	});
+	const produtoId = await new Promise((resolve, reject) => {
+		const conn = db.getConexao();
+		conn.run(
+			"INSERT INTO Produtos (nome) VALUES (?)",
+			["Produto Crediário 8"],
+			function (erro) {
+				if (erro) return reject(erro);
+				resolve(this.lastID);
+			},
+		);
+	});
+	await new Promise((resolve, reject) => {
+		const conn = db.getConexao();
+		conn.run(
+			"INSERT INTO Variacoes (produto_id, sku, preco, quantidade_estoque) VALUES (?, ?, ?, ?)",
+			[produtoId, "SKU-CREDIARIO-8", 40, 5],
+			function (erro) {
+				if (erro) return reject(erro);
+				resolve();
+			},
+		);
+	});
+
+	fs.writeFileSync(
+		path.join(pasta, "07_vendas_historicas.json"),
+		JSON.stringify({
+			registros: [
+				{
+					chave_externa: "VHIST-8-OK",
+					cliente_id: clienteId,
+					sku: "SKU-CREDIARIO-8",
+					quantidade: 2,
+					valorUnitario: 40,
+					data: "2026-01-20",
+					statusRecebivel: "aberto",
+				},
+				{
+					// Sem data: campos obrigatórios pro passo 8 (cliente_id+sku+data)
+					// incompletos — deve virar pendência, não erro solto.
+					chave_externa: "VHIST-8-SEM-DATA",
+					cliente_id: clienteId,
+					sku: "SKU-CREDIARIO-8",
+					quantidade: 1,
+				},
+			],
+		}),
+	);
+
+	const resultado = await executarImportacaoLojHouse(pasta, null, {
+		dryRun: false,
+	});
+
+	assert.strictEqual(
+		resultado.erros.length,
+		0,
+		JSON.stringify(resultado.erros),
+	);
+	assert.strictEqual(resultado.importadas.vendasHistoricas, 1);
+
+	const venda = await getAsync(
+		"SELECT * FROM Vendas WHERE cliente_id = ? AND forma_pagamento = 'Fiado'",
+		[clienteId],
+	);
+	assert.ok(venda, "a venda histórica deveria ter sido criada");
+	assert.strictEqual(venda.total, 80);
+	assert.strictEqual(venda.status, "finalizada");
+
+	const lancamento = await getAsync(
+		"SELECT * FROM LancamentosFinanceiros WHERE referencia_id = ? AND tipo = 'receber'",
+		[venda.id],
+	);
+	assert.ok(lancamento, "o recebível vinculado deveria ter sido criado");
+	assert.strictEqual(lancamento.cliente_id, clienteId);
+
+	const variacao = await getAsync(
+		"SELECT quantidade_estoque FROM Variacoes WHERE sku = ?",
+		["SKU-CREDIARIO-8"],
+	);
+	assert.strictEqual(
+		variacao.quantidade_estoque,
+		5,
+		"venda histórica não deve baixar o estoque atual",
+	);
+
+	const pendencias = await allAsync(
+		"SELECT * FROM Pendencias WHERE batch_id = ? AND tipo_entidade = 'venda_historica'",
+		[resultado.batchId],
+	);
+	assert.strictEqual(pendencias.length, 1);
+	assert.strictEqual(pendencias[0].chave_externa, "VHIST-8-SEM-DATA");
+});
+
+test("reimportar o mesmo lote mescla registros já existentes sem duplicar estoque ou financeiro", async () => {
+	const pasta = path.join(TMP, "importacao-idempotente");
+	fs.mkdirSync(pasta, { recursive: true });
+	fs.writeFileSync(
+		path.join(pasta, "01_categorias.json"),
+		JSON.stringify([{ chave_externa: "CAT-IDEMP", nome: "Categoria Idempotente" }]),
+	);
+	fs.writeFileSync(
+		path.join(pasta, "02_produtos_variacoes.json"),
+		JSON.stringify([
+			{
+				chave_externa: "PROD-IDEMP",
+				nome: "Produto Idempotente",
+				categoria: "Categoria Idempotente",
+				variacoes: [
+					{
+						chave_externa: "VAR-IDEMP",
+						sku: "SKU-IDEMP",
+						preco: 10,
+						pronto_para_importacao: true,
+					},
+				],
+			},
+		]),
+	);
+	fs.writeFileSync(
+		path.join(pasta, "03_estoque_inicial.json"),
+		JSON.stringify([
+			{
+				chave_externa: "EST-IDEMP",
+				sku: "SKU-IDEMP",
+				quantidade_saldo: 3,
+			},
+		]),
+	);
+	fs.writeFileSync(
+		path.join(pasta, "05_financeiro_historico.json"),
+		JSON.stringify([
+			{
+				chave_externa: "FIN-IDEMP",
+				tipo: "receber",
+				descricao: "Lançamento idempotente",
+				valor: 10,
+			},
+		]),
+	);
+
+	const primeiro = await executarImportacaoLojHouse(pasta, null, {
+		dryRun: false,
+	});
+	const segundo = await executarImportacaoLojHouse(pasta, null, {
+		dryRun: false,
+	});
+	assert.deepStrictEqual(primeiro.erros, []);
+	assert.deepStrictEqual(segundo.erros, []);
+	assert.deepStrictEqual(segundo.importadas, {
+		categorias: 0,
+		produtos: 0,
+		variacoes: 0,
+		estoque: 0,
+		clientes: 0,
+		lancamentos: 0,
+		vendasHistoricas: 0,
+	});
+	assert.ok(segundo.ignoradas >= 4);
+	assert.strictEqual(
+		(await getAsync("SELECT COUNT(*) AS n FROM Produtos WHERE nome = ?", [
+			"Produto Idempotente",
+		])).n,
+		1,
+	);
+	assert.strictEqual(
+		(await getAsync("SELECT COUNT(*) AS n FROM Variacoes WHERE sku = ?", [
+			"SKU-IDEMP",
+		])).n,
+		1,
+	);
+	assert.strictEqual(
+		(await getAsync(
+			"SELECT COUNT(*) AS n FROM MovimentacoesEstoque m JOIN Variacoes v ON v.id = m.variacao_id WHERE v.sku = ?",
+			["SKU-IDEMP"],
+		)).n,
+		1,
+	);
+	assert.strictEqual(
+		(await getAsync("SELECT COUNT(*) AS n FROM LancamentosFinanceiros WHERE descricao = ?", [
+			"Lançamento idempotente",
+		])).n,
+		1,
+	);
+});
+
+test("mesclarDuplicidadesImportacao preserva variações e elimina só produto duplicado seguro", async () => {
+	const conn = db.getConexao();
+	const executar = (sql, parametros) =>
+		new Promise((resolve, reject) => {
+			conn.run(sql, parametros, function (erro) {
+				if (erro) return reject(erro);
+				resolve(this.lastID);
+			});
+		});
+	const categoriaId = await executar(
+		"INSERT INTO Categorias (nome, ativo) VALUES (?, 1)",
+		["Categoria Merge"],
+	);
+	await executar(
+		"INSERT INTO Produtos (nome, categoria_id, ativo) VALUES (?, ?, 1)",
+		["Produto Duplicado Seguro", categoriaId],
+	);
+	const duplicado = await executar(
+		"INSERT INTO Produtos (nome, categoria_id, ativo) VALUES (?, ?, 1)",
+		["Produto Duplicado Seguro", categoriaId],
+	);
+	await executar(
+		"INSERT INTO Variacoes (produto_id, sku, preco) VALUES (?, ?, ?)",
+		[duplicado, "SKU-MERGE-SEGURO", 25],
+	);
+	await executar(
+		"INSERT INTO MapeamentoChaveExterna (chave_externa, entidade_tipo, entidade_id) VALUES (?, 'produto', ?)",
+		["produto_PROD-MERGE-SEGURO", duplicado],
+	);
+
+	const resultado = await mesclarDuplicidadesImportacao(conn);
+	assert.strictEqual(resultado.produtosMesclados, 1);
+	assert.strictEqual(
+		(await getAsync("SELECT COUNT(*) AS n FROM Produtos WHERE nome = ?", [
+			"Produto Duplicado Seguro",
+		])).n,
+		1,
+	);
+	assert.strictEqual(
+		(await getAsync("SELECT produto_id FROM Variacoes WHERE sku = ?", [
+			"SKU-MERGE-SEGURO",
+		])).produto_id,
+		duplicado,
+	);
+	assert.strictEqual(
+		(await getAsync(
+			"SELECT entidade_id FROM MapeamentoChaveExterna WHERE chave_externa = ?",
+			["produto_PROD-MERGE-SEGURO"],
+		)).entidade_id,
+		duplicado,
 	);
 });
