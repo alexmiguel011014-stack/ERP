@@ -11,3 +11,11 @@ Personal_app_android/
 graphify-out/
 repomix-output.xml
 
+# Exports/pastas de trabalho da migração de dados reais Loja House (clientes,
+# financeiro histórico, estoque) — dados sensíveis, só existem localmente pra
+# importação, nunca devem subir pro GitHub. Ver AGENTS.md / IMPORT_LOJA_HOUSE.md.
+/loja-house-migracao-*/
+ERP/importacao-loja-house-simples-*/
+ERP/teste-import-kimono-draken-*/
+ERP/cadastro-simples-loja-house-*.json
+
