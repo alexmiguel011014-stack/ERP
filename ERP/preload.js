@@ -18,6 +18,9 @@ contextBridge.exposeInMainWorld("api", {
 		ipcRenderer.invoke("excluir-produto-permanente", id),
 	escolherImagemProduto: (produtoId) =>
 		ipcRenderer.invoke("escolher-imagem-produto", produtoId),
+	escolherImagemPendente: () => ipcRenderer.invoke("escolher-imagem-pendente"),
+	salvarImagemProdutoCaminho: (produtoId, caminho) =>
+		ipcRenderer.invoke("salvar-imagem-produto-caminho", produtoId, caminho),
 	removerImagemProduto: (produtoId) =>
 		ipcRenderer.invoke("remover-imagem-produto", produtoId),
 	getImagemProduto: (nomeArquivo) =>
@@ -85,6 +88,8 @@ contextBridge.exposeInMainWorld("api", {
 		ipcRenderer.invoke("mass-update-margem", produtoIds, margem),
 	salvarCategoria: (nome, categoriaPaiId) =>
 		ipcRenderer.invoke("salvar-categoria", nome, categoriaPaiId),
+	atualizarCategoria: (id, dados) =>
+		ipcRenderer.invoke("atualizar-categoria", id, dados),
 	salvarCategoriaComSubcategorias: (dados) =>
 		ipcRenderer.invoke("salvar-categoria-com-subcategorias", dados),
 	exportBackup: () => ipcRenderer.invoke("export-backup"),
@@ -226,6 +231,8 @@ contextBridge.exposeInMainWorld("api", {
 	consultarTabelaBanco: (tabela, limite) =>
 		ipcRenderer.invoke("consultar-tabela-banco", tabela, limite),
 	exportarBancoJSON: () => ipcRenderer.invoke("exportar-banco-json"),
+	limparTabelaBanco: (tabela) =>
+		ipcRenderer.invoke("limpar-tabela-banco", tabela),
 	verificarSenhaAdmin: (senha) =>
 		ipcRenderer.invoke("verificar-senha-admin", senha),
 	validarPastaImportacao: (pasta) =>

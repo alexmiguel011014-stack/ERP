@@ -208,6 +208,61 @@ async function salvarCategoria(nome, categoriaPaiId) {
 	return { success: true, id: result.lastID };
 }
 
+// Diferente de salvarCategoria: permite trocar nome e/ou categoria_pai_id de
+// uma categoria já existente — inclusive desvinculá-la do grupo (paiId nulo
+// vira grupo principal de novo). Faltava qualquer forma de editar depois de
+// criada (só existia inativar/reativar/remover).
+async function atualizarCategoria(id, dados) {
+	const catId = Number(id);
+	const atual = await getAsync(
+		"SELECT id, categoria_pai_id FROM Categorias WHERE id = ?",
+		[catId],
+	);
+	if (!atual) throw new Error("Categoria não encontrada.");
+
+	const nomeLimpo = String((dados && dados.nome) || "").trim();
+	if (!nomeLimpo) throw new Error("Informe o nome da categoria.");
+
+	const paiId =
+		dados && dados.categoriaPaiId ? Number(dados.categoriaPaiId) || null : null;
+
+	if (paiId === catId) {
+		throw new Error("Uma categoria não pode ser pai dela mesma.");
+	}
+
+	if (paiId) {
+		const pai = await getAsync(
+			"SELECT id, categoria_pai_id FROM Categorias WHERE id = ?",
+			[paiId],
+		);
+		if (!pai) throw new Error("Categoria pai não encontrada.");
+		if (pai.categoria_pai_id)
+			throw new Error("Só é permitido um nível de subcategoria.");
+
+		const temFilhos = await getAsync(
+			"SELECT id FROM Categorias WHERE categoria_pai_id = ? LIMIT 1",
+			[catId],
+		);
+		if (temFilhos) {
+			throw new Error(
+				"Esta categoria tem subcategorias vinculadas — não pode virar uma subcategoria (máx. 2 níveis).",
+			);
+		}
+	}
+
+	const duplicata = await getAsync(
+		"SELECT id FROM Categorias WHERE UPPER(nome) = ? AND IFNULL(categoria_pai_id, 0) = ? AND id != ?",
+		[nomeLimpo.toUpperCase(), paiId || 0, catId],
+	);
+	if (duplicata) throw new Error("Categoria já cadastrada: " + nomeLimpo);
+
+	await runAsync(
+		"UPDATE Categorias SET nome = ?, categoria_pai_id = ? WHERE id = ?",
+		[nomeLimpo, paiId, catId],
+	);
+	return { success: true };
+}
+
 async function salvarCategoriaComSubcategorias(dados) {
 	const conn = getConexao();
 
@@ -319,6 +374,7 @@ module.exports = {
 	inativarCategoria,
 	reativarCategoria,
 	salvarCategoria,
+	atualizarCategoria,
 	salvarCategoriaComSubcategorias,
 	getProximoCodigoCategoria,
 };

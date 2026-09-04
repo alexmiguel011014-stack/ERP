@@ -518,6 +518,10 @@ export type EscolherImagemResultado = {
 	imagem?: string;
 };
 
+export type ImagemPendenteResultado =
+	| { cancelado: true }
+	| { cancelado: false; caminho: string; dataUrl: string };
+
 export type MovimentacaoEstoque = {
 	id: number;
 	tipo: "entrada" | "ajuste" | string;
@@ -901,6 +905,14 @@ export const erpApi = {
 			invocar<{ success: boolean }>("excluirProdutoPermanente", id),
 		escolherImagem: (produtoId: number) =>
 			invocar<EscolherImagemResultado>("escolherImagemProduto", produtoId),
+		escolherImagemPendente: () =>
+			invocar<ImagemPendenteResultado>("escolherImagemPendente"),
+		salvarImagemCaminho: (produtoId: number, caminho: string) =>
+			invocar<EscolherImagemResultado>(
+				"salvarImagemProdutoCaminho",
+				produtoId,
+				caminho,
+			),
 		removerImagem: (produtoId: number) =>
 			invocar<{ success: boolean }>("removerImagemProduto", produtoId),
 		imagem: (nomeArquivo: string) =>
@@ -918,6 +930,10 @@ export const erpApi = {
 				nome,
 				categoriaPaiId,
 			),
+		atualizar: (
+			id: number,
+			dados: { nome: string; categoriaPaiId: number | null },
+		) => invocar<{ success: boolean }>("atualizarCategoria", id, dados),
 		remover: (id: number) =>
 			invocar<{ success: boolean }>("removerCategoria", id),
 		inativar: (id: number) =>
@@ -1005,6 +1021,11 @@ export const erpApi = {
 		consultarTabela: (tabela: string, limite?: number) =>
 			invocar<ConsultaTabela>("consultarTabelaBanco", tabela, limite),
 		exportarJSON: () => invocar<ExportacaoBanco>("exportarBancoJSON"),
+		limparTabela: (tabela: string) =>
+			invocar<{ tabela: string; registrosRemovidos: number }>(
+				"limparTabelaBanco",
+				tabela,
+			),
 		verificarSenhaAdmin: (senha: string) =>
 			invocar<{ ok: boolean }>("verificarSenhaAdmin", senha),
 	},

@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import Button from "@/components/ui/button/Button";
+import Label from "@/components/form/Label";
+import Input from "@/components/form/input/InputField";
 import ConfirmarSenhaModal from "@/components/common/ConfirmarSenhaModal";
 import { useCategorias } from "@/hooks/useCategorias";
 import { erpApi, type CategoriaComUso } from "@/lib/erpApi";
@@ -24,6 +26,12 @@ export default function CategoriasListModal({
 	const [processandoId, setProcessandoId] = useState<number | null>(null);
 	const [categoriaParaExcluir, setCategoriaParaExcluir] =
 		useState<CategoriaComUso | null>(null);
+	const [categoriaEditando, setCategoriaEditando] =
+		useState<CategoriaComUso | null>(null);
+	const [nomeEdit, setNomeEdit] = useState("");
+	const [paiIdEdit, setPaiIdEdit] = useState("");
+	const [salvandoEdit, setSalvandoEdit] = useState(false);
+	const [erroEdit, setErroEdit] = useState<string | null>(null);
 
 	useEffect(() => {
 		if (isOpen) recarregar();
@@ -89,6 +97,41 @@ export default function CategoriasListModal({
 			);
 		} finally {
 			setProcessandoId(null);
+		}
+	}
+
+	function temFilhos(id: number) {
+		return categorias.some((c) => c.categoria_pai_id === id);
+	}
+
+	function abrirEdicao(c: CategoriaComUso) {
+		setCategoriaEditando(c);
+		setNomeEdit(c.nome);
+		setPaiIdEdit(c.categoria_pai_id ? String(c.categoria_pai_id) : "");
+		setErroEdit(null);
+	}
+
+	async function salvarEdicao() {
+		if (!categoriaEditando) return;
+		const nome = nomeEdit.trim();
+		if (!nome) {
+			setErroEdit("Informe o nome.");
+			return;
+		}
+		setSalvandoEdit(true);
+		setErroEdit(null);
+		try {
+			await erpApi.categorias.atualizar(categoriaEditando.id, {
+				nome,
+				categoriaPaiId: paiIdEdit ? Number(paiIdEdit) : null,
+			});
+			setCategoriaEditando(null);
+			recarregar();
+			onAlterado();
+		} catch (e) {
+			setErroEdit(e instanceof Error ? e.message : String(e));
+		} finally {
+			setSalvandoEdit(false);
 		}
 	}
 
@@ -294,6 +337,13 @@ export default function CategoriasListModal({
 												</td>
 												<td className="whitespace-nowrap px-3 py-2">
 													<div className="flex gap-2">
+														<button
+															onClick={() => abrirEdicao(c)}
+															disabled={processando}
+															className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-200 disabled:opacity-50 dark:bg-white/5 dark:text-gray-300"
+														>
+															Editar
+														</button>
 														{c.ativo ? (
 															<button
 																onClick={() => inativar(c)}
@@ -341,6 +391,75 @@ export default function CategoriasListModal({
 				onClose={() => setCategoriaParaExcluir(null)}
 				onConfirmado={excluirConfirmado}
 			/>
+
+			<Modal
+				isOpen={!!categoriaEditando}
+				onClose={() => setCategoriaEditando(null)}
+				className="max-w-[420px] p-6"
+			>
+				<h2 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">
+					Editar categoria
+				</h2>
+				{categoriaEditando && (
+					<div className="space-y-4">
+						<div>
+							<Label>Nome</Label>
+							<Input
+								value={nomeEdit}
+								onChange={(e) => setNomeEdit(e.target.value)}
+							/>
+						</div>
+						<div>
+							<Label>Agrupar em</Label>
+							{temFilhos(categoriaEditando.id) ? (
+								<p className="text-xs text-gray-500 dark:text-gray-400">
+									Esta categoria tem subcategorias vinculadas — não pode virar
+									uma subcategoria de outro grupo.
+								</p>
+							) : (
+								<select
+									value={paiIdEdit}
+									onChange={(e) => setPaiIdEdit(e.target.value)}
+									className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+								>
+									<option value="">Nenhum (grupo principal)</option>
+									{categorias
+										.filter(
+											(g) =>
+												!g.categoria_pai_id && g.id !== categoriaEditando.id,
+										)
+										.map((g) => (
+											<option key={g.id} value={g.id}>
+												{g.nome}
+											</option>
+										))}
+								</select>
+							)}
+						</div>
+						{erroEdit && (
+							<div className="rounded-lg border border-error-300 bg-error-50 px-4 py-3 text-sm text-error-600 dark:border-error-800 dark:bg-error-500/10 dark:text-error-400">
+								{erroEdit}
+							</div>
+						)}
+						<div className="flex justify-end gap-3">
+							<Button
+								variant="outline"
+								type="button"
+								onClick={() => setCategoriaEditando(null)}
+							>
+								Cancelar
+							</Button>
+							<Button
+								type="button"
+								onClick={salvarEdicao}
+								disabled={salvandoEdit}
+							>
+								{salvandoEdit ? "Salvando..." : "Salvar"}
+							</Button>
+						</div>
+					</div>
+				)}
+			</Modal>
 		</>
 	);
 }

@@ -55,7 +55,20 @@ async function getDRE(dataInicio, dataFim) {
 		[inicio, fim],
 	);
 
-	const receitaBruta = Number(resumoVendas.receitaBruta) || 0;
+	// Receita de histórico importado (planilha migrada) nunca vira uma Venda
+	// de verdade — é só o lançamento financeiro do dia. Sem isso, a Despesa
+	// (que já vem de LancamentosFinanceiros) aparecia no DRE mas a Receita
+	// correspondente não, fechando o mês como prejuízo mesmo com saldo
+	// positivo real. origem='importacao_migracao' evita contar vendas do
+	// dia a dia em dobro (essas já entram via Vendas acima).
+	const receitaMigradaLinha = await getAsync(
+		"SELECT COALESCE(SUM(valor), 0) AS receita FROM LancamentosFinanceiros WHERE tipo = 'receber' AND status = 'pago' AND origem = 'importacao_migracao' AND DATE(data_pagamento) BETWEEN ? AND ?",
+		[inicio, fim],
+	);
+
+	const receitaBruta =
+		(Number(resumoVendas.receitaBruta) || 0) +
+		(Number(receitaMigradaLinha.receita) || 0);
 	const descontos = Number(resumoVendas.descontos) || 0;
 	const receitaLiquida = receitaBruta - descontos;
 	const cmv = Number(cmvLinha.cmv) || 0;

@@ -3,21 +3,29 @@ import { useEffect, useState } from "react";
 import Button from "@/components/ui/button/Button";
 import { erpApi } from "@/lib/erpApi";
 
+export type ImagemPendente = { caminho: string; dataUrl: string };
+
 export default function ProdutoImagemPicker({
 	produtoId,
 	imagem,
+	pendente,
 	onErro,
 	onSucesso,
+	onPendenteEscolhida,
+	onPendenteRemovida,
 }: {
 	produtoId: number | null;
 	imagem: string | null;
+	pendente?: ImagemPendente | null;
 	onErro: (texto: string) => void;
 	onSucesso: (texto: string) => void;
+	onPendenteEscolhida?: (info: ImagemPendente) => void;
+	onPendenteRemovida?: () => void;
 }) {
 	const [dataUrl, setDataUrl] = useState<string | null>(null);
 
 	useEffect(() => {
-		if (!imagem) {
+		if (!produtoId || !imagem) {
 			setDataUrl(null);
 			return;
 		}
@@ -25,13 +33,26 @@ export default function ProdutoImagemPicker({
 			.imagem(imagem)
 			.then(setDataUrl)
 			.catch(() => setDataUrl(null));
-	}, [imagem]);
+	}, [produtoId, imagem]);
 
 	async function escolherImagem() {
+		// Produto ainda não salvo: só abre o diálogo e guarda o caminho/preview
+		// no formulário — a gravação real acontece em ProdutoFormPanel depois
+		// que o produto ganhar um id (ver salvarImagemCaminho).
 		if (!produtoId) {
-			onErro("Salve o produto antes de adicionar uma imagem.");
+			try {
+				const r = await erpApi.produtos.escolherImagemPendente();
+				if (r.cancelado) return;
+				onPendenteEscolhida?.({ caminho: r.caminho, dataUrl: r.dataUrl });
+			} catch (e) {
+				onErro(
+					"Erro ao escolher imagem: " +
+						(e instanceof Error ? e.message : String(e)),
+				);
+			}
 			return;
 		}
+
 		try {
 			const r = await erpApi.produtos.escolherImagem(produtoId);
 			if (r && r.cancelado) return;
@@ -51,7 +72,10 @@ export default function ProdutoImagemPicker({
 	}
 
 	async function removerImagem() {
-		if (!produtoId) return;
+		if (!produtoId) {
+			onPendenteRemovida?.();
+			return;
+		}
 		if (!confirm("Remover a imagem deste produto?")) return;
 		try {
 			await erpApi.produtos.removerImagem(produtoId);
@@ -62,7 +86,7 @@ export default function ProdutoImagemPicker({
 		}
 	}
 
-	if (!produtoId) return null;
+	const preview = produtoId ? dataUrl : (pendente?.dataUrl ?? null);
 
 	return (
 		<div>
@@ -72,9 +96,9 @@ export default function ProdutoImagemPicker({
 			<div className="flex items-center gap-3">
 				<div
 					className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 bg-cover bg-center text-xs text-gray-400 dark:border-gray-800 dark:bg-white/5"
-					style={dataUrl ? { backgroundImage: `url('${dataUrl}')` } : undefined}
+					style={preview ? { backgroundImage: `url('${preview}')` } : undefined}
 				>
-					{!dataUrl && "Sem imagem"}
+					{!preview && "Sem imagem"}
 				</div>
 				<div className="flex flex-col gap-2">
 					<Button
@@ -85,7 +109,7 @@ export default function ProdutoImagemPicker({
 					>
 						Escolher imagem...
 					</Button>
-					{dataUrl && (
+					{preview && (
 						<button
 							type="button"
 							onClick={removerImagem}
@@ -96,6 +120,12 @@ export default function ProdutoImagemPicker({
 					)}
 				</div>
 			</div>
+			{!produtoId && (
+				<p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+					A imagem é salva junto quando você clicar em &quot;Salvar
+					Produto&quot;.
+				</p>
+			)}
 		</div>
 	);
 }

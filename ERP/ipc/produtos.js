@@ -129,6 +129,55 @@ function registrar(ipcMain, deps) {
 		}
 	});
 
+	// Produto ainda sem id (formulário de criação): só abre o diálogo e lê o
+	// arquivo escolhido como preview — não grava nada no banco/disco ainda,
+	// porque salvarImagemProduto exige um produtoId real pra nomear/organizar
+	// o arquivo copiado. O caminho volta pro renderer e só é efetivamente
+	// salvo (ver salvar-imagem-produto-caminho) depois que o produto for
+	// criado e a gente souber o id de verdade.
+	ipcMain.handle("escolher-imagem-pendente", async () => {
+		try {
+			exigirPermissao("produtos");
+			const escolha = await dialog.showOpenDialog(getMainWindow(), {
+				title: "Escolher imagem do produto",
+				properties: ["openFile"],
+				filters: [
+					{ name: "Imagens", extensions: ["png", "jpg", "jpeg", "webp"] },
+				],
+			});
+			if (escolha.canceled || !escolha.filePaths[0]) return { cancelado: true };
+			const caminho = escolha.filePaths[0];
+			const fs = require("fs");
+			const path = require("path");
+			const buffer = fs.readFileSync(caminho);
+			const ext = path.extname(caminho).slice(1).toLowerCase();
+			const mime = ext === "jpg" ? "jpeg" : ext;
+			return {
+				cancelado: false,
+				caminho,
+				dataUrl: "data:image/" + mime + ";base64," + buffer.toString("base64"),
+			};
+		} catch (erro) {
+			throw erro.message;
+		}
+	});
+
+	// Grava a imagem já escolhida (caminho vindo de escolher-imagem-pendente)
+	// assim que o produto novo ganha um id — sem reabrir o diálogo de novo.
+	ipcMain.handle(
+		"salvar-imagem-produto-caminho",
+		async (event, produtoId, caminho) => {
+			try {
+				exigirPermissao("produtos");
+				const resultado = await salvarImagemProduto(produtoId, caminho);
+				log("alterar-imagem-produto", "Produtos", produtoId, null);
+				return resultado;
+			} catch (erro) {
+				throw erro.message;
+			}
+		},
+	);
+
 	ipcMain.handle("remover-imagem-produto", async (event, produtoId) => {
 		try {
 			exigirPermissao("produtos");

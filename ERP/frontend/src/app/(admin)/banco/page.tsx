@@ -5,6 +5,7 @@ import Input from "@/components/form/input/InputField";
 import Button from "@/components/ui/button/Button";
 import { usePageHeader } from "@/context/PageHeaderContext";
 import { useBancoAdmin } from "@/hooks/useBancoAdmin";
+import ConfirmarSenhaModal from "@/components/common/ConfirmarSenhaModal";
 
 export default function BancoPage() {
 	const {
@@ -24,6 +25,13 @@ export default function BancoPage() {
 		resultadoExportacao,
 		erroExportacao,
 		exportarJSON,
+		tabelaParaLimpar,
+		pedirLimparTabela,
+		cancelarLimparTabela,
+		confirmarLimparTabela,
+		limpando,
+		resultadoLimpeza,
+		erroLimpeza,
 	} = useBancoAdmin();
 	const [senha, setSenha] = useState("");
 
@@ -146,13 +154,36 @@ export default function BancoPage() {
 				</select>
 
 				{tabelaSelecionada && (
-					<p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-						<strong className="text-gray-800 dark:text-white/90">
-							{tabelaSelecionada}
-						</strong>
-						{dadosTabela &&
-							` · ${dadosTabela.total} registros (exibindo até ${dadosTabela.limite})`}
-					</p>
+					<div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+						<p className="text-sm text-gray-500 dark:text-gray-400">
+							<strong className="text-gray-800 dark:text-white/90">
+								{tabelaSelecionada}
+							</strong>
+							{dadosTabela &&
+								` · ${dadosTabela.total} registros (exibindo até ${dadosTabela.limite})`}
+						</p>
+						{tabelaSelecionada !== "Usuarios" && (
+							<button
+								type="button"
+								disabled={limpando}
+								onClick={() => pedirLimparTabela(tabelaSelecionada)}
+								className="rounded-lg bg-error-50 px-3 py-1.5 text-xs font-semibold text-error-600 hover:bg-error-100 disabled:opacity-50 dark:bg-error-500/10 dark:text-error-400"
+							>
+								{limpando ? "Limpando..." : "Limpar tabela"}
+							</button>
+						)}
+					</div>
+				)}
+
+				{resultadoLimpeza && (
+					<div className="mt-3 rounded-lg border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700 dark:border-success-800 dark:bg-success-500/10 dark:text-success-400">
+						{resultadoLimpeza}
+					</div>
+				)}
+				{erroLimpeza && (
+					<div className="mt-3 rounded-lg border border-error-300 bg-error-50 px-4 py-3 text-sm text-error-600 dark:border-error-800 dark:bg-error-500/10 dark:text-error-400">
+						{erroLimpeza}
+					</div>
 				)}
 
 				<div className="mt-3 overflow-x-auto">
@@ -216,6 +247,18 @@ export default function BancoPage() {
 					)}
 				</div>
 			</div>
+
+			<ConfirmarSenhaModal
+				isOpen={!!tabelaParaLimpar}
+				titulo="Limpar tabela"
+				descricao={
+					tabelaParaLimpar
+						? `Remover TODOS os registros de "${tabelaParaLimpar}"? Esta ação não pode ser desfeita.`
+						: ""
+				}
+				onClose={cancelarLimparTabela}
+				onConfirmado={confirmarLimparTabela}
+			/>
 		</div>
 	);
 }

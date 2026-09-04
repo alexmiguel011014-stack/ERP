@@ -4,7 +4,9 @@ import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import Button from "@/components/ui/button/Button";
 import CategoriaSelector from "./CategoriaSelector";
-import ProdutoImagemPicker from "./ProdutoImagemPicker";
+import ProdutoImagemPicker, {
+	type ImagemPendente,
+} from "./ProdutoImagemPicker";
 import { useCategorias } from "@/hooks/useCategorias";
 import { usePersistedState } from "@/hooks/usePersistedState";
 import {
@@ -33,12 +35,14 @@ function derivarAtributosDeCategorias(
 export default function ProdutoFormPanel({
 	produtoEditando,
 	onSalvo,
+	onProdutoCriado,
 	onCancelarEdicao,
 	onAbrirLista,
 	onAbrirListaCategorias,
 }: {
 	produtoEditando: ProdutoDetalhado | null;
 	onSalvo: () => void;
+	onProdutoCriado: (id: number) => void;
 	onCancelarEdicao: () => void;
 	onAbrirLista: () => void;
 	onAbrirListaCategorias: () => void;
@@ -57,6 +61,9 @@ export default function ProdutoFormPanel({
 		"0",
 	);
 	const [imagem, setImagem] = useState<string | null>(null);
+	const [imagemPendente, setImagemPendente] = useState<ImagemPendente | null>(
+		null,
+	);
 	const [categoriasSelecionadas, setCategoriasSelecionadas, limparCategorias] =
 		usePersistedState<string[]>("produtos_form_categorias", []);
 	const [mensagem, setMensagem] = useState<{
@@ -81,6 +88,7 @@ export default function ProdutoFormPanel({
 				String(variacao ? Number(variacao.quantidade_estoque || 0) : 0),
 			);
 			setImagem(produtoEditando.imagem);
+			setImagemPendente(null);
 			let sels = produtoEditando.categorias_selecionadas.map((c) =>
 				String(c.id),
 			);
@@ -104,6 +112,7 @@ export default function ProdutoFormPanel({
 		limparNome();
 		limparEstoque();
 		setImagem(null);
+		setImagemPendente(null);
 		setCodigoBarras("");
 		limparCategorias();
 		if (!editandoId) buscarProximoSku();
@@ -165,13 +174,34 @@ export default function ProdutoFormPanel({
 					texto: "Produto atualizado com sucesso!",
 					sucesso: true,
 				});
+				onSalvo();
 			} else {
-				await erpApi.produtos.salvar(dados);
-				setMensagem({ texto: "Produto salvo com sucesso!", sucesso: true });
+				const res = await erpApi.produtos.salvar(dados);
+				let texto = "Produto salvo com sucesso!";
+				if (imagemPendente) {
+					try {
+						await erpApi.produtos.salvarImagemCaminho(
+							res.produtoId,
+							imagemPendente.caminho,
+						);
+						texto += " Imagem anexada.";
+					} catch (e) {
+						texto +=
+							" Não deu pra anexar a imagem escolhida (" +
+							(e instanceof Error ? e.message : String(e)) +
+							") — tente de novo abaixo.";
+					}
+					setImagemPendente(null);
+				}
+				setMensagem({ texto, sucesso: true });
+				// Não chama onSalvo() aqui: isso remontaria o painel (key={refreshTick})
+				// e voltaria pro formulário em branco antes do produtoEditando (abaixo)
+				// chegar — perderia a chance de conferir/trocar a imagem. onProdutoCriado
+				// já muda produtoEditando, o que é suficiente pro efeito acima repopular
+				// o formulário no modo edição sem remontar.
+				onProdutoCriado(res.produtoId);
 			}
 			recarregarCategorias();
-			onSalvo();
-			if (!editandoId) limparFormulario();
 		} catch (e) {
 			setMensagem({
 				texto:
@@ -198,14 +228,15 @@ export default function ProdutoFormPanel({
 					/>
 				</div>
 
-				{editandoId && (
-					<ProdutoImagemPicker
-						produtoId={editandoId}
-						imagem={imagem}
-						onErro={(t) => setMensagem({ texto: t, sucesso: false })}
-						onSucesso={(t) => setMensagem({ texto: t, sucesso: true })}
-					/>
-				)}
+				<ProdutoImagemPicker
+					produtoId={editandoId}
+					imagem={imagem}
+					pendente={imagemPendente}
+					onErro={(t) => setMensagem({ texto: t, sucesso: false })}
+					onSucesso={(t) => setMensagem({ texto: t, sucesso: true })}
+					onPendenteEscolhida={setImagemPendente}
+					onPendenteRemovida={() => setImagemPendente(null)}
+				/>
 
 				<div className="grid grid-cols-2 gap-4">
 					<div>

@@ -337,8 +337,22 @@ export default function ProdutosListModal({
 												key={p.id}
 												className="border-b border-gray-50 last:border-0 dark:border-gray-800/60"
 											>
-												<td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-gray-500 dark:text-gray-400">
-													{skus.join(", ") || "---"}
+												<td
+													className="max-w-[140px] px-3 py-2 font-mono text-xs text-gray-500 dark:text-gray-400"
+													title={skus.length > 1 ? skus.join(", ") : undefined}
+												>
+													{skus.length === 0 ? (
+														"---"
+													) : skus.length === 1 ? (
+														<span className="block truncate">{skus[0]}</span>
+													) : (
+														<span className="block truncate">
+															{skus[0]}
+															<span className="ml-1 text-gray-400 dark:text-gray-500">
+																+{skus.length - 1}
+															</span>
+														</span>
+													)}
 												</td>
 												<td className="px-3 py-2 font-medium text-gray-800 dark:text-white/90">
 													{p.nome}

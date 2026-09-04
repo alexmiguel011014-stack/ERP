@@ -25,6 +25,14 @@ export function useBancoAdmin() {
 	);
 	const [erroExportacao, setErroExportacao] = useState<string | null>(null);
 
+	// Fluxo de "Limpar tabela": pedirLimparTabela abre o ConfirmarSenhaModal
+	// (mesmo componente já usado pra excluir produto); só ao confirmar a
+	// senha lá é que confirmarLimparTabela roda de verdade.
+	const [tabelaParaLimpar, setTabelaParaLimpar] = useState<string | null>(null);
+	const [limpando, setLimpando] = useState(false);
+	const [resultadoLimpeza, setResultadoLimpeza] = useState<string | null>(null);
+	const [erroLimpeza, setErroLimpeza] = useState<string | null>(null);
+
 	const carregarResumo = useCallback(async () => {
 		setCarregandoResumo(true);
 		try {
@@ -92,6 +100,35 @@ export function useBancoAdmin() {
 		}
 	}
 
+	function pedirLimparTabela(tabela: string) {
+		setResultadoLimpeza(null);
+		setErroLimpeza(null);
+		setTabelaParaLimpar(tabela);
+	}
+
+	function cancelarLimparTabela() {
+		setTabelaParaLimpar(null);
+	}
+
+	async function confirmarLimparTabela() {
+		if (!tabelaParaLimpar) return;
+		setLimpando(true);
+		setErroLimpeza(null);
+		try {
+			const res = await erpApi.banco.limparTabela(tabelaParaLimpar);
+			setResultadoLimpeza(
+				`${res.registrosRemovidos} registro(s) removido(s) de ${res.tabela}.`,
+			);
+			await carregarResumo();
+			if (tabelaSelecionada === res.tabela) await consultar(res.tabela);
+		} catch (e) {
+			setErroLimpeza(e instanceof Error ? e.message : String(e));
+		} finally {
+			setLimpando(false);
+			setTabelaParaLimpar(null);
+		}
+	}
+
 	return {
 		autorizado,
 		autorizando,
@@ -109,5 +146,12 @@ export function useBancoAdmin() {
 		resultadoExportacao,
 		erroExportacao,
 		exportarJSON,
+		tabelaParaLimpar,
+		pedirLimparTabela,
+		cancelarLimparTabela,
+		confirmarLimparTabela,
+		limpando,
+		resultadoLimpeza,
+		erroLimpeza,
 	};
 }

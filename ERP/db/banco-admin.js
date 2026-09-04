@@ -119,6 +119,36 @@ async function consultarTabelaBanco(tabela, limite) {
 	};
 }
 
+// Tabelas nunca esvaziáveis por aqui — Usuarios porque zerar essa tabela
+// tranca todo mundo pra fora do app (inclusive quem está limpando), sem
+// nenhum jeito de voltar a entrar sem mexer direto no banco por fora.
+const TABELAS_PROTEGIDAS = ["Usuarios"];
+
+// Esvazia uma tabela por completo (todas as linhas) — pensado pra corrigir
+// uma migração que importou parte errada (ex.: "categoria está certo, mas
+// produto não está"): limpa só a tabela problemática e reimporta, sem
+// precisar apagar o banco inteiro e recomeçar do zero. Mesma validação de
+// nome de tabela que consultarTabelaBanco já usa (whitelist real via
+// sqlite_master, não confia em string vinda do IPC).
+async function limparTabela(tabela) {
+	const nome = String(tabela || "").replace(/[^A-Za-z0-9_]/g, "");
+	if (!nome) throw new Error("Tabela inválida.");
+	if (TABELAS_PROTEGIDAS.includes(nome)) {
+		throw new Error(
+			"A tabela " +
+				nome +
+				" não pode ser limpa por aqui (travaria o acesso ao app).",
+		);
+	}
+	const tabelas = await listarTabelasBanco();
+	if (tabelas.indexOf(nome) === -1) {
+		throw new Error("Tabela não existe: " + nome);
+	}
+	const antes = await getAsync("SELECT COUNT(*) AS n FROM " + nome, []);
+	await runAsync("DELETE FROM " + nome, []);
+	return { tabela: nome, registrosRemovidos: Number(antes.n) };
+}
+
 async function verificarSenhaAdmin(login, senha) {
 	const l = String(login || "")
 		.trim()
@@ -218,6 +248,7 @@ module.exports = {
 	resumoTabelasBanco,
 	consultarTabelaBanco,
 	exportarBancoJSON,
+	limparTabela,
 	verificarSenhaAdmin,
 	registrarLog,
 	getLogAtividades,

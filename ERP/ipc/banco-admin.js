@@ -4,11 +4,12 @@ const {
 	resumoTabelasBanco,
 	getLogAtividades,
 	exportarBancoJSON,
+	limparTabela,
 	verificarSenhaAdmin,
 } = require("../database");
 
 function registrar(ipcMain, deps) {
-	const { exigirSessao, getSessao } = deps;
+	const { exigirSessao, getSessao, log } = deps;
 
 	ipcMain.handle("listar-tabelas-banco", async () => {
 		try {
@@ -50,6 +51,22 @@ function registrar(ipcMain, deps) {
 		try {
 			exigirSessao("admin");
 			return await exportarBancoJSON();
+		} catch (erro) {
+			throw erro.message;
+		}
+	});
+
+	ipcMain.handle("limpar-tabela-banco", async (event, tabela) => {
+		try {
+			exigirSessao("admin");
+			const resultado = await limparTabela(tabela);
+			log(
+				"limpar-tabela-banco",
+				resultado.tabela,
+				null,
+				resultado.registrosRemovidos + " registro(s) removido(s)",
+			);
+			return resultado;
 		} catch (erro) {
 			throw erro.message;
 		}

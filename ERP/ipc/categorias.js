@@ -6,6 +6,7 @@ const {
 	inativarCategoria,
 	reativarCategoria,
 	salvarCategoria,
+	atualizarCategoria,
 	salvarCategoriaComSubcategorias,
 } = require("../database");
 
@@ -79,6 +80,18 @@ function registrar(ipcMain, deps) {
 		try {
 			exigirPermissao("produtos");
 			const resultado = await salvarCategoria(nome, categoriaPaiId);
+			const mainWindow = getMainWindow();
+			if (mainWindow) mainWindow.webContents.send("categorias-changed");
+			return resultado;
+		} catch (erro) {
+			throw erro.message;
+		}
+	});
+
+	ipcMain.handle("atualizar-categoria", async (event, id, dados) => {
+		try {
+			exigirPermissao("produtos");
+			const resultado = await atualizarCategoria(id, dados);
 			const mainWindow = getMainWindow();
 			if (mainWindow) mainWindow.webContents.send("categorias-changed");
 			return resultado;
