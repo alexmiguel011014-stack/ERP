@@ -4,13 +4,16 @@ on:
   push:
   pull_request:
 
+# windows-latest, não ubuntu: @journeyapps/sqlcipher é um módulo nativo e o
+# app só é distribuído pra Windows (NSIS) — evita todo o problema de
+# compilar/rebuildar o binário nativo pra uma plataforma que o projeto nem
+# suporta.
 jobs:
-  lint-and-test:
+  backend:
     runs-on: windows-latest
     defaults:
       run:
         working-directory: ERP
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -18,7 +21,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
           cache-dependency-path: ERP/package-lock.json
 
@@ -31,5 +34,62 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: E2E (login + visita todas as páginas, coleta erros de console)
+      - name: Smoke test (login + visita todas as páginas, coleta erros de console)
         run: npx electron scripts/test-ui.js
+
+  frontend:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: ERP/frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ERP/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+  # Lança o Electron de verdade (via Playwright _electron, ver ERP/e2e/README.md)
+  # — por isso precisa do frontend/out buildado primeiro, e não roda no mesmo
+  # job que só faz lint+typecheck acima.
+  e2e:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ERP/package-lock.json
+
+      - name: Install dependencies (backend)
+        working-directory: ERP
+        run: npm ci
+
+      - name: Install dependencies (frontend)
+        working-directory: ERP/frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: ERP/frontend
+        run: npm run build
+
+      - name: E2E
+        working-directory: ERP
+        run: npm run test:e2e
