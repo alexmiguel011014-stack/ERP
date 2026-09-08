@@ -1,4 +1,5 @@
-import React, { FC } from "react";
+import React, { FC, useRef } from "react";
+import { CalenderIcon } from "@/icons";
 
 // autoComplete default é "off": nenhum desses inputs tem `name`, mas o
 // Chromium ainda tenta sugerir valores de outros formulários da própria app
@@ -44,8 +45,11 @@ const Input: FC<InputProps> = ({
 	hint,
 	autoComplete = "off",
 }) => {
+	const inputRef = useRef<HTMLInputElement>(null);
+	const isDate = type === "date";
+
 	// Determine input styles based on state (disabled, success, error)
-	let inputClasses = `h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800 ${className}`;
+	let inputClasses = `h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800 ${isDate ? "pr-10" : ""} ${className}`;
 
 	// Add styles for the different states
 	if (disabled) {
@@ -61,6 +65,7 @@ const Input: FC<InputProps> = ({
 	return (
 		<div className="relative">
 			<input
+				ref={inputRef}
 				type={type}
 				id={id}
 				name={name}
@@ -76,6 +81,27 @@ const Input: FC<InputProps> = ({
 				autoComplete={autoComplete}
 				className={inputClasses}
 			/>
+
+			{/* Ícone de calendário clicável para abrir o seletor nativo de data */}
+			{isDate && !disabled && (
+				<button
+					type="button"
+					tabIndex={-1}
+					aria-label="Abrir calendário"
+					onClick={() => {
+						const el = inputRef.current;
+						if (!el) return;
+						try {
+							el.showPicker();
+						} catch {
+							el.focus();
+						}
+					}}
+					className="absolute -translate-y-1/2 right-3 top-1/2 text-gray-500 dark:text-gray-400"
+				>
+					<CalenderIcon className="size-5" />
+				</button>
+			)}
 
 			{/* Optional Hint Text */}
 			{hint && (
