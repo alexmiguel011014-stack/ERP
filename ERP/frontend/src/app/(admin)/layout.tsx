@@ -8,7 +8,6 @@ import { TabsProvider } from "@/context/TabsContext";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import AbasAtivasWrapper from "@/layout/AbasAtivasWrapper";
-import UpdateAvailableCard from "@/components/atualizacao/UpdateAvailableCard";
 import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
@@ -42,7 +41,6 @@ export default function AdminLayout({
 	return (
 		<PageHeaderProvider>
 			<TabsProvider>
-				<UpdateAvailableCard />
 				<div className="min-h-screen xl:flex">
 					<AppSidebar />
 					{/* Main Content Area */}

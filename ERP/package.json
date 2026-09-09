@@ -73,8 +73,7 @@
 		},
 		"nsis": {
 			"artifactName": "ALLU-ERP-Setup-${version}.${ext}",
-			"oneClick": false,
-			"allowToChangeInstallationDirectory": true,
+			"oneClick": true,
 			"createDesktopShortcut": true,
 			"createStartMenuShortcut": true,
 			"shortcutName": "ALLU ERP"

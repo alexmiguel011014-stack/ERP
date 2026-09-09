@@ -301,14 +301,15 @@ certificado A1 e conta em provedor de pagamento ainda pendentes de acesso — ve
 - Login exigido apenas na entrada do app (`modules/core/auth.js` redireciona para `modules/auth/login.html` se não autenticado). Usuários são gerenciados em `modules/acessos/` (acessível pela sidebar: "Gerenciar Acessos", admin).
 - Dois perfis: `admin` (acesso total) e `vendedor` (restrito por `permissoes` JSON, gerenciado em `modules/acessos/`). Admin sempre passa em `exigirPermissao(modulo)` independente de `permissoes`. `main.js:exigirPermissao` já gate 11 domínios IPC (produtos, categorias, clientes, vendas, estoque, fornecedores, compras, precificacao, financeiro, caixa, relatorios); `pagamentos`, `dashboard`, `usuarios`, `banco-admin`, `sistema` e `auth` ainda usam só `exigirSessao('admin')`.
 - Atualização automática: `electron-updater` + GitHub Releases. Checa no boot + a cada 24h
-  enquanto o app fica aberto (`main.js:iniciarChecagemAutomaticaDeAtualizacao`). Achou
-  atualização → `update-status` (push event) chega em qualquer tela via um card global
-  (`frontend/src/components/atualizacao/UpdateAvailableCard.tsx`, montado no
-  `(admin)/layout.tsx`), não só na página `/atualizacao`. "Sim, atualizar" baixa (barra de
-  progresso no card) e, ao terminar o download, chama `quit-and-install` sozinho — sem
-  precisar de um segundo clique. Instalador NSIS é `oneClick: true` (progresso automático,
-  sem assistente com cliques) — trade-off: perdeu a opção de escolher pasta de instalação
-  no primeiro install manual, aceitável pra um app de tenant único instalado numa máquina só.
+  enquanto o app fica aberto (`main.js:iniciarChecagemAutomaticaDeAtualizacao`), mas o aviso
+  só é visível em `/atualizacao` (2026-09-08: não existe mais notificação global/proativa —
+  ver decisão registrada em `GOALS.md`). Nessa página, `useAtualizacao.ts` guia o mesmo botão
+  por 3 rótulos conforme o estado: "Baixar atualização" → "Instalar". Clicar em "Instalar"
+  abre `ConfirmarInstalacaoModal.tsx` ("reinicia o app, deseja prosseguir?"); só no "Sim" o
+  hook chama `quit-and-install`. Instalador NSIS é `oneClick: true` (progresso automático,
+  sem assistente com cliques, sem UI nossa depois do "Sim") — trade-off: perdeu a opção de
+  escolher pasta de instalação no primeiro install manual, aceitável pra um app de tenant
+  único instalado numa máquina só.
 - **Camada central de acesso**: `modules/core/banco.js` expõe `window.erpBanco` (agrupado por domínio: produtos, categorias, clientes, vendas, estoque, precificacao, fornecedores, compras, financeiro, relatorios, dashboard, usuarios, sistema). Incluído em todas as páginas via `<script src="../core/banco.js">`. Módulos novos devem usar `window.erpBanco.*`; `window.api.*` permanece disponível para código legado.
 - **Módulo banco** (`modules/banco/banco.html` + `banco.js`): inspeção crua das tabelas via sidebar (admin). Exige sessão admin (`exigirSessao('admin')`) nos IPC `listar-tabelas-banco` / `consultar-tabela-banco` e confirmação de senha do admin (`verificar-senha-admin`). Cadastros do dia a dia NÃO exigem senha extra (a sessão já autentica).
 - **Conta de suporte do desenvolvedor** (`db/usuarios.js:garantirContaSuporte`, opcional, ver GOALS.md "Developer Support Admin Account" e a Pegadinha real acima sobre colisão de login): existe pra permitir gerenciar qualquer instalação de cliente sem saber a senha daquela loja especificamente. Login/senha só existem se `ERP_SUPORTE_LOGIN`/`ERP_SUPORTE_SENHA` forem definidos no shell de quem publica (nunca commitados — ver `.env.example`); embrulhados na chave-mestre a cada login bem-sucedido de qualquer usuário, não só no bootstrap. Nunca listado em `listarUsuarios()` (não aparece em Gerenciar Acessos), nunca removível/editável via `removerUsuario`/`salvarUsuario`. Deliberadamente **não documentado no README.md** (arquivo público) — a existência é ok pra quem mantém o repo, não pra quem só vê o GitHub público.

@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import Button from "@/components/ui/button/Button";
 import { usePageHeader } from "@/context/PageHeaderContext";
 import { useAtualizacao } from "@/hooks/useAtualizacao";
+import ConfirmarInstalacaoModal from "@/components/atualizacao/ConfirmarInstalacaoModal";
 
 // Cores pro status no header — fundo azul-marinho fixo, não usa o par
 // light/dark que os cards no corpo da página usam.
@@ -38,7 +39,11 @@ export default function AtualizacaoPage() {
 		progresso,
 		mensagem,
 		botaoDesabilitado,
+		textoBotao,
 		clicarBotao,
+		confirmando,
+		confirmarInstalacao,
+		cancelarInstalacao,
 	} = useAtualizacao();
 
 	// Achado real (2026-08-29, investigação do travamento de navegação): sem
@@ -101,9 +106,15 @@ export default function AtualizacaoPage() {
 
 			<div className="text-center">
 				<Button onClick={clicarBotao} disabled={botaoDesabilitado}>
-					Atualizar
+					{textoBotao}
 				</Button>
 			</div>
+
+			<ConfirmarInstalacaoModal
+				isOpen={confirmando}
+				onClose={cancelarInstalacao}
+				onConfirmar={confirmarInstalacao}
+			/>
 		</div>
 	);
 }
