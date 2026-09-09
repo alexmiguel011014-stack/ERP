@@ -2,7 +2,25 @@
 import { useState } from "react";
 import { TrashBinIcon } from "@/icons";
 import { formatarMoeda } from "./formatos";
+import { useImagemArquivo } from "@/hooks/useImagemArquivo";
 import type { ItemCarrinho } from "@/hooks/useCarrinho";
+
+function ImagemItemCarrinho({ nomeArquivo }: { nomeArquivo: string | null }) {
+	const dataUrl = useImagemArquivo(nomeArquivo);
+	if (!dataUrl) {
+		return (
+			<div className="size-14 shrink-0 rounded-md bg-gray-100 dark:bg-white/5" />
+		);
+	}
+	return (
+		// eslint-disable-next-line @next/next/no-img-element
+		<img
+			src={dataUrl}
+			alt=""
+			className="size-14 shrink-0 rounded-md object-cover"
+		/>
+	);
+}
 
 export default function Carrinho({
 	itens,
@@ -39,16 +57,7 @@ export default function Carrinho({
 							onClick={() => setAberto(expandido ? null : item.variacao_id)}
 							className="flex w-full items-center gap-3 p-2.5 text-left"
 						>
-							{item.imagem ? (
-								// eslint-disable-next-line @next/next/no-img-element
-								<img
-									src={item.imagem}
-									alt=""
-									className="size-10 shrink-0 rounded-md object-cover"
-								/>
-							) : (
-								<div className="size-10 shrink-0 rounded-md bg-gray-100 dark:bg-white/5" />
-							)}
+							<ImagemItemCarrinho nomeArquivo={item.imagem} />
 							<div className="min-w-0 flex-1">
 								<div className="truncate text-sm font-medium text-gray-800 dark:text-white/90">
 									{item.nome}

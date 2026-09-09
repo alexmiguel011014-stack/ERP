@@ -16,6 +16,7 @@ test.describe("Cadastro de Produto", () => {
 	let electronApp: ElectronApplication;
 	let window: Page;
 	let userDataDir: string;
+	let imagemFalsaPath: string;
 
 	// O sistema de abas (Header Tab System) mantém painéis de rotas
 	// anteriormente visitadas montados no DOM (keep-alive) — inclusive o
@@ -30,6 +31,11 @@ test.describe("Cadastro de Produto", () => {
 
 	test.beforeAll(async () => {
 		userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "erp-e2e-produtos-"));
+		// salvarImagemProduto só valida extensão + existência do arquivo (não o
+		// conteúdo) — bytes arbitrários com extensão .png bastam pro fluxo real
+		// de escolher/salvar/ler imagem ser exercitado de ponta a ponta.
+		imagemFalsaPath = path.join(userDataDir, "imagem-teste.png");
+		fs.writeFileSync(imagemFalsaPath, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
 		electronApp = await electron.launch({
 			args: ["."],
 			cwd: ROOT,
@@ -92,6 +98,67 @@ test.describe("Cadastro de Produto", () => {
 			window.getByRole("button", { name: "Cancelar Edição" }).and(visible()),
 		).toHaveCount(0);
 		await expect(nome).toHaveValue("");
+	});
+
+	// Reportado pelo dono depois do fix acima: editar um produto EXISTENTE,
+	// trocar a imagem e salvar — cenário não coberto pelo teste anterior
+	// (que criava um produto do zero). Também serve de regressão pro bug real
+	// encontrado nesse relato: o carrinho do PDV usava `Produtos.imagem` (nome
+	// de arquivo cru) direto num `<img src>`, que nunca resolve — a imagem
+	// precisa passar por getImagemProduto (IPC) primeiro.
+	test("editar imagem de um produto existente: sai do modo edição ao salvar, e a imagem salva é resolvível via getImagemProduto", async () => {
+		const nome = window.getByPlaceholder("Ex: Quimono Trançado").and(visible());
+		await nome.fill("Produto Com Imagem E2E");
+		await window
+			.getByRole("button", { name: "Salvar Produto" })
+			.and(visible())
+			.click();
+		await expect(
+			window.getByRole("button", { name: "Cancelar Edição" }).and(visible()),
+		).toBeVisible();
+
+		await electronApp.evaluate(async ({ dialog }, caminho) => {
+			dialog.showOpenDialog = (() =>
+				Promise.resolve({
+					canceled: false,
+					filePaths: [caminho],
+				})) as typeof dialog.showOpenDialog;
+		}, imagemFalsaPath);
+
+		await window
+			.getByRole("button", { name: "Escolher imagem..." })
+			.and(visible())
+			.click();
+		await expect(
+			window.getByText("Imagem atualizada!").and(visible()),
+		).toBeVisible();
+
+		await nome.fill("Produto Com Imagem E2E Editado");
+		await window
+			.getByRole("button", { name: "Salvar Alterações" })
+			.and(visible())
+			.click();
+
+		await expect(
+			window.getByRole("button", { name: "Salvar Produto" }).and(visible()),
+		).toBeVisible();
+		await expect(
+			window.getByRole("button", { name: "Cancelar Edição" }).and(visible()),
+		).toHaveCount(0);
+
+		const produtos = await window.evaluate(() =>
+			window.api.listarProdutosDetalhados(false),
+		);
+		const criado = produtos.find(
+			(p: { nome: string }) => p.nome === "Produto Com Imagem E2E Editado",
+		);
+		expect(criado?.imagem).toBeTruthy();
+
+		const dataUrl = await window.evaluate(
+			(nomeArquivo) => window.api.getImagemProduto(nomeArquivo),
+			criado.imagem,
+		);
+		expect(dataUrl).toMatch(/^data:image\//);
 	});
 
 	// Bug B (mesma seção do GOALS.md): dono relatou que "Escolher imagem..."

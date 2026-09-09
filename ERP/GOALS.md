@@ -3725,6 +3725,33 @@ haiku/low, anotado inline abaixo.
       cegas. Fix e regression test continuam bloqueados até a causa ser confirmada — não
       escrever um patch especulativo em cima de uma causa não verificada.
 
+- [x] **Bug C — imagem do produto nunca aparecia no carrinho do PDV (Frente de Caixa).**
+      Fora do escopo estrito de "cadastro" (é a tela de PDV, não a de cadastro), mas achado
+      testando a mesma feature de imagem nesta sessão — registrado aqui pra não se perder.
+      Repro relatado pelo dono (com print): editou a imagem de um produto, o item já estava no
+      carrinho do PDV, e o carrinho mostrava um quadrado cinza no lugar da foto. Root cause:
+      [Carrinho.tsx:42-51](ERP/frontend/src/components/pdv/Carrinho.tsx:42) usava
+      `<img src={item.imagem}>` com o **nome de arquivo cru** vindo de
+      `Produtos.imagem`/`buscarProdutosPorTermo` — igual ao que `useCarrinho.ts:124` grava no
+      item — mas esse arquivo mora fora da raiz servível do app (só acessível via IPC
+      `getImagemProduto`, o mesmo caminho que `ProdutoImagemPicker`/`ProdutoThumbnail` já usam
+      corretamente). Ou seja: a miniatura do carrinho **nunca** funcionou pra nenhum produto com
+      imagem, não só a que o dono acabou de trocar. Fix: novo hook
+      [useImagemArquivo.ts](ERP/frontend/src/hooks/useImagemArquivo.ts) (resolve nome de arquivo
+      → data URL via `getImagemProduto`, sem exigir `produtoId` como `useImagemProduto` exige —
+      o carrinho só tem `variacao_id`), usado num novo `ImagemItemCarrinho` dentro de
+      `Carrinho.tsx`. Miniatura também aumentada de `size-10` (40px) pra `size-14` (56px), a
+      pedido do dono. **Limitação conhecida, não corrigida**: o carrinho persiste um snapshot de
+      cada item (`useCarrinho.ts`, mesmo padrão do `preco_unitario` travado no momento de
+      adicionar) — se a imagem for trocada com o item **já no carrinho**, só atualiza removendo
+      e recolocando o item (ou reiniciando o carrinho), igual já acontece hoje com preço.
+      Regression test: novo caso em `e2e/produtos-cadastro.spec.ts` — edita a imagem de um
+      produto existente e confirma que o nome de arquivo salvo resolve pra uma `data:image/...`
+      URL de verdade via `getImagemProduto` (o mesmo mecanismo que `ImagemItemCarrinho` usa) —
+      não reabre o PDV inteiro no teste (preço zerado bloquearia adicionar ao carrinho; fora de
+      escopo simular precificação só pra isso). `npx playwright test e2e/` 8/8,
+      `frontend: tsc --noEmit` e `npm run lint` limpos.
+
 ### Melhorias
 
 - [x] **Imagem na Lista de Produtos.** Extraído o fetch-e-cache de imagem (antes só dentro de
