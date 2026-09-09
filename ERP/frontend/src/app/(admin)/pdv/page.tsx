@@ -313,8 +313,23 @@ export default function PdvPage() {
 				caixa={caixa.caixa}
 				resumo={caixa.resumo}
 				onCarregarResumo={caixa.carregarResumo}
-				onAbrir={caixa.abrir}
-				onFechar={caixa.fechar}
+				onAbrir={async (valor) => {
+					await caixa.abrir(valor);
+					mostrarMensagem("Caixa aberto.", true);
+				}}
+				onFechar={async (valor, observacao) => {
+					const resultado = await caixa.fechar(valor, observacao);
+					const diff = resultado.diferenca;
+					mostrarMensagem(
+						diff === 0
+							? "Caixa fechado — sem diferença."
+							: diff > 0
+								? `Caixa fechado — sobrou ${formatarMoeda(diff)}.`
+								: `Caixa fechado — faltou ${formatarMoeda(Math.abs(diff))}.`,
+						true,
+					);
+					return resultado;
+				}}
 			/>
 
 			<ReciboModal dados={recibo} onClose={() => setRecibo(null)} />

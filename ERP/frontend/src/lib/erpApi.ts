@@ -153,6 +153,14 @@ export type NovoLancamento = {
 	categoria: string | null;
 };
 
+export type FiltroLancamentos = {
+	tipo?: "receber" | "pagar";
+	status?: "aberto" | "pago";
+	categoria?: string;
+	dataInicio?: string;
+	dataFim?: string;
+};
+
 // Lista fechada — precisa bater com CATEGORIAS_FINANCEIRAS em db/financeiro.js
 // (o backend valida contra essa mesma lista; ver comentário lá).
 export const CATEGORIAS_FINANCEIRAS = [
@@ -174,15 +182,46 @@ export type DiaFluxo = {
 	saldoAcumulado: number;
 };
 
+export type FluxoCaixaEvento = {
+	data: string;
+	tipo: "entrada" | "saida";
+	origem: string;
+	descricao: string;
+	categoria: string | null;
+	valor: number;
+	referenciaId: number | null;
+	formaPagamento: string | null;
+};
+
+export type FluxoCaixaGrupo = {
+	chave: string;
+	quantidade: number;
+	entradas: number;
+	saidas: number;
+	saldo: number;
+};
+
 export type FluxoCaixa = {
+	periodo: { inicio: string; fim: string };
+	modo: "realizado" | "projetado";
+	eventos: FluxoCaixaEvento[];
 	dias: DiaFluxo[];
 	totalEntradas: number;
 	totalSaidas: number;
 	saldo: number;
+	porOrigem: FluxoCaixaGrupo[];
+	porTipo: FluxoCaixaGrupo[];
+	porCategoria: FluxoCaixaGrupo[];
 };
 
 export type FluxoCaixaProjetado = FluxoCaixa & {
 	periodo: { inicio: string; fim: string };
+};
+
+export type RelatorioFluxoCaixaResultado = {
+	realizado: FluxoCaixa;
+	projetado: FluxoCaixaProjetado;
+	politica: string[];
 };
 
 export type LancamentoRecorrente = {
@@ -1135,7 +1174,7 @@ export const erpApi = {
 			),
 	},
 	financeiro: {
-		lancamentos: (filtro: { tipo?: string; status?: string }) =>
+		lancamentos: (filtro: FiltroLancamentos = {}) =>
 			invocar<Lancamento[]>("getLancamentos", filtro),
 		criarLancamento: (dados: NovoLancamento) =>
 			invocar<{ success: boolean; lancamentoId: number }>(
@@ -1240,6 +1279,12 @@ export const erpApi = {
 		conversaoOrcamentos: (inicio: string | null, fim: string | null) =>
 			invocar<ConversaoOrcamentosResultado>(
 				"getConversaoOrcamentos",
+				inicio,
+				fim,
+			),
+		fluxoCaixa: (inicio: string | null, fim: string | null) =>
+			invocar<RelatorioFluxoCaixaResultado>(
+				"getRelatorioFluxoCaixa",
 				inicio,
 				fim,
 			),

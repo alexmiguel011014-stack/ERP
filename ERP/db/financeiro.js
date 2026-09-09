@@ -26,6 +26,136 @@ function validarCategoria(categoria) {
 	return c;
 }
 
+const DATA_ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function validarDataFluxo(data, nome) {
+	const valor = String(data || "");
+	if (!DATA_ISO_RE.test(valor)) {
+		throw new Error(`${nome} inválida. Use o formato AAAA-MM-DD.`);
+	}
+	const dataUtc = new Date(`${valor}T00:00:00Z`);
+	if (
+		Number.isNaN(dataUtc.getTime()) ||
+		dataUtc.toISOString().slice(0, 10) !== valor
+	) {
+		throw new Error(`${nome} inválida. Use uma data existente.`);
+	}
+	return valor;
+}
+
+function resolverPeriodoFluxo(dataInicio, dataFim, padraoInicio, padraoFim) {
+	const inicio = validarDataFluxo(dataInicio || padraoInicio, "Data inicial");
+	const fim = validarDataFluxo(dataFim || padraoFim, "Data final");
+	if (inicio > fim) {
+		throw new Error("Período inválido: a data inicial deve ser anterior à final.");
+	}
+	return { inicio, fim };
+}
+
+function arredondarMoeda(valor) {
+	return Math.round((Number(valor) || 0) * 100) / 100;
+}
+
+function consolidarEventosFluxo(eventos, periodo, modo) {
+	const ordenados = eventos
+		.filter((evento) => evento.data && Number(evento.valor) > 0)
+		.map((evento) => ({
+			...evento,
+			valor: arredondarMoeda(evento.valor),
+			categoria: evento.categoria || null,
+			referenciaId:
+				evento.referenciaId == null ? null : Number(evento.referenciaId),
+		}))
+		.sort((a, b) =>
+			a.data.localeCompare(b.data) ||
+				a.tipo.localeCompare(b.tipo) ||
+				a.origem.localeCompare(b.origem) ||
+				(a.referenciaId || 0) - (b.referenciaId || 0),
+		);
+
+	const mapaDias = {};
+	const grupos = { origem: {}, tipo: {}, categoria: {} };
+	const adicionarGrupo = (dimensao, chave, evento) => {
+		const rotulo = chave || "Sem categoria";
+		if (!grupos[dimensao][rotulo]) {
+			grupos[dimensao][rotulo] = {
+				chave: rotulo,
+				quantidade: 0,
+				entradas: 0,
+				saidas: 0,
+				saldo: 0,
+			};
+		}
+		const grupo = grupos[dimensao][rotulo];
+		grupo.quantidade++;
+		if (evento.tipo === "entrada") grupo.entradas += evento.valor;
+		else grupo.saidas += evento.valor;
+		grupo.saldo = grupo.entradas - grupo.saidas;
+	};
+
+	for (const evento of ordenados) {
+		if (!mapaDias[evento.data]) {
+			mapaDias[evento.data] = {
+				dia: evento.data,
+				entradas: 0,
+				saidas: 0,
+			};
+		}
+		const dia = mapaDias[evento.data];
+		if (evento.tipo === "entrada") dia.entradas += evento.valor;
+		else dia.saidas += evento.valor;
+		adicionarGrupo("origem", evento.origem, evento);
+		adicionarGrupo("tipo", evento.tipo, evento);
+		adicionarGrupo("categoria", evento.categoria, evento);
+	}
+
+	let saldoAcumulado = 0;
+	const dias = Object.values(mapaDias)
+		.sort((a, b) => a.dia.localeCompare(b.dia))
+		.map((dia) => {
+			dia.entradas = arredondarMoeda(dia.entradas);
+			dia.saidas = arredondarMoeda(dia.saidas);
+			dia.saldo = arredondarMoeda(dia.entradas - dia.saidas);
+			saldoAcumulado = arredondarMoeda(saldoAcumulado + dia.saldo);
+			dia.saldoAcumulado = saldoAcumulado;
+			return dia;
+		});
+
+	const finalizarGrupos = (dimensao) =>
+		Object.values(grupos[dimensao])
+			.map((grupo) => ({
+				...grupo,
+				entradas: arredondarMoeda(grupo.entradas),
+				saidas: arredondarMoeda(grupo.saidas),
+				saldo: arredondarMoeda(grupo.saldo),
+			}))
+			.sort((a, b) => a.chave.localeCompare(b.chave));
+
+	const totalEntradas = arredondarMoeda(
+		ordenados
+			.filter((evento) => evento.tipo === "entrada")
+			.reduce((total, evento) => total + evento.valor, 0),
+	);
+	const totalSaidas = arredondarMoeda(
+		ordenados
+			.filter((evento) => evento.tipo === "saida")
+			.reduce((total, evento) => total + evento.valor, 0),
+	);
+
+	return {
+		periodo,
+		modo,
+		eventos: ordenados,
+		dias,
+		totalEntradas,
+		totalSaidas,
+		saldo: arredondarMoeda(totalEntradas - totalSaidas),
+		porOrigem: finalizarGrupos("origem"),
+		porTipo: finalizarGrupos("tipo"),
+		porCategoria: finalizarGrupos("categoria"),
+	};
+}
+
 async function criarLancamentoInterno(run, dados) {
 	await run(
 		"INSERT INTO LancamentosFinanceiros (tipo, descricao, valor, data_vencimento, data_pagamento, status, origem, referencia_id, forma_pagamento, data_criacao) VALUES (?, ?, ?, ?, NULL, 'aberto', ?, ?, ?, ?)",
@@ -58,6 +188,14 @@ async function getLancamentos(filtro) {
 	if (filtro.categoria) {
 		where.push("categoria = ?");
 		params.push(filtro.categoria);
+	}
+	if (filtro.dataInicio) {
+		where.push("DATE(data_vencimento) >= ?");
+		params.push(filtro.dataInicio);
+	}
+	if (filtro.dataFim) {
+		where.push("DATE(data_vencimento) <= ?");
+		params.push(filtro.dataFim);
 	}
 	if (where.length > 0) sql += " WHERE " + where.join(" AND ");
 	sql +=
@@ -173,49 +311,105 @@ async function excluirLancamento(id) {
 	return { success: true };
 }
 
-// Fluxo de caixa realizado: entradas = vendas à vista + recebimentos; saídas = pagamentos.
+// Política canônica do fluxo realizado:
+// - venda finalizada não-Fiado entra na data da venda;
+// - venda Fiado não entra na data da venda; o lançamento a receber entra só
+//   quando pago, na data de pagamento;
+// - lançamento a pagar pago sai na data de pagamento;
+// - Pagamentos é detalhe vinculado à venda e FechamentosCaixa é reconciliação
+//   física: nenhum dos dois é somado aqui para evitar dupla contagem.
+// - devoluções são uma saída na data do estorno; vendas canceladas ficam fora.
 async function getFluxoCaixa(dataInicio, dataFim) {
 	const hoje = new Date().toISOString().slice(0, 10);
-	const inicio = dataInicio || hoje.slice(0, 8) + "01";
-	const fim = dataFim || hoje;
+	const periodo = resolverPeriodoFluxo(
+		dataInicio,
+		dataFim,
+		hoje.slice(0, 8) + "01",
+		hoje,
+	);
 
 	const entradasVendas = await allAsync(
-		"SELECT DATE(data_venda) AS dia, SUM(total) AS valor FROM Vendas WHERE status = 'finalizada' AND (forma_pagamento IS NULL OR forma_pagamento != 'Fiado') AND DATE(data_venda) BETWEEN ? AND ? GROUP BY DATE(data_venda)",
-		[inicio, fim],
+		`SELECT id, DATE(data_venda) AS dia, total, forma_pagamento
+     FROM Vendas
+     WHERE status = 'finalizada'
+       AND (forma_pagamento IS NULL OR forma_pagamento != 'Fiado')
+       AND DATE(data_venda) BETWEEN ? AND ?
+     ORDER BY dia, id`,
+		[periodo.inicio, periodo.fim],
 	);
 	const entradasRecebimentos = await allAsync(
-		"SELECT DATE(data_pagamento) AS dia, SUM(valor) AS valor FROM LancamentosFinanceiros WHERE tipo = 'receber' AND status = 'pago' AND DATE(data_pagamento) BETWEEN ? AND ? GROUP BY DATE(data_pagamento)",
-		[inicio, fim],
+		`SELECT id, tipo, descricao, valor, DATE(data_pagamento) AS dia,
+            categoria, origem, referencia_id, forma_pagamento
+     FROM LancamentosFinanceiros
+     WHERE tipo = 'receber' AND status = 'pago'
+       AND data_pagamento IS NOT NULL
+       AND DATE(data_pagamento) BETWEEN ? AND ?
+     ORDER BY dia, id`,
+		[periodo.inicio, periodo.fim],
 	);
 	const saidasPagamentos = await allAsync(
-		"SELECT DATE(data_pagamento) AS dia, SUM(valor) AS valor FROM LancamentosFinanceiros WHERE tipo = 'pagar' AND status = 'pago' AND DATE(data_pagamento) BETWEEN ? AND ? GROUP BY DATE(data_pagamento)",
-		[inicio, fim],
+		`SELECT id, tipo, descricao, valor, DATE(data_pagamento) AS dia,
+            categoria, origem, referencia_id, forma_pagamento
+     FROM LancamentosFinanceiros
+     WHERE tipo = 'pagar' AND status = 'pago'
+       AND data_pagamento IS NOT NULL
+       AND DATE(data_pagamento) BETWEEN ? AND ?
+     ORDER BY dia, id`,
+		[periodo.inicio, periodo.fim],
+	);
+	const devolucoes = await allAsync(
+		`SELECT d.id, d.venda_id, d.valor_total, DATE(d.data) AS dia
+     FROM Devolucoes d
+     WHERE d.data IS NOT NULL
+       AND DATE(d.data) BETWEEN ? AND ?
+     ORDER BY dia, d.id`,
+		[periodo.inicio, periodo.fim],
 	);
 
-	const mapa = {};
-	const adicionar = (dia, campo, valor) => {
-		if (!dia) return;
-		if (!mapa[dia]) mapa[dia] = { dia, entradas: 0, saidas: 0 };
-		mapa[dia][campo] += Number(valor) || 0;
-	};
-	entradasVendas.forEach((r) => adicionar(r.dia, "entradas", r.valor));
-	entradasRecebimentos.forEach((r) => adicionar(r.dia, "entradas", r.valor));
-	saidasPagamentos.forEach((r) => adicionar(r.dia, "saidas", r.valor));
+	const eventos = [
+		...entradasVendas.map((venda) => ({
+			data: venda.dia,
+			tipo: "entrada",
+			origem: "venda",
+			descricao: `Venda #${venda.id}`,
+			categoria: null,
+			valor: venda.total,
+			referenciaId: venda.id,
+			formaPagamento: venda.forma_pagamento || null,
+		})),
+		...entradasRecebimentos.map((lancamento) => ({
+			data: lancamento.dia,
+			tipo: "entrada",
+			origem: lancamento.origem || "manual",
+			descricao: lancamento.descricao,
+			categoria: lancamento.categoria,
+			valor: lancamento.valor,
+			referenciaId: lancamento.referencia_id || lancamento.id,
+			formaPagamento: lancamento.forma_pagamento || null,
+		})),
+		...saidasPagamentos.map((lancamento) => ({
+			data: lancamento.dia,
+			tipo: "saida",
+			origem: lancamento.origem || "manual",
+			descricao: lancamento.descricao,
+			categoria: lancamento.categoria,
+			valor: lancamento.valor,
+			referenciaId: lancamento.referencia_id || lancamento.id,
+			formaPagamento: lancamento.forma_pagamento || null,
+		})),
+		...devolucoes.map((devolucao) => ({
+			data: devolucao.dia,
+			tipo: "saida",
+			origem: "devolucao",
+			descricao: `Devolução da venda #${devolucao.venda_id}`,
+			categoria: null,
+			valor: devolucao.valor_total,
+			referenciaId: devolucao.id,
+			formaPagamento: null,
+		})),
+	];
 
-	const dias = Object.values(mapa).sort((a, b) => (a.dia < b.dia ? -1 : 1));
-	let saldo = 0;
-	dias.forEach((d) => {
-		d.saldo = d.entradas - d.saidas;
-		saldo += d.saldo;
-		d.saldoAcumulado = saldo;
-	});
-
-	return {
-		dias,
-		totalEntradas: dias.reduce((a, d) => a + d.entradas, 0),
-		totalSaidas: dias.reduce((a, d) => a + d.saidas, 0),
-		saldo,
-	};
+	return consolidarEventosFluxo(eventos, periodo, "realizado");
 }
 
 // Fluxo de caixa PROJETADO: mesma forma de retorno de getFluxoCaixa (dias +
@@ -225,43 +419,57 @@ async function getFluxoCaixa(dataInicio, dataFim) {
 // continua precisando ver o que já aconteceu separado do que é esperado.
 async function getFluxoCaixaProjetado(dataInicio, dataFim) {
 	const hoje = new Date().toISOString().slice(0, 10);
-	const inicio = dataInicio || hoje;
-	const fim =
-		dataFim || new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+	const periodo = resolverPeriodoFluxo(
+		dataInicio,
+		dataFim,
+		hoje,
+		new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+	);
 
 	const entradasAbertas = await allAsync(
-		"SELECT DATE(data_vencimento) AS dia, SUM(valor) AS valor FROM LancamentosFinanceiros WHERE tipo = 'receber' AND status = 'aberto' AND DATE(data_vencimento) BETWEEN ? AND ? GROUP BY DATE(data_vencimento)",
-		[inicio, fim],
+		`SELECT id, descricao, valor, DATE(data_vencimento) AS dia, categoria,
+            origem, referencia_id, forma_pagamento
+     FROM LancamentosFinanceiros
+     WHERE tipo = 'receber' AND status = 'aberto'
+       AND data_vencimento IS NOT NULL
+       AND DATE(data_vencimento) BETWEEN ? AND ?
+     ORDER BY dia, id`,
+		[periodo.inicio, periodo.fim],
 	);
 	const saidasAbertas = await allAsync(
-		"SELECT DATE(data_vencimento) AS dia, SUM(valor) AS valor FROM LancamentosFinanceiros WHERE tipo = 'pagar' AND status = 'aberto' AND DATE(data_vencimento) BETWEEN ? AND ? GROUP BY DATE(data_vencimento)",
-		[inicio, fim],
+		`SELECT id, descricao, valor, DATE(data_vencimento) AS dia, categoria,
+            origem, referencia_id, forma_pagamento
+     FROM LancamentosFinanceiros
+     WHERE tipo = 'pagar' AND status = 'aberto'
+       AND data_vencimento IS NOT NULL
+       AND DATE(data_vencimento) BETWEEN ? AND ?
+     ORDER BY dia, id`,
+		[periodo.inicio, periodo.fim],
 	);
+	const eventos = [
+		...entradasAbertas.map((lancamento) => ({
+			data: lancamento.dia,
+			tipo: "entrada",
+			origem: lancamento.origem || "manual",
+			descricao: lancamento.descricao,
+			categoria: lancamento.categoria,
+			valor: lancamento.valor,
+			referenciaId: lancamento.referencia_id || lancamento.id,
+			formaPagamento: lancamento.forma_pagamento || null,
+		})),
+		...saidasAbertas.map((lancamento) => ({
+			data: lancamento.dia,
+			tipo: "saida",
+			origem: lancamento.origem || "manual",
+			descricao: lancamento.descricao,
+			categoria: lancamento.categoria,
+			valor: lancamento.valor,
+			referenciaId: lancamento.referencia_id || lancamento.id,
+			formaPagamento: lancamento.forma_pagamento || null,
+		})),
+	];
 
-	const mapa = {};
-	const adicionar = (dia, campo, valor) => {
-		if (!dia) return;
-		if (!mapa[dia]) mapa[dia] = { dia, entradas: 0, saidas: 0 };
-		mapa[dia][campo] += Number(valor) || 0;
-	};
-	entradasAbertas.forEach((r) => adicionar(r.dia, "entradas", r.valor));
-	saidasAbertas.forEach((r) => adicionar(r.dia, "saidas", r.valor));
-
-	const dias = Object.values(mapa).sort((a, b) => (a.dia < b.dia ? -1 : 1));
-	let saldo = 0;
-	dias.forEach((d) => {
-		d.saldo = d.entradas - d.saidas;
-		saldo += d.saldo;
-		d.saldoAcumulado = saldo;
-	});
-
-	return {
-		periodo: { inicio, fim },
-		dias,
-		totalEntradas: dias.reduce((a, d) => a + d.entradas, 0),
-		totalSaidas: dias.reduce((a, d) => a + d.saidas, 0),
-		saldo,
-	};
+	return consolidarEventosFluxo(eventos, periodo, "projetado");
 }
 
 // Alíquota de provisão de DAS, % owner-informado — a faixa/anexo/Fator R real

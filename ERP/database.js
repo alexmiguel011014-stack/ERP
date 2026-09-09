@@ -148,6 +148,7 @@ module.exports = {
 	getProdutosParados: relatorios.getProdutosParados,
 	getSazonalidade: relatorios.getSazonalidade,
 	getConversaoOrcamentos: relatorios.getConversaoOrcamentos,
+	getRelatorioFluxoCaixa: relatorios.getRelatorioFluxoCaixa,
 	getAgingRecebiveis: financeiro.getAgingRecebiveis,
 	criarLancamentoRecorrente: financeiro.criarLancamentoRecorrente,
 	listarLancamentosRecorrentes: financeiro.listarLancamentosRecorrentes,

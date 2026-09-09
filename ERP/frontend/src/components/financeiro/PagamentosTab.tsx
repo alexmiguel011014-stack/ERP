@@ -6,8 +6,14 @@ import { formatarMoeda } from "@/components/dashboard/formatos";
 import Button from "@/components/ui/button/Button";
 import PagamentoFormModal from "./PagamentoFormModal";
 
-export default function PagamentosTab() {
-	const { pagamentos, carregando, erro, recarregar } = usePagamentos();
+export default function PagamentosTab({
+	refreshKey = 0,
+	onAtualizado,
+}: {
+	refreshKey?: number;
+	onAtualizado?: (texto: string) => void;
+}) {
+	const { pagamentos, carregando, erro, recarregar } = usePagamentos(refreshKey);
 	const [filtro, setFiltro] = useState("");
 	const [modalAberto, setModalAberto] = useState(false);
 	const [processandoId, setProcessandoId] = useState<number | null>(null);
@@ -17,14 +23,21 @@ export default function PagamentosTab() {
 		? pagamentos.filter((p) => (p.metodo || "").toLowerCase().includes(q))
 		: pagamentos;
 
+	function notificarAtualizacao(texto: string) {
+		if (onAtualizado) onAtualizado(texto);
+		else recarregar();
+	}
+
 	async function marcarComoRecebido(id: number) {
 		if (!confirm("Marcar este pagamento como recebido?")) return;
 		setProcessandoId(id);
 		try {
 			await erpApi.pagamentos.pagar(id);
-			recarregar();
+			notificarAtualizacao("Pagamento marcado como recebido.");
 		} catch (e) {
-			alert("Erro: " + (e instanceof Error ? e.message : String(e)));
+			notificarAtualizacao(
+				"Erro: " + (e instanceof Error ? e.message : String(e)),
+			);
 		} finally {
 			setProcessandoId(null);
 		}
@@ -144,7 +157,10 @@ export default function PagamentosTab() {
 			<PagamentoFormModal
 				isOpen={modalAberto}
 				onClose={() => setModalAberto(false)}
-				onSalvo={recarregar}
+				onSalvo={() => {
+					setModalAberto(false);
+					notificarAtualizacao("Pagamento registrado.");
+				}}
 			/>
 		</div>
 	);

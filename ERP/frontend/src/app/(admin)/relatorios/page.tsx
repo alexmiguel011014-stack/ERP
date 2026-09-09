@@ -18,6 +18,7 @@ import PainelProdutosParados from "@/components/relatorios/PainelProdutosParados
 import PainelSazonalidade from "@/components/relatorios/PainelSazonalidade";
 import PainelConversaoOrcamentos from "@/components/relatorios/PainelConversaoOrcamentos";
 import PainelAgingRecebiveis from "@/components/relatorios/PainelAgingRecebiveis";
+import PainelFluxoCaixa from "@/components/relatorios/PainelFluxoCaixa";
 import VendasFiltros from "@/components/vendas/VendasFiltros";
 import VendasStats from "@/components/vendas/VendasStats";
 import VendasTable from "@/components/vendas/VendasTable";
@@ -29,7 +30,7 @@ import {
 import { exportarVendasCsv } from "@/lib/utils/vendasExport";
 import type { Venda } from "@/lib/erpApi";
 
-type Aba = "analises" | "vendas";
+type Aba = "analises" | "vendas" | "fluxo";
 
 export default function RelatoriosPage() {
 	usePageHeader(
@@ -55,6 +56,7 @@ export default function RelatoriosPage() {
 		sazonalidade,
 		conversaoOrcamentos,
 		agingRecebiveis,
+		fluxoCaixa,
 		carregando,
 		erros,
 		gerar,
@@ -104,6 +106,17 @@ export default function RelatoriosPage() {
 						}
 					>
 						Vendas
+					</button>
+					<button
+						type="button"
+						onClick={() => setAba("fluxo")}
+						className={
+							aba === "fluxo"
+								? "border-b-2 border-brand-500 px-3 py-2 text-sm font-semibold text-brand-600 dark:text-brand-400"
+								: "px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+						}
+					>
+						Fluxo de Caixa
 					</button>
 				</div>
 			)}
@@ -155,6 +168,23 @@ export default function RelatoriosPage() {
 						onClose={() => setVendaSelecionada(null)}
 						onConverter={vendasState.converterOrcamento}
 						onAtualizarNotaFiscal={vendasState.atualizarNotaFiscal}
+					/>
+				</>
+			) : aba === "fluxo" && isAdmin ? (
+				<>
+					{erros.fluxoCaixa && (
+						<div className="rounded-xl border border-error-200 bg-error-50 p-4 text-sm text-error-600 dark:border-error-800 dark:bg-error-500/10 dark:text-error-400">
+							{erros.fluxoCaixa}
+						</div>
+					)}
+					<PainelFluxoCaixa
+						dados={fluxoCaixa}
+						dataInicio={dataInicio}
+						setDataInicio={setDataInicio}
+						dataFim={dataFim}
+						setDataFim={setDataFim}
+						onGerar={gerar}
+						carregando={carregando}
 					/>
 				</>
 			) : (

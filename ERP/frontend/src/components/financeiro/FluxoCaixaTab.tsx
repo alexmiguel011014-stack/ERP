@@ -15,7 +15,7 @@ function formatarData(iso: string | null): string {
 	}
 }
 
-export default function FluxoCaixaTab() {
+export default function FluxoCaixaTab({ refreshKey = 0 }: { refreshKey?: number }) {
 	const {
 		inicio,
 		setInicio,
@@ -32,7 +32,7 @@ export default function FluxoCaixaTab() {
 		filtrar,
 		salvarAliquota,
 		salvarMeta,
-	} = useFluxoCaixa();
+	} = useFluxoCaixa(refreshKey);
 	const [aliquotaInput, setAliquotaInput] = useState("");
 	const [salvandoAliquota, setSalvandoAliquota] = useState(false);
 	const [metaInput, setMetaInput] = useState("");

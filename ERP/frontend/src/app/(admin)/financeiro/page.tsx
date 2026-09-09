@@ -3,36 +3,18 @@ import { useState } from "react";
 import { usePageHeader } from "@/context/PageHeaderContext";
 import NovoLancamentoForm from "@/components/financeiro/NovoLancamentoForm";
 import AlertaVencimentoHoje from "@/components/financeiro/AlertaVencimentoHoje";
-import LancamentosTab from "@/components/financeiro/LancamentosTab";
+import LancamentosUnificados from "@/components/financeiro/LancamentosUnificados";
 import FluxoCaixaTab from "@/components/financeiro/FluxoCaixaTab";
 import FechamentosTab from "@/components/financeiro/FechamentosTab";
 import PagamentosTab from "@/components/financeiro/PagamentosTab";
 import LancamentosRecorrentesTab from "@/components/financeiro/LancamentosRecorrentesTab";
 
-type Aba =
-	| "receber"
-	| "pagar"
-	| "fluxo"
-	| "fechamentos"
-	| "pagamentos"
-	| "recorrentes";
-
-const ABAS: { id: Aba; label: string }[] = [
-	{ id: "receber", label: "A Receber" },
-	{ id: "pagar", label: "A Pagar" },
-	{ id: "fluxo", label: "Fluxo de Caixa" },
-	{ id: "fechamentos", label: "Fechamentos de Caixa" },
-	{ id: "pagamentos", label: "Pagamentos" },
-	{ id: "recorrentes", label: "Recorrentes" },
-];
-
 export default function FinanceiroPage() {
 	usePageHeader(
 		"Financeiro",
-		"Contas a pagar, contas a receber e fluxo de caixa realizado.",
+		"Recebimentos, pagamentos e visão do caixa em um único espaço operacional.",
 	);
-	const [aba, setAba] = useState<Aba>("receber");
-	const [refreshTick, setRefreshTick] = useState(0);
+	const [refreshKey, setRefreshKey] = useState(0);
 	const [mensagem, setMensagem] = useState<{
 		texto: string;
 		sucesso: boolean;
@@ -43,62 +25,116 @@ export default function FinanceiroPage() {
 		setTimeout(() => setMensagem(null), 4500);
 	}
 
-	function handleLancamentoSalvo(tipo: "receber" | "pagar", texto: string) {
-		mostrarMensagem(texto, true);
-		if (aba === tipo) setRefreshTick((t) => t + 1);
+	function marcarAtualizado(texto: string) {
+		const sucesso = !texto.startsWith("Erro:");
+		mostrarMensagem(texto, sucesso);
+		if (sucesso) setRefreshKey((tick) => tick + 1);
 	}
 
 	return (
-		<div className="grid grid-cols-1 gap-4">
-			<div className="flex flex-wrap gap-2 border-b border-gray-200 dark:border-gray-800">
-				{ABAS.map((a) => (
-					<button
-						key={a.id}
-						type="button"
-						onClick={() => setAba(a.id)}
-						className={
-							aba === a.id
-								? "border-b-2 border-brand-500 px-3 py-2 text-sm font-semibold text-brand-600 dark:text-brand-400"
-								: "px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-						}
+		<div className="grid grid-cols-1 gap-6">
+			<section aria-labelledby="financeiro-operacao">
+				<div className="mb-3">
+					<h2
+						id="financeiro-operacao"
+						className="text-lg font-semibold text-gray-800 dark:text-white/90"
 					>
-						{a.label}
-					</button>
-				))}
-			</div>
-
-			{aba !== "recorrentes" && (
+						Operação financeira
+					</h2>
+					<p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+						Cadastre cada obrigação uma vez e acompanhe receber e pagar no mesmo
+						livro.
+					</p>
+				</div>
 				<NovoLancamentoForm
-					onSalvo={handleLancamentoSalvo}
+					onSalvo={(_tipo, texto) => marcarAtualizado(texto)}
 					onErro={(texto) => mostrarMensagem(texto, false)}
 				/>
-			)}
-
-			{mensagem && (
-				<div
-					className={
-						mensagem.sucesso
-							? "rounded-xl border border-success-200 bg-success-50 p-4 text-sm text-success-700 dark:border-success-800 dark:bg-success-500/10 dark:text-success-400"
-							: "rounded-xl border border-error-200 bg-error-50 p-4 text-sm text-error-600 dark:border-error-800 dark:bg-error-500/10 dark:text-error-400"
-					}
-				>
-					{mensagem.texto}
+				{mensagem && (
+					<div
+						className={
+							mensagem.sucesso
+								? "mt-3 rounded-xl border border-success-200 bg-success-50 p-4 text-sm text-success-700 dark:border-success-800 dark:bg-success-500/10 dark:text-success-400"
+								: "mt-3 rounded-xl border border-error-200 bg-error-50 p-4 text-sm text-error-600 dark:border-error-800 dark:bg-error-500/10 dark:text-error-400"
+						}
+					>
+						{mensagem.texto}
+					</div>
+				)}
+				<div className="mt-4">
+					<AlertaVencimentoHoje />
 				</div>
-			)}
+				<div className="mt-4">
+					<LancamentosUnificados
+						refreshKey={refreshKey}
+						onAtualizado={marcarAtualizado}
+					/>
+				</div>
+			</section>
 
-			{(aba === "receber" || aba === "pagar") && <AlertaVencimentoHoje />}
+			<section aria-labelledby="financeiro-fluxo">
+				<div className="mb-3">
+					<h2
+						id="financeiro-fluxo"
+						className="text-lg font-semibold text-gray-800 dark:text-white/90"
+					>
+						Visão do fluxo de caixa
+					</h2>
+					<p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+						Aqui aparece o resultado dos lançamentos e das vendas recebidas. A
+						análise histórica detalhada fica em Relatórios.
+					</p>
+				</div>
+				<FluxoCaixaTab refreshKey={refreshKey} />
+			</section>
 
-			{(aba === "receber" || aba === "pagar") && (
-				<LancamentosTab
-					key={aba + refreshTick}
-					tipo={aba}
-					onMensagem={mostrarMensagem}
+			<section aria-labelledby="financeiro-pagamentos">
+				<div className="mb-3">
+					<h2
+						id="financeiro-pagamentos"
+						className="text-lg font-semibold text-gray-800 dark:text-white/90"
+					>
+						Recebimentos vinculados a vendas
+					</h2>
+					<p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+						Use para guardar o detalhe Pix, boleto ou outro meio. Este detalhe não
+						é somado novamente ao fluxo.
+					</p>
+				</div>
+				<PagamentosTab
+					refreshKey={refreshKey}
+					onAtualizado={marcarAtualizado}
 				/>
-			)}
-			{aba === "fluxo" && <FluxoCaixaTab />}
-			{aba === "fechamentos" && <FechamentosTab />}
-			{aba === "pagamentos" && <PagamentosTab />}
-			{aba === "recorrentes" && <LancamentosRecorrentesTab />}
+			</section>
+
+			<section aria-labelledby="financeiro-caixa">
+				<div className="mb-3">
+					<h2
+						id="financeiro-caixa"
+						className="text-lg font-semibold text-gray-800 dark:text-white/90"
+					>
+						Caixa físico
+					</h2>
+					<p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+						Abertura, conferência e fechamento continuam ligados ao caixa do PDV.
+					</p>
+				</div>
+				<FechamentosTab refreshKey={refreshKey} />
+			</section>
+
+			<section aria-labelledby="financeiro-recorrentes">
+				<details className="rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+					<summary
+						id="financeiro-recorrentes"
+						className="cursor-pointer px-4 py-4 text-lg font-semibold text-gray-800 dark:text-white/90"
+					>
+						Lançamentos recorrentes
+					</summary>
+					<div className="border-t border-gray-100 p-4 dark:border-gray-800">
+						<LancamentosRecorrentesTab />
+					</div>
+				</details>
+			</section>
 		</div>
 	);
 }

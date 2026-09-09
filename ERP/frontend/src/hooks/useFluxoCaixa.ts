@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { erpApi, type FluxoCaixa, type ProvisaoDAS } from "@/lib/erpApi";
 
-export function useFluxoCaixa() {
+export function useFluxoCaixa(refreshKey = 0) {
 	const [inicio, setInicio] = useState("");
 	const [fim, setFim] = useState("");
 	const [fluxo, setFluxo] = useState<FluxoCaixa | null>(null);
@@ -54,7 +54,7 @@ export function useFluxoCaixa() {
 		carregarDAS();
 		carregarMeta();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, []);
+	}, [refreshKey]);
 
 	function filtrar() {
 		carregarFluxo();

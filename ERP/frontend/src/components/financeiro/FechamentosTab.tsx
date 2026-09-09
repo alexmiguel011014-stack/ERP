@@ -11,11 +11,55 @@ function formatarData(iso: string | null): string {
 	}
 }
 
-export default function FechamentosTab() {
-	const { fechamentos, carregando, erro } = useFechamentosCaixa();
+export default function FechamentosTab({ refreshKey = 0 }: { refreshKey?: number }) {
+	const { fechamentos, caixaAberto, resumo, carregando, erro } =
+		useFechamentosCaixa(refreshKey);
 
 	return (
-		<div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+		<div className="grid grid-cols-1 gap-4">
+			<div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+				<h2 className="text-base font-semibold text-gray-800 dark:text-white/90">
+					Status do caixa físico
+				</h2>
+				<div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+					<div>
+						<div
+							className={
+								caixaAberto
+									? "text-sm font-semibold text-success-600 dark:text-success-400"
+									: "text-sm font-semibold text-gray-600 dark:text-gray-300"
+							}
+						>
+							{caixaAberto ? "Aberto" : "Fechado"}
+						</div>
+						<div className="text-xs text-gray-400">Status</div>
+					</div>
+					<div>
+						<div className="text-sm font-semibold text-gray-800 dark:text-white/90">
+							{resumo ? formatarMoeda(resumo.valor_abertura) : "---"}
+						</div>
+						<div className="text-xs text-gray-400">Abertura</div>
+					</div>
+					<div>
+						<div className="text-sm font-semibold text-gray-800 dark:text-white/90">
+							{resumo ? formatarMoeda(resumo.vendido_em_dinheiro) : "---"}
+						</div>
+						<div className="text-xs text-gray-400">Vendido em dinheiro</div>
+					</div>
+					<div>
+						<div className="text-sm font-semibold text-gray-800 dark:text-white/90">
+							{resumo ? formatarMoeda(resumo.valor_esperado_agora) : "---"}
+						</div>
+						<div className="text-xs text-gray-400">Esperado agora</div>
+					</div>
+				</div>
+				<p className="mt-3 text-xs text-gray-400">
+					Abertura e fechamento continuam sendo feitos pelo PDV; esta seção mostra
+					a reconciliação sem transformá-la em outro lançamento financeiro.
+				</p>
+			</div>
+
+			<div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
 			<h2 className="text-base font-semibold text-gray-800 dark:text-white/90">
 				Histórico de fechamentos de caixa
 			</h2>
@@ -93,6 +137,7 @@ export default function FechamentosTab() {
 						</tbody>
 					</table>
 				)}
+			</div>
 			</div>
 		</div>
 	);

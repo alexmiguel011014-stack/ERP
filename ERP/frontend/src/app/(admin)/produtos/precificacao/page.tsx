@@ -7,7 +7,9 @@ import Button from "@/components/ui/button/Button";
 import { usePrecificacao } from "@/hooks/usePrecificacao";
 import { useCategorias } from "@/hooks/useCategorias";
 import { erpApi } from "@/lib/erpApi";
-import PrecificacaoTable from "@/components/produtos/PrecificacaoTable";
+import PrecificacaoTable, {
+	type AlteracaoPrecificacao,
+} from "@/components/produtos/PrecificacaoTable";
 
 function fmtMoeda(v: number) {
 	return Number(v || 0).toLocaleString("pt-BR", {
@@ -56,6 +58,10 @@ export default function PrecificacaoPage() {
 	const [selecionados, setSelecionados] = useState<number[]>([]);
 	const [massaMargem, setMassaMargem] = useState("");
 	const [aplicandoMassa, setAplicandoMassa] = useState(false);
+	const [alteracoes, setAlteracoes] = useState<
+		Record<number, AlteracaoPrecificacao>
+	>({});
+	const [salvandoAlteracoes, setSalvandoAlteracoes] = useState(false);
 	const [mensagem, setMensagem] = useState<{
 		texto: string;
 		sucesso: boolean;
@@ -189,7 +195,89 @@ export default function PrecificacaoPage() {
 		}
 	}
 
+	function registrarAlteracao(
+		produtoId: number,
+		patch: AlteracaoPrecificacao,
+	) {
+		setAlteracoes((atual) => ({
+			...atual,
+			[produtoId]: { ...atual[produtoId], ...patch },
+		}));
+	}
+
+	async function salvarAlteracoes() {
+		const pendentes = Object.entries(alteracoes);
+		if (pendentes.length === 0) return;
+
+		setSalvandoAlteracoes(true);
+		try {
+			for (const [produtoIdTexto, alteracao] of pendentes) {
+				const produtoId = Number(produtoIdTexto);
+				const operacoes: Promise<unknown>[] = [];
+				if (alteracao.preco_custo !== undefined) {
+					operacoes.push(
+						erpApi.precificacao.salvarCusto(
+							produtoId,
+							alteracao.preco_custo,
+						),
+					);
+				}
+				if (alteracao.impostos_extras !== undefined) {
+					operacoes.push(
+						erpApi.precificacao.salvarImpostos(
+							produtoId,
+							alteracao.impostos_extras,
+						),
+					);
+				}
+				if (alteracao.aplicar_custo_fixo !== undefined) {
+					operacoes.push(
+						erpApi.precificacao.salvarAplicarCustoFixo(
+							produtoId,
+							alteracao.aplicar_custo_fixo,
+						),
+					);
+				}
+				if (alteracao.margem_percentual !== undefined) {
+					operacoes.push(
+						erpApi.precificacao.salvarMargemProduto(
+							produtoId,
+							alteracao.margem_percentual,
+						),
+					);
+				}
+				if (alteracao.preco_venda !== undefined) {
+					operacoes.push(
+						erpApi.precificacao.salvarPreco(
+							produtoId,
+							alteracao.preco_venda,
+						),
+					);
+				}
+				await Promise.all(operacoes);
+			}
+			setAlteracoes({});
+			await recarregar();
+			mostrarMensagem(
+				`${pendentes.length} produto(s) salvo(s) e disponível(is) no PDV.`,
+				true,
+			);
+		} catch (e) {
+			mostrarMensagem(
+				"Erro ao salvar alterações: " +
+					(e instanceof Error ? e.message : String(e)),
+				false,
+			);
+		} finally {
+			setSalvandoAlteracoes(false);
+		}
+	}
+
 	async function aplicarMassa() {
+		if (Object.keys(alteracoes).length > 0) {
+			mostrarMensagem("Salve as alterações pendentes antes de aplicar em lote.", false);
+			return;
+		}
 		if (selecionados.length === 0) {
 			mostrarMensagem("Selecione ao menos um produto.", false);
 			return;
@@ -397,26 +485,43 @@ export default function PrecificacaoPage() {
 				</div>
 			)}
 
-			<div className="flex flex-wrap items-center gap-3">
-				<input
-					type="text"
-					value={busca}
-					onChange={(e) => setBusca(e.target.value)}
-					placeholder="Buscar por SKU ou nome..."
-					className="h-10 w-full max-w-xs rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-				/>
-				<select
-					value={categoriaFiltro}
-					onChange={(e) => setCategoriaFiltro(e.target.value)}
-					className="h-10 rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-				>
-					<option value="">Todas as categorias</option>
-					{categoriasUnicas.map((nome) => (
-						<option key={nome} value={nome}>
-							{nome}
-						</option>
-					))}
-				</select>
+			<div className="flex flex-wrap items-center justify-between gap-3">
+				<div className="flex flex-wrap items-center gap-3">
+					<input
+						type="text"
+						value={busca}
+						onChange={(e) => setBusca(e.target.value)}
+						placeholder="Buscar por SKU ou nome..."
+						className="h-10 w-full max-w-xs rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+					/>
+					<select
+						value={categoriaFiltro}
+						onChange={(e) => setCategoriaFiltro(e.target.value)}
+						className="h-10 rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+					>
+						<option value="">Todas as categorias</option>
+						{categoriasUnicas.map((nome) => (
+							<option key={nome} value={nome}>
+								{nome}
+							</option>
+						))}
+					</select>
+				</div>
+				<div className="ml-auto flex items-center gap-3">
+					{Object.keys(alteracoes).length > 0 && (
+						<span className="text-sm text-warning-600 dark:text-warning-400">
+							{Object.keys(alteracoes).length} alteração(ões) pendente(s)
+						</span>
+					)}
+					<Button
+						onClick={salvarAlteracoes}
+						disabled={
+							salvandoAlteracoes || Object.keys(alteracoes).length === 0
+						}
+					>
+						{salvandoAlteracoes ? "Salvando..." : "Salvar alterações"}
+					</Button>
+				</div>
 			</div>
 
 			{selecionados.length > 0 && (
@@ -460,7 +565,7 @@ export default function PrecificacaoPage() {
 							custoFixoPercentual={custoFixoConfig.percentual}
 							selecionados={selecionados}
 							onToggleSelecionado={toggleSelecionado}
-							onMensagem={mostrarMensagem}
+							onAlterar={registrarAlteracao}
 						/>
 					)}
 				</div>

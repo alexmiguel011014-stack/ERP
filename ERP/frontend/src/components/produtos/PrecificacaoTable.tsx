@@ -1,6 +1,14 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { erpApi, type PrecificacaoLinha } from "@/lib/erpApi";
+import { useEffect, useState } from "react";
+import type { PrecificacaoLinha } from "@/lib/erpApi";
+
+export type AlteracaoPrecificacao = {
+	preco_custo?: number;
+	impostos_extras?: number;
+	margem_percentual?: number;
+	preco_venda?: number;
+	aplicar_custo_fixo?: boolean;
+};
 
 function calcPrecoVenda(
 	custo: number,
@@ -108,7 +116,7 @@ export default function PrecificacaoTable({
 	custoFixoPercentual,
 	selecionados,
 	onToggleSelecionado,
-	onMensagem,
+	onAlterar,
 }: {
 	linhas: PrecificacaoLinha[];
 	setLinhas: React.Dispatch<React.SetStateAction<PrecificacaoLinha[]>>;
@@ -116,22 +124,16 @@ export default function PrecificacaoTable({
 	custoFixoPercentual: number;
 	selecionados: number[];
 	onToggleSelecionado: (produtoId: number) => void;
-	onMensagem: (texto: string, sucesso: boolean) => void;
+	onAlterar: (produtoId: number, patch: AlteracaoPrecificacao) => void;
 }) {
-	const debounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-
-	function debounced(key: string, fn: () => void, delayMs = 400) {
-		clearTimeout(debounceRef.current[key]);
-		debounceRef.current[key] = setTimeout(fn, delayMs);
-	}
-
 	function atualizarLinha(
 		produtoId: number,
-		patch: Partial<PrecificacaoLinha>,
+		patch: AlteracaoPrecificacao,
 	) {
 		setLinhas((atual) =>
 			atual.map((l) => (l.produto_id === produtoId ? { ...l, ...patch } : l)),
 		);
+		onAlterar(produtoId, patch);
 	}
 
 	function margemEfetiva(p: PrecificacaoLinha) {
@@ -146,30 +148,10 @@ export default function PrecificacaoTable({
 
 	function salvarCusto(produtoId: number, valor: number) {
 		atualizarLinha(produtoId, { preco_custo: valor });
-		debounced("cost_" + produtoId, () => {
-			erpApi.precificacao
-				.salvarCusto(produtoId, valor)
-				.catch((e) =>
-					onMensagem(
-						"Erro ao salvar: " + (e instanceof Error ? e.message : String(e)),
-						false,
-					),
-				);
-		});
 	}
 
 	function salvarImpostos(produtoId: number, valor: number) {
 		atualizarLinha(produtoId, { impostos_extras: valor });
-		debounced("taxes_" + produtoId, () => {
-			erpApi.precificacao
-				.salvarImpostos(produtoId, valor)
-				.catch((e) =>
-					onMensagem(
-						"Erro ao salvar: " + (e instanceof Error ? e.message : String(e)),
-						false,
-					),
-				);
-		});
 	}
 
 	function salvarMargemEPreco(
@@ -181,29 +163,10 @@ export default function PrecificacaoTable({
 			margem_percentual: margem,
 			preco_venda: preco,
 		});
-		debounced("mp_" + produtoId, () => {
-			Promise.all([
-				erpApi.precificacao.salvarMargemProduto(produtoId, margem),
-				erpApi.precificacao.salvarPreco(produtoId, preco),
-			]).catch((e) =>
-				onMensagem(
-					"Erro ao salvar: " + (e instanceof Error ? e.message : String(e)),
-					false,
-				),
-			);
-		});
 	}
 
-	async function toggleCustoFixo(p: PrecificacaoLinha, marcado: boolean) {
+	function toggleCustoFixo(p: PrecificacaoLinha, marcado: boolean) {
 		atualizarLinha(p.produto_id, { aplicar_custo_fixo: marcado });
-		try {
-			await erpApi.precificacao.salvarAplicarCustoFixo(p.produto_id, marcado);
-		} catch (e) {
-			onMensagem(
-				"Erro ao salvar: " + (e instanceof Error ? e.message : String(e)),
-				false,
-			);
-		}
 	}
 
 	if (linhas.length === 0) {

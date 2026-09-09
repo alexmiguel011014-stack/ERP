@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { erpApi, type Pagamento } from "@/lib/erpApi";
 
-export function usePagamentos() {
+export function usePagamentos(refreshKey = 0) {
 	const [pagamentos, setPagamentos] = useState<Pagamento[]>([]);
 	const [carregando, setCarregando] = useState(true);
 	const [erro, setErro] = useState<string | null>(null);
@@ -21,7 +21,7 @@ export function usePagamentos() {
 
 	useEffect(() => {
 		recarregar();
-	}, [recarregar]);
+	}, [recarregar, refreshKey]);
 
 	return { pagamentos, carregando, erro, recarregar };
 }

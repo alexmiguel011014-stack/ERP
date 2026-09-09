@@ -3395,3 +3395,241 @@ new page.** Two distinct entry points, matching the two ways this data actually 
 - [x] `frontend && npx tsc --noEmit` — clean, 0 errors.
 - [x] Confirmed no unauthorized git commits happened during the 3 parallel background agents'
       run — `git log` unchanged at `3e2fd7b` throughout.
+
+---
+
+## GOALS 13 — Financeiro: unified operational workspace and cash-flow report (feature, not started)
+
+**Owner request (2026-09-08):** the current Financeiro screen presents several tabs that feel
+like the same operation repeated — A Receber, A Pagar, Fluxo de Caixa, Fechamentos de Caixa,
+Pagamentos and Recorrentes. The owner wants one consolidated operational view, with the cash
+flow treated as the result of the financial movements rather than another duplicated tab, plus
+a dedicated Fluxo de Caixa view inside Relatórios so the owner can understand what the recorded
+movements produced over time. The two supplied screenshots are evidence of the current UX, not
+additional implementation instructions: the second also shows the manual-launch form rendered
+while Fechamentos de Caixa is selected.
+
+**Current static findings (not live-verified in this goal):**
+
+- `frontend/src/app/(admin)/financeiro/page.tsx:21-104` defines six top-level tabs and renders
+  `NovoLancamentoForm` for every tab except Recorrentes (`aba !== "recorrentes"`). This explains
+  why the manual financial-entry form appears on the Fechamentos screenshot, where it is not the
+  relevant operation.
+- The same page only increments `refreshTick` when the newly created entry's type matches the
+  active A Receber/A Pagar tab. A launch created while Fluxo, Fechamentos or Pagamentos is active
+  therefore does not invalidate the flow/projection data shown by `FluxoCaixaTab`.
+- The screen components do not represent identical records: `LancamentosTab` reads
+  `LancamentosFinanceiros`, `PagamentosTab` reads the sale-linked `Pagamentos` table,
+  `FechamentosTab` reads physical-cash sessions from `FechamentosCaixa`, and
+  `FluxoCaixaTab` reads the aggregate returned by `getFluxoCaixa`.
+- `db/financeiro.js:177-219` currently defines realized cash as finalized non-Fiado sales plus
+  paid receivables minus paid payables. It does not independently sum `Pagamentos` or
+  `FechamentosCaixa`; adding those rows blindly would double-count money or mix reconciliation
+  with cash movement.
+- `frontend/src/app/(admin)/relatorios/page.tsx:32-205` has only Análises and Vendas views; it
+  has no financial-flow report. The existing `PainelPorDia` is a sales/faturamento panel, not a
+  cash-flow panel.
+- The default runtime is the Next.js export (`main.js:279-283`); `ERP_LEGACY_FRONTEND=1` loads the
+  vanilla screens. The legacy bridge (`modules/core/banco.js:323-348`) and the new typed bridge
+  (`frontend/src/lib/erpApi.ts:1137-1179`) do not expose the same Financeiro surface, so the first
+  execution item must record which frontend is actually being exercised before changing either
+  bridge.
+
+```mermaid
+flowchart TD
+    A[Reproduce current Financeiro screen
+    and identify active frontend] --> B[Define canonical cash-event
+    source and no-double-count rules]
+    B --> C[Build one Financeiro
+    operational workspace]
+    B --> D[Expose shared detailed
+    cash-flow report contract]
+    D --> E[Add Fluxo de Caixa view
+    inside Relatórios]
+    C --> F[Backend, unit, E2E and
+    manual acceptance]
+    E --> F
+```
+
+Suggested: sonnet · high — multi-source money semantics, cross-page UI consolidation, IPC/API
+surface changes, and live Electron validation.
+
+### Design rationale
+
+- **One operational workspace, not six competing tabs.** Keep `/financeiro` as the entry point,
+  but replace the current tab strip with one page organized into clearly named sections. A
+  `tipo` filter or compact filter control may distinguish A Receber/A Pagar in the same ledger;
+  it must not create another page-level tab. Do not create tabs inside the new Financeiro page.
+- **Cash flow is an interpretation of movements, not a second manual-entry destination.** The
+  single manual-entry action creates a financial movement once. The operational page can show
+  current/open/overdue status and settlement actions, while the historical interpretation of
+  entries belongs in Relatórios.
+- **Preserve distinct business meanings under one visual surface.** `LancamentosFinanceiros`
+  remains the obligation/receivable ledger; `Pagamentos` remains sale-linked receipt detail until
+  its reconciliation semantics are explicitly settled; `FechamentosCaixa` remains physical-cash
+  opening/count/difference reconciliation; and `Vendas` remains the source for finalized cash
+  sales. Consolidation is an information-architecture change, not permission to delete tables,
+  merge rows blindly, or count the same sale and payment twice.
+- **The report must explain the number.** The Relatórios view should show realized versus
+  projected data separately, period boundaries, entries, outflows, net result, daily movement,
+  source/type/category detail where available, and a short legend explaining what is and is not
+  included. It must not label cash balance as profit or faturamento.
+
+### Implementation
+
+- [ ] **GOALS13-01 — [manual] Reproduce and scope the failure before edits.** In the owner's
+      dedicated manual worktree, verify `pwd`, branch and `git status`; launch the app using the
+      normal path and, separately only if needed, the legacy flag. Open Financeiro, inspect the
+      six current tabs, reproduce the form visible on Fechamentos, create a disposable test
+      movement, and record whether the rendered page shows a blank screen, infinite loading,
+      stale data, an IPC/API error, or only the redundant layout. Do not use the production DB,
+      customer exports or another chat's worktree.
+      **Done when:** the exact frontend, route, action, visible error and relevant
+      `erp-crash.log`/console evidence are written in the execution notes; no implementation
+      file was changed during reproduction.
+
+- [x] **GOALS13-02 — Freeze the financial event matrix before coding.** Document and test the
+      chosen source-of-truth policy for at least these cases:
+      `Vendas.finalizada` with non-Fiado payment; open and paid
+      `LancamentosFinanceiros.tipo='receber'`; open and paid
+      `LancamentosFinanceiros.tipo='pagar'`; a `Pagamentos` row pending/received and linked to a
+      sale; and an open/closed `FechamentosCaixa` session. Decide whether a received `Pagamentos`
+      row settles an existing receivable, is supporting evidence only, or is a separate event;
+      the default safe rule is that it is not added independently while the current
+      `getFluxoCaixa` source remains authoritative. Also define local date boundaries, treatment
+      of null dates, rounding, cancellations/devolutions, and whether the report uses sale date or
+      settlement date for each source.
+      **Done when:** the matrix has one expected inclusion/exclusion and one expected date for
+      every case, with an explicit no-double-count rule accepted before implementation.
+      **Execution evidence (2026-09-08):** adopted the safe policy described here: non-Fiado
+      sales enter on sale date; Fiado enters only through a paid receivable on payment date;
+      paid payables leave on payment date; Pagamentos and FechamentosCaixa remain supporting
+      detail/reconciliation; devolutions are exits on their own date; cancelled sales are out.
+      The focused disposable-DB suite asserts the inclusion, exclusion, date and no-duplicate
+      outcomes.
+
+- [x] **GOALS13-03 — Create one shared cash-flow read contract.** Refactor the existing
+      `getFluxoCaixa` path in `db/financeiro.js` only as needed to derive both the operational
+      summary and the report from the same canonical event builder. Preserve compatibility for
+      existing callers where practical, and add a detailed result shape containing stable fields
+      such as `data`, `tipo`, `origem`, `descricao`, `categoria`, `valor`, `referenciaId`, plus
+      daily totals, period totals and realized/projected context. Do not make the renderer merge
+      raw rows from four tables independently.
+      **Done when:** one backend contract can reproduce the current aggregate totals and expose
+      the detail needed by Relatórios, with the source policy and date semantics encoded in tests
+      and comments.
+      **Execution evidence (2026-09-08):** `db/financeiro.js` now builds canonical realized and
+      projected events and derives daily totals and breakdowns from them; `db/relatorios.js`
+      composes both without a second SQL calculation path. The focused suite passed 5/5 and the
+      full backend suite passed 168/168.
+
+- [ ] **GOALS13-04 — Wire the contract through the existing Electron layers.** Update only the
+      owned Financeiro/Relatórios surface in `database.js`, `ipc/financeiro.js` and/or
+      `ipc/relatorios.js`, `preload.js`, and `frontend/src/lib/erpApi.ts`. Keep the handler gated
+      according to the chosen policy: financial operational data should remain under the
+      `financeiro` permission unless an explicit owner decision justifies a report-only
+      `relatorios` gate. Keep admin-only configuration actions (DAS rate, monthly target and
+      recurring-template administration) separate from ordinary read access. Do not patch the
+      legacy `window.erpBanco` bridge and the new typed API opportunistically; only update both if
+      the manual reproduction proves both runtimes are in scope.
+      **Done when:** the live frontend can call the intended contract with the correct permission
+      and receives the same typed shape in development and packaged-source validation.
+
+- [ ] **GOALS13-05 — Replace the Financeiro tab strip with one operational workspace.** Reshape
+      `frontend/src/app/(admin)/financeiro/page.tsx` and its Financeiro components so the page has
+      one visible workspace with sections, not the current A Receber/A Pagar/Fluxo/Fechamentos/
+      Pagamentos/Recorrentes tabs. The minimum structure is:
+      (a) a compact summary and filters for type/status/date/category;
+      (b) one unified movement list with clear labels for receiving, paying, open, paid, overdue
+      and origin;
+      (c) one manual-entry action/form, shown once and only in the relevant operational context;
+      (d) a sale-receipt/payment-detail section using the existing `PagamentoFormModal` semantics;
+      (e) a physical-cash section showing the current status and closure history, reusing the
+      existing `erpApi.caixa` operations rather than creating a second cash ledger; and
+      (f) recurring templates as a secondary section/modal, not a competing top-level tab.
+      Keep the PDV cash shortcut pointed at the same API/state. Do not remove the PDV's existing
+      ability to open/close a cash session without an explicit owner request.
+      **Done when:** opening Financeiro presents one coherent screen, no unrelated form appears
+      under cash-closure/payment details, every existing in-scope operation remains reachable,
+      and no nested tab strip is introduced.
+
+- [ ] **GOALS13-06 — Define one refresh/invalidation path for mutations.** After creating,
+      receiving, paying, excluding or importing a movement; registering/settling a sale payment;
+      opening/closing cash; or generating a recurring entry, refresh the affected unified list,
+      summary and any report data that is visible. Replace the current type-only `refreshTick`
+      behavior with an explicit shared refresh callback or equivalent small invalidation contract.
+      **Done when:** a newly created or settled movement appears in the unified screen and in the
+      report without a full app restart or manual route change, and duplicate requests are not
+      triggered by React effects.
+
+- [ ] **GOALS13-07 — Add Fluxo de Caixa as a Relatórios view.** Extend
+      `frontend/src/app/(admin)/relatorios/page.tsx` with a `Fluxo de Caixa` view that consumes
+      the shared detailed contract instead of duplicating SQL or reusing the sales-only
+      `PainelPorDia`. Include period filters, summary cards for entradas/saídas/saldo, a readable
+      daily chart/table, a detail/breakdown by source/type/category when the data supports it,
+      and separate realized/projected presentation. Include an explicit empty state and explain
+      that this is cash movement, not DRE/lucro/faturamento. Reuse existing chart and formatting
+      conventions; exports are out of scope unless the existing report export can be extended
+      without adding a second calculation path.
+      **Done when:** a user can launch or settle a disposable movement in Financeiro, open the
+      Relatórios Fluxo de Caixa view, choose its period, and understand why each total and daily
+      line has its value.
+
+### Tests
+
+- [x] **GOALS13-08 — Backend regression coverage in a disposable encrypted DB.** Extend the
+      existing finance/business test surface (`test/negocio.test.js` and/or a focused
+      `test/financeiro-fluxo-consolidado.test.js`) to prove: a finalized cash sale enters once;
+      an open Fiado receivable does not enter realized cash until the chosen settlement event;
+      a paid receivable enters on the defined payment date; a paid payable subtracts once; same-
+      day events aggregate deterministically; start/end boundaries are inclusive and invalid
+      ranges fail clearly; category/source details match the event matrix; closure differences are
+      reconciliation data and are not silently added as another cash event; and `Pagamentos`
+      cannot double-count the sale/receivable path. Retain the existing projected-flow and
+      recurring idempotency tests.
+      **Done when:** the focused regression suite fails against the intentionally broken behavior
+      before the fix, passes after it, and `npm test` remains green without touching the real DB.
+      **Execution evidence (2026-09-08):** added `test/financeiro-fluxo-consolidado.test.js`
+      with five focused cases over a temporary SQLCipher database; all passed, and `npm test`
+      passed 168/168. No real database or migration JSON was used.
+
+- [x] **GOALS13-09 — API and permission coverage.** Add tests for the new IPC/API contract,
+      including a permitted user, a denied user, empty periods, null/default periods, malformed
+      dates and the chosen separation between `financeiro` and `relatorios` permissions. Verify
+      the bridge name is identical across `ipc`, `preload` and `erpApi`; if the legacy frontend is
+      retained in scope, add the equivalent `window.erpBanco` assertion rather than leaving two
+      silently different contracts.
+      **Done when:** a missing method or wrong permission fails a test with a clear error rather
+      than producing an apparently empty report.
+      **Execution evidence (2026-09-08):** tests cover permitted, denied, empty, default and
+      malformed periods; assert `relatorios` for the report handler and preserve `financeiro`
+      for the operational handler; and verify the handler/preload/typed-API names match.
+
+- [ ] **GOALS13-10 — [manual] Electron E2E and visual acceptance.** In an isolated
+      `ERP_TEST_USERDATA_DIR`, rebuild `frontend/out` before launching Electron and extend the
+      existing Playwright Electron suite (`e2e/`, `npm run test:e2e`) to verify the single Financeiro
+      workspace, no duplicate top-level tabs, no manual form on an unrelated section, one
+      movement creation/settlement path, refresh after mutation, and the Relatórios Fluxo de
+      Caixa view. Repeat the high-value path with the supported permission profiles and in the
+      available light/dark or narrow-width states. Keep production data and migration JSON out
+      of the test fixture.
+      **Done when:** the real Electron window, IPC bridge and static export pass the user-shaped
+      workflow; compile-only/typecheck success is not accepted as the sole evidence.
+
+### Registration
+
+- [ ] **GOALS13-11 — Update project documentation after behavior is verified.** Record the new
+      single-workspace information architecture, canonical cash-event policy, report semantics,
+      permission choice and the manual validation status in `AGENTS.md`/`GOALS.md` according to
+      the repository's existing conventions. Keep the existing Financeiro+Pagamentos migration
+      item marked pending until its live verification is actually complete.
+      **Done when:** a future agent can identify the one operational Financeiro workspace, the
+      Relatórios cash-flow view, and the no-double-count policy without rereading the source.
+
+- [ ] **GOALS13-12 — Final acceptance and ownership boundary.** Verify `git status` before and
+      after the implementation in the owner's dedicated worktree; stage only this goal's owned
+      files, never unrelated changes from the other ERP chat, never stage sensitive financial or
+      customer JSON, and do not commit or push without the owner's explicit confirmation.
+      **Done when:** the feature is live-verified, the diff contains only the requested Financeiro/
+      Relatórios work, and the user receives a clear distinction between automated proof,
+      manual proof, and anything still unverified.

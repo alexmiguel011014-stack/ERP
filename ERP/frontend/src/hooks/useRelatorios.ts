@@ -14,6 +14,7 @@ import {
 	type SazonalidadeResultado,
 	type ConversaoOrcamentosResultado,
 	type AgingRecebiveisResultado,
+	type RelatorioFluxoCaixaResultado,
 } from "@/lib/erpApi";
 
 export function useRelatorios() {
@@ -42,6 +43,8 @@ export function useRelatorios() {
 		useState<ConversaoOrcamentosResultado | null>(null);
 	const [agingRecebiveis, setAgingRecebiveis] =
 		useState<AgingRecebiveisResultado | null>(null);
+	const [fluxoCaixa, setFluxoCaixa] =
+		useState<RelatorioFluxoCaixaResultado | null>(null);
 
 	const [carregando, setCarregando] = useState(true);
 	const [erros, setErros] = useState<Record<string, string>>({});
@@ -67,6 +70,7 @@ export function useRelatorios() {
 			erpApi.relatorios.sazonalidade(),
 			erpApi.relatorios.conversaoOrcamentos(inicio, fim),
 			erpApi.relatorios.agingRecebiveis(),
+			erpApi.relatorios.fluxoCaixa(inicio, fim),
 		]);
 
 		const [
@@ -82,6 +86,7 @@ export function useRelatorios() {
 			rSazonalidade,
 			rConversao,
 			rAging,
+			rFluxo,
 		] = resultados;
 
 		if (rVendas.status === "fulfilled") setVendasPeriodo(rVendas.value);
@@ -134,6 +139,9 @@ export function useRelatorios() {
 		if (rAging.status === "fulfilled") setAgingRecebiveis(rAging.value);
 		else novosErros.aging = rAging.reason?.message || String(rAging.reason);
 
+		if (rFluxo.status === "fulfilled") setFluxoCaixa(rFluxo.value);
+		else novosErros.fluxoCaixa = rFluxo.reason?.message || String(rFluxo.reason);
+
 		setErros(novosErros);
 		setCarregando(false);
 	}, [dataInicio, dataFim]);
@@ -160,6 +168,7 @@ export function useRelatorios() {
 		sazonalidade,
 		conversaoOrcamentos,
 		agingRecebiveis,
+		fluxoCaixa,
 		carregando,
 		erros,
 		gerar,

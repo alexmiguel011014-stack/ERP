@@ -10,6 +10,7 @@ const {
 	getProdutosParados,
 	getSazonalidade,
 	getConversaoOrcamentos,
+	getRelatorioFluxoCaixa,
 } = require("../database");
 
 function registrar(ipcMain, deps) {
@@ -114,6 +115,21 @@ function registrar(ipcMain, deps) {
 			try {
 				exigirPermissao("relatorios");
 				return await getConversaoOrcamentos(
+					dataInicio || null,
+					dataFim || null,
+				);
+			} catch (erro) {
+				throw erro.message;
+			}
+		},
+	);
+
+	ipcMain.handle(
+		"get-relatorio-fluxo-caixa",
+		async (event, dataInicio, dataFim) => {
+			try {
+				exigirPermissao("relatorios");
+				return await getRelatorioFluxoCaixa(
 					dataInicio || null,
 					dataFim || null,
 				);

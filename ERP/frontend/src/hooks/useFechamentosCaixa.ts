@@ -1,9 +1,16 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { erpApi, type FechamentoCaixa } from "@/lib/erpApi";
+import {
+	erpApi,
+	type CaixaAberto,
+	type FechamentoCaixa,
+	type ResumoCaixa,
+} from "@/lib/erpApi";
 
-export function useFechamentosCaixa() {
+export function useFechamentosCaixa(refreshKey = 0) {
 	const [fechamentos, setFechamentos] = useState<FechamentoCaixa[]>([]);
+	const [caixaAberto, setCaixaAberto] = useState<CaixaAberto | null>(null);
+	const [resumo, setResumo] = useState<ResumoCaixa | null>(null);
 	const [carregando, setCarregando] = useState(true);
 	const [erro, setErro] = useState<string | null>(null);
 
@@ -11,7 +18,14 @@ export function useFechamentosCaixa() {
 		setCarregando(true);
 		setErro(null);
 		try {
-			setFechamentos(await erpApi.caixa.historico(100));
+			const [historico, aberto, resumoAtual] = await Promise.all([
+				erpApi.caixa.historico(100),
+				erpApi.caixa.aberto(),
+				erpApi.caixa.resumo(),
+			]);
+			setFechamentos(historico);
+			setCaixaAberto(aberto);
+			setResumo(resumoAtual);
 		} catch (e) {
 			setErro(e instanceof Error ? e.message : String(e));
 		} finally {
@@ -21,7 +35,7 @@ export function useFechamentosCaixa() {
 
 	useEffect(() => {
 		recarregar();
-	}, [recarregar]);
+	}, [recarregar, refreshKey]);
 
-	return { fechamentos, carregando, erro, recarregar };
+	return { fechamentos, caixaAberto, resumo, carregando, erro, recarregar };
 }

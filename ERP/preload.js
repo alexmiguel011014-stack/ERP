@@ -209,6 +209,8 @@ contextBridge.exposeInMainWorld("api", {
 	getSazonalidade: () => ipcRenderer.invoke("get-sazonalidade"),
 	getConversaoOrcamentos: (inicio, fim) =>
 		ipcRenderer.invoke("get-conversao-orcamentos", inicio, fim),
+	getRelatorioFluxoCaixa: (inicio, fim) =>
+		ipcRenderer.invoke("get-relatorio-fluxo-caixa", inicio, fim),
 	getAgingRecebiveis: () => ipcRenderer.invoke("get-aging-recebiveis"),
 	listarPagamentos: (metodo) => ipcRenderer.invoke("listar-pagamentos", metodo),
 	registrarPagamento: (dados) =>

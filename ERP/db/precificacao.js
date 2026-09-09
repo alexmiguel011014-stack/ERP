@@ -8,6 +8,36 @@ const {
 
 /* ============ Precificação ============ */
 
+// A conexão SQLCipher é compartilhada por todos os handlers deste processo.
+// A tela de Precificação pode disparar salvamentos em paralelo (por exemplo,
+// margem e preço no mesmo onBlur), portanto toda operação que escreve neste
+// módulo passa por uma fila. Isso evita dois BEGINs concorrentes na mesma
+// conexão sem serializar leituras dos outros domínios do ERP.
+let filaOperacoes = Promise.resolve();
+
+function enfileirarOperacao(tarefa) {
+	const proxima = filaOperacoes.then(tarefa, tarefa);
+	filaOperacoes = proxima.catch(() => {});
+	return proxima;
+}
+
+async function executarTransacao(tarefa) {
+	const conn = getConexao();
+	await runOn(conn, "BEGIN TRANSACTION");
+	try {
+		const resultado = await tarefa(conn);
+		await runOn(conn, "COMMIT");
+		return resultado;
+	} catch (erro) {
+		try {
+			await runOn(conn, "ROLLBACK");
+		} catch {
+			// Preserva o erro que motivou o rollback.
+		}
+		throw erro;
+	}
+}
+
 async function getGlobalMargin() {
 	const row = await getAsync(
 		"SELECT valor FROM Configuracao WHERE chave = 'margem_padrao'",
@@ -16,16 +46,18 @@ async function getGlobalMargin() {
 }
 
 async function saveGlobalMargin(valor) {
-	await runAsync(
-		"INSERT OR REPLACE INTO Configuracao (chave, valor) VALUES ('margem_padrao', ?)",
-		[String(valor)],
-	);
-	// A margem global recém-salva precisa refletir imediatamente no preço dos
-	// produtos que ainda não têm override manual — senão o preço de venda real
-	// (Variacoes.preco) só seria atualizado na próxima vez que a tela de
-	// Precificação fosse recarregada, deixando o PDV desatualizado até lá.
-	await sincronizarPrecosPendentes();
-	return { success: true };
+	return enfileirarOperacao(async () => {
+		await runAsync(
+			"INSERT OR REPLACE INTO Configuracao (chave, valor) VALUES ('margem_padrao', ?)",
+			[String(valor)],
+		);
+		// A margem global recém-salva precisa refletir imediatamente no preço dos
+		// produtos que ainda não têm override manual — senão o preço de venda real
+		// (Variacoes.preco) só seria atualizado na próxima vez que a tela de
+		// Precificação fosse recarregada, deixando o PDV desatualizado até lá.
+		await sincronizarPrecosPendentesInterno();
+		return { success: true };
+	});
 }
 
 // Recalcula e grava (Precificacao.preco_venda + Variacoes.preco) o preço de
@@ -33,7 +65,7 @@ async function saveGlobalMargin(valor) {
 // usando a margem global e o custo fixo atuais. Chamado tanto ao carregar a
 // tela de Precificação quanto ao salvar uma nova margem global/custo fixo,
 // para que o preço real nunca fique defasado do que a tela exibe.
-async function sincronizarPrecosPendentes() {
+async function sincronizarPrecosPendentesInterno() {
 	const margemGlobalAtual = await getGlobalMargin();
 	const custoFixoAtual = await getCustoFixoConfig();
 	const pendentes = await allAsync(
@@ -41,6 +73,7 @@ async function sincronizarPrecosPendentes() {
      FROM Precificacao pr
      WHERE pr.status = 'pendente'`,
 	);
+	const atualizacoes = [];
 	for (const p of pendentes) {
 		const base = Number(p.preco_custo || 0) + Number(p.impostos_extras || 0);
 		const custoFixoPercentual = p.aplicar_custo_fixo
@@ -54,29 +87,32 @@ async function sincronizarPrecosPendentes() {
 			precoCalculado > 0 &&
 			Math.abs(precoCalculado - Number(p.preco_venda || 0)) > 0.001
 		) {
-			const conn2 = getConexao();
-			await runOn(conn2, "BEGIN TRANSACTION");
-			try {
-				await runOn(
-					conn2,
-					"UPDATE Precificacao SET preco_venda = ? WHERE produto_id = ?",
-					[precoCalculado, p.produto_id],
-				);
-				await runOn(
-					conn2,
-					"UPDATE Variacoes SET preco = ? WHERE produto_id = ?",
-					[precoCalculado, p.produto_id],
-				);
-				await runOn(conn2, "COMMIT");
-			} catch (erro) {
-				await runOn(conn2, "ROLLBACK");
-				throw erro;
-			}
+			atualizacoes.push({ produtoId: p.produto_id, precoCalculado });
 		}
 	}
+
+	if (atualizacoes.length === 0) return;
+	await executarTransacao(async (conn) => {
+		for (const { produtoId, precoCalculado } of atualizacoes) {
+			await runOn(
+				conn,
+				"UPDATE Precificacao SET preco_venda = ? WHERE produto_id = ?",
+				[precoCalculado, produtoId],
+			);
+			await runOn(
+				conn,
+				"UPDATE Variacoes SET preco = ? WHERE produto_id = ?",
+				[precoCalculado, produtoId],
+			);
+		}
+	});
 }
 
-async function getPricingData() {
+function sincronizarPrecosPendentes() {
+	return enfileirarOperacao(sincronizarPrecosPendentesInterno);
+}
+
+async function getPricingDataInterno() {
 	const conn = getConexao();
 	const all = (sql, params = []) =>
 		new Promise((resolve, reject) => {
@@ -109,7 +145,7 @@ async function getPricingData() {
 	// ficava em 0 até o usuário editar algum campo manualmente na tela de Precificação,
 	// fazendo o PDV mostrar "Sem preço" mesmo com a Precificação exibindo um valor calculado.
 	// Aqui sincronizamos automaticamente sempre que a lista é carregada.
-	await sincronizarPrecosPendentes();
+	await sincronizarPrecosPendentesInterno();
 
 	const rows = await all(
 		`SELECT pr.id, pr.produto_id, p.nome AS produto_nome, p.categoria_id,
@@ -150,6 +186,10 @@ async function getPricingData() {
 		categorias: r.categorias || null,
 		aplicar_custo_fixo: !!r.aplicar_custo_fixo,
 	}));
+}
+
+function getPricingData() {
+	return enfileirarOperacao(getPricingDataInterno);
 }
 
 // Custo fixo mensal (aluguel, salários, etc.) diluído como uma PORCENTAGEM do
@@ -197,14 +237,16 @@ async function saveCustoFixoConfig(mensal) {
 	const mensalVal = Number(mensal);
 	if (!Number.isFinite(mensalVal) || mensalVal < 0)
 		throw new Error("Custo fixo mensal inválido.");
-	await runAsync(
-		"INSERT OR REPLACE INTO Configuracao (chave, valor) VALUES ('custo_fixo_mensal', ?)",
-		[String(mensalVal)],
-	);
-	// Reflete imediatamente no preço dos produtos sem override manual — mesmo
-	// motivo de saveGlobalMargin chamar sincronizarPrecosPendentes().
-	await sincronizarPrecosPendentes();
-	return { success: true };
+	return enfileirarOperacao(async () => {
+		await runAsync(
+			"INSERT OR REPLACE INTO Configuracao (chave, valor) VALUES ('custo_fixo_mensal', ?)",
+			[String(mensalVal)],
+		);
+		// Reflete imediatamente no preço dos produtos sem override manual — mesmo
+		// motivo de saveGlobalMargin chamar sincronizarPrecosPendentes().
+		await sincronizarPrecosPendentesInterno();
+		return { success: true };
+	});
 }
 
 // Taxa média de adquirente (cartão/Pix), % owner-informado — nenhuma taxa por
@@ -220,11 +262,13 @@ async function getTaxaAdquirente() {
 async function saveTaxaAdquirente(valor) {
 	const v = Number(valor);
 	if (!Number.isFinite(v) || v < 0) throw new Error("Taxa inválida.");
-	await runAsync(
-		"INSERT OR REPLACE INTO Configuracao (chave, valor) VALUES ('taxa_adquirente_media', ?)",
-		[String(v)],
-	);
-	return { success: true };
+	return enfileirarOperacao(async () => {
+		await runAsync(
+			"INSERT OR REPLACE INTO Configuracao (chave, valor) VALUES ('taxa_adquirente_media', ?)",
+			[String(v)],
+		);
+		return { success: true };
+	});
 }
 
 // Taxa por forma de pagamento (Pix ≠ Cartão de verdade — taxas bem
@@ -251,19 +295,23 @@ async function getTaxaAdquirentePorMetodo(metodo) {
 async function saveTaxaAdquirentePorMetodo(metodo, valor) {
 	const v = Number(valor);
 	if (!Number.isFinite(v) || v < 0) throw new Error("Taxa inválida.");
-	await runAsync(
-		"INSERT OR REPLACE INTO Configuracao (chave, valor) VALUES (?, ?)",
-		[chaveTaxaMetodo(metodo), String(v)],
-	);
-	return { success: true };
+	return enfileirarOperacao(async () => {
+		await runAsync(
+			"INSERT OR REPLACE INTO Configuracao (chave, valor) VALUES (?, ?)",
+			[chaveTaxaMetodo(metodo), String(v)],
+		);
+		return { success: true };
+	});
 }
 
 async function saveAplicarCustoFixo(produtoId, aplicar) {
-	await runAsync(
-		"UPDATE Precificacao SET aplicar_custo_fixo = ? WHERE produto_id = ?",
-		[aplicar ? 1 : 0, produtoId],
-	);
-	return { success: true };
+	return enfileirarOperacao(async () => {
+		await runAsync(
+			"UPDATE Precificacao SET aplicar_custo_fixo = ? WHERE produto_id = ?",
+			[aplicar ? 1 : 0, produtoId],
+		);
+		return { success: true };
+	});
 }
 
 async function saveProductMargin(produtoId, margem) {
@@ -271,93 +319,79 @@ async function saveProductMargin(produtoId, margem) {
 	if (margemVal !== null && (!Number.isFinite(margemVal) || margemVal < 0)) {
 		throw new Error("Margem inválida.");
 	}
-	await runAsync(
-		"UPDATE Precificacao SET margem_percentual = ?, status = ? WHERE produto_id = ?",
-		[margemVal, margemVal !== null ? "definido" : "pendente", produtoId],
-	);
-	return { success: true };
+	return enfileirarOperacao(async () => {
+		await runAsync(
+			"UPDATE Precificacao SET margem_percentual = ?, status = ? WHERE produto_id = ?",
+			[margemVal, margemVal !== null ? "definido" : "pendente", produtoId],
+		);
+		return { success: true };
+	});
 }
 
 async function saveProductPrice(produtoId, precoVenda) {
 	const preco = Number(precoVenda);
 	if (!Number.isFinite(preco) || preco < 0) throw new Error("Preço inválido.");
-	const conn = getConexao();
-	await runOn(conn, "BEGIN TRANSACTION");
-	try {
-		await runOn(
-			conn,
-			"UPDATE Precificacao SET preco_venda = ?, status = ? WHERE produto_id = ?",
-			[preco, "definido", produtoId],
-		);
-		await runOn(conn, "UPDATE Variacoes SET preco = ? WHERE produto_id = ?", [
-			preco,
-			produtoId,
-		]);
-		await runOn(conn, "COMMIT");
-	} catch (erro) {
-		await runOn(conn, "ROLLBACK");
-		throw erro;
-	}
-	return { success: true };
+	return enfileirarOperacao(async () => {
+		await executarTransacao(async (conn) => {
+			await runOn(
+				conn,
+				"UPDATE Precificacao SET preco_venda = ?, status = ? WHERE produto_id = ?",
+				[preco, "definido", produtoId],
+			);
+			await runOn(conn, "UPDATE Variacoes SET preco = ? WHERE produto_id = ?", [
+				preco,
+				produtoId,
+			]);
+		});
+		return { success: true };
+	});
 }
 
 async function saveProductCost(produtoId, precoCusto) {
 	const custo = Number(precoCusto);
 	if (!Number.isFinite(custo) || custo < 0) throw new Error("Custo inválido.");
-	const conn = getConexao();
-	await runOn(conn, "BEGIN TRANSACTION");
-	try {
-		await runOn(
-			conn,
-			"UPDATE Precificacao SET preco_custo = ? WHERE produto_id = ?",
-			[custo, produtoId],
-		);
-		await runOn(
-			conn,
-			"UPDATE Variacoes SET preco_custo = ? WHERE produto_id = ?",
-			[custo, produtoId],
-		);
-		await runOn(conn, "COMMIT");
-	} catch (erro) {
-		await runOn(conn, "ROLLBACK");
-		throw erro;
-	}
-	return { success: true };
+	return enfileirarOperacao(async () => {
+		await executarTransacao(async (conn) => {
+			await runOn(
+				conn,
+				"UPDATE Precificacao SET preco_custo = ? WHERE produto_id = ?",
+				[custo, produtoId],
+			);
+			await runOn(
+				conn,
+				"UPDATE Variacoes SET preco_custo = ? WHERE produto_id = ?",
+				[custo, produtoId],
+			);
+		});
+		return { success: true };
+	});
 }
 
 async function saveProductTaxes(produtoId, valor) {
 	const v = Number(valor);
 	if (!Number.isFinite(v) || v < 0) throw new Error("Valor inválido.");
-	await runAsync(
-		"UPDATE Precificacao SET impostos_extras = ? WHERE produto_id = ?",
-		[v, produtoId],
-	);
-	return { success: true };
+	return enfileirarOperacao(async () => {
+		await runAsync(
+			"UPDATE Precificacao SET impostos_extras = ? WHERE produto_id = ?",
+			[v, produtoId],
+		);
+		return { success: true };
+	});
 }
 
 async function massUpdateMargem(produtoIds, margem) {
-	const conn = getConexao();
-	const run = (sql, params = []) =>
-		new Promise((resolve, reject) => {
-			conn.run(sql, params, function (erro) {
-				if (erro) return reject(erro);
-				resolve(this);
-			});
+	return enfileirarOperacao(async () => {
+		await executarTransacao(async (conn) => {
+			for (const pid of produtoIds) {
+				await runOn(
+					conn,
+					"UPDATE Precificacao SET margem_percentual = ?, status = ? WHERE produto_id = ?",
+					[margem, "definido", pid],
+				);
+			}
 		});
-	await run("BEGIN TRANSACTION");
-	try {
-		for (const pid of produtoIds) {
-			await run(
-				"UPDATE Precificacao SET margem_percentual = ?, status = ? WHERE produto_id = ?",
-				[margem, "definido", pid],
-			);
-		}
-		await run("COMMIT");
 		return { success: true, count: produtoIds.length };
-	} catch (erro) {
-		await run("ROLLBACK");
-		throw erro;
-	}
+	});
 }
 module.exports = {
 	getGlobalMargin,

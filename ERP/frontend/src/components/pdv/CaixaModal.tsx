@@ -32,13 +32,11 @@ export default function CaixaModal({
 	const [observacao, setObservacao] = useState("");
 	const [processando, setProcessando] = useState(false);
 	const [erro, setErro] = useState<string | null>(null);
-	const [mensagem, setMensagem] = useState<string | null>(null);
 
 	useEffect(() => {
 		if (isOpen && caixa) onCarregarResumo();
 		if (isOpen) {
 			setErro(null);
-			setMensagem(null);
 			setValorContado("");
 			setObservacao("");
 		}
@@ -55,7 +53,7 @@ export default function CaixaModal({
 		setErro(null);
 		try {
 			await onAbrir(valor);
-			setMensagem("Caixa aberto!");
+			onClose();
 		} catch (e) {
 			setErro(e instanceof Error ? e.message : String(e));
 		} finally {
@@ -73,15 +71,8 @@ export default function CaixaModal({
 		setProcessando(true);
 		setErro(null);
 		try {
-			const resultado = await onFechar(valor, observacao.trim() || null);
-			const diff = resultado.diferenca;
-			setMensagem(
-				diff === 0
-					? "Caixa fechado — sem diferença."
-					: diff > 0
-						? `Caixa fechado — sobrou ${formatarMoeda(diff)}.`
-						: `Caixa fechado — faltou ${formatarMoeda(Math.abs(diff))}.`,
-			);
+			await onFechar(valor, observacao.trim() || null);
+			onClose();
 		} catch (e) {
 			setErro(e instanceof Error ? e.message : String(e));
 		} finally {
@@ -95,11 +86,6 @@ export default function CaixaModal({
 				Caixa
 			</h2>
 
-			{mensagem && (
-				<div className="mt-3 rounded-lg border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700 dark:border-success-800 dark:bg-success-500/10 dark:text-success-400">
-					{mensagem}
-				</div>
-			)}
 			{erro && (
 				<div className="mt-3 rounded-lg border border-error-300 bg-error-50 px-4 py-3 text-sm text-error-600 dark:border-error-800 dark:bg-error-500/10 dark:text-error-400">
 					{erro}

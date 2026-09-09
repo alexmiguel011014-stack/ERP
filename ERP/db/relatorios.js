@@ -4,6 +4,7 @@ const {
 	getTaxaAdquirentePorMetodo,
 	getCustoFixoConfig,
 } = require("./precificacao");
+const { getFluxoCaixa, getFluxoCaixaProjetado } = require("./financeiro");
 
 /* ============ Relatórios ============ */
 
@@ -546,6 +547,27 @@ async function getConversaoOrcamentos(dataInicio, dataFim) {
 	};
 }
 
+// Relatório usa os mesmos construtores do módulo Financeiro. A camada de
+// relatório só compõe realizado e projetado; não repete SQL nem soma Pagamentos
+// ou FechamentosCaixa por fora, preservando a política de não dupla contagem.
+async function getRelatorioFluxoCaixa(dataInicio, dataFim) {
+	const [realizado, projetado] = await Promise.all([
+		getFluxoCaixa(dataInicio, dataFim),
+		getFluxoCaixaProjetado(dataInicio, dataFim),
+	]);
+
+	return {
+		realizado,
+		projetado,
+		politica: [
+			"Vendas finalizadas não-Fiado entram uma vez na data da venda.",
+			"Fiado entra somente quando o lançamento a receber é baixado.",
+			"Pagamentos vinculados e fechamentos de caixa são detalhes, não novas entradas.",
+			"Devoluções são saídas na data do estorno; vendas canceladas ficam fora.",
+		],
+	};
+}
+
 module.exports = {
 	getDRE,
 	getRelatorioVendas,
@@ -558,4 +580,5 @@ module.exports = {
 	getProdutosParados,
 	getSazonalidade,
 	getConversaoOrcamentos,
+	getRelatorioFluxoCaixa,
 };
