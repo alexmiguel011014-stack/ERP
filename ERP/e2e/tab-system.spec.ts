@@ -132,3 +132,96 @@ test.describe("sistema de abas do header (frontend novo)", () => {
 		await expect(window.getByTitle("Fechar Compras")).toBeVisible();
 	});
 });
+
+// Fluxo redesenhado (2026-09-08, pedido do dono): baixar e instalar agora são
+// duas etapas do mesmo botão ("Baixar atualização" -> "Instalar"), instalar
+// exige confirmação explícita, e a partir do "Sim" não existe mais nenhuma UI
+// nossa — oneClick:true (package.json -> build.nsis) faz o app fechar e o
+// instalador NSIS assumir sozinho, sem card flutuante nem etapa intermediária.
+// ERP_MOCK_UPDATER=available (ipc/sistema.js) simula uma atualização
+// encontrada + baixada + instalada sem rede real e sem derrubar o processo
+// Electron que este teste controla (ver o comentário no handler
+// "quit-and-install" do mock).
+test.describe("fluxo de instalação de atualização (confirmação)", () => {
+	let electronApp: ElectronApplication;
+	let window: Page;
+	let userDataDir: string;
+
+	test.beforeAll(async () => {
+		userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "erp-e2e-update-"));
+		electronApp = await electron.launch({
+			args: ["."],
+			cwd: ROOT,
+			env: {
+				...process.env,
+				ERP_TEST_USERDATA_DIR: userDataDir,
+				ERP_MOCK_UPDATER: "available",
+			},
+		});
+		window = await electronApp.firstWindow();
+		await window.waitForLoadState("domcontentloaded");
+		await window.getByPlaceholder("Seu login de acesso").fill("teste");
+		await window.getByPlaceholder("Digite a senha de acesso").fill("teste123");
+		await window.getByRole("button", { name: "Entrar" }).click();
+		await window
+			.locator("aside")
+			.getByTitle("Atualizações", { exact: true })
+			.click();
+	});
+
+	test.afterAll(async () => {
+		await electronApp.close();
+		fs.rmSync(userDataDir, { recursive: true, force: true });
+	});
+
+	test('atualização disponível mostra o botão "Baixar atualização"', async () => {
+		await expect(
+			window.getByRole("button", { name: "Baixar atualização" }),
+		).toBeVisible();
+	});
+
+	test('baixar troca o botão pra "Instalar"', async () => {
+		await window.getByRole("button", { name: "Baixar atualização" }).click();
+		await expect(
+			window.getByRole("button", { name: "Instalar" }),
+		).toBeVisible();
+	});
+
+	test('clicar em "Instalar" abre o diálogo de confirmação', async () => {
+		await window.getByRole("button", { name: "Instalar" }).click();
+		await expect(
+			window.getByText(
+				"Baixar atualização faz com que o app reinicie, deseja prosseguir?",
+			),
+		).toBeVisible();
+	});
+
+	test('"Não" cancela — diálogo fecha, botão continua "Instalar"', async () => {
+		await window.getByRole("button", { name: "Não" }).click();
+		await expect(
+			window.getByText(
+				"Baixar atualização faz com que o app reinicie, deseja prosseguir?",
+			),
+		).toHaveCount(0);
+		await expect(
+			window.getByRole("button", { name: "Instalar" }),
+		).toBeVisible();
+	});
+
+	test('"Sim" fecha o diálogo e dispara a instalação, sem erro', async () => {
+		await window.getByRole("button", { name: "Instalar" }).click();
+		await window.getByRole("button", { name: "Sim" }).click();
+		await expect(
+			window.getByText(
+				"Baixar atualização faz com que o app reinicie, deseja prosseguir?",
+			),
+		).toHaveCount(0);
+		// Uma chamada real a quitAndInstall() (oneClick:true, package.json ->
+		// build.nsis) fecharia esta janela e entregaria pro instalador NSIS a
+		// partir daqui — nenhuma UI nossa depois deste ponto. O mock
+		// (ERP_MOCK_UPDATER=available, ver ipc/sistema.js) evita isso pra o
+		// teste poder continuar; a ausência de qualquer banner de erro é o que
+		// prova que a chamada foi aceita.
+		await expect(window.getByText("Erro ao instalar")).toHaveCount(0);
+	});
+});

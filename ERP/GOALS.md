@@ -3633,3 +3633,228 @@ surface changes, and live Electron validation.
       **Done when:** the feature is live-verified, the diff contains only the requested Financeiro/
       Relatórios work, and the user receives a clear distinction between automated proof,
       manual proof, and anything still unverified.
+
+---
+
+## Atualizações — Update Flow Redesign (feature, implemented 2026-09-08, pending live verification)
+
+**Source**: owner request (2026-09-08), with a live screenshot of the current `/atualizacao`
+page. The screen works in part but the flow is wrong: clicking "Atualizar" makes the global
+floating card (`UpdateAvailableCard.tsx`) pop up unprompted at the bottom of the screen — the
+owner explicitly does not want that. Full desired flow, in the owner's own words: enter
+Atualizações → the page states there's an update available → click "Baixar atualização" →
+downloads → the *same* button, same place, relabels to "Instalar" → clicking it opens a confirm
+dialog ("Baixar atualização faz com que o app reinicie, deseja prosseguir?", Sim/Não) → "Não"
+leaves the update downloaded-but-pending, nothing installs → "Sim" is the moment the floating
+card (repurposed, not the old "deseja instalar?" prompt) appears with a loading status, right
+before the app quits and relaunches with the update installed.
+
+**Current wiring, read directly, not assumed**: [`UpdateAvailableCard.tsx`](ERP/frontend/src/components/atualizacao/UpdateAvailableCard.tsx)
+independently listens for the same global `update-status` window event that
+[`useAtualizacao.ts`](ERP/frontend/src/hooks/useAtualizacao.ts) (the page's own hook) listens
+for, and shows itself the instant `status === "available"` fires anywhere in the app — that is
+the unwanted pop-up in the owner's report. It also auto-calls `quitAndInstall()` by itself the
+moment `update-downloaded` arrives, with zero confirmation. [`page.tsx`](<ERP/frontend/src/app/(admin)/atualizacao/page.tsx>)'s
+button is hardcoded "Atualizar" regardless of state; `useAtualizacao.ts`'s `clicarBotao()`
+already branches check → download → install by internal state, it's just never surfaced as a
+different label and never gates the install step behind confirmation.
+
+**Root cause of the specific complaint**: the daily background check (`atualizacao-automatica.js`)
+and a manual click on the page both funnel through the same `update-status` broadcast.
+`UpdateAvailableCard` was built (2026-08-28, see this file's own "sixth module" entry above)
+specifically so a background-detected update would surface even when the owner isn't on
+`/atualizacao` — but it never distinguished "detected in the background" from "the owner is
+actively working through the page's own flow," so today it double-prompts every time, including
+right after the owner's own manual click.
+
+**Design decision / explicitly out of scope**: this redesign retires `UpdateAvailableCard`'s old
+role as a proactive "an update was found, install now?" notifier outright — that prompt is
+replaced entirely by the page's own status text and button-label changes. Consequence: a
+background-detected update, while the owner is on a different tab, no longer produces *any*
+global pop-up — it's only visible by opening `/atualizacao`, same as a manual check always
+showed. Flagging this trade-off here explicitly, in case a passive global notice (e.g. a sidebar
+badge) is still wanted — nothing in this plan builds one; say so if that's wrong.
+Also explicitly out of scope: the legacy vanilla frontend (`modules/atualizacao/atualizacao.js`
++ `.html`). Confirmed via this file's own Security audit entry (2026-09-01) that it's unreachable
+in shipped builds except through the internal `ERP_LEGACY_FRONTEND` dev escape hatch — cutover
+to the Next.js frontend is the real default today. The earlier "both frontends in lockstep"
+convention applied while the vanilla frontend was still a live candidate; that constraint no
+longer governs new UX work like this one.
+
+**Correction (2026-09-08, second pass, after seeing the first implementation live)**: the first
+pass (below) built a global floating card (`UpdateAvailableCard.tsx`) that appeared bottom-right
+right after "Sim," showing a loading state, then called `quitAndInstall()`. Live screenshots
+showed this card sitting there indefinitely in the demo, which is what surfaced the real
+question: what should the user actually see once "Sim" is clicked? The owner's answer: the app
+should already be closed by then, and what appears next is centered on screen, not a corner
+toast. Investigating that surfaced a real, previously-undocumented fact: `package.json`'s
+`build.nsis.oneClick` is currently `false` (multi-step wizard — choose folder → Install →
+Finish), reverted from `true` in a past commit (`8b28940: instalador NSIS volta a perguntar
+pasta de instalacao`). With `oneClick:false`, "app closes, then a centered progress indicator
+appears automatically, then the app reopens" is not achievable — the real NSIS wizard requires
+manual clicks. This is a genuine trade-off only the owner can decide (lose the "choose install
+folder" option vs. get the fully automatic close→install→reopen behavior), so it was raised as
+an explicit **human-in-the-loop** question rather than assumed either way. **Owner's answer:
+re-enable `oneClick:true`.** With that, the "centered card while updating" the owner is picturing
+*is* the NSIS one-click installer's own native window — not something this app's React code
+renders, and not something it could render anyway, since the whole Electron process (and
+everything mounted in it, including `UpdateAvailableCard.tsx`) exits the moment `quitAndInstall()`
+actually runs. Net effect: **`UpdateAvailableCard.tsx` no longer has any job left and was
+deleted** (its old proactive-notify role was already retired in the first pass above; its
+replacement loading-card role is now retired too, superseded by the real installer window)
+— `confirmarInstalacao()` in `useAtualizacao.ts` calls `quitAndInstall()` directly, with the
+existing page-level error banner as the only remaining UI if that call itself fails (rare — it
+means the app hasn't closed, so the user is still looking at the page).
+
+```mermaid
+flowchart TD
+    A[Design rationale: button-label states + confirm-dialog copy] --> B[useAtualizacao.ts: label state machine + confirm-gate before install]
+    B --> C[New ConfirmarInstalacaoModal component]
+    C --> D["human-in-the-loop: oneClick NSIS installer trade-off"]
+    D --> E[package.json build.nsis: oneClick true, drop allowToChangeInstallationDirectory]
+    E --> F[useAtualizacao.ts confirmarInstalacao calls quitAndInstall directly; delete UpdateAvailableCard.tsx]
+    F --> G[Tests: extend ERP_MOCK_UPDATER to simulate available/download/install safely]
+    G --> H[Tests: e2e spec covering relabel -> confirm -> install-call, no card]
+    H --> I["(manual) live verification against a real published update"]
+```
+
+Suggested: sonnet · medium — bounded UI/state-flow change across a known, small set of files, no
+new IPC/backend surface; the one item needing a real decision (not just code) was the NSIS
+installer trade-off, resolved above as human-in-the-loop rather than assumed.
+
+### Design rationale
+
+- [x] Button label reflects state, computed in `useAtualizacao.ts` and consumed by `page.tsx`
+      (replacing the hardcoded `"Atualizar"` label): `disponivel` → "Baixar atualização";
+      `baixando` → "Baixando... N%" (disabled); `baixado` → "Instalar"; otherwise
+      (idle/checking/not-available) → "Verificar atualizações". Done when: the label is derived
+      from state with an explicit case for every state — no fallthrough gap, no state left
+      showing the old generic label.
+- [x] Clicking the button while `baixado` no longer installs directly — it opens the confirmation
+      dialog first. Done when: the click handler branches to "open confirm dialog" instead of
+      calling `install()` when `baixado` is true.
+- [x] Confirmation dialog copy is exactly the owner's spec: "Baixar atualização faz com que o app
+      reinicie, deseja prosseguir?" with "Sim"/"Não" actions — reuse the existing `Modal`
+      (`@/components/ui/modal`) + `useModal()` pattern already used by
+      [`ConfirmarSenhaModal.tsx`](ERP/frontend/src/components/common/ConfirmarSenhaModal.tsx),
+      not a new modal primitive. Done when: a new component renders that exact copy through the
+      shared `Modal`. Implemented as `ConfirmarInstalacaoModal.tsx`, same shape.
+- [x] "Não" cancels cleanly: dialog closes, no IPC call fires, `baixado` stays true, the button
+      still reads "Instalar" for a later click. Done when: clicking "Não" is a no-op besides
+      closing the dialog — verified no `quitAndInstall`/`downloadUpdate` call happens. Verified
+      live via e2e (`"Não" cancela` case, `e2e/tab-system.spec.ts`).
+- [x] `UpdateAvailableCard.tsx` stops treating `status === "available"` as "show myself" — its
+      old `fase === "disponivel"` phase (the "Existe uma atualização... Deseja instalar agora?"
+      prompt with "Agora não"/"Sim, atualizar") is deleted outright, not just hidden, since the
+      page now owns that decision. Superseded by the item below: the component ended up with no
+      remaining job and was deleted entirely, not just this one phase.
+- [x] ~~`UpdateAvailableCard.tsx` gains its replacement job: a post-confirmation loading
+      indicator~~ — **superseded by the second-pass correction above.** With `oneClick:true` (the
+      owner's explicit choice), the whole Electron process exits the instant `quitAndInstall()`
+      runs, so no React component — this one included — can render anything after that point;
+      what the owner pictured as "a centered card while updating" is the NSIS one-click
+      installer's own native window, outside this app's code. `UpdateAvailableCard.tsx` was
+      deleted (`git rm` equivalent — file removed, import + mount removed from
+      `(admin)/layout.tsx`) instead of being repurposed a second time.
+- [x] Carry the two explicit out-of-scope decisions above into the PR/commit description: no
+      passive background-detected notification surface outside visiting `/atualizacao` directly,
+      and `modules/atualizacao/` (legacy vanilla) stays untouched. Both confirmed untouched by
+      `git status` (no changes under `modules/`); the commit message for this work should
+      restate both lines.
+- [x] **Human-in-the-loop**: the NSIS `oneClick` trade-off (lose "choose install folder" vs. get
+      the fully automatic close→install→reopen behavior the owner described) was raised as an
+      explicit question rather than assumed. Done when: the owner picked an option and that
+      choice is recorded here. **Answer: re-enable `oneClick:true`.**
+
+### Implementation
+
+- [x] `package.json` → `build.nsis`: `oneClick` flipped back to `true`, matching the state it was
+      in before commit `8b28940` reverted it. `allowToChangeInstallationDirectory` removed
+      (incompatible with one-click installers, same disclosed trade-off already recorded in this
+      file's "sixth module" entry the first time this flag was flipped). Done when: `package.json`
+      reads `"oneClick": true` with no `allowToChangeInstallationDirectory` key.
+- [x] `page.tsx`: render the confirm dialog, wire its "Sim" handler to
+      `useAtualizacao.ts`'s `confirmarInstalacao()`. Done when: `page.tsx` never calls
+      `erpApi.sistema.quitAndInstall` directly — confirmed by grep, the only caller in the
+      frontend is `useAtualizacao.ts`.
+- [x] `useAtualizacao.ts`: add the button-label derivation and the "open dialog instead of
+      installing" branch; `confirmarInstalacao()` calls `erpApi.sistema.quitAndInstall()`
+      directly (no intermediate event/handoff — there is no other component left to hand off to),
+      with `.catch()` routing any failure through the hook's existing `mostrarMensagem("error",
+      ...)` path, the same one every other error on this page already uses. Keep every other
+      existing state transition (`checking`/`available`/`not-available`/`download-progress`/
+      `update-downloaded`/`error`) untouched — this hook already mirrors a state machine ported
+      carefully from the vanilla original (see this file's "sixth module" entry), so this is not
+      the place for a restructure. Done when: a diff review shows only additive changes to the
+      existing switch/if-chain, no removed or altered cases.
+- [x] Delete `UpdateAvailableCard.tsx` and its import/mount in `(admin)/layout.tsx` — no
+      cross-component handoff event needed since nothing else needs to react to the confirmation
+      besides the hook itself. Done when: no file in the repo references
+      `UpdateAvailableCard`/`update-install-confirmed` (confirmed by grep, aside from this plan
+      file's own historical narrative above).
+- [x] New `ConfirmarInstalacaoModal.tsx` (dedicated file, matching `ConfirmarSenhaModal.tsx`'s
+      precedent shape: `isOpen`/`onClose`/`onConfirmar` props, `Modal` + `Button` from the
+      existing `ui` components, no new dependency). Done when: the component exists, is used from
+      `page.tsx`, and its copy matches the owner's exact wording.
+
+### Tests
+
+- [x] Extend `ipc/sistema.js`'s `ERP_MOCK_UPDATER` escape hatch (today it only covers
+      `check-for-updates`, per the 2026-09-01 fix's own explicitly noted gap) to optionally
+      simulate the full `available` → `download-progress` × N → `update-downloaded` sequence, and
+      make the mock's `quit-and-install` path a safe no-op instead of calling the real
+      `autoUpdater.quitAndInstall()`, which would actually try to relaunch the test's Electron
+      process. Gated behind a distinct value (`ERP_MOCK_UPDATER=available`) so the existing
+      `ERP_MOCK_UPDATER=1` "not-available" path (`e2e/tab-system.spec.ts`) keeps passing
+      unmodified. Done when: an e2e run can drive "available" → "Baixar atualização" →
+      "Instalar" → confirm dialog → "Sim" → the `quit-and-install` call, without the test process
+      actually quitting. Implemented as three `ERP_MOCK_UPDATER === "available"` branches
+      (`check-for-updates`, `download-update`, `quit-and-install`) in `ipc/sistema.js`.
+- [x] e2e coverage (`test.describe("fluxo de instalação de atualização (confirmação)")` in
+      `e2e/tab-system.spec.ts`) asserting: (a) the button reads "Baixar atualização" once
+      `available` fires; (b) after the mocked download completes, the same button reads
+      "Instalar"; (c) clicking "Instalar" opens the confirm dialog with the exact
+      owner-specified copy; (d) "Não" closes the dialog with no state change, button still
+      "Instalar"; (e) "Sim" closes the dialog and no error banner appears (proving the mocked
+      `quit-and-install` call was accepted without the test window ever going unresponsive — a
+      real call would have closed it). Done when: all five assertions pass under
+      `npm run test:e2e`. Verified: all 5 cases pass.
+- [x] Regression: the pre-existing "Aplicativo atualizado" (not-available path) case and the
+      tab-navigation-freeze regression test in `e2e/tab-system.spec.ts` both still pass
+      unmodified. Done when: `npm run test:e2e` is fully green, not just the new spec in
+      isolation. Verified: **10/10 e2e passing** (5 pre-existing + 5 new).
+
+### Registration
+
+- [x] None expected — this module is already registered everywhere it needs to be (sidebar, tab
+      system, `modulo.json` permissions); this change alters existing behavior, it doesn't add a
+      new discoverable entry point. Confirm no permission/manifest file needs touching
+      (`download-update`/`quit-and-install` stay `exigirSessao("admin")` at the IPC layer,
+      unchanged by this plan). Confirmed: no `modulo.json` touched by this change.
+- [x] `AGENTS.md`'s update-flow paragraph updated to match the corrected design (button-label
+      state machine + confirm dialog, no global card, `oneClick:true` reinstated) — it still
+      described the first-pass `UpdateAvailableCard.tsx` design, which would have been stale and
+      misleading for the next session to read.
+- [x] `npm run lint`, `npm run typecheck`, and the frontend `npm run build` all clean. Done when:
+      all three pass with zero new warnings introduced by this change. Verified: root
+      `npm run lint` clean, `frontend && npm run lint` clean (0 errors, 2 pre-existing unrelated
+      warnings), `frontend && npm run build` succeeds (39/39 static pages, including
+      `/atualizacao`). `frontend && npm run typecheck` (bare `tsc --noEmit`) surfaces ~30
+      pre-existing `IntrinsicAttributes`/`className` errors across unrelated files
+      (`SignInForm.tsx`, `DashboardStatCards.tsx`, etc.) that predate this change and don't touch
+      any file this plan modified (confirmed by grep — no `atualizacao`/`ConfirmarInstalacao`
+      hits in the error list); `next build`'s own stricter type-check pass, which is what
+      actually gates the shipped build, is clean. Backend: root `npm test` — **163/163 passing**.
+- [ ] (manual) Live verification against a real published update — same caveat every prior
+      update-flow fix in this file has needed (see "quit-and-install silently no-op'd" and
+      "Update Flow — Navigation Freeze Investigation" above): the mocked e2e path proves the
+      UI/state logic, but whether it actually restarts cleanly can only be confirmed by
+      publishing a real build and running the full cycle once, per this module's own established
+      practice.
+
+**Ordering rule**: Design rationale before Implementation — the confirm-dialog copy and the
+card's new trigger event are decisions referenced directly by the implementation items, not
+details to improvise while coding. Implementation before Tests — nothing to assert on yet. The
+mock-updater extension (first Tests item) before the new e2e spec (second Tests item), since the
+spec depends on it. Registration/build-clean checks last, matching every other module entry in
+this file.

@@ -35,6 +35,7 @@ export function useAtualizacao() {
 	const [baixado, setBaixado] = useState(false);
 	const [disponivel, setDisponivel] = useState(false);
 	const [botaoDesabilitado, setBotaoDesabilitado] = useState(false);
+	const [confirmando, setConfirmando] = useState(false);
 	const baixandoRef = useRef(false);
 
 	function mostrarMensagem(tipo: Mensagem["tipo"], texto: string) {
@@ -160,23 +161,52 @@ export function useAtualizacao() {
 			});
 	}, []);
 
-	const install = useCallback(() => {
-		if (window.api?.quitAndInstall) {
-			erpApi.sistema.quitAndInstall().catch(() => {});
-		}
-	}, []);
-
+	// Instalar precisa de uma confirmação explícita ("reinicia o app, deseja
+	// prosseguir?") antes de disparar — pedido do dono. Este hook abre o
+	// diálogo; clicarBotao() nunca chama install direto.
 	function clicarBotao() {
 		if (baixando) return;
 		if (baixado) {
-			setBaixado(false);
-			install();
+			setConfirmando(true);
 		} else if (disponivel) {
 			download();
 		} else {
 			check();
 		}
 	}
+
+	function confirmarInstalacao() {
+		setConfirmando(false);
+		setBaixado(false);
+		// package.json -> build.nsis tem oneClick:true — a partir daqui o
+		// instalador NSIS assume sozinho (fecha o app, mostra sua própria janela
+		// de progresso automática, reabre o app), sem nenhuma etapa manual e sem
+		// nenhuma UI nossa nesse meio-tempo. Só resta tratar o caso em que a
+		// PRÓPRIA chamada falha (ex.: download não confirmado no processo
+		// principal) — aí o app nem chega a fechar, e o erro aparece aqui como
+		// qualquer outro erro desta tela.
+		erpApi.sistema.quitAndInstall().catch((e: unknown) => {
+			setStatus("Erro ao instalar");
+			setStatusCor("vermelho");
+			mostrarMensagem("error", e instanceof Error ? e.message : String(e));
+		});
+	}
+
+	function cancelarInstalacao() {
+		setConfirmando(false);
+	}
+
+	// Texto do botão reflete o estado atual em vez do "Atualizar" fixo de
+	// antes — pedido explícito do dono (2026-09-08): precisa dizer "Baixar
+	// atualização" quando há uma nova versão, e virar "Instalar" (mesmo botão,
+	// mesmo lugar) assim que o download termina.
+	const textoBotao = baixando
+		? `Baixando... ${progresso ?? 0}%`
+		: baixado
+			? "Instalar"
+			: disponivel
+				? "Baixar atualização"
+				: "Verificar atualizações";
 
 	useEffect(() => {
 		if (window.api?.getAppVersion) {
@@ -199,6 +229,10 @@ export function useAtualizacao() {
 		progresso,
 		mensagem,
 		botaoDesabilitado,
+		textoBotao,
 		clicarBotao,
+		confirmando,
+		confirmarInstalacao,
+		cancelarInstalacao,
 	};
 }

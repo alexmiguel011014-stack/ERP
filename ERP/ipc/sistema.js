@@ -114,6 +114,15 @@ function registrar(ipcMain, deps) {
 				});
 				return null;
 			}
+			// Igual ao "1" acima, mas simula uma atualização ENCONTRADA em vez de
+			// "sem atualização" — só assim dá pra testar o fluxo completo (baixar
+			// -> instalar -> confirmar -> card) sem rede real nem publicar uma
+			// versão nova de verdade (ver e2e/tab-system.spec.ts).
+			if (process.env.ERP_MOCK_UPDATER === "available") {
+				autoUpdater.emit("checking-for-update");
+				autoUpdater.emit("update-available", { version: "9.9.9-mock" });
+				return null;
+			}
 			const online = await temConectividade(5000);
 			if (!online) {
 				throw new Error(
@@ -134,6 +143,15 @@ function registrar(ipcMain, deps) {
 	ipcMain.handle("download-update", async () => {
 		try {
 			exigirSessao("admin");
+			if (process.env.ERP_MOCK_UPDATER === "available") {
+				// Simula um download completo emitindo os MESMOS eventos que o
+				// autoUpdater real dispararia, sem bater rede nem escrever nada em
+				// disco.
+				autoUpdater.emit("download-progress", { percent: 50 });
+				autoUpdater.emit("update-downloaded", { version: "9.9.9-mock" });
+				downloadConcluido = true;
+				return { success: true };
+			}
 			const online = await temConectividade(5000);
 			if (!online) {
 				throw new Error(
@@ -164,6 +182,14 @@ function registrar(ipcMain, deps) {
 
 	ipcMain.handle("quit-and-install", async () => {
 		exigirSessao("admin");
+		if (process.env.ERP_MOCK_UPDATER === "available") {
+			// Nunca chama o autoUpdater.quitAndInstall() real em modo mock — isso
+			// derrubaria o próprio processo Electron que o Playwright está
+			// controlando. O teste confirma que este ponto foi alcançado pela
+			// janela continuar de pé (uma chamada real teria fechado o app).
+			downloadConcluido = false;
+			return;
+		}
 		if (downloadConcluido) {
 			setImmediate(() => {
 				autoUpdater.quitAndInstall(false, true);
