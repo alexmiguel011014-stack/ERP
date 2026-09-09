@@ -290,54 +290,53 @@ export default function ProdutoFormPanel({
 					</div>
 				)}
 
-				<div className="flex flex-wrap gap-3">
-					<Button type="submit" disabled={salvando} className="flex-1">
-						{salvando
-							? "Salvando..."
-							: editandoId
-								? "Salvar Alterações"
-								: "Salvar Produto"}
-					</Button>
-					<Button
-						type="button"
-						variant="outline"
-						className="flex-1"
-						onClick={() => {
-							limparFormulario();
-							setMensagem(null);
-						}}
-					>
-						Limpar
-					</Button>
-					{editandoId && (
+				<div className="w-full sm:w-1/2">
+					<div className="flex flex-wrap gap-3">
+						<Button type="submit" disabled={salvando} className="flex-1">
+							{salvando
+								? "Salvando..."
+								: editandoId
+									? "Salvar Alterações"
+									: "Salvar Produto"}
+						</Button>
 						<Button
 							type="button"
 							variant="outline"
 							className="flex-1"
-							onClick={onCancelarEdicao}
+							onClick={() => {
+								limparFormulario();
+								setMensagem(null);
+							}}
 						>
-							Cancelar Edição
+							Limpar
 						</Button>
-					)}
-				</div>
-
-				<div className="flex flex-wrap gap-3 border-t border-gray-100 pt-4 dark:border-gray-800">
-					<Button
-						type="button"
-						variant="outline"
-						className="flex-1"
-						onClick={onAbrirLista}
-					>
-						Lista de Produtos
-					</Button>
-					<Button
-						type="button"
-						variant="outline"
-						className="flex-1"
-						onClick={onAbrirListaCategorias}
-					>
-						Lista de Categorias
-					</Button>
+						{editandoId && (
+							<Button
+								type="button"
+								variant="outline"
+								className="flex-1"
+								onClick={onCancelarEdicao}
+							>
+								Cancelar Edição
+							</Button>
+						)}
+						<Button
+							type="button"
+							variant="outline"
+							className="flex-1"
+							onClick={onAbrirLista}
+						>
+							Lista de Produtos
+						</Button>
+						<Button
+							type="button"
+							variant="outline"
+							className="flex-1"
+							onClick={onAbrirListaCategorias}
+						>
+							Lista de Categorias
+						</Button>
+					</div>
 				</div>
 			</form>
 		</div>
