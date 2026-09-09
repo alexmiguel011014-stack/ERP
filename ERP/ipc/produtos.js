@@ -2,6 +2,7 @@ const { dialog } = require("electron");
 const {
 	salvarProduto,
 	atualizarProduto,
+	atribuirCategoriaEmLote,
 	removerProduto,
 	restaurarProduto,
 	excluirProdutoPermanente,
@@ -70,6 +71,28 @@ function registrar(ipcMain, deps) {
 			throw erro.message;
 		}
 	});
+
+	ipcMain.handle(
+		"atribuir-categoria-produtos-lote",
+		async (event, produtoIds, categoriaId) => {
+			try {
+				exigirPermissao("produtos");
+				const resultado = await atribuirCategoriaEmLote(
+					produtoIds,
+					categoriaId,
+				);
+				log(
+					"atribuir-categoria-produtos-lote",
+					"Produtos",
+					null,
+					categoriaId + " → " + resultado.quantidade + " produto(s)",
+				);
+				return resultado;
+			} catch (erro) {
+				throw erro.message;
+			}
+		},
+	);
 
 	ipcMain.handle("remover-produto", async (event, id) => {
 		try {

@@ -34,7 +34,15 @@ export default function CadastroProdutoPage() {
 			<ProdutoFormPanel
 				key={refreshTick}
 				produtoEditando={produtoEditando}
-				onSalvo={() => setRefreshTick((t) => t + 1)}
+				// Igual a onCancelarEdicao, de propósito: antes, onSalvo só
+				// remontava o painel (key={refreshTick}) sem limpar
+				// produtoEditando, então o useEffect de ProdutoFormPanel
+				// repopulava a mesma edição de novo (nunca saía do modo edição).
+				// Remontar também reiniciava `primeiraVez`, pulando o
+				// limparFormulario() que esse mesmo efeito já chama certo quando
+				// produtoEditando vira null SEM remontar — daí não bumpar
+				// refreshTick aqui.
+				onSalvo={() => setProdutoEditando(null)}
 				onProdutoCriado={handleProdutoCriado}
 				onCancelarEdicao={() => setProdutoEditando(null)}
 				onAbrirLista={() => setModalAberto(true)}

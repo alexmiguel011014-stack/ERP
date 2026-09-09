@@ -45,6 +45,7 @@ module.exports = {
 	verificarHashSenha: usuarios.verificarHashSenha,
 	salvarProduto: produtos.salvarProduto,
 	atualizarProduto: produtos.atualizarProduto,
+	atribuirCategoriaEmLote: produtos.atribuirCategoriaEmLote,
 	removerProduto: produtos.removerProduto,
 	restaurarProduto: produtos.restaurarProduto,
 	excluirProdutoPermanente: produtos.excluirProdutoPermanente,

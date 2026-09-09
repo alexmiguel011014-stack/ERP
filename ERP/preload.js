@@ -12,6 +12,12 @@ contextBridge.exposeInMainWorld("api", {
 	salvarProduto: (dados) => ipcRenderer.invoke("salvar-produto", dados),
 	atualizarProduto: (id, dados) =>
 		ipcRenderer.invoke("atualizar-produto", id, dados),
+	atribuirCategoriaEmLote: (produtoIds, categoriaId) =>
+		ipcRenderer.invoke(
+			"atribuir-categoria-produtos-lote",
+			produtoIds,
+			categoriaId,
+		),
 	removerProduto: (id) => ipcRenderer.invoke("remover-produto", id),
 	restaurarProduto: (id) => ipcRenderer.invoke("restaurar-produto", id),
 	excluirProdutoPermanente: (id) =>

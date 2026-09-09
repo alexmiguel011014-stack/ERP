@@ -1017,6 +1017,12 @@ export const erpApi = {
 			invocar<{ success: boolean; produtoId: number }>("salvarProduto", dados),
 		atualizar: (id: number, dados: NovoProdutoDados) =>
 			invocar<{ success: boolean }>("atualizarProduto", id, dados),
+		atribuirCategoriaEmLote: (produtoIds: number[], categoriaId: number) =>
+			invocar<{ success: boolean; quantidade: number }>(
+				"atribuirCategoriaEmLote",
+				produtoIds,
+				categoriaId,
+			),
 		remover: (id: number) =>
 			invocar<{ success: boolean }>("removerProduto", id),
 		restaurar: (id: number) =>

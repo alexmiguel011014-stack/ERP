@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
 import Button from "@/components/ui/button/Button";
 import { erpApi } from "@/lib/erpApi";
+import { useImagemProduto } from "@/hooks/useImagemProduto";
 
 export type ImagemPendente = { caminho: string; dataUrl: string };
 
@@ -22,18 +22,7 @@ export default function ProdutoImagemPicker({
 	onPendenteEscolhida?: (info: ImagemPendente) => void;
 	onPendenteRemovida?: () => void;
 }) {
-	const [dataUrl, setDataUrl] = useState<string | null>(null);
-
-	useEffect(() => {
-		if (!produtoId || !imagem) {
-			setDataUrl(null);
-			return;
-		}
-		erpApi.produtos
-			.imagem(imagem)
-			.then(setDataUrl)
-			.catch(() => setDataUrl(null));
-	}, [produtoId, imagem]);
+	const [dataUrl, setDataUrl] = useImagemProduto(produtoId, imagem);
 
 	async function escolherImagem() {
 		// Produto ainda não salvo: só abre o diálogo e guarda o caminho/preview

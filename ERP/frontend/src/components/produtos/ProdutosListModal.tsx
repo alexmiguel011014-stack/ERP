@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import Button from "@/components/ui/button/Button";
 import ConfirmarSenhaModal from "@/components/common/ConfirmarSenhaModal";
+import ProdutoThumbnail from "./ProdutoThumbnail";
 import { useProdutos } from "@/hooks/useProdutos";
 import { useCategorias } from "@/hooks/useCategorias";
 import { erpApi, type ProdutoDetalhado } from "@/lib/erpApi";
@@ -50,6 +51,12 @@ export default function ProdutosListModal({
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [isOpen]);
 
+	// Categorizar em lote um produto excluído não faz sentido — sai do modo
+	// seleção ao entrar na Lixeira, em vez de deixar seleção obsoleta parada.
+	useEffect(() => {
+		if (verLixeira) fecharModoSelecao();
+	}, [verLixeira]);
+
 	const [busca, setBusca] = useState("");
 	const [categoriasFiltro, setCategoriasFiltro] = useState<string[]>([]);
 	const [filtroEstoqueBaixo, setFiltroEstoqueBaixo] = useState(false);
@@ -57,6 +64,15 @@ export default function ProdutosListModal({
 	const [processandoId, setProcessandoId] = useState<number | null>(null);
 	const [exclusaoPendente, setExclusaoPendente] =
 		useState<ExclusaoPendente | null>(null);
+
+	// Atribuição de categoria em lote — caso real: produtos importados sem
+	// categoria, hoje só corrigíveis um por um pelo "Editar". Modo seleção é
+	// à parte da Lixeira (não faz sentido categorizar produto excluído).
+	const [modoSelecao, setModoSelecao] = useState(false);
+	const [selecionados, setSelecionados] = useState<Set<number>>(new Set());
+	const [categoriaLoteId, setCategoriaLoteId] = useState("");
+	const [aplicandoLote, setAplicandoLote] = useState(false);
+	const [mensagemLote, setMensagemLote] = useState<string | null>(null);
 
 	const gruposPrincipais = categorias.filter((c) => !c.categoria_pai_id);
 
@@ -117,6 +133,67 @@ export default function ProdutosListModal({
 		setFiltroEstoqueBaixo(false);
 		setFiltroSemEstoque(false);
 		setBusca("");
+	}
+
+	function alternarSelecao(id: number) {
+		setSelecionados((atual) => {
+			const novo = new Set(atual);
+			if (novo.has(id)) novo.delete(id);
+			else novo.add(id);
+			return novo;
+		});
+	}
+
+	function alternarSelecionarTodosVisiveis() {
+		setSelecionados((atual) => {
+			const idsVisiveis = produtosFiltrados.map((p) => p.id);
+			const todosJaSelecionados = idsVisiveis.every((id) => atual.has(id));
+			if (todosJaSelecionados) {
+				const novo = new Set(atual);
+				idsVisiveis.forEach((id) => novo.delete(id));
+				return novo;
+			}
+			return new Set([...atual, ...idsVisiveis]);
+		});
+	}
+
+	function fecharModoSelecao() {
+		setModoSelecao(false);
+		setSelecionados(new Set());
+		setCategoriaLoteId("");
+		setMensagemLote(null);
+	}
+
+	async function aplicarCategoriaLote() {
+		const catId = Number(categoriaLoteId);
+		if (!catId || selecionados.size === 0) return;
+		const categoria = categorias.find((c) => c.id === catId);
+		if (
+			!confirm(
+				`Adicionar a categoria "${categoria?.nome ?? catId}" aos ${selecionados.size} produto(s) selecionado(s)? Categorias já existentes nesses produtos não são removidas.`,
+			)
+		)
+			return;
+		setAplicandoLote(true);
+		setMensagemLote(null);
+		try {
+			const resultado = await erpApi.produtos.atribuirCategoriaEmLote(
+				Array.from(selecionados),
+				catId,
+			);
+			setMensagemLote(
+				`Categoria aplicada a ${resultado.quantidade} produto(s).`,
+			);
+			setSelecionados(new Set());
+			recarregar();
+		} catch (e) {
+			alert(
+				"Erro ao aplicar categoria em lote: " +
+					(e instanceof Error ? e.message : String(e)),
+			);
+		} finally {
+			setAplicandoLote(false);
+		}
 	}
 
 	async function restaurar(p: ProdutoDetalhado) {
@@ -223,11 +300,59 @@ export default function ProdutosListModal({
 						>
 							{verLixeira ? "Ver ativos" : "Lixeira"}
 						</Button>
+						{!verLixeira && (
+							<Button
+								size="sm"
+								variant={modoSelecao ? "primary" : "outline"}
+								onClick={() =>
+									modoSelecao ? fecharModoSelecao() : setModoSelecao(true)
+								}
+							>
+								{modoSelecao ? "Cancelar seleção" : "Selecionar"}
+							</Button>
+						)}
 						<Button size="sm" variant="outline" onClick={exportarCsv}>
 							Exportar CSV
 						</Button>
 					</div>
 				</div>
+
+				{modoSelecao && (
+					<div className="flex flex-wrap items-center gap-2 border-b border-gray-100 bg-gray-50 px-4 py-2 text-sm dark:border-gray-800 dark:bg-white/[0.02]">
+						<span className="text-gray-600 dark:text-gray-300">
+							{selecionados.size} selecionado(s)
+						</span>
+						<select
+							value={categoriaLoteId}
+							onChange={(e) => setCategoriaLoteId(e.target.value)}
+							className="h-9 rounded-lg border border-gray-300 bg-transparent px-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+						>
+							<option value="">Escolher categoria...</option>
+							{categorias.map((c) => (
+								<option key={c.id} value={c.id}>
+									{c.categoria_pai_nome ? c.categoria_pai_nome + " / " : ""}
+									{c.nome}
+								</option>
+							))}
+						</select>
+						<Button
+							size="sm"
+							disabled={
+								!categoriaLoteId || selecionados.size === 0 || aplicandoLote
+							}
+							onClick={aplicarCategoriaLote}
+						>
+							{aplicandoLote
+								? "Aplicando..."
+								: `Aplicar categoria aos ${selecionados.size} selecionado(s)`}
+						</Button>
+						{mensagemLote && (
+							<span className="text-xs text-success-600 dark:text-success-400">
+								{mensagemLote}
+							</span>
+						)}
+					</div>
+				)}
 
 				<div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto p-4 sm:flex-row">
 					<aside className="w-full shrink-0 sm:w-52">
@@ -290,6 +415,21 @@ export default function ProdutosListModal({
 						<table className="w-full text-left text-sm">
 							<thead>
 								<tr className="border-b border-gray-100 dark:border-gray-800">
+									{modoSelecao && (
+										<th className="whitespace-nowrap px-3 py-2">
+											<input
+												type="checkbox"
+												checked={
+													produtosFiltrados.length > 0 &&
+													produtosFiltrados.every((p) => selecionados.has(p.id))
+												}
+												onChange={alternarSelecionarTodosVisiveis}
+											/>
+										</th>
+									)}
+									<th className="whitespace-nowrap px-3 py-2 text-xs font-medium uppercase text-gray-400">
+										Imagem
+									</th>
 									<th className="whitespace-nowrap px-3 py-2 text-xs font-medium uppercase text-gray-400">
 										SKU
 									</th>
@@ -308,7 +448,7 @@ export default function ProdutosListModal({
 								{carregando ? (
 									<tr>
 										<td
-											colSpan={4}
+											colSpan={modoSelecao ? 6 : 5}
 											className="px-3 py-8 text-center text-sm text-gray-400"
 										>
 											Carregando...
@@ -317,7 +457,7 @@ export default function ProdutosListModal({
 								) : produtosFiltrados.length === 0 ? (
 									<tr>
 										<td
-											colSpan={4}
+											colSpan={modoSelecao ? 6 : 5}
 											className="px-3 py-8 text-center text-sm text-gray-400"
 										>
 											{produtos.length === 0
@@ -337,6 +477,21 @@ export default function ProdutosListModal({
 												key={p.id}
 												className="border-b border-gray-50 last:border-0 dark:border-gray-800/60"
 											>
+												{modoSelecao && (
+													<td className="px-3 py-2">
+														<input
+															type="checkbox"
+															checked={selecionados.has(p.id)}
+															onChange={() => alternarSelecao(p.id)}
+														/>
+													</td>
+												)}
+												<td className="px-3 py-2">
+													<ProdutoThumbnail
+														produtoId={p.id}
+														imagem={p.imagem}
+													/>
+												</td>
 												<td
 													className="max-w-[140px] px-3 py-2 font-mono text-xs text-gray-500 dark:text-gray-400"
 													title={skus.length > 1 ? skus.join(", ") : undefined}

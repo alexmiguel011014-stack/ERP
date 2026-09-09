@@ -661,6 +661,75 @@ async function atualizarProduto(id, produto, variacoes) {
 	}
 }
 
+// Atribui uma categoria a vários produtos de uma vez (ex: corrigir um lote
+// importado sem categoria). Aditivo — só adiciona a categoria escolhida,
+// nunca remove as que o produto já tinha, então nunca apaga categorização
+// de um produto que também esteja no lote selecionado. Atômico: se algum id
+// do lote não existir, nada é gravado (rollback), em vez de aplicar parcial.
+async function atribuirCategoriaEmLote(produtoIds, categoriaId) {
+	const conn = getConexao();
+
+	const ids = Array.isArray(produtoIds)
+		? produtoIds
+				.map((id) => Number(id))
+				.filter((id) => Number.isInteger(id) && id > 0)
+		: [];
+	if (ids.length === 0) throw new Error("Nenhum produto selecionado.");
+
+	const catId = Number(categoriaId);
+	if (!Number.isInteger(catId) || catId <= 0)
+		throw new Error("Categoria inválida.");
+
+	const run = (sql, params = []) =>
+		new Promise((resolve, reject) => {
+			conn.run(sql, params, function (erro) {
+				if (erro) return reject(erro);
+				resolve(this);
+			});
+		});
+
+	const get = (sql, params = []) =>
+		new Promise((resolve, reject) => {
+			conn.get(sql, params, (erro, linha) => {
+				if (erro) return reject(erro);
+				resolve(linha);
+			});
+		});
+
+	const categoria = await get("SELECT id FROM Categorias WHERE id = ?", [
+		catId,
+	]);
+	if (!categoria) throw new Error("Categoria não encontrada.");
+
+	await run("BEGIN TRANSACTION");
+	try {
+		await run(
+			`CREATE TABLE IF NOT EXISTS ProdutoCategorias (
+        produto_id INTEGER NOT NULL,
+        categoria_id INTEGER NOT NULL,
+        PRIMARY KEY (produto_id, categoria_id),
+        FOREIGN KEY (produto_id) REFERENCES Produtos(id) ON DELETE CASCADE,
+        FOREIGN KEY (categoria_id) REFERENCES Categorias(id) ON DELETE CASCADE
+      )`,
+		);
+		for (const produtoId of ids) {
+			const produto = await get("SELECT id FROM Produtos WHERE id = ?", [
+				produtoId,
+			]);
+			if (!produto) throw new Error("Produto não encontrado: " + produtoId);
+			await run(
+				"INSERT OR IGNORE INTO ProdutoCategorias (produto_id, categoria_id) VALUES (?, ?)",
+				[produtoId, catId],
+			);
+		}
+		await run("COMMIT");
+		return { success: true, quantidade: ids.length };
+	} catch (erro) {
+		await run("ROLLBACK");
+		throw erro;
+	}
+}
+
 // Exclusão é lógica (ativo=0): produto some das listas/buscas normais mas
 // fica recuperável na Lixeira, e vendas antigas continuam referenciando as
 // variações sem quebrar (nada em Variacoes/ItensVenda é tocado).
@@ -811,6 +880,7 @@ function getCaminhoImagemProduto(nomeArquivo) {
 module.exports = {
 	salvarProduto,
 	atualizarProduto,
+	atribuirCategoriaEmLote,
 	removerProduto,
 	restaurarProduto,
 	excluirProdutoPermanente,

@@ -3633,3 +3633,170 @@ surface changes, and live Electron validation.
       **Done when:** the feature is live-verified, the diff contains only the requested Financeiro/
       Relatórios work, and the user receives a clear distinction between automated proof,
       manual proof, and anything still unverified.
+
+---
+
+## Cadastro de Produtos — Review Findings (fix + feature, not started)
+
+**Source**: owner review request (2026-09-08) — "revisar o módulo de produtos, em específico o
+cadastro de produtos." Owner then walked through the live screen and reported 5 concrete issues
+with screenshots, rather than asking for a blind sweep — every item below traces to that
+walkthrough plus code read against the actual files, not assumption from the screen name.
+
+```mermaid
+flowchart TD
+    subgraph Bugs
+        B1[Bug A: editar trava em loop\nroot cause confirmado]
+        B2[Bug B: escolher imagem\nas vezes limpa campos\nroot cause NAO confirmado]
+    end
+    subgraph Melhorias
+        M1[Imagem na Lista de Produtos]
+        M2[Simetria dos botoes]
+        M3[Atribuicao de categoria em lote]
+    end
+    B1 -. mesmo mecanismo de remount .-> B2
+```
+
+Suggested: sonnet · high — mistura um bug de UI com causa já confirmada, um bug que exige
+reprodução ao vivo antes de poder ser corrigido com segurança, e uma feature nova que grava em
+várias linhas do banco de uma vez (categoria em lote); o item de simetria de botões sozinho é
+haiku/low, anotado inline abaixo.
+
+### Bugs
+
+- [x] **Bug A — editar produto trava em modo edição após salvar (não sai da tela, "loop").**
+      Root cause confirmado: `onSalvo` ([ProdutoFormPanel.tsx:177](ERP/frontend/src/components/produtos/ProdutoFormPanel.tsx:177))
+      só incrementava `refreshTick` em
+      [page.tsx:37](ERP/frontend/src/app/(admin)/produtos/cadastro/page.tsx:37) sem limpar
+      `produtoEditando` — o `useEffect` de `[produtoEditando]` repopulava a mesma edição de
+      novo a cada remontagem. Owner escolheu (via pergunta direta nesta sessão): depois de
+      salvar uma edição, volta pro formulário em branco — mesmo comportamento que "Cancelar
+      Edição" já tinha. Fix real aplicado, diferente do desenho original do item: em vez de
+      `setProdutoEditando(null)` + bump de `refreshTick` (remontar o painel), `onSalvo` agora só
+      faz `setProdutoEditando(null)`, **sem** bump de `refreshTick` — corrigido em
+      [page.tsx:37-45](ERP/frontend/src/app/(admin)/produtos/cadastro/page.tsx:37). Motivo da
+      correção: escrever o e2e revelou um segundo bug — remontar reiniciava `primeiraVez.current`
+      pra `true`, então o `else if (!primeiraVez.current) limparFormulario()` do efeito (que
+      limpa nome/estoque/categorias persistidos via `usePersistedState`) nunca rodava, e o
+      formulário "em branco" voltava com o nome antigo ainda preenchido (puxado de volta do
+      localStorage no mount). Sem remontar, a mesma instância continua viva, `primeiraVez.current`
+      já é `false`, e o efeito chama `limparFormulario()` corretamente — o mesmo caminho que
+      "Cancelar Edição" (que nunca teve esse bug) sempre usou. Regression test:
+      `e2e/produtos-cadastro.spec.ts` (novo — não havia harness de componente no frontend,
+      `frontend/package.json` sem vitest/jest/testing-library; e2e via Playwright/Electron é o
+      único instrumento disponível). Confirmado o ciclo completo: teste falhou contra o código
+      anterior ao fix (2 formas diferentes — primeiro por ficar preso em modo edição, depois,
+      já com o fix "ingênuo" de remontar, por reaparecer com o nome antigo), passou depois do
+      fix final. `npm test` (168/168), `npm run lint` (0 erros), `frontend: tsc --noEmit` e
+      `npm run lint` limpos, `npx playwright test e2e/` (7/7, incluindo `tab-system.spec.ts` —
+      sem regressão).
+
+- [ ] **Bug B — "Escolher imagem" às vezes limpa todos os campos do formulário.** Repro
+      relatado pelo dono: no Cadastro de Produto, preenchendo um produto novo, clicar em
+      "Escolher imagem..." às vezes limpa os campos já preenchidos — comportamento
+      intermitente, não reproduzido de forma determinística nesta sessão (revisão só de código,
+      sem sessão ao vivo). Root cause **não confirmado** — não inventar uma causa. Pistas
+      verificadas no código, pra orientar a investigação, não pra já escrever o fix: (1) `sku` e
+      `codigoBarras`
+      ([ProdutoFormPanel.tsx:57-58](ERP/frontend/src/components/produtos/ProdutoFormPanel.tsx:57))
+      são `useState` comuns, não `usePersistedState` como `nome`/`estoque`/`categoriasSelecionadas`
+      — qualquer remontagem do painel (o mesmo mecanismo de `key={refreshTick}` do Bug A, também
+      disparado por `CategoriasListModal.onAlterado` em
+      [page.tsx:51](ERP/frontend/src/app/(admin)/produtos/cadastro/page.tsx:51)) zera esses dois
+      campos e busca um SKU novo, mesmo que nome/estoque sobrevivam via localStorage — uma
+      inconsistência real, ainda que não confirmada como o gatilho exato que o dono viu. (2) O
+      botão já tem `type="button"` corretamente
+      ([ProdutoImagemPicker.tsx:107](ERP/frontend/src/components/produtos/ProdutoImagemPicker.tsx:107)),
+      então não é o bug clássico de submit acidental de formulário — a causa está em outro
+      lugar. **Investigado nesta sessão** (e2e real, `e2e/produtos-cadastro.spec.ts`, caso
+      "investigação Bug B"): produto novo (sem salvar) → preenche nome → mocka
+      `dialog.showOpenDialog` pra cancelar instantaneamente (`electronApp.evaluate`, sem travar
+      num diálogo nativo real) → clica "Escolher imagem..." → nome **permanece preenchido**.
+      Esse gatilho específico (produto novo, diálogo cancelado) **não reproduz** o bug — passou
+      100% das vezes. Isso não fecha o item: só elimina uma hipótese. Gatilhos ainda não
+      testados, mais prováveis agora: (a) escolher um arquivo de verdade em vez de cancelar
+      (o caminho pendente/`escolherImagemPendente` grava `dataUrl`/`caminho` e pode interagir
+      diferente do cancelamento); (b) fazer isso **editando um produto já existente**
+      (`produtoId` setado, caminho `escolherImagem(produtoId)`, que grava no banco de
+      imediato) em vez de um produto novo; (c) uma corrida de tempo real (arquivo grande,
+      diálogo demorando) que o mock instantâneo não reproduz. Próximo passo: pedir ao dono pra
+      confirmar em qual desses cenários (produto novo vs. editando um existente; cancelou vs.
+      escolheu um arquivo) ele viu o bug, antes de investir mais tempo tentando reproduzir às
+      cegas. Fix e regression test continuam bloqueados até a causa ser confirmada — não
+      escrever um patch especulativo em cima de uma causa não verificada.
+
+### Melhorias
+
+- [x] **Imagem na Lista de Produtos.** Extraído o fetch-e-cache de imagem (antes só dentro de
+      `ProdutoImagemPicker`) pro hook compartilhado
+      [useImagemProduto.ts](ERP/frontend/src/hooks/useImagemProduto.ts) (retorna
+      `[dataUrl, setDataUrl]`, pra `ProdutoImagemPicker` continuar podendo sobrescrever
+      otimisticamente após upload, igual antes). Novo
+      [ProdutoThumbnail.tsx](ERP/frontend/src/components/produtos/ProdutoThumbnail.tsx) (32×32,
+      usa o hook) plugado como primeira coluna em
+      [ProdutosListModal.tsx](ERP/frontend/src/components/produtos/ProdutosListModal.tsx)
+      (`colSpan` dos estados vazio/carregando ajustado de 4→5). `ProdutoImagemPicker.tsx`
+      refatorado pra usar o mesmo hook em vez da lógica duplicada.
+
+- [x] **Simetria dos botões no Cadastro de Produto.** `flex-1` aplicado a cada `Button` das
+      duas fileiras em
+      [ProdutoFormPanel.tsx](ERP/frontend/src/components/produtos/ProdutoFormPanel.tsx:293) —
+      largura igual dentro de cada fileira, só classe Tailwind, sem lógica nova.
+
+- [x] **Atribuição de categoria em lote (bulk).** Caso real relatado pelo dono: produtos já
+      cadastrados sem categoria (import ou cadastro manual sem preencher esse campo) — hoje só
+      dá pra corrigir um produto por vez, abrindo "Editar" em cada um. Pedido: selecionar uma
+      categoria alvo, marcar vários produtos na Lista de Produtos, aplicar de uma vez.
+      **Design rationale.** Backend: nova função `atribuirCategoriaEmLote(produtoIds, categoriaId)`
+      em `db/produtos.js` — não reaproveitar `atualizarProduto` (espera um payload completo de
+      produto+variações por chamada, caro e desnecessário só pra mexer em `ProdutoCategorias`).
+      Validar que `categoriaId` existe (mesmo padrão de checagem já usado em
+      [db/produtos.js:482-491](ERP/db/produtos.js:482) pra integridade de subcategoria) e, numa
+      única transação, `INSERT OR IGNORE INTO ProdutoCategorias (produto_id, categoria_id)` pra
+      cada id em `produtoIds`. **Aditivo, não substitui** categorias já existentes nesses
+      produtos — mais seguro como padrão geral, e resolve exatamente o caso relatado (produtos
+      sem nenhuma categoria) sem risco de apagar categorização que outro produto selecionado já
+      tivesse. Novo handler IPC `atribuir-categoria-produtos-lote` em `ipc/produtos.js`, gated
+      por `exigirPermissao("produtos")` como todos os outros handlers desse arquivo, com
+      `log(...)` da ação (mesmo padrão de auditoria já usado nas outras mutações). Frontend: em
+      `ProdutosListModal.tsx`, um "modo seleção" — checkbox por linha (reaproveita os filtros já
+      existentes, ex: por categoria/estoque, pra restringir o universo antes de selecionar) +
+      barra de ação com seletor de categoria + botão "Aplicar categoria aos N selecionados", com
+      confirmação antes de aplicar — mesmo cuidado já usado nesta tela pra exclusão permanente
+      (`ConfirmarSenhaModal`) e remoção de imagem (`confirm()` nativo em
+      `ProdutoImagemPicker.tsx:79`).
+      **Implementation**: `atribuirCategoriaEmLote` em
+      [db/produtos.js](ERP/db/produtos.js) (exportada via `database.js`), handler IPC
+      `atribuir-categoria-produtos-lote` em
+      [ipc/produtos.js](ERP/ipc/produtos.js) (+ `preload.js`), método
+      `erpApi.produtos.atribuirCategoriaEmLote` em
+      [erpApi.ts](ERP/frontend/src/lib/erpApi.ts). UI em
+      [ProdutosListModal.tsx](ERP/frontend/src/components/produtos/ProdutosListModal.tsx):
+      botão "Selecionar" (oculto na Lixeira — sai do modo seleção automaticamente se o dono
+      abrir a Lixeira com seleção ativa), coluna de checkbox (+ "selecionar todos visíveis" no
+      cabeçalho), barra de ação com `<select>` de categoria + botão "Aplicar categoria aos N
+      selecionado(s)" com `confirm()` antes de gravar.
+      **Tests**: 5 casos novos em
+      [test/produtos-financeiro-melhorias.test.js](ERP/test/produtos-financeiro-melhorias.test.js) —
+      categoria inexistente rejeitada, lote vazio rejeitado, aplica corretamente a N produtos,
+      **atômico** (um id inexistente no lote faz tudo falhar — nada gravado, verificado
+      diretamente na tabela), **aditivo** (categoria antiga permanece após aplicar uma nova).
+      **Registration**: nenhuma — é uma ação dentro de uma tela já existente, sem novo
+      menu/rota/entrada de sidebar.
+      **Verificação**: `npm test` 168/168, `npm run lint` (raiz e frontend) 0 erros,
+      `frontend: tsc --noEmit` limpo.
+
+### Suggested order
+
+Bug A primeiro — root cause já confirmado, fix pequeno e mecânico, desbloqueia o uso normal do
+fluxo de edição. Bug B em seguida, mas a investigação ao vivo é pré-requisito do próprio item,
+não pode ser pulada direto pro patch. As 3 melhorias não têm dependência técnica entre si nem
+com os bugs — ordem sugerida por esforço crescente: miniatura na lista (pequena, ganho visível
+imediato) → simetria dos botões (trivial) → atribuição em lote (a de maior escopo, toca
+banco/IPC/UI nas três camadas).
+
+**Status (2026-09-08, `/execgoals`)**: 4/5 concluídos e verificados (Bug A, miniatura na lista,
+simetria dos botões, atribuição em lote). Só falta **Bug B** — investigado ao vivo via e2e
+(ver notas do item), uma hipótese descartada (produto novo + diálogo cancelado não reproduz),
+mas a causa raiz ainda não está confirmada; precisa de mais detalhes do dono sobre o cenário
+exato antes de tentar de novo.

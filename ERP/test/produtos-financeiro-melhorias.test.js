@@ -110,3 +110,87 @@ test("getLancamentosVencendoHoje só retorna lançamentos abertos vencendo hoje"
 	assert.ok(vencendoHoje.some((l) => l.descricao === "Vence hoje"));
 	assert.ok(!vencendoHoje.some((l) => l.descricao === "Venceu ontem"));
 });
+
+// atribuirCategoriaEmLote (GOALS.md "Cadastro de Produtos — Review
+// Findings" → Atribuição de categoria em lote): caso real do dono —
+// produtos importados sem categoria, hoje só corrigíveis um por um.
+async function criarProdutoSemCategoria(nome) {
+	const r = await runAsync("INSERT INTO Produtos (nome) VALUES (?)", [
+		nome || "Produto Lote " + Math.random().toString(36).slice(2, 8),
+	]);
+	return r.lastID;
+}
+
+async function criarCategoria(nome) {
+	const r = await runAsync("INSERT INTO Categorias (nome) VALUES (?)", [
+		nome || "Categoria Lote " + Math.random().toString(36).slice(2, 8),
+	]);
+	return r.lastID;
+}
+
+async function categoriasDoProduto(produtoId) {
+	return new Promise((resolve, reject) => {
+		require("../db/conexao")
+			.getConexao()
+			.all(
+				"SELECT categoria_id FROM ProdutoCategorias WHERE produto_id = ?",
+				[produtoId],
+				(erro, linhas) =>
+					erro ? reject(erro) : resolve(linhas.map((l) => l.categoria_id)),
+			);
+	});
+}
+
+test("atribuirCategoriaEmLote rejeita categoria inexistente", async () => {
+	const produtoId = await criarProdutoSemCategoria();
+	await assert.rejects(() => db.atribuirCategoriaEmLote([produtoId], 999999));
+});
+
+test("atribuirCategoriaEmLote rejeita quando nenhum produto é enviado", async () => {
+	const categoriaId = await criarCategoria();
+	await assert.rejects(() => db.atribuirCategoriaEmLote([], categoriaId));
+});
+
+test("atribuirCategoriaEmLote aplica a categoria aos produtos selecionados", async () => {
+	const categoriaId = await criarCategoria();
+	const p1 = await criarProdutoSemCategoria();
+	const p2 = await criarProdutoSemCategoria();
+	const resultado = await db.atribuirCategoriaEmLote([p1, p2], categoriaId);
+	assert.strictEqual(resultado.success, true);
+	assert.strictEqual(resultado.quantidade, 2);
+	assert.deepStrictEqual(await categoriasDoProduto(p1), [categoriaId]);
+	assert.deepStrictEqual(await categoriasDoProduto(p2), [categoriaId]);
+});
+
+test("atribuirCategoriaEmLote é atômico: um produto id inexistente faz o lote inteiro falhar, nada é gravado", async () => {
+	const categoriaId = await criarCategoria();
+	const p1 = await criarProdutoSemCategoria();
+	const idInexistente = 987654321;
+	await assert.rejects(() =>
+		db.atribuirCategoriaEmLote([p1, idInexistente], categoriaId),
+	);
+	assert.deepStrictEqual(
+		await categoriasDoProduto(p1),
+		[],
+		"nada deveria ter sido gravado — o lote inteiro deve falhar junto",
+	);
+});
+
+test("atribuirCategoriaEmLote é aditivo: não remove categoria que o produto já tinha", async () => {
+	const categoriaAntiga = await criarCategoria("Categoria Já Tinha");
+	const categoriaNova = await criarCategoria("Categoria Nova Do Lote");
+	const produtoId = await criarProdutoSemCategoria();
+	await db.atribuirCategoriaEmLote([produtoId], categoriaAntiga);
+
+	await db.atribuirCategoriaEmLote([produtoId], categoriaNova);
+
+	const categoriasFinal = await categoriasDoProduto(produtoId);
+	assert.ok(
+		categoriasFinal.includes(categoriaAntiga),
+		"categoria anterior deveria continuar",
+	);
+	assert.ok(
+		categoriasFinal.includes(categoriaNova),
+		"categoria nova do lote deveria ter sido adicionada",
+	);
+});

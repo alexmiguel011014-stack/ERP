@@ -291,7 +291,7 @@ export default function ProdutoFormPanel({
 				)}
 
 				<div className="flex flex-wrap gap-3">
-					<Button type="submit" disabled={salvando}>
+					<Button type="submit" disabled={salvando} className="flex-1">
 						{salvando
 							? "Salvando..."
 							: editandoId
@@ -301,6 +301,7 @@ export default function ProdutoFormPanel({
 					<Button
 						type="button"
 						variant="outline"
+						className="flex-1"
 						onClick={() => {
 							limparFormulario();
 							setMensagem(null);
@@ -309,19 +310,30 @@ export default function ProdutoFormPanel({
 						Limpar
 					</Button>
 					{editandoId && (
-						<Button type="button" variant="outline" onClick={onCancelarEdicao}>
+						<Button
+							type="button"
+							variant="outline"
+							className="flex-1"
+							onClick={onCancelarEdicao}
+						>
 							Cancelar Edição
 						</Button>
 					)}
 				</div>
 
 				<div className="flex flex-wrap gap-3 border-t border-gray-100 pt-4 dark:border-gray-800">
-					<Button type="button" variant="outline" onClick={onAbrirLista}>
+					<Button
+						type="button"
+						variant="outline"
+						className="flex-1"
+						onClick={onAbrirLista}
+					>
 						Lista de Produtos
 					</Button>
 					<Button
 						type="button"
 						variant="outline"
+						className="flex-1"
 						onClick={onAbrirListaCategorias}
 					>
 						Lista de Categorias
