@@ -29,8 +29,12 @@ jobs:
           cache: npm
           cache-dependency-path: ERP/package-lock.json
 
-      - name: Install dependencies
+      - name: Install dependencies (backend)
         working-directory: ERP
+        run: npm ci
+
+      - name: Install dependencies (frontend)
+        working-directory: ERP/frontend
         run: npm ci
 
       - name: Build installer
