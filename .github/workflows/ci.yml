@@ -56,6 +56,21 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # next-env.d.ts é gerado automaticamente pelo Next.js (next dev/build) e é
+      # gitignorado — como este job nunca builda, sem isso o tsc não enxerga os
+      # tipos do Next e o typecheck falha com erros de IntrinsicAttributes em
+      # qualquer arquivo .tsx, mesmo sem relação com a mudança do PR.
+      - name: Generate next-env.d.ts
+        shell: bash
+        run: |
+          cat > next-env.d.ts << 'EOF'
+          /// <reference types="next" />
+          /// <reference types="next/image-types/global" />
+
+          // NOTE: This file should not be edited
+          // see https://nextjs.org/docs/app/api-reference/config/typescript for more information.
+          EOF
+
       - name: Lint
         run: npm run lint
 
