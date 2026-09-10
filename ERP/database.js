@@ -60,6 +60,7 @@ module.exports = {
 	setPastaExecutavel: conexao.setPastaExecutavel,
 	getProximoCodigoCliente: clientes.getProximoCodigoCliente,
 	getDashboardStats: dashboard.getDashboardStats,
+	getFaturamentoPorPeriodo: dashboard.getFaturamentoPorPeriodo,
 	getClientes: clientes.getClientes,
 	salvarCliente: clientes.salvarCliente,
 	atualizarCliente: clientes.atualizarCliente,
