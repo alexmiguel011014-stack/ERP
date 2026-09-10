@@ -154,14 +154,14 @@ const AppHeader: React.FC = () => {
 								<div
 									key={aba.id}
 									style={{ minWidth: LARGURA_MIN_ABA_NORMAL }}
-									className={`group flex flex-[0_1_170px] items-center gap-1.5 rounded-lg py-2.5 pl-2 text-sm transition-colors ${
+									className={`group flex flex-[0_1_170px] items-center gap-1.5 rounded-lg text-sm transition-colors ${
 										fechavel ? "pr-1" : "pr-2"
 									} ${corAtiva}`}
 								>
 									<button
 										type="button"
 										onClick={() => router.push(aba.href)}
-										className="flex min-w-0 flex-1 items-center gap-1.5 self-stretch"
+										className="flex min-w-0 flex-1 items-center gap-1.5 py-2.5 pl-2"
 										title={aba.titulo}
 									>
 										<span className="shrink-0 [&>svg]:size-4">
