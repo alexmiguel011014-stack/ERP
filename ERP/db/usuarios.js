@@ -1,6 +1,7 @@
 const path = require("path");
 const crypto = require("crypto");
 const fs = require("fs");
+const { app } = require("electron");
 const {
 	getAsync,
 	runAsync,
@@ -320,7 +321,7 @@ async function autenticarUsuario(login, senha) {
 
 	// 5) Valida o usuário cadastrado e ativo.
 	const usr = await getAsync(
-		"SELECT id, login, nome, perfil, ativo, permissoes FROM Usuarios WHERE login = ? COLLATE NOCASE",
+		"SELECT id, login, nome, perfil, ativo, permissoes, cor_avatar, foto FROM Usuarios WHERE login = ? COLLATE NOCASE",
 		[l],
 	);
 	if (!usr) {
@@ -340,6 +341,8 @@ async function autenticarUsuario(login, senha) {
 			nome: usr.nome,
 			perfil: usr.perfil,
 			permissoes: parsePermissoes(usr.permissoes),
+			corAvatar: usr.cor_avatar,
+			foto: usr.foto,
 		},
 	};
 }
@@ -356,7 +359,7 @@ function parsePermissoes(texto) {
 
 function getUsuario(login) {
 	return getAsync(
-		"SELECT id, login, nome, perfil, ativo, permissoes FROM Usuarios WHERE login = ? COLLATE NOCASE",
+		"SELECT id, login, nome, perfil, ativo, permissoes, cor_avatar, foto FROM Usuarios WHERE login = ? COLLATE NOCASE",
 		[String(login)],
 	);
 }
@@ -378,7 +381,7 @@ function ehLoginDeSuporte(login) {
 
 async function listarUsuarios() {
 	const linhas = await allAsync(
-		"SELECT id, login, nome, perfil, ativo, criado_em, comissao_percentual, permissoes FROM Usuarios ORDER BY login",
+		"SELECT id, login, nome, perfil, ativo, criado_em, comissao_percentual, permissoes, cor_avatar, foto FROM Usuarios ORDER BY login",
 	);
 	// A conta de suporte (se configurada nesta instalação) não aparece na
 	// tela de Gerenciar Acessos da loja — é um login de manutenção do
@@ -572,6 +575,106 @@ async function removerUsuario(id) {
 	return { success: true };
 }
 
+/* ============ Avatar do usuário logado (cor + foto) ============ */
+// Autoatendimento (ver GOALS.md "Avatar do Usuário Logado"): quem chama estas
+// funções sempre resolve o id a partir da própria sessão (getSessao().id no
+// IPC), nunca de um id vindo do renderer — não existe função aqui que aceite
+// "editar o avatar de outro usuário".
+
+// Whitelist fixa (nunca hex livre) — mesmos 8 tokens de cor já usados no
+// design system (ver frontend/src/lib/avatarCores.ts, espelho manual desta
+// lista). Validada aqui de novo (server-side) mesmo já validada no IPC, pra
+// uma chamada IPC forjada não conseguir gravar uma classe CSS arbitrária.
+const CORES_AVATAR = [
+	"brand",
+	"pink",
+	"cyan",
+	"orange",
+	"green",
+	"purple",
+	"warning",
+	"error",
+];
+
+function corAvatarValida(cor) {
+	return CORES_AVATAR.includes(cor);
+}
+
+async function atualizarCorAvatar(usuarioId, cor) {
+	const id = Number(usuarioId);
+	if (!Number.isInteger(id) || id <= 0) throw new Error("Usuário inválido.");
+	if (!corAvatarValida(cor)) throw new Error("Cor de avatar inválida.");
+	await runAsync("UPDATE Usuarios SET cor_avatar = ? WHERE id = ?", [cor, id]);
+	return { success: true, corAvatar: cor };
+}
+
+// Mesmo padrão de db/produtos.js:809-879 (salvarImagemProduto/removerImagemProduto),
+// só trocando a entidade: pasta própria em userData, nome do arquivo gravado
+// na coluna, imagem anterior removida do disco ao trocar.
+function pastaImagensUsuarios() {
+	const dir = path.join(app.getPath("userData"), "usuario-imagens");
+	if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+	return dir;
+}
+
+async function salvarFotoUsuario(usuarioId, caminhoOrigem) {
+	const id = Number(usuarioId);
+	if (!Number.isInteger(id) || id <= 0) throw new Error("Usuário inválido.");
+	if (!caminhoOrigem || !fs.existsSync(caminhoOrigem))
+		throw new Error("Arquivo de imagem não encontrado.");
+
+	const extensoesPermitidas = [".png", ".jpg", ".jpeg", ".webp"];
+	const ext = path.extname(caminhoOrigem).toLowerCase();
+	if (!extensoesPermitidas.includes(ext))
+		throw new Error("Formato de imagem não suportado. Use PNG, JPG ou WEBP.");
+
+	const usr = await getAsync("SELECT foto FROM Usuarios WHERE id = ?", [id]);
+	if (!usr) throw new Error("Usuário não encontrado.");
+
+	const dir = pastaImagensUsuarios();
+	const nomeArquivo = "usuario-" + id + "-" + Date.now() + ext;
+	fs.copyFileSync(caminhoOrigem, path.join(dir, nomeArquivo));
+
+	if (usr.foto) {
+		try {
+			fs.unlinkSync(path.join(dir, usr.foto));
+		} catch {
+			/* já não existe */
+		}
+	}
+
+	await runAsync("UPDATE Usuarios SET foto = ? WHERE id = ?", [
+		nomeArquivo,
+		id,
+	]);
+	return {
+		success: true,
+		foto: nomeArquivo,
+		caminho: path.join(dir, nomeArquivo),
+	};
+}
+
+async function removerFotoUsuario(usuarioId) {
+	const id = Number(usuarioId);
+	if (!Number.isInteger(id) || id <= 0) throw new Error("Usuário inválido.");
+	const usr = await getAsync("SELECT foto FROM Usuarios WHERE id = ?", [id]);
+	if (!usr) throw new Error("Usuário não encontrado.");
+	if (usr.foto) {
+		try {
+			fs.unlinkSync(path.join(pastaImagensUsuarios(), usr.foto));
+		} catch {
+			/* já não existe */
+		}
+	}
+	await runAsync("UPDATE Usuarios SET foto = NULL WHERE id = ?", [id]);
+	return { success: true };
+}
+
+function getCaminhoFotoUsuario(nomeArquivo) {
+	if (!nomeArquivo) return null;
+	return path.join(pastaImagensUsuarios(), nomeArquivo);
+}
+
 module.exports = {
 	hashSenhaUsuario,
 	hashSenhaUsuarioLegado,
@@ -588,4 +691,10 @@ module.exports = {
 	listarUsuarios,
 	salvarUsuario,
 	removerUsuario,
+	CORES_AVATAR,
+	corAvatarValida,
+	atualizarCorAvatar,
+	salvarFotoUsuario,
+	removerFotoUsuario,
+	getCaminhoFotoUsuario,
 };
