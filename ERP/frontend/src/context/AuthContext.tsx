@@ -13,6 +13,9 @@ type Usuario = {
 	id: number;
 	login: string;
 	nome: string;
+	// Avatar do usuário logado — ver frontend/src/lib/avatarCores.ts.
+	corAvatar?: string | null;
+	foto?: string | null;
 };
 
 type Sessao = {
@@ -29,6 +32,9 @@ type AuthContextType = {
 	podeModulo: (modulo: string) => boolean;
 	login: (loginUsuario: string, senha: string) => Promise<void>;
 	logout: () => Promise<void>;
+	// Recarrega a sessão sem logout/login — usado depois de salvar cor/foto do
+	// avatar (MeuPerfilModal) pra o header refletir a mudança na hora.
+	refreshSessao: () => Promise<void>;
 };
 
 const SESSAO_DESLOGADA: Sessao = { autenticado: false };
@@ -110,6 +116,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 				podeModulo: calcularPodeModulo(sessao),
 				login,
 				logout,
+				refreshSessao: buscarSessao,
 			}}
 		>
 			{children}

@@ -31,6 +31,12 @@ contextBridge.exposeInMainWorld("api", {
 		ipcRenderer.invoke("remover-imagem-produto", produtoId),
 	getImagemProduto: (nomeArquivo) =>
 		ipcRenderer.invoke("get-imagem-produto", nomeArquivo),
+	listarImagens: (opcoes) => ipcRenderer.invoke("listar-imagens", opcoes),
+	listarImagensOrfas: () => ipcRenderer.invoke("listar-imagens-orfas"),
+	obterImagemPorId: (id) => ipcRenderer.invoke("obter-imagem-por-id", id),
+	excluirImagemPorId: (id) => ipcRenderer.invoke("excluir-imagem-por-id", id),
+	excluirImagensEmLote: (ids) =>
+		ipcRenderer.invoke("excluir-imagens-em-lote", ids),
 	buscarSKU: (sku) => ipcRenderer.invoke("buscar-sku", sku),
 	buscarProdutosTermo: (termo) =>
 		ipcRenderer.invoke("buscar-produtos-termo", termo),
@@ -234,6 +240,12 @@ contextBridge.exposeInMainWorld("api", {
 	listarUsuarios: () => ipcRenderer.invoke("listar-usuarios"),
 	salvarUsuario: (dados) => ipcRenderer.invoke("salvar-usuario", dados),
 	removerUsuario: (id) => ipcRenderer.invoke("remover-usuario", id),
+	salvarMinhaCorAvatar: (cor) =>
+		ipcRenderer.invoke("salvar-minha-cor-avatar", cor),
+	escolherMinhaFoto: () => ipcRenderer.invoke("escolher-minha-foto"),
+	removerMinhaFoto: () => ipcRenderer.invoke("remover-minha-foto"),
+	getFotoUsuario: (nomeArquivo) =>
+		ipcRenderer.invoke("get-foto-usuario", nomeArquivo),
 	getAuthSession: () => ipcRenderer.invoke("get-auth-session"),
 	logout: () => ipcRenderer.invoke("logout"),
 	listarTabelasBanco: () => ipcRenderer.invoke("listar-tabelas-banco"),

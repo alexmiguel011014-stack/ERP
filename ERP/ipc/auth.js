@@ -31,6 +31,8 @@ function registrar(ipcMain, deps) {
 				nome: resultado.usuario.nome,
 				id: resultado.usuario.id,
 				permissoes: resultado.usuario.permissoes || {},
+				corAvatar: resultado.usuario.corAvatar,
+				foto: resultado.usuario.foto,
 			});
 			iniciarBackupAutomatico();
 			gerarRecorrentesSemQuebrarLogin();
@@ -69,7 +71,13 @@ function registrar(ipcMain, deps) {
 					autenticado: true,
 					perfil: sessao.perfil,
 					permissoes: sessao.permissoes || {},
-					usuario: { id: sessao.id, login: sessao.login, nome: sessao.nome },
+					usuario: {
+						id: sessao.id,
+						login: sessao.login,
+						nome: sessao.nome,
+						corAvatar: sessao.corAvatar,
+						foto: sessao.foto,
+					},
 				}
 			: { autenticado: false };
 	});

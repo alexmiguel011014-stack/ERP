@@ -12,7 +12,7 @@ const {
 	buscarProdutosPorTermo,
 	salvarImagemProduto,
 	removerImagemProduto,
-	getCaminhoImagemProduto,
+	obterImagemProduto,
 } = require("../database");
 
 function registrar(ipcMain, deps) {
@@ -212,17 +212,21 @@ function registrar(ipcMain, deps) {
 		}
 	});
 
-	// Lê a imagem do disco e retorna como data URL — evita expor caminhos de
-	// arquivo ao renderer e contorna a CSP em contexto isolado (sem file://).
-	ipcMain.handle("get-imagem-produto", async (event, nomeArquivo) => {
+	// Lê a imagem do banco (Imagens, ver db/imagens.js) e retorna como data URL
+	// — evita expor bytes crus ao renderer e contorna a CSP em contexto isolado.
+	// `imagemId` é o valor devolvido em `imagem` por salvarImagemProduto/pelas
+	// queries de listagem (Produtos.imagem_id), não mais um nome de arquivo.
+	ipcMain.handle("get-imagem-produto", async (event, imagemId) => {
 		try {
 			exigirSessao();
-			const caminho = getCaminhoImagemProduto(nomeArquivo);
-			if (!caminho || !require("fs").existsSync(caminho)) return null;
-			const buffer = require("fs").readFileSync(caminho);
-			const ext = require("path").extname(caminho).slice(1).toLowerCase();
-			const mime = ext === "jpg" ? "jpeg" : ext;
-			return "data:image/" + mime + ";base64," + buffer.toString("base64");
+			const imagem = await obterImagemProduto(imagemId);
+			if (!imagem) return null;
+			return (
+				"data:image/" +
+				imagem.mimetype +
+				";base64," +
+				imagem.dados.toString("base64")
+			);
 		} catch (erro) {
 			throw erro.message;
 		}

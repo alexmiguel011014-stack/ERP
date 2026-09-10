@@ -60,6 +60,10 @@ export type Usuario = {
 	comissao_percentual: number;
 	// JSON serializado (ver db/usuarios.js) — usar parsePermissoesUsuario() pra ler.
 	permissoes: string;
+	// Avatar do usuário logado — ver frontend/src/lib/avatarCores.ts (espelho manual
+	// da whitelist de db/usuarios.js#CORES_AVATAR) e useFotoUsuario.ts.
+	cor_avatar: string | null;
+	foto: string | null;
 };
 
 export type UsuarioFormData = {
@@ -578,6 +582,27 @@ export type EscolherImagemResultado = {
 export type ImagemPendenteResultado =
 	| { cancelado: true }
 	| { cancelado: false; caminho: string; dataUrl: string };
+
+// Tela "Gerenciar Imagens" (admin) — ver GOALS.md "Image Database & Management".
+// entidade_tipo é polimórfico de propósito: hoje só "produto" existe.
+export type ImagemMeta = {
+	id: number;
+	entidade_tipo: string;
+	entidade_id: number;
+	mimetype: string;
+	tamanho_bytes: number;
+	nome_original: string | null;
+	criado_em: string;
+	atualizado_em: string;
+	entidade_nome: string | null;
+};
+
+export type ListaImagensResultado = {
+	linhas: ImagemMeta[];
+	total: number;
+	pagina: number;
+	limite: number;
+};
 
 export type MovimentacaoEstoque = {
 	id: number;
@@ -1138,6 +1163,18 @@ export const erpApi = {
 			invocar<{ success: boolean }>("salvarUsuario", dados),
 		remover: (id: number) =>
 			invocar<{ success: boolean }>("removerUsuario", id),
+		salvarCorAvatar: (cor: string) =>
+			invocar<{ success: boolean; corAvatar: string }>(
+				"salvarMinhaCorAvatar",
+				cor,
+			),
+		escolherFoto: () =>
+			invocar<{ success: boolean; cancelado?: boolean; foto?: string }>(
+				"escolherMinhaFoto",
+			),
+		removerFoto: () => invocar<{ success: boolean }>("removerMinhaFoto"),
+		foto: (nomeArquivo: string) =>
+			invocar<string | null>("getFotoUsuario", nomeArquivo),
 	},
 	banco: {
 		logAtividades: (filtro: FiltroLogAtividades) =>
@@ -1154,6 +1191,22 @@ export const erpApi = {
 			),
 		verificarSenhaAdmin: (senha: string) =>
 			invocar<{ ok: boolean }>("verificarSenhaAdmin", senha),
+	},
+	imagens: {
+		listar: (opcoes?: {
+			entidadeTipo?: string;
+			pagina?: number;
+			limite?: number;
+		}) => invocar<ListaImagensResultado>("listarImagens", opcoes),
+		listarOrfas: () => invocar<ImagemMeta[]>("listarImagensOrfas"),
+		obterPorId: (id: number) => invocar<string | null>("obterImagemPorId", id),
+		excluirPorId: (id: number) =>
+			invocar<{ success: boolean }>("excluirImagemPorId", id),
+		excluirEmLote: (ids: number[]) =>
+			invocar<{ success: boolean; removidas: number }>(
+				"excluirImagensEmLote",
+				ids,
+			),
 	},
 	vendas: {
 		importarHistorico: (linhas: LinhaImportacaoVenda[]) =>
