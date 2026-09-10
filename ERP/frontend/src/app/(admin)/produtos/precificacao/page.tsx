@@ -10,6 +10,7 @@ import { erpApi } from "@/lib/erpApi";
 import PrecificacaoTable, {
 	type AlteracaoPrecificacao,
 } from "@/components/produtos/PrecificacaoTable";
+import CondicoesParcelamentoPanel from "@/components/produtos/CondicoesParcelamentoPanel";
 
 function fmtMoeda(v: number) {
 	return Number(v || 0).toLocaleString("pt-BR", {
@@ -36,6 +37,7 @@ export default function PrecificacaoPage() {
 		setTaxaAdquirentePix,
 		taxaAdquirenteCartao,
 		setTaxaAdquirenteCartao,
+		condicoesParcelamento,
 		carregando,
 		erro,
 		recarregar,
@@ -484,6 +486,16 @@ export default function PrecificacaoPage() {
 					{mensagem.texto}
 				</div>
 			)}
+
+			<CondicoesParcelamentoPanel
+				condicoes={condicoesParcelamento}
+				produtos={dados.map((produto) => ({
+					id: produto.produto_id,
+					nome: produto.produto_nome,
+					preco: produto.preco_venda,
+				}))}
+				onSalvar={recarregar}
+			/>
 
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				<div className="flex flex-wrap items-center gap-3">

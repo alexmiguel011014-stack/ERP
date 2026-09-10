@@ -2,6 +2,10 @@
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import { formatarMoeda } from "./formatos";
+import type {
+	CondicaoParcelamento,
+	PreviaVendaParcelada,
+} from "@/lib/erpApi";
 
 const FORMAS_PAGAMENTO = [
 	{ value: "", label: "Selecione..." },
@@ -17,6 +21,14 @@ export default function PagamentoPainel({
 	setDesconto,
 	formaPagamento,
 	setFormaPagamento,
+	condicoes,
+	condicaoId,
+	setCondicaoId,
+	previaParcelamento,
+	erroPreviaParcelamento,
+	clienteFiadoSelecionado,
+	dataPrimeiroVencimento,
+	setDataPrimeiroVencimento,
 	valorRecebido,
 	setValorRecebido,
 	observacao,
@@ -32,6 +44,14 @@ export default function PagamentoPainel({
 	setDesconto: (v: string) => void;
 	formaPagamento: string;
 	setFormaPagamento: (v: string) => void;
+	condicoes: CondicaoParcelamento[];
+	condicaoId: number | null;
+	setCondicaoId: (v: number | null) => void;
+	previaParcelamento: PreviaVendaParcelada | null;
+	erroPreviaParcelamento: string | null;
+	clienteFiadoSelecionado: boolean;
+	dataPrimeiroVencimento: string;
+	setDataPrimeiroVencimento: (v: string) => void;
 	valorRecebido: string;
 	setValorRecebido: (v: string) => void;
 	observacao: string;
@@ -43,7 +63,16 @@ export default function PagamentoPainel({
 	onOrcamento: () => void;
 }) {
 	const descontoNum = Math.max(0, Number(desconto) || 0);
-	const total = Math.max(0, subtotal - descontoNum);
+	const condicao = condicoes.find((item) => item.id === condicaoId) || null;
+	const valorBase = Math.max(0, subtotal);
+	const acrescimoLocal = condicao
+		? Math.round(valorBase * Number(condicao.acrescimo_percentual || 0) * 100) /
+			10000
+		: 0;
+	const totalLocal = Math.max(0, valorBase + acrescimoLocal - descontoNum);
+	const total = previaParcelamento?.total ?? totalLocal;
+	const acrescimo = previaParcelamento?.acrescimo ?? acrescimoLocal;
+	const parcelamentoAtivo = formaPagamento === "Fiado" || formaPagamento === "Cartão";
 	const recebidoNum = Number(valorRecebido) || 0;
 	const troco = formaPagamento === "Dinheiro" ? recebidoNum - total : 0;
 
@@ -51,7 +80,12 @@ export default function PagamentoPainel({
 		!carrinhoVazio &&
 		!!formaPagamento &&
 		!processando &&
-		(formaPagamento !== "Dinheiro" || recebidoNum >= total);
+		(formaPagamento !== "Dinheiro" || recebidoNum >= total) &&
+		(!parcelamentoAtivo ||
+			(!!condicao &&
+				!!previaParcelamento &&
+				(formaPagamento !== "Fiado" ||
+					(clienteFiadoSelecionado && !!dataPrimeiroVencimento))));
 
 	return (
 		<div className="space-y-3 border-t border-gray-100 pt-3 dark:border-gray-800">
@@ -101,6 +135,63 @@ export default function PagamentoPainel({
 				</div>
 			)}
 
+			{parcelamentoAtivo && (
+				<div className="space-y-3 border-t border-gray-100 pt-3 dark:border-gray-800">
+					<div>
+						<Label>Condição de parcelamento</Label>
+						<select
+							value={condicaoId ?? ""}
+							onChange={(event) =>
+								setCondicaoId(
+									event.target.value ? Number(event.target.value) : null,
+								)
+							}
+							className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+						>
+							<option value="">Selecione...</option>
+							{condicoes.map((item) => (
+								<option key={item.id} value={item.id}>
+									{item.nome} — {Number(item.acrescimo_percentual).toFixed(2)}%
+								</option>
+							))}
+						</select>
+						{condicoes.length === 0 && (
+							<p className="mt-1 text-xs text-error-600 dark:text-error-400">
+								Não há condição ativa para esta forma de pagamento.
+							</p>
+						)}
+					</div>
+
+					{formaPagamento === "Fiado" && (
+						<>
+							<div>
+								<Label>Primeiro vencimento</Label>
+								<Input
+									type="date"
+									value={dataPrimeiroVencimento}
+									onChange={(event) => setDataPrimeiroVencimento(event.target.value)}
+								/>
+							</div>
+							{!clienteFiadoSelecionado && (
+								<p className="text-xs text-error-600 dark:text-error-400">
+									Selecione um cliente para vender fiado.
+								</p>
+							)}
+						</>
+					)}
+					{formaPagamento === "Cartão" && (
+						<p className="text-xs text-gray-500 dark:text-gray-400">
+							O parcelamento fica registrado na venda; não cria contas a receber do cliente.
+						</p>
+					)}
+					{erroPreviaParcelamento && (
+						<p className="text-xs text-error-600 dark:text-error-400">
+							{erroPreviaParcelamento}
+						</p>
+					)}
+				</div>
+			)}
+
 			<div>
 				<Label>Observação (opcional)</Label>
 				<Input
@@ -118,10 +209,28 @@ export default function PagamentoPainel({
 					<span>Desconto</span>
 					<span>{formatarMoeda(descontoNum)}</span>
 				</div>
+				{parcelamentoAtivo && condicao && (
+					<div className="flex justify-between text-gray-500 dark:text-gray-400">
+						<span>Acréscimo ({Number(condicao.acrescimo_percentual).toFixed(2)}%)</span>
+						<span>{formatarMoeda(acrescimo)}</span>
+					</div>
+				)}
 				<div className="flex justify-between text-base font-semibold text-gray-800 dark:text-white/90">
 					<span>Total</span>
 					<span>{formatarMoeda(total)}</span>
 				</div>
+				{parcelamentoAtivo && previaParcelamento && (
+					<div className="pt-1 text-xs text-gray-500 dark:text-gray-400">
+						{previaParcelamento.parcelas.map((parcela) => (
+							<p key={parcela.numero}>
+								{parcela.numero}/{previaParcelamento.parcelas.length}: {formatarMoeda(parcela.valor)}
+								{formaPagamento === "Fiado" && parcela.vencimento
+									? ` — vence ${new Date(`${parcela.vencimento}T12:00:00`).toLocaleDateString("pt-BR")}`
+									: ""}
+							</p>
+						))}
+					</div>
+				)}
 			</div>
 
 			{!caixaAberto && (

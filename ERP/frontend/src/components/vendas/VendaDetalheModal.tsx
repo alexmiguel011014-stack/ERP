@@ -8,7 +8,7 @@ import Badge from "@/components/ui/badge/Badge";
 import { formatarAtributos } from "@/lib/utils/formatos";
 import { exportarVendaDetalhePdf } from "@/lib/utils/vendasExport";
 import { formatarData, formatarMoeda } from "./formatos";
-import type { ItemVenda, Venda } from "@/lib/erpApi";
+import type { ItemVenda, ParcelaVenda, Venda } from "@/lib/erpApi";
 
 const OPCOES_NOTA = [
 	{ value: "nao_emitida", label: "Não emitida" },
@@ -27,14 +27,18 @@ const BADGE_POR_STATUS = {
 export default function VendaDetalheModal({
 	venda,
 	itens,
+	parcelas,
 	carregandoItens,
+	carregandoParcelas = false,
 	onClose,
 	onConverter,
 	onAtualizarNotaFiscal,
 }: {
 	venda: Venda | null;
 	itens: ItemVenda[] | undefined;
+	parcelas?: ParcelaVenda[];
 	carregandoItens: boolean;
+	carregandoParcelas?: boolean;
 	onClose: () => void;
 	onConverter: (vendaId: number) => Promise<void>;
 	onAtualizarNotaFiscal: (
@@ -110,6 +114,26 @@ export default function VendaDetalheModal({
 							{venda.cliente_nome || "Não informado"}
 						</span>
 					</p>
+					{venda.condicao_parcelamento_nome && (
+						<p className="col-span-2 text-gray-500 dark:text-gray-400">
+							Parcelamento: {" "}
+							<span className="text-gray-800 dark:text-white/90">
+								{venda.condicao_parcelamento_nome}
+								{venda.acrescimo_parcelamento
+									? ` (+${Number(venda.acrescimo_parcelamento).toFixed(2)}%)`
+									: ""}
+							</span>
+						</p>
+					)}
+					{venda.forma_pagamento === "Fiado" &&
+						venda.data_primeiro_vencimento && (
+							<p className="col-span-2 text-gray-500 dark:text-gray-400">
+								Primeiro vencimento: {" "}
+								<span className="text-gray-800 dark:text-white/90">
+									{formatarData(venda.data_primeiro_vencimento)}
+								</span>
+							</p>
+						)}
 					{venda.observacao && (
 						<p className="col-span-2 text-gray-500 dark:text-gray-400">
 							Observação:{" "}
@@ -119,6 +143,29 @@ export default function VendaDetalheModal({
 						</p>
 					)}
 				</div>
+
+				{venda.forma_pagamento === "Fiado" && (
+					<div className="mt-4 rounded-lg border border-gray-100 p-3 text-sm dark:border-gray-800">
+						<p className="font-semibold text-gray-800 dark:text-white/90">
+							Parcelas a receber
+						</p>
+						{carregandoParcelas ? (
+							<p className="mt-2 text-gray-500">Carregando parcelas...</p>
+						) : parcelas && parcelas.length > 0 ? (
+							<div className="mt-2 space-y-1 text-gray-600 dark:text-gray-300">
+								{parcelas.map((parcela) => (
+									<p key={parcela.id || parcela.numero}>
+										{parcela.numero}/{parcela.total || venda.parcelas}: {" "}
+										{formatarMoeda(parcela.valor)} — {formatarData(parcela.vencimento)}
+										{parcela.status ? ` (${parcela.status})` : ""}
+									</p>
+								))}
+							</div>
+						) : (
+							<p className="mt-2 text-gray-500">Sem parcelas em aberto.</p>
+						)}
+					</div>
+				)}
 
 				<div className="mt-4 overflow-x-auto">
 					<table className="w-full text-left text-sm">

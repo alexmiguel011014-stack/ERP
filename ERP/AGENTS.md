@@ -273,6 +273,14 @@ pro racional completo). Os dois frontends coexistem até o cutover final (Fase 6
   Imagens", admin), reusa o mesmo gate de senha do `/banco` (`verificarSenhaAdmin`) — grid com
   ver/substituir/excluir + aba de imagens órfãs (entidade dona já não existe).
 
+### Parcelamento v1
+
+- `CondicoesParcelamento` centraliza condições ativas por forma (`Fiado` ou `Cartão`), quantidade de parcelas e acréscimo percentual; a Precificação só prevê o resultado e não altera o preço-base da variação.
+- O processo principal recalcula valores em centavos a partir do preço persistido, preço do cliente, condição e desconto; a última parcela recebe o resíduo de arredondamento. Vencimentos de Fiado são mensais, preservando o fim do mês quando necessário.
+- Fiado exige cliente e primeiro vencimento. A venda cria recebíveis abertos vinculados à venda; cada baixa entra no fluxo realizado na data do pagamento, enquanto as abertas ficam no fluxo projetado pela data de vencimento.
+- Cartão pode ter parcelas e acréscimo, mas registra apenas o snapshot comercial na venda e é reconhecido uma única vez na data da venda. Não cria recebível do cliente nem simula agenda de adquirente.
+- A gestão de condições é `admin`; venda e baixa seguem as permissões existentes de Vendas e Financeiro. Não há integração de adquirente, antecipação, taxas por bandeira ou pagamento misto nesta versão.
+
 ## Integrações Externas (Pix / Fiscal)
 
 Estrutura genérica pronta, aguardando credenciais reais (loja não é do desenvolvedor;

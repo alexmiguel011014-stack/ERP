@@ -6,7 +6,7 @@ const { migrarImagensLegadas } = require("./imagens");
 // precisa de tabela própria). Incremente manualmente sempre que uma migração
 // nova for adicionada acima, para que código futuro possa checar "este banco
 // é anterior à feature X" sem depender só de IF NOT EXISTS/colunas presentes.
-const VERSAO_SCHEMA = 1;
+const VERSAO_SCHEMA = 3;
 
 function obterVersaoSchema(conn) {
 	return new Promise((resolver) => {
@@ -541,6 +541,62 @@ async function iniciarBanco() {
 	await migrarColunas(conexao, "LancamentosFinanceiros", {
 		cliente_id: "cliente_id INTEGER REFERENCES Clientes(id) ON DELETE SET NULL",
 	});
+	// Snapshot comercial do parcelamento: a condição pode ser alterada depois,
+	// mas uma venda já concluída precisa preservar a oferta aceita naquele dia.
+	await migrarColunas(conexao, "Vendas", {
+		condicao_parcelamento_id: "condicao_parcelamento_id INTEGER",
+		condicao_parcelamento_nome: "condicao_parcelamento_nome TEXT",
+		parcelas: "parcelas INTEGER NOT NULL DEFAULT 1",
+		acrescimo_percentual: "acrescimo_percentual REAL NOT NULL DEFAULT 0",
+		acrescimo_parcelamento: "acrescimo_parcelamento REAL NOT NULL DEFAULT 0",
+		valor_a_vista: "valor_a_vista REAL NOT NULL DEFAULT 0",
+		valor_base_parcelamento: "valor_base_parcelamento REAL",
+		total_parcelado: "total_parcelado REAL",
+		data_primeiro_vencimento: "data_primeiro_vencimento TEXT",
+		request_id: "request_id TEXT",
+	});
+	await runOn(
+		conexao,
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_vendas_request_id ON Vendas(request_id) WHERE request_id IS NOT NULL",
+	);
+	await migrarColunas(conexao, "LancamentosFinanceiros", {
+		venda_id: "venda_id INTEGER REFERENCES Vendas(id) ON DELETE SET NULL",
+	});
+	await runOn(
+		conexao,
+		`
+    CREATE TABLE IF NOT EXISTS CondicoesParcelamento (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      codigo TEXT NOT NULL UNIQUE,
+      nome TEXT NOT NULL,
+      forma_pagamento TEXT NOT NULL,
+      numero_parcelas INTEGER NOT NULL,
+      acrescimo_percentual REAL NOT NULL DEFAULT 0,
+      ativo INTEGER NOT NULL DEFAULT 1,
+      ordem INTEGER NOT NULL DEFAULT 0,
+      criado_em TEXT,
+      atualizado_em TEXT,
+      CHECK (forma_pagamento IN ('Fiado', 'Cartão')),
+      CHECK (numero_parcelas >= 1),
+      CHECK (acrescimo_percentual >= 0)
+    )
+  `,
+	);
+	await runOn(
+		conexao,
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_condicoes_parcelamento_forma_parcelas ON CondicoesParcelamento(forma_pagamento, numero_parcelas)",
+	);
+	const agoraParcelamento = new Date().toISOString();
+	await runOn(
+		conexao,
+		"INSERT OR IGNORE INTO CondicoesParcelamento (codigo, nome, forma_pagamento, numero_parcelas, acrescimo_percentual, ativo, ordem, criado_em, atualizado_em) VALUES (?, ?, ?, 1, 0, 1, 1, ?, ?)",
+		["fiado-1x", "Fiado 1x", "Fiado", agoraParcelamento, agoraParcelamento],
+	);
+	await runOn(
+		conexao,
+		"INSERT OR IGNORE INTO CondicoesParcelamento (codigo, nome, forma_pagamento, numero_parcelas, acrescimo_percentual, ativo, ordem, criado_em, atualizado_em) VALUES (?, ?, ?, 1, 0, 1, 1, ?, ?)",
+		["cartao-1x", "Cartão 1x", "Cartão", agoraParcelamento, agoraParcelamento],
+	);
 	await criarVariacoesPadrao(conexao);
 
 	// Importações: rastreamento de lotes de importação, mapeamento de chaves

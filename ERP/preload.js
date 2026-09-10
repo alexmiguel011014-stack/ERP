@@ -41,6 +41,8 @@ contextBridge.exposeInMainWorld("api", {
 	buscarProdutosTermo: (termo) =>
 		ipcRenderer.invoke("buscar-produtos-termo", termo),
 	finalizarVenda: (dados) => ipcRenderer.invoke("finalizar-venda", dados),
+	calcularVendaParcelada: (dados) =>
+		ipcRenderer.invoke("calcular-venda-parcelada", dados),
 	dashboardStats: () => ipcRenderer.invoke("dashboard-stats"),
 	dashboardFaturamentoPeriodo: (range) =>
 		ipcRenderer.invoke("dashboard-faturamento-periodo", range),
@@ -70,6 +72,8 @@ contextBridge.exposeInMainWorld("api", {
 	registrarVendaFiadoHistorica: (dados) =>
 		ipcRenderer.invoke("registrar-venda-fiado-historica", dados),
 	getItensVenda: (vendaId) => ipcRenderer.invoke("get-itens-venda", vendaId),
+	getParcelasVenda: (vendaId) =>
+		ipcRenderer.invoke("get-parcelas-venda", vendaId),
 	getEstoqueNegativo: () => ipcRenderer.invoke("get-estoque-negativo"),
 	getCategorias: () => ipcRenderer.invoke("get-categorias"),
 	categoriasWithUsage: (incluirInativas) =>
@@ -78,6 +82,14 @@ contextBridge.exposeInMainWorld("api", {
 	inativarCategoria: (id) => ipcRenderer.invoke("inativar-categoria", id),
 	reativarCategoria: (id) => ipcRenderer.invoke("reativar-categoria", id),
 	getPricingData: () => ipcRenderer.invoke("get-pricing-data"),
+	listarCondicoesParcelamento: (formaPagamento, incluirInativas) =>
+		ipcRenderer.invoke(
+			"get-condicoes-parcelamento",
+			formaPagamento,
+			incluirInativas,
+		),
+	salvarCondicaoParcelamento: (dados) =>
+		ipcRenderer.invoke("salvar-condicao-parcelamento", dados),
 	getGlobalMargin: () => ipcRenderer.invoke("get-global-margin"),
 	saveGlobalMargin: (valor) => ipcRenderer.invoke("save-global-margin", valor),
 	getCustoFixoConfig: () => ipcRenderer.invoke("get-custo-fixo-config"),

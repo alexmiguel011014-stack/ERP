@@ -1,6 +1,11 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { erpApi, type ItemVenda, type Venda } from "@/lib/erpApi";
+import {
+	erpApi,
+	type ItemVenda,
+	type ParcelaVenda,
+	type Venda,
+} from "@/lib/erpApi";
 
 export function useVendas() {
 	const [dataInicio, setDataInicio] = useState("");
@@ -11,6 +16,12 @@ export function useVendas() {
 
 	const [itensCache, setItensCache] = useState<Record<number, ItemVenda[]>>({});
 	const [carregandoItens, setCarregandoItens] = useState<
+		Record<number, boolean>
+	>({});
+	const [parcelasCache, setParcelasCache] = useState<
+		Record<number, ParcelaVenda[]>
+	>({});
+	const [carregandoParcelas, setCarregandoParcelas] = useState<
 		Record<number, boolean>
 	>({});
 
@@ -52,6 +63,22 @@ export function useVendas() {
 		[itensCache, carregandoItens],
 	);
 
+	const carregarParcelas = useCallback(
+		async (vendaId: number) => {
+			if (parcelasCache[vendaId] || carregandoParcelas[vendaId]) return;
+			setCarregandoParcelas((atual) => ({ ...atual, [vendaId]: true }));
+			try {
+				const parcelas = await erpApi.vendas.parcelas(vendaId);
+				setParcelasCache((atual) => ({ ...atual, [vendaId]: parcelas }));
+			} catch {
+				// O detalhe continua disponível para vendas antigas sem recebíveis.
+			} finally {
+				setCarregandoParcelas((atual) => ({ ...atual, [vendaId]: false }));
+			}
+		},
+		[parcelasCache, carregandoParcelas],
+	);
+
 	async function converterOrcamento(vendaId: number) {
 		await erpApi.vendas.converterOrcamento(vendaId);
 		await carregar();
@@ -83,6 +110,9 @@ export function useVendas() {
 		itensCache,
 		carregandoItens,
 		carregarItens,
+		parcelasCache,
+		carregandoParcelas,
+		carregarParcelas,
 		converterOrcamento,
 		atualizarNotaFiscal,
 	};
