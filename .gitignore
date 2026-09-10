@@ -52,6 +52,13 @@ blob-report/
 frontend/.next/
 frontend/out/
 
+# Worktrees do Claude Code — cópias locais do repo, cada uma com o próprio
+# checkout. Até agora só o .git/info/exclude segurava isso, que é local e não
+# acompanha o clone; aqui vale em qualquer máquina. NÃO ignorar `.claude/`
+# inteiro: `.claude/settings.json` é versionado de propósito (ver AGENTS.md,
+# seção "Worktrees").
+.claude/worktrees/
+
 # Projetos separados que vivem em repositórios próprios — nunca devem
 # ser versionados aqui por engano (ver: remoção do PONTO_APP e base_project).
 PONTO_APP/
