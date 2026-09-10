@@ -164,6 +164,13 @@ function extrairValorAVista(texto) {
 // conhecido — nunca lança, porque data ausente é o caso normal em várias
 // abas (Crediário, Contas a Pagar, Custos Fixos).
 function paraDataISO(valor) {
+	if (typeof valor === "number" && Number.isFinite(valor) && valor >= 20000) {
+		const dataExcel = XLSX.SSF.parse_date_code(valor);
+		if (dataExcel?.y && dataExcel?.m && dataExcel?.d) {
+			return `${dataExcel.y}-${String(dataExcel.m).padStart(2, "0")}-${String(dataExcel.d).padStart(2, "0")}`;
+		}
+	}
+
 	const texto = celulaTexto(valor);
 	if (!texto) return null;
 
@@ -1511,7 +1518,7 @@ function parseFinanceiroHistoricoMensal(caminhoXlsx, mes) {
 	}
 
 	const { movimentos, saldoInformado, saldoAbertura } = extrairMovimentosFinanceiroMensal(
-		lerAba(workbook, nomeAba),
+		lerAba(workbook, nomeAba, true),
 		nomeAba,
 	);
 	const resultado = {
@@ -2063,12 +2070,12 @@ function parseAbaAnalise(linhas, pendencias) {
 
 // ---------------------------------------------------------------------------
 
-function lerAba(workbook, nomeAba) {
+function lerAba(workbook, nomeAba, raw = false) {
 	const planilha = workbook.Sheets[nomeAba];
 	if (!planilha) return [];
 	return XLSX.utils.sheet_to_json(planilha, {
 		header: 1,
-		raw: false,
+		raw,
 		defval: null,
 	});
 }
