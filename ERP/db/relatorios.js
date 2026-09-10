@@ -38,7 +38,11 @@ async function getDRE(dataInicio, dataFim) {
 	const fim = dataFim || hoje;
 
 	const resumoVendas = await getAsync(
-		"SELECT COUNT(*) AS vendas, COALESCE(SUM(total), 0) AS receitaBruta, COALESCE(SUM(desconto), 0) AS descontos FROM Vendas WHERE status = 'finalizada' AND DATE(data_venda) BETWEEN ? AND ?",
+		"SELECT COUNT(*) AS vendas, COALESCE(SUM(total), 0) AS receitaBruta, COALESCE(SUM(desconto), 0) AS descontos FROM Vendas WHERE status = 'finalizada' AND COALESCE(origem, '') != 'importacao_financeiro_historico' AND DATE(data_venda) BETWEEN ? AND ?",
+		[inicio, fim],
+	);
+	const receitaHistoricaSemCMVLinha = await getAsync(
+		"SELECT COALESCE(SUM(total), 0) AS receita FROM Vendas WHERE status = 'finalizada' AND origem = 'importacao_financeiro_historico' AND DATE(data_venda) BETWEEN ? AND ?",
 		[inicio, fim],
 	);
 
@@ -52,7 +56,7 @@ async function getDRE(dataInicio, dataFim) {
 	);
 
 	const despesasLinha = await getAsync(
-		"SELECT COALESCE(SUM(valor), 0) AS despesas FROM LancamentosFinanceiros WHERE tipo = 'pagar' AND status = 'pago' AND DATE(data_pagamento) BETWEEN ? AND ?",
+		"SELECT COALESCE(SUM(valor), 0) AS despesas FROM LancamentosFinanceiros WHERE tipo = 'pagar' AND status = 'pago' AND COALESCE(origem, '') != 'importacao_financeiro_historico' AND DATE(data_pagamento) BETWEEN ? AND ?",
 		[inicio, fim],
 	);
 
@@ -80,6 +84,10 @@ async function getDRE(dataInicio, dataFim) {
 	return {
 		periodo: { inicio, fim },
 		vendas: Number(resumoVendas.vendas) || 0,
+		// Histórico sem ItemVenda não tem CMV verificável. Ele aparece em Vendas
+		// e Fluxo de Caixa, mas fica fora da margem/DRE para não fabricar lucro.
+		receitaHistoricaSemCMV:
+			Number(receitaHistoricaSemCMVLinha.receita) || 0,
 		receitaBruta,
 		descontos,
 		receitaLiquida,

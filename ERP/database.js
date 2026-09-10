@@ -196,10 +196,18 @@ module.exports = {
 	excluirImagensEmLote: imagens.excluirImagensEmLote,
 	buscaGlobal: vendas.buscaGlobal,
 	executarImportacaoLojHouse: importacoes.executarImportacaoLojHouse,
+	executarImportacaoFinanceiroMensal:
+		importacoes.executarImportacaoFinanceiroMensal,
 	obterHistoricoLotes: importacoes.obterHistoricoLotes,
 	obterDetalhesLote: importacoes.obterDetalhesLote,
 	normalizarConteudoArquivoImportacao: importacoes.normalizarConteudoArquivo,
 	parseExcelLojaHouse: excelLojaHouse.parseExcelLojaHouse,
+	parseFinanceiroHistoricoMensal:
+		excelLojaHouse.parseFinanceiroHistoricoMensal,
+	criarModeloFinanceiroMensal: excelLojaHouse.criarModeloFinanceiroMensal,
+	validarModeloFinanceiroMensal: excelLojaHouse.validarModeloFinanceiroMensal,
+	serializarModeloFinanceiroMensal:
+		excelLojaHouse.serializarModeloFinanceiroMensal,
 	registrarConsignacao: consignacoes.registrarConsignacao,
 	marcarDevolvida: consignacoes.marcarDevolvida,
 	marcarPerdida: consignacoes.marcarPerdida,

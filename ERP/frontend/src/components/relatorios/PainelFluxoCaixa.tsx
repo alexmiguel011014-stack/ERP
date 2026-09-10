@@ -25,6 +25,7 @@ function origemTexto(origem: string): string {
 			recorrente: "Recorrente",
 			devolucao: "Devolução",
 			importacao_migracao: "Importação",
+			importacao_financeiro_historico: "Histórico financeiro",
 		}[origem] || origem
 	);
 }

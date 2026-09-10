@@ -6073,7 +6073,7 @@ multi-month migration.
 
 ### Design rationale and contract
 
-- [ ] **GOALS18-01 — Define one canonical monthly-envelope schema.** Use a versioned object,
+- [x] **GOALS18-01 — Define one canonical monthly-envelope schema.** Use a versioned object,
   not multiple loosely coupled arrays: `{ formato: 'loja_house.financeiro_historico', versao: 1,
   competencia: '2026-01', origem, auditoria, movimentos }`. `origem` contains only the source
   workbook filename, selected sheet and SHA-256; `auditoria` contains integer-cent opening,
@@ -6085,7 +6085,7 @@ multi-month migration.
   **Done when:** a synthetic January envelope can express all 20 source movements and its
   semantic fields without a current-catalog reference.
 
-- [ ] **GOALS18-02 — Make the JSON a reviewed source artifact, not repository data.** Generate
+- [x] **GOALS18-02 — Make the JSON a reviewed source artifact, not repository data.** Generate
   the real model only after the operator selects an external destination with a save dialog; never
   silently write under the app repository, `frontend/out`, or the production database. Add a
   targeted ignore guard for accidental `loja-house-financeiro-*.json` copies while keeping only
@@ -6094,7 +6094,7 @@ multi-month migration.
   **Done when:** a real model can be saved outside the repository and `git status` remains free of
   financial source JSON.
 
-- [ ] **GOALS18-03 — Keep classifications conservative and source-derived.** `entrada` may use
+- [x] **GOALS18-03 — Keep classifications conservative and source-derived.** `entrada` may use
   only `venda_historica` after January's accepted sale rule; `saida` may use only
   `pagamento_historico` with a closed category (`Pagamento de cartão`,
   `Compra para estoque histórica`, `Consumo interno`, or `Empréstimo/adiantamento`). A doubtful
@@ -6104,7 +6104,7 @@ multi-month migration.
   **Done when:** the validator rejects a product link, an `entrada` payment, an uncategorized
   payment, and an unresolved row submitted for commit.
 
-- [ ] **GOALS18-04 — Reconcile mathematically without inventing opening cash.** Require
+- [x] **GOALS18-04 — Reconcile mathematically without inventing opening cash.** Require
   `saldo_abertura_centavos + total_entradas_centavos - total_saidas_centavos =
   saldo_fechamento_calculado_centavos`, and require the calculated and reported closing balances
   to agree to the cent. January's opening audit balance is zero; later months may carry a
@@ -6115,7 +6115,7 @@ multi-month migration.
 
 ### Implementation plan
 
-- [ ] **GOALS18-05 — Separate draft generation from JSON consumption.** In
+- [x] **GOALS18-05 — Separate draft generation from JSON consumption.** In
   `db/excel-loja-house.js`, retain the native Excel parser only as a January draft generator and
   factor its output through pure helpers such as `criarModeloFinanceiroMensal()` and
   `validarModeloFinanceiroMensal()`. In `db/importacoes.js`, accept the normalized envelope rather
@@ -6125,7 +6125,7 @@ multi-month migration.
   normalizer to the current 17-sale/3-payment internal shape, and no execution API needs the
   workbook path.
 
-- [ ] **GOALS18-06 — Add narrow JSON IPC and typed API contracts.** In
+- [x] **GOALS18-06 — Add narrow JSON IPC and typed API contracts.** In
   `ipc/importacoes.js`, `preload.js`, `database.js`, and
   `frontend/src/lib/erpApi.ts`, provide January-only actions to generate a draft JSON, select and
   validate a reviewed JSON, and execute from that selected JSON. Bind preview to its canonical
@@ -6134,7 +6134,7 @@ multi-month migration.
   **Done when:** a JSON is the only accepted monthly-finance commit input, while unsupported
   months and malformed/non-matching files return a source-level error with no database write.
 
-- [ ] **GOALS18-07 — Preserve atomic, content-aware idempotency.** Extend the import audit schema
+- [x] **GOALS18-07 — Preserve atomic, content-aware idempotency.** Extend the import audit schema
   only as needed to retain competence/source checksum and a per-row canonical-content fingerprint.
   Within the same transaction, reject duplicate keys inside one envelope; treat the same key and
   fingerprint as an idempotent retry; treat the same key with changed source facts, or a different
@@ -6143,7 +6143,7 @@ multi-month migration.
   **Done when:** retrying the identical January JSON imports nothing twice, whereas an edited
   amount, description, source checksum, or reused key cannot silently alter reporting history.
 
-- [ ] **GOALS18-08 — Keep existing ERP semantics at the import adapter.** Adapt only validated
+- [x] **GOALS18-08 — Keep existing ERP semantics at the import adapter.** Adapt only validated
   `venda_historica` records to the summary `Vendas` path and only validated
   `pagamento_historico` records to paid `LancamentosFinanceiros`. Keep source description/date,
   the dedicated historical origin and category; create no `ItensVenda`, receivable, stock movement,
@@ -6151,7 +6151,7 @@ multi-month migration.
   **Done when:** the JSON import preserves the same January reporting behavior defined by GOALS17
   without duplicating cash flow.
 
-- [ ] **GOALS18-09 — Change the January screen into a reviewable-file flow.** In
+- [x] **GOALS18-09 — Change the January screen into a reviewable-file flow.** In
   `frontend/src/app/(admin)/importacao/page.tsx`, present the sequence “generate draft JSON from
   January workbook → select reviewed JSON → preview → dry-run → explicit commit”. Display source
   sheet/checksums, competence, category totals, reconciliation and the 20 rows. Clearly state that
@@ -6162,7 +6162,7 @@ multi-month migration.
 
 ### Verification and rollout boundary
 
-- [ ] **GOALS18-10 — Add synthetic envelope tests.** Cover serialization and parsing of January's
+- [x] **GOALS18-10 — Add synthetic envelope tests.** Cover serialization and parsing of January's
   17/3/zero-pending split, all cent totals, invalid schema/version/competence, unknown fields,
   duplicate keys, an invalid destination/category, a stale preview checksum, source-row changes
   and a reconciliation mismatch. Use temporary synthetic workbooks/JSON only; do not make tests
@@ -6170,7 +6170,7 @@ multi-month migration.
   **Done when:** the focused test suite proves both parser-to-JSON and JSON-to-normalized-model
   paths without a real data file.
 
-- [ ] **GOALS18-11 — Prove database safety in a disposable database.** Verify dry-run has no
+- [x] **GOALS18-11 — Prove database safety in a disposable database.** Verify dry-run has no
   side effects, commit is atomic, failure rolls back, an exact JSON retry is idempotent, and a
   changed source is rejected. Assert exactly 17 finalized summary sales and 3 categorized paid
   outflows; zero sale items, stock changes, receivables, product/variation/customer links and
@@ -6186,7 +6186,7 @@ multi-month migration.
   **Done when:** the operator visibly confirms the generated/reselected JSON flow and the
   historical events appear once with no stock or product correlation.
 
-- [ ] **GOALS18-13 — Document the monthly boundary and stop.** Update
+- [x] **GOALS18-13 — Document the monthly boundary and stop.** Update
   `IMPORT_LOJA_HOUSE.md` with the envelope schema, external-storage rule, January workflow,
   category/pending policy and replay/conflict behavior. Keep GOALS17-14 and GOALS17-16 open until
   their existing manual January gate is actually passed; do not mark a later month ready merely

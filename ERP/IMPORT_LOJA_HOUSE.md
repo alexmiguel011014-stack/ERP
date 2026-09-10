@@ -8,6 +8,35 @@ Master plan for implementing a complete, idempotent, auditable data migration sy
 
 **Scope**: Backend batch import engine + idempotent batch tracking + frontend import wizard (folder picker, preview/validation, atomic commit, result log) + all 9 business entity types from the Loja House JSONs.
 
+## Histórico financeiro mensal (piloto de janeiro)
+
+O modo **Financeiro histórico — Janeiro** é separado da importação geral. A descrição
+histórica nunca é uma correspondência de produto, SKU, variação, cliente, fornecedor,
+estoque ou meio de pagamento do ERP atual. Uma `ENTRADA` com descrição de produto é
+uma venda histórica resumida para relatórios e fluxo de caixa, sem `ItensVenda` nem
+margem; uma `SAÍDA` é um pagamento histórico categorizado pela evidência da descrição.
+
+`TOTAL` e `Saldo Anterior` servem apenas para conciliar a planilha: não geram movimento,
+saldo inicial ou ajuste de estoque. Fatos que a planilha não informa continuam
+desconhecidos e linhas ambíguas ficam pendentes, bloqueando o commit até revisão. O
+piloto não interpreta fevereiro–setembro automaticamente.
+
+### JSON mensal revisado
+
+O piloto gera, fora do repositório, um único arquivo
+`loja-house-financeiro-2026-01.json`. A planilha `.xlsx` só serve para gerar esse
+rascunho; a prévia, simulação e importação relêem o JSON validado. O envelope traz
+versão, competência, nome/aba/checksum da planilha de origem, auditoria em centavos e
+movimentos com data, descrição original, valor, direção, destino e categoria. Ele não
+aceita campos de produto, SKU, estoque, cliente, fornecedor ou meio de pagamento.
+
+O JSON precisa fechar `abertura + entradas - saídas = fechamento` em centavos. A
+abertura é apenas auditoria, nunca um lançamento. Pendências bloqueiam o commit. A
+prévia guarda o checksum canônico do arquivo; se ele mudar, o operador deve selecioná-lo
+e simular novamente. O mesmo JSON é idempotente; um JSON diferente para janeiro bloqueia
+automaticamente e exige uma substituição auditada separada. Não salve nem versione o JSON
+real dentro deste repositório.
+
 ---
 
 ## Research: Loja House JSON Format & ERP Schema Fit

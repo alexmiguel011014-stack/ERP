@@ -902,6 +902,84 @@ export type ValidacaoArquivoExcelImportacao =
 			preview: PreviewImportacao;
 	  };
 
+export type MovimentoFinanceiroHistoricoPreview = {
+	chave_externa: string;
+	linha: number;
+	data: string;
+	descricao: string;
+	valor: number;
+	direcao: "entrada" | "saida";
+	destino: "venda_historica" | "pagamento_historico" | "pendente";
+	categoria?: string;
+	motivo?: string;
+};
+
+export type ReconciliacaoFinanceiroHistorico = {
+	saldoAbertura: number;
+	totalEntradas: number;
+	totalSaidas: number;
+	saldoCalculado: number;
+	saldoInformado: number | null;
+	diferenca: number | null;
+	valida: boolean;
+};
+
+export type PreviewFinanceiroJaneiroImportacao = {
+	mes: "JANEIRO";
+	aba: string;
+	arquivoChecksum: string;
+	vendasHistoricas: MovimentoFinanceiroHistoricoPreview[];
+	pagamentosHistoricos: MovimentoFinanceiroHistoricoPreview[];
+	pendenciasHistoricas: MovimentoFinanceiroHistoricoPreview[];
+	reconciliacao: ReconciliacaoFinanceiroHistorico;
+};
+
+export type ValidacaoFinanceiroJaneiroImportacao =
+	| { cancelado: true }
+	| { erro: string }
+	| {
+			formato: "json_financeiro_mes";
+			caminho: string;
+			checksum: string;
+			preview: PreviewFinanceiroJaneiroImportacao;
+	  };
+
+export type EntradaImportacaoFinanceiroJaneiro = {
+	tipo: "json_financeiro_mes";
+	caminho: string;
+	checksum: string;
+};
+
+export type PreviewDryRunFinanceiroJaneiro = {
+	mes: "JANEIRO";
+	vendasHistoricas: number;
+	pagamentosHistoricos: number;
+	pendenciasHistoricas: number;
+	porCategoria: Record<string, number>;
+	reconciliacao: ReconciliacaoFinanceiroHistorico;
+};
+
+export type ResultadoDryRunFinanceiroJaneiro = {
+	dryRun: true;
+	preview: PreviewDryRunFinanceiroJaneiro;
+	conflitos: ConflitosImportacao;
+	checksum: string;
+};
+
+export type ResultadoImportacaoFinanceiroJaneiro = {
+	batchId: string;
+	importadas: { vendasHistoricas: number; pagamentosHistoricos: number };
+	ignoradas: number;
+	pendencias: number;
+	erros: ErroImportacaoItem[];
+	reconciliacao: ReconciliacaoFinanceiroHistorico;
+};
+
+export type ResultadoExecucaoFinanceiroJaneiro =
+	| ResultadoDryRunFinanceiroJaneiro
+	| ResultadoImportacaoFinanceiroJaneiro
+	| ErroImportacao;
+
 // Entrada aceita por executarImportacao: pasta de JSONs (string), ou
 // planilha Excel nativa — espelha os dois formatos que
 // executarImportacaoLojHouse (via ipc/importacoes.js) já aceita além do
@@ -923,6 +1001,8 @@ export type PreviewDryRunImportacao = {
 export type ConflitosImportacao = {
 	duplicadasJaImportadas: number;
 	alertasRegrasNegocio: string[];
+	loteIdenticoJaImportado?: boolean;
+	loteDiferenteJaImportado?: boolean;
 };
 
 export type ResultadoDryRunImportacao = {
@@ -1438,11 +1518,34 @@ export const erpApi = {
 				"validarArquivoExcelImportacao",
 				caminho,
 			),
+		gerarModeloFinanceiroJaneiro: (
+			caminhoPlanilha?: string,
+			caminhoDestino?: string,
+		) =>
+			invocar<ValidacaoFinanceiroJaneiroImportacao>(
+				"gerarModeloFinanceiroJaneiro",
+				caminhoPlanilha,
+				caminhoDestino,
+			),
+		validarModeloFinanceiroJaneiro: (caminho?: string) =>
+			invocar<ValidacaoFinanceiroJaneiroImportacao>(
+				"validarModeloFinanceiroJaneiro",
+				caminho,
+			),
 		executar: (
 			pasta: EntradaImportacao,
 			opcoes: { dryRun: boolean; dataMovimentacao?: string },
 		) =>
 			invocar<ResultadoExecucaoImportacao>("executarImportacao", pasta, opcoes),
+		executarFinanceiroJaneiro: (
+			entrada: EntradaImportacaoFinanceiroJaneiro,
+			opcoes: { dryRun: boolean },
+		) =>
+			invocar<ResultadoExecucaoFinanceiroJaneiro>(
+				"executarImportacao",
+				entrada,
+				opcoes,
+			),
 		historico: () => invocar<LoteImportacao[]>("historicoImportacoes"),
 		detalhes: (batchId: string) =>
 			invocar<DetalhesLoteImportacao>("detalhesImportacao", batchId),

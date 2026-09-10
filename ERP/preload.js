@@ -275,6 +275,14 @@ contextBridge.exposeInMainWorld("api", {
 		ipcRenderer.invoke("importacoes:validar-pasta-loja-house", pasta),
 	validarArquivoExcelImportacao: (caminho) =>
 		ipcRenderer.invoke("importacoes:validar-arquivo-excel", caminho),
+	gerarModeloFinanceiroJaneiro: (caminhoPlanilha, caminhoDestino) =>
+		ipcRenderer.invoke(
+			"importacoes:gerar-modelo-financeiro-janeiro",
+			caminhoPlanilha,
+			caminhoDestino,
+		),
+	validarModeloFinanceiroJaneiro: (caminho) =>
+		ipcRenderer.invoke("importacoes:validar-modelo-financeiro-janeiro", caminho),
 	executarImportacao: (pasta, opcoes) =>
 		ipcRenderer.invoke("importacoes:executar", pasta, opcoes),
 	historicoImportacoes: () => ipcRenderer.invoke("importacoes:historico-lotes"),

@@ -12,13 +12,18 @@ import {
 	type EntradaImportacao,
 	type LinhaImportacaoVenda,
 	type LoteImportacao,
+	type EntradaImportacaoFinanceiroJaneiro,
+	type ValidacaoFinanceiroJaneiroImportacao,
+	type PreviewFinanceiroJaneiroImportacao,
+	type ResultadoDryRunFinanceiroJaneiro,
+	type ResultadoImportacaoFinanceiroJaneiro,
 	type PreviewDryRunImportacao,
 	type PreviewImportacao,
 	type ResultadoImportacaoLote,
 	type StatusLoteImportacao,
 } from "@/lib/erpApi";
 
-type Modo = "loja_house" | "excel" | "legado";
+type Modo = "loja_house" | "excel" | "financeiro_janeiro" | "legado";
 
 function formatarDataHora(iso: string | null | undefined): string {
 	if (!iso) return "---";
@@ -31,6 +36,13 @@ function formatarDataHora(iso: string | null | undefined): string {
 		hour: "2-digit",
 		minute: "2-digit",
 	});
+}
+
+function formatarValor(valor: number | null | undefined): string {
+	return new Intl.NumberFormat("pt-BR", {
+		style: "currency",
+		currency: "BRL",
+	}).format(Number(valor) || 0);
 }
 
 const BADGE_POR_STATUS: Record<
@@ -53,6 +65,7 @@ const LABEL_POR_STATUS: Record<StatusLoteImportacao, string> = {
 const TITULO_POR_MODO: Record<Modo, string> = {
 	loja_house: "Importação de Dados — Loja House",
 	excel: "Importação de Dados — Planilha Excel",
+	financeiro_janeiro: "Importação Financeira Histórica — Janeiro",
 	legado: "Importação de Vendas Históricas",
 };
 
@@ -60,13 +73,16 @@ const DESCRICAO_POR_MODO: Record<Modo, string> = {
 	loja_house:
 		"Importa categorias, produtos, estoque, clientes e financeiro a partir da pasta exportada do sistema antigo.",
 	excel:
-		"Importa categorias, produtos, estoque e financeiro diretamente da planilha .xlsx da Loja House, sem passar pelos JSONs intermediários.",
+		"Importa categorias, produtos e estoque diretamente da planilha .xlsx. O financeiro histórico usa o modo mensal separado para não perder a semântica.",
+	financeiro_janeiro:
+		"Classifica apenas Financeiro LojaJANEIRO como vendas históricas e pagamentos, sem tocar em catálogo, estoque ou caixa inicial.",
 	legado: "Popula o histórico de vendas a partir de um arquivo já normalizado.",
 };
 
 const OPCOES_MODO: { modo: Modo; rotulo: string }[] = [
 	{ modo: "loja_house", rotulo: "Importação de dados (Loja House)" },
 	{ modo: "excel", rotulo: "Importar de planilha Excel (.xlsx)" },
+	{ modo: "financeiro_janeiro", rotulo: "Financeiro histórico — Janeiro" },
 	{ modo: "legado", rotulo: "Importação de vendas históricas (legado)" },
 ];
 
@@ -96,6 +112,8 @@ export default function ImportacaoPage() {
 
 			{modo === "legado" ? (
 				<ImportacaoLegado />
+			) : modo === "financeiro_janeiro" ? (
+				<ImportacaoFinanceiroJaneiro />
 			) : (
 				<ImportacaoLojaHouse modo={modo} />
 			)}
@@ -823,6 +841,332 @@ function ImportacaoLojaHouse({ modo }: { modo: "loja_house" | "excel" }) {
 				erroDetalhes={erroDetalhes}
 				onSelecionarLote={alternarDetalhesLote}
 			/>
+		</div>
+	);
+}
+
+function ImportacaoFinanceiroJaneiro() {
+	const [passo, setPasso] = useState<Passo>(1);
+	const [entrada, setEntrada] =
+		useState<EntradaImportacaoFinanceiroJaneiro | null>(null);
+	const [preview, setPreview] = useState<PreviewFinanceiroJaneiroImportacao | null>(
+		null,
+	);
+	const [dryRun, setDryRun] = useState<ResultadoDryRunFinanceiroJaneiro | null>(
+		null,
+	);
+	const [resultado, setResultado] =
+		useState<ResultadoImportacaoFinanceiroJaneiro | null>(null);
+	const [carregando, setCarregando] = useState(false);
+	const [erro, setErro] = useState<string | null>(null);
+
+	function resetar() {
+		setPasso(1);
+		setEntrada(null);
+		setPreview(null);
+		setDryRun(null);
+		setResultado(null);
+		setErro(null);
+	}
+
+	function aplicarModeloSelecionado(
+		validacao: Exclude<
+			ValidacaoFinanceiroJaneiroImportacao,
+			{ cancelado: true } | { erro: string }
+		>,
+	) {
+		setEntrada({
+			tipo: "json_financeiro_mes",
+			caminho: validacao.caminho,
+			checksum: validacao.checksum,
+		});
+		setPreview(validacao.preview);
+		setPasso(2);
+	}
+
+	async function gerarModelo() {
+		setCarregando(true);
+		setErro(null);
+		try {
+			const validacao = await erpApi.importacoes.gerarModeloFinanceiroJaneiro();
+			if ("cancelado" in validacao) return;
+			if ("erro" in validacao) {
+				setErro(validacao.erro);
+				return;
+			}
+			aplicarModeloSelecionado(validacao);
+		} catch (e) {
+			setErro(e instanceof Error ? e.message : "Erro ao gerar o JSON financeiro.");
+		} finally {
+			setCarregando(false);
+		}
+	}
+
+	async function selecionarModelo() {
+		setCarregando(true);
+		setErro(null);
+		try {
+			const validacao =
+				await erpApi.importacoes.validarModeloFinanceiroJaneiro();
+			if ("cancelado" in validacao) return;
+			if ("erro" in validacao) {
+				setErro(validacao.erro);
+				return;
+			}
+			aplicarModeloSelecionado(validacao);
+		} catch (e) {
+			setErro(e instanceof Error ? e.message : "Erro ao ler o JSON financeiro.");
+		} finally {
+			setCarregando(false);
+		}
+	}
+
+	async function executarDryRun() {
+		if (!entrada) return;
+		setCarregando(true);
+		setErro(null);
+		try {
+			const resposta = await erpApi.importacoes.executarFinanceiroJaneiro(
+				entrada,
+				{ dryRun: true },
+			);
+			if ("erro" in resposta) {
+				setErro(resposta.erro);
+				return;
+			}
+			if (!("dryRun" in resposta)) {
+				setErro("Resposta inesperada ao simular a importação.");
+				return;
+			}
+			setDryRun(resposta);
+		} catch (e) {
+			setErro(e instanceof Error ? e.message : "Erro ao simular a importação.");
+		} finally {
+			setCarregando(false);
+		}
+	}
+
+	async function confirmarImportacao() {
+		if (!entrada) return;
+		setCarregando(true);
+		setErro(null);
+		try {
+			const resposta = await erpApi.importacoes.executarFinanceiroJaneiro(
+				entrada,
+				{ dryRun: false },
+			);
+			if ("erro" in resposta) {
+				setErro(resposta.erro);
+				return;
+			}
+			if (!("batchId" in resposta)) {
+				setErro("Resposta inesperada ao importar.");
+				return;
+			}
+			setResultado(resposta);
+		} catch (e) {
+			setErro(e instanceof Error ? e.message : "Erro ao importar janeiro.");
+		} finally {
+			setCarregando(false);
+		}
+	}
+
+	const linhas = preview
+		? [
+				...preview.vendasHistoricas,
+				...preview.pagamentosHistoricos,
+				...preview.pendenciasHistoricas,
+			]
+		: [];
+	const bloqueado =
+		!preview ||
+		preview.pendenciasHistoricas.length > 0 ||
+		!preview.reconciliacao.valida ||
+		Boolean(dryRun?.conflitos.alertasRegrasNegocio.length);
+
+	return (
+		<div className="grid grid-cols-1 gap-4">
+			<div className="rounded-xl border border-brand-200 bg-brand-50 p-4 text-sm text-brand-700 dark:border-brand-800 dark:bg-brand-500/10 dark:text-brand-300">
+				Este piloto gera e importa apenas um <strong>JSON financeiro de janeiro</strong>.
+				Não cria estoque, caixa inicial, recebíveis, clientes, produtos ou correspondências de SKU.
+			</div>
+
+			<IndicadorPassos passo={passo} />
+
+			{passo === 1 && (
+				<div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+					<h2 className="text-base font-semibold text-gray-800 dark:text-white/90">
+						Passo 1 — Gerar ou selecionar JSON revisado
+					</h2>
+					<p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+						A planilha apenas gera o rascunho externo. O commit sempre relê o JSON
+						revisado, cuja prévia é travada por checksum; linhas ambíguas bloqueiam o commit.
+					</p>
+					<div className="mt-4 flex flex-wrap gap-2">
+						<Button onClick={gerarModelo} disabled={carregando}>
+							{carregando ? "Preparando..." : "Gerar JSON da planilha..."}
+						</Button>
+						<Button variant="outline" onClick={selecionarModelo} disabled={carregando}>
+							Selecionar JSON revisado...
+						</Button>
+					</div>
+				</div>
+			)}
+
+			{passo === 2 && preview && (
+				<div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+					<h2 className="text-base font-semibold text-gray-800 dark:text-white/90">
+						Passo 2 — Conferir JSON de janeiro
+					</h2>
+					<p className="mt-1 break-all text-sm text-gray-500 dark:text-gray-400">
+						{entrada?.caminho}
+					</p>
+
+					<div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+						{[
+							["Vendas históricas", preview.vendasHistoricas.length],
+							["Pagamentos históricos", preview.pagamentosHistoricos.length],
+							["Pendências", preview.pendenciasHistoricas.length],
+							["Saldo calculado", formatarValor(preview.reconciliacao.saldoCalculado)],
+						].map(([titulo, valor]) => (
+							<div
+								key={String(titulo)}
+								className="rounded-lg border border-gray-100 p-3 text-sm dark:border-gray-800"
+							>
+								<div className="font-semibold text-gray-800 dark:text-white/90">
+									{valor}
+								</div>
+								<div className="text-xs text-gray-500 dark:text-gray-400">{titulo}</div>
+							</div>
+						))}
+					</div>
+
+					<div className="mt-4 overflow-x-auto">
+						<table className="w-full text-left text-sm">
+							<thead>
+								<tr className="border-b border-gray-100 dark:border-gray-800">
+									{["Data", "Descrição original", "Destino", "Categoria", "Valor"].map(
+										(coluna) => (
+											<th
+												key={coluna}
+												className="whitespace-nowrap px-3 py-2 text-xs font-medium uppercase text-gray-400"
+											>
+												{coluna}
+											</th>
+										),
+									)}
+								</tr>
+							</thead>
+							<tbody>
+								{linhas.map((linha) => (
+									<tr
+										key={linha.chave_externa}
+										className="border-b border-gray-50 last:border-0 dark:border-gray-800/60"
+									>
+										<td className="whitespace-nowrap px-3 py-2">{linha.data}</td>
+										<td className="px-3 py-2 font-medium text-gray-800 dark:text-white/90">
+											{linha.descricao}
+										</td>
+										<td className="px-3 py-2 text-gray-600 dark:text-gray-300">
+											{linha.destino === "venda_historica"
+												? "Venda histórica"
+												: linha.destino === "pagamento_historico"
+													? "Pagamento histórico"
+													: "Pendente"}
+										</td>
+										<td className="px-3 py-2 text-gray-500 dark:text-gray-400">
+											{linha.categoria || linha.motivo || "---"}
+										</td>
+										<td className="whitespace-nowrap px-3 py-2 text-right">
+											{formatarValor(linha.valor)}
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+
+					<div className="mt-4 text-sm text-gray-600 dark:text-gray-300">
+						Abertura (auditoria): {formatarValor(preview.reconciliacao.saldoAbertura)} · Entradas: {formatarValor(preview.reconciliacao.totalEntradas)} · Saídas:{" "}
+						{formatarValor(preview.reconciliacao.totalSaidas)} · Saldo informado:{" "}
+						{preview.reconciliacao.saldoInformado == null
+							? "não localizado"
+							: formatarValor(preview.reconciliacao.saldoInformado)}
+					</div>
+
+					{bloqueado && (
+						<div className="mt-4 rounded-lg border border-warning-200 bg-warning-50 p-3 text-sm text-warning-700 dark:border-warning-800 dark:bg-warning-500/10 dark:text-orange-400">
+							A importação permanece bloqueada: revise as pendências ou a conciliação
+							antes de gravar qualquer dado.
+						</div>
+					)}
+
+					{dryRun && (
+						<div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-600 dark:border-gray-800 dark:bg-white/[0.02]">
+							{dryRun.conflitos.loteIdenticoJaImportado
+								? "Este JSON já foi importado; uma nova confirmação não duplicará nada."
+								: `${dryRun.conflitos.duplicadasJaImportadas} chave(s) já importada(s) serão ignoradas.`}{" "}
+							Checksum: <span className="font-mono text-xs">{dryRun.checksum}</span>
+						</div>
+					)}
+
+					<div className="mt-6 flex flex-wrap gap-2">
+						<Button variant="outline" onClick={resetar} disabled={carregando}>
+							Cancelar
+						</Button>
+						<Button onClick={executarDryRun} disabled={carregando}>
+							{carregando ? "Simulando..." : "Simular sem alterar o banco"}
+						</Button>
+						<Button
+							onClick={() => setPasso(3)}
+							disabled={!dryRun || bloqueado || carregando}
+						>
+							Confirmar importação
+						</Button>
+					</div>
+				</div>
+			)}
+
+			{passo === 3 && preview && !resultado && (
+				<div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+					<h2 className="text-base font-semibold text-gray-800 dark:text-white/90">
+						Passo 3 — Confirmar e importar
+					</h2>
+					<p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+						O JSON selecionado gravará {preview.vendasHistoricas.length} vendas históricas e{" "}
+						{preview.pagamentosHistoricos.length} pagamentos. Não haverá item de venda,
+						movimento de estoque ou recebível.
+					</p>
+					<div className="mt-6 flex gap-2">
+						<Button variant="outline" onClick={() => setPasso(2)} disabled={carregando}>
+							Voltar
+						</Button>
+						<Button onClick={confirmarImportacao} disabled={carregando}>
+							{carregando ? "Importando..." : "Importar JSON de janeiro"}
+						</Button>
+					</div>
+				</div>
+			)}
+
+			{resultado && (
+				<div className="rounded-xl border border-success-200 bg-success-50 p-4 text-sm text-success-700 dark:border-success-800 dark:bg-success-500/10 dark:text-success-400">
+					<h2 className="text-base font-semibold">Importação de janeiro concluída</h2>
+					<p className="mt-1">
+						{resultado.importadas.vendasHistoricas} vendas históricas e{" "}
+						{resultado.importadas.pagamentosHistoricos} pagamentos históricos gravados.
+					</p>
+					<p className="mt-1 font-mono text-xs">Lote {resultado.batchId}</p>
+					<div className="mt-4">
+						<Button onClick={resetar}>Nova importação</Button>
+					</div>
+				</div>
+			)}
+
+			{erro && (
+				<div className="rounded-xl border border-error-200 bg-error-50 p-4 text-sm text-error-600 dark:border-error-800 dark:bg-error-500/10 dark:text-error-400">
+					{erro}
+				</div>
+			)}
 		</div>
 	);
 }

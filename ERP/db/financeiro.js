@@ -335,7 +335,7 @@ async function getFluxoCaixa(dataInicio, dataFim) {
 	);
 
 	const entradasVendas = await allAsync(
-		`SELECT id, DATE(data_venda) AS dia, total, forma_pagamento
+		`SELECT id, DATE(data_venda) AS dia, total, forma_pagamento, origem, observacao
      FROM Vendas
      WHERE status = 'finalizada'
        AND (forma_pagamento IS NULL OR forma_pagamento != 'Fiado')
@@ -378,9 +378,18 @@ async function getFluxoCaixa(dataInicio, dataFim) {
 		...entradasVendas.map((venda) => ({
 			data: venda.dia,
 			tipo: "entrada",
-			origem: "venda",
-			descricao: `Venda #${venda.id}`,
-			categoria: null,
+			origem:
+				venda.origem === "importacao_financeiro_historico"
+					? "importacao_financeiro_historico"
+					: "venda",
+			descricao:
+				venda.origem === "importacao_financeiro_historico"
+					? venda.observacao || "Venda histórica importada"
+					: `Venda #${venda.id}`,
+			categoria:
+				venda.origem === "importacao_financeiro_historico"
+					? "Vendas históricas"
+					: null,
 			valor: venda.total,
 			referenciaId: venda.id,
 			formaPagamento: venda.forma_pagamento || null,
