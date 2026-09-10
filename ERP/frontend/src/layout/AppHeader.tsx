@@ -44,7 +44,7 @@ const AppHeader: React.FC = () => {
 	};
 
 	return (
-		<header className="sticky top-0 flex w-full bg-[#0F172A] border-white/10 z-99999 lg:border-b">
+		<header className="sticky top-0 flex w-full bg-[#0F172A] z-99999">
 			{/* Achado real (2026-08-29, correção da compactação de abas): sem
 			    min-w-0 aqui, este div (único filho flex do <header>) nunca
 			    encolhia abaixo da largura "natural" do seu conteúdo — o
@@ -93,13 +93,13 @@ const AppHeader: React.FC = () => {
 				{abas.length > 0 && (
 					<div
 						ref={faixaAbasRef}
-						className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-2.5"
+						className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pt-2.5"
 					>
 						{abas.map((aba) => {
 							const ativa = aba.id === abaAtivaId;
 							const fechavel = aba.id !== "dashboard";
 							const corAtiva = ativa
-								? "bg-white text-[#0F172A]"
+								? "bg-[#F0F4F8] dark:bg-gray-50 text-[#0F172A]"
 								: "bg-blue-400 text-white hover:bg-blue-300";
 							const botaoFechar = fechavel && (
 								<button
@@ -133,7 +133,7 @@ const AppHeader: React.FC = () => {
 								return (
 									<div
 										key={aba.id}
-										className={`group flex shrink-0 items-center gap-0.5 rounded-lg px-1 py-2.5 transition-colors ${corAtiva}`}
+										className={`group flex shrink-0 items-center gap-0.5 ${ativa ? "rounded-t-lg" : "rounded-lg"} px-1 py-2.5 transition-colors ${corAtiva}`}
 									>
 										<button
 											type="button"
@@ -154,9 +154,9 @@ const AppHeader: React.FC = () => {
 								<div
 									key={aba.id}
 									style={{ minWidth: LARGURA_MIN_ABA_NORMAL }}
-									className={`group flex flex-[0_1_170px] items-center gap-1.5 rounded-lg text-sm transition-colors ${
-										fechavel ? "pr-1" : "pr-2"
-									} ${corAtiva}`}
+									className={`group flex flex-[0_1_170px] items-center gap-1.5 text-sm transition-colors ${
+										ativa ? "rounded-t-lg" : "rounded-lg"
+									} ${fechavel ? "pr-1" : "pr-2"} ${corAtiva}`}
 								>
 									<button
 										type="button"

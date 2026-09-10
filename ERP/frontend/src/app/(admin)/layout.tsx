@@ -50,7 +50,11 @@ export default function AdminLayout({
 						{/* Header */}
 						<AppHeader />
 						{/* Page Content */}
-						<div className="p-4 mx-auto max-w-(--breakpoint-2xl)">
+						{/* Sem padding-top: a guia ativa do header (AppHeader.tsx) é
+						    pintada na mesma cor de fundo da página e sem borda embaixo
+						    dela — a intenção é ela encostar direto no conteúdo, sem
+						    nenhum respiro entre as duas. */}
+						<div className="px-4 pb-4 mx-auto max-w-(--breakpoint-2xl)">
 							<AbasAtivasWrapper>{children}</AbasAtivasWrapper>
 
 							<Footer />
