@@ -4453,6 +4453,54 @@ this image database — none of these are assumed into the plan above:
   pagamento anexado" would need a new picker component and a couple of IPC handlers, not a new
   migration. Not building any of those now — just noting the door is already open.
 
+### Correção (2026-09-10): "Gerenciar Imagens" integrado a `/banco`, não rota/sidebar própria
+
+**O que aconteceu**: a primeira versão (acima) construiu "Gerenciar Imagens" como módulo próprio
+— item dedicado na sidebar (`modules/imagens/modulo.json`), rota `/imagens` separada, e seu
+próprio gate de senha. Funcionava e passava em todos os testes, mas depois de ver ao vivo (dois
+screenshots reais: a sidebar de Administração e a página `/banco`), o dono pediu algo diferente:
+"era para ficar igual essa imagem [a página `/banco`], aí quando clica em banco de dados você
+colocaria ali no topo como 'gerenciar imagens'." Ou seja: não uma tela irmã de `/banco`, uma
+*funcionalidade dentro* de `/banco` — mesmo padrão visual dos botões "Atualizar"/"Exportar Banco
+(JSON)" já existentes no topo daquela página.
+
+**Pedido completo, os três pontos**:
+1. Sem item próprio na sidebar — só um botão "Gerenciar Imagens" no topo de `/banco`.
+2. Separar as imagens por categoria: "Produtos" e "Outros" (não só "Todas"/"Órfãs" como antes).
+3. Busca dinâmica: digitar o nome do produto já filtra a lista, sem precisar confirmar/apertar
+   enter.
+
+**O que mudou, concretamente**:
+- `modules/imagens/` (manifesto + stub `.html`) **removido inteiro** — não existe mais módulo
+  próprio. `ipc/imagens.js` continua existindo do mesmo jeito, só que agora registrado via
+  `modules/banco/modulo.json`'s `"ipc": ["banco-admin.js", "imagens.js"]` em vez do próprio
+  manifesto — o arquivo de handlers não mudou, só quem o declara.
+- `frontend/src/app/(admin)/imagens/page.tsx` **removido** — a rota `/imagens` não existe mais.
+  Seu conteúdo virou uma view alternativa dentro de `frontend/src/app/(admin)/banco/page.tsx`
+  (`BancoPage`), trocada por um state `modo: "tabelas" | "imagens"` — sem rota nova, sem segundo
+  gate de senha (reusa o `autorizado` que `useBancoAdmin()` já mantém pra página inteira).
+- `useGerenciarImagens.ts` **reescrito**: não guarda mais seu próprio `autorizado`/
+  `confirmarSenha` (recebe um `ativo: boolean` do componente pai, controlado pelo `modo` de
+  `BancoPage`); trocou a aba única `abaOrfas` por `aba: "produtos" | "outros" | "orfas"`
+  (`"outros"` = qualquer `entidade_tipo !== "produto"`, hoje sempre vazio — pronto pra quando um
+  segundo tipo existir); ganhou `busca`/`setBusca` com filtro client-side accent-insensitive
+  (mesma lógica de `db/conexao.js:normalizarBusca`, espelhada em TS) sobre a lista já carregada —
+  dinâmico de verdade (filtra a cada tecla), sem round-trip ao backend a cada busca. Carrega até
+  1000 imagens de uma vez (`erpApi.imagens.listar({ limite: 1000 })`) em vez de paginar, porque
+  o catálogo de uma loja cabe inteiro numa chamada só e a busca já filtra em cima disso — não é
+  uma paginação de verdade, é intencional pra manter a busca simples e sem round-trip.
+- `e2e/imagens-admin.spec.ts` **reescrito** pro novo fluxo de navegação (Banco de Dados → senha →
+  botão "Gerenciar Imagens" → abas Produtos/Outros/Órfãs) e com um teste novo cobrindo
+  especificamente a busca dinâmica (dois produtos criados, busca por um filtra o outro fora, sem
+  clicar em nada).
+- `AGENTS.md` atualizado de novo (a entrada da árvore de `modules/` e o parágrafo "Imagens" da
+  seção Banco de Dados ainda descreviam o desenho antigo).
+
+**Verificado depois da reescrita**: `npm run lint`/`npm test` (188/188) limpos sem mudança
+nenhuma no backend além do `modulo.json`; `frontend && npm run lint`/`npm run typecheck`/
+`npm run build` (39/39 páginas, `/imagens` não existe mais na lista de rotas) limpos; `npx
+playwright test` **22/22 passando**, incluindo os 6 testes reescritos de `imagens-admin.spec.ts`.
+
 ---
 
 ## Header Tab Bar — Height & Color Refinement (feature, implemented 2026-09-09, pending live verification)

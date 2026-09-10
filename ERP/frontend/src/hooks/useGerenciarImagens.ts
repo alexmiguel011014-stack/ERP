@@ -1,22 +1,31 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { erpApi, type ImagemMeta } from "@/lib/erpApi";
 
-// Tela sensível (mesmo nível de /banco) — pede a senha do usuário logado de
-// novo antes de mostrar qualquer coisa, reusando o mesmo reautenticador
-// (verificarSenhaAdmin) que useBancoAdmin.ts já usa. Ver GOALS.md "Image
-// Database & Management" pro racional completo desta tela.
-export function useGerenciarImagens() {
-	const [autorizado, setAutorizado] = useState(false);
-	const [autorizando, setAutorizando] = useState(false);
-	const [erroSenha, setErroSenha] = useState<string | null>(null);
+// Sem accent-insensitive matching, "Trançado" nunca bate com "trancado" —
+// mesmo problema que db/conexao.js:normalizarBusca já resolve no backend
+// (ver buscarProdutosPorTermo); espelhado aqui pra a busca dinâmica do grid
+// de imagens filtrar em cima da lista já carregada, sem round-trip por tecla.
+function normalizarBusca(texto: string): string {
+	return texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+}
 
-	const [imagens, setImagens] = useState<ImagemMeta[]>([]);
-	const [total, setTotal] = useState(0);
+export type AbaImagens = "produtos" | "outros" | "orfas";
+
+// Vive dentro de /banco (ver GOALS.md "Image Database & Management" — seção
+// "Redesign: Gerenciar Imagens dentro de Banco de Dados"): reusa a mesma
+// reautenticação por senha que useBancoAdmin.ts já expõe pra página, então
+// este hook não guarda seu próprio "autorizado" — `ativo` controla quando ele
+// começa a carregar dado (só quando a página já autorizou E o modo "Imagens"
+// está selecionado).
+export function useGerenciarImagens(ativo: boolean) {
+	const [todas, setTodas] = useState<ImagemMeta[]>([]);
 	const [carregando, setCarregando] = useState(false);
 	const [erro, setErro] = useState<string | null>(null);
 
-	const [abaOrfas, setAbaOrfas] = useState(false);
+	const [aba, setAba] = useState<AbaImagens>("produtos");
+	const [busca, setBusca] = useState("");
+
 	const [orfas, setOrfas] = useState<ImagemMeta[]>([]);
 	const [carregandoOrfas, setCarregandoOrfas] = useState(false);
 
@@ -36,9 +45,11 @@ export function useGerenciarImagens() {
 		setCarregando(true);
 		setErro(null);
 		try {
-			const res = await erpApi.imagens.listar({ entidadeTipo: "produto" });
-			setImagens(res.linhas);
-			setTotal(res.total);
+			// limite generoso: o catálogo de uma loja cabe inteiro numa página só,
+			// e a busca abaixo filtra em cima do que já foi carregado (dinâmica,
+			// sem round-trip a cada tecla) — não uma paginação de verdade.
+			const res = await erpApi.imagens.listar({ limite: 1000 });
+			setTodas(res.linhas);
 		} catch (e) {
 			setErro(e instanceof Error ? e.message : String(e));
 		} finally {
@@ -58,29 +69,41 @@ export function useGerenciarImagens() {
 	}, []);
 
 	useEffect(() => {
-		if (autorizado) carregarImagens();
-	}, [autorizado, carregarImagens]);
+		if (ativo) carregarImagens();
+	}, [ativo, carregarImagens]);
 
 	useEffect(() => {
-		if (autorizado && abaOrfas) carregarOrfas();
-	}, [autorizado, abaOrfas, carregarOrfas]);
+		if (ativo && aba === "orfas") carregarOrfas();
+	}, [ativo, aba, carregarOrfas]);
 
-	async function confirmarSenha(senha: string) {
-		setAutorizando(true);
-		setErroSenha(null);
-		try {
-			const res = await erpApi.banco.verificarSenhaAdmin(senha);
-			if (res.ok) {
-				setAutorizado(true);
-			} else {
-				setErroSenha("Senha incorreta ou usuário sem perfil admin/dono.");
-			}
-		} catch (e) {
-			setErroSenha(e instanceof Error ? e.message : String(e));
-		} finally {
-			setAutorizando(false);
-		}
+	const produtos = useMemo(
+		() => todas.filter((i) => i.entidade_tipo === "produto"),
+		[todas],
+	);
+	// "Outros": qualquer entidade_tipo que não seja 'produto' — hoje sempre
+	// vazio (só 'produto' existe), pronto pra quando um segundo tipo existir
+	// (foto de cliente, logo de fornecedor etc., ver GOALS.md "Suggestions").
+	const outros = useMemo(
+		() => todas.filter((i) => i.entidade_tipo !== "produto"),
+		[todas],
+	);
+
+	function filtrarPorBusca(lista: ImagemMeta[]): ImagemMeta[] {
+		const alvo = normalizarBusca(busca);
+		if (!alvo) return lista;
+		return lista.filter((i) =>
+			normalizarBusca(i.entidade_nome || "").includes(alvo),
+		);
 	}
+
+	const listaAtual = useMemo(() => {
+		if (aba === "orfas") return orfas;
+		if (aba === "outros") return filtrarPorBusca(outros);
+		return filtrarPorBusca(produtos);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [aba, produtos, outros, orfas, busca]);
+
+	const carregandoAtual = aba === "orfas" ? carregandoOrfas : carregando;
 
 	async function visualizar(id: number) {
 		try {
@@ -112,7 +135,7 @@ export function useGerenciarImagens() {
 			await erpApi.imagens.excluirPorId(paraExcluir.id);
 			setResultadoExclusao("Imagem removida.");
 			await carregarImagens();
-			if (abaOrfas) await carregarOrfas();
+			if (aba === "orfas") await carregarOrfas();
 		} catch (e) {
 			setErro(e instanceof Error ? e.message : String(e));
 		} finally {
@@ -151,18 +174,16 @@ export function useGerenciarImagens() {
 	}
 
 	return {
-		autorizado,
-		autorizando,
-		erroSenha,
-		confirmarSenha,
-		imagens,
-		total,
-		carregando,
+		aba,
+		setAba,
+		busca,
+		setBusca,
+		listaAtual,
+		carregandoAtual,
+		totalProdutos: produtos.length,
+		totalOutros: outros.length,
+		totalOrfas: orfas.length,
 		erro,
-		abaOrfas,
-		setAbaOrfas,
-		orfas,
-		carregandoOrfas,
 		visualizando,
 		visualizar,
 		fecharVisualizacao,

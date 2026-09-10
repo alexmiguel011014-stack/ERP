@@ -195,8 +195,6 @@ ERP/
 │   ├── entrada/                     -- Entrada de estoque + estoque negativo
 │   ├── financeiro/                  -- Contas a pagar/receber + fluxo de caixa
 │   ├── fornecedores/                -- CRUD de fornecedores
-│   ├── imagens/                     -- Gerenciar Imagens: ver/substituir/excluir (admin,
-│   │                                  Next.js-only — entrada .html é só um stub, ver GOALS.md)
 │   ├── importacao/                  -- Importação de dados
 │   ├── pagamentos/                  -- Recebimentos (Pix/Boleto/etc.) vinculados a vendas
 │   ├── pdv/                         -- Frente de Caixa + recibo
@@ -269,9 +267,12 @@ pro racional completo). Os dois frontends coexistem até o cutover final (Fase 6
   (`migrarImagensLegadas()`, chamada em `db/schema.js:iniciarBanco()`); `db/produtos.js`
   (`salvarImagemProduto`/`removerImagemProduto`/`obterImagemProduto`) é hoje um wrapper fino
   sobre ela para o fluxo de produtos (`modules/produtos/cadastro.js` no antigo,
-  `ProdutoImagemPicker.tsx` no novo). Tela de administração dedicada, `/imagens` ("Gerenciar
-  Imagens", admin), reusa o mesmo gate de senha do `/banco` (`verificarSenhaAdmin`) — grid com
-  ver/substituir/excluir + aba de imagens órfãs (entidade dona já não existe).
+  `ProdutoImagemPicker.tsx` no novo). "Gerenciar Imagens" **vive dentro da própria página
+  `/banco`** (botão no topo, ao lado de "Atualizar"/"Exportar Banco (JSON)", não item de sidebar
+  próprio nem rota separada — pedido do dono depois de ver a primeira versão, com rota/sidebar
+  dedicados, ao vivo), reusando o mesmo gate de senha (`verificarSenhaAdmin`) e o `ipc/imagens.js`
+  registrado via `modules/banco/modulo.json`: grid com abas Produtos/Outros/Órfãs, busca dinâmica
+  por nome do produto (client-side, sobre a lista já carregada) e ver/substituir/excluir.
 
 ## Integrações Externas (Pix / Fiscal)
 
