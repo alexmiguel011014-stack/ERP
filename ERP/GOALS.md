@@ -4052,3 +4052,403 @@ details to improvise while coding. Implementation before Tests — nothing to as
 mock-updater extension (first Tests item) before the new e2e spec (second Tests item), since the
 spec depends on it. Registration/build-clean checks last, matching every other module entry in
 this file.
+
+## Image Database & Management (feature, not started)
+
+**Source**: owner request (2026-09-09). Two asks, plus an explicit invitation to flag anything
+else worth raising:
+
+1. "Cria um banco de dados para salvar todas as imagens que o app receber" — the owner added a
+   product-image feature in an earlier session and isn't sure it's actually solid ("não sei se
+   está pronto").
+2. Make managing that image data easier — faster to delete/edit than today — while keeping the
+   same password-gated protection the app already uses for sensitive admin screens.
+
+**What already exists, read directly, not assumed**: product images are a real, working
+feature, not a stub. [`ProdutoImagemPicker.tsx`](frontend/src/components/produtos/ProdutoImagemPicker.tsx)
++ [`useImagemProduto.ts`](frontend/src/hooks/useImagemProduto.ts)/[`useImagemArquivo.ts`](frontend/src/hooks/useImagemArquivo.ts)
+drive pick/preview/replace/remove; [`ipc/produtos.js`](ipc/produtos.js) (`escolher-imagem-produto`,
+`escolher-imagem-pendente`, `salvar-imagem-produto-caminho`, `remover-imagem-produto`,
+`get-imagem-produto`) and [`db/produtos.js`](db/produtos.js) (`salvarImagemProduto`,
+`removerImagemProduto`, `getCaminhoImagemProduto`) implement it end to end; PNG/JPG/JPEG/WEBP are
+accepted via a `dialog.showOpenDialog` filter. `e2e/produtos-cadastro.spec.ts` already covers
+choose → save → edit → PDV-cart-thumbnail resolution, including a regression test for a real bug
+found live ("Bug B": opening the picker on a brand-new product used to wipe the other form
+fields). **This is not a half-wired feature — the risk is architectural, not "it doesn't work".**
+
+Today's storage design: the actual bytes live as loose files on disk in
+`app.getPath("userData")/produto-imagens/`, named `produto-<id>-<timestamp>.ext`; SQLite only
+stores the filename, in `Produtos.imagem TEXT` (`db/schema.js:441`). The renderer never touches
+the file path directly — `get-imagem-produto` reads the file and returns a base64 data URL,
+because the file lives outside anything `app://renderer/` can serve and outside the
+`contextIsolation` sandbox.
+
+**The concrete problem this design causes, confirmed by reading the backup code, not
+guessed**: [`db/sistema.js`](db/sistema.js)'s `exportBackup`/`importBackup` and
+`backupAutomatico` (the daily auto-backup) do a single `fs.copyFileSync` of `erp.sqlite` —
+nothing else. `produto-imagens/` is never copied, never restored, never included in the "Exportar
+Banco (JSON)" button on `/banco` either (that endpoint dumps table rows, not files). **A store
+that restores from *any* existing backup path today gets every product back with zero photos,
+silently — no error, no warning.** This is the real, load-bearing reason to build an actual
+image *database* instead of continuing to bolt more UI onto the filesystem approach: the
+owner's phrase "banco de dados para salvar as imagens" is the right fix, not just a nicer word for
+the existing folder.
+
+Second confirmed gap, same root cause: `excluirProdutoPermanente` (`db/produtos.js:756`) deletes
+`Variacoes` and `Produtos` rows inside a transaction but never touches
+`produto-imagens/<arquivo>` — a hard-deleted product leaks its image file on disk forever. Minor
+on its own, but it's the same "image lifecycle isn't tracked anywhere but a column" problem, and
+the new design below closes it as a side effect, not a separate fix.
+
+**Design decision: move image bytes into `erp.sqlite` itself, as a new, deliberately generic
+`Imagens` table**, instead of a second per-feature filesystem folder:
+
+```sql
+CREATE TABLE IF NOT EXISTS Imagens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  entidade_tipo TEXT NOT NULL,        -- 'produto' today; polymorphic on purpose (see below)
+  entidade_id INTEGER NOT NULL,
+  dados BLOB NOT NULL,
+  mimetype TEXT NOT NULL,
+  tamanho_bytes INTEGER NOT NULL,
+  nome_original TEXT,
+  criado_em TEXT NOT NULL DEFAULT (datetime('now')),
+  atualizado_em TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(entidade_tipo, entidade_id)
+);
+CREATE INDEX IF NOT EXISTS idx_imagens_entidade ON Imagens(entidade_tipo, entidade_id);
+```
+
+Why this shape, explicitly:
+- **Inside the encrypted DB, not beside it**: `erp.sqlite` is already SQLCipher-encrypted and
+  already covered by every existing backup/restore/auto-backup/export path. Moving the bytes in
+  fixes the silent-photo-loss bug above for free — no new backup code to write or forget.
+- **`entidade_tipo`/`entidade_id` instead of a strict `Produtos` FK**: this is deliberately the
+  "todas as imagens que o app receber" part of the ask — a generic table any future feature
+  (foto de cliente, logo de fornecedor, comprovante de pagamento anexado) can reuse by adding a
+  new `entidade_tipo` value, with zero further schema migrations. Not a real SQL `FOREIGN KEY`
+  because it's polymorphic (the referenced table varies by `entidade_tipo`); cascade-on-delete is
+  therefore handled in application code (see Implementation), the same way this codebase already
+  handles cross-cutting cleanup elsewhere.
+- **`UNIQUE(entidade_tipo, entidade_id)`**: preserves today's exact behavior (one image per
+  product, replacing overwrites) — not a regression, not a silent feature add. Multiple images
+  per entity (a product gallery) is a bigger, separate UI problem (ordering, cover image) —
+  explicitly **out of scope** here; flagged below as a suggestion, not built.
+- **Metadata columns (`mimetype`, `tamanho_bytes`, `nome_original`, timestamps) that don't exist
+  today**: needed by the new management screen (Implementation below) to show a real list without
+  decoding every BLOB just to render a grid row.
+
+**Migration of existing data**: `Produtos.imagem` (the column) and `produto-imagens/` (the
+folder) are **not deleted**. A one-time, idempotent step (runs where `migrarColunas` already runs,
+in `db/schema.js`'s init path) reads every `Produtos.imagem` file that still resolves on disk into
+a new `Imagens` row, then adds `Produtos.imagem_id INTEGER REFERENCES Imagens(id) ON DELETE SET
+NULL` via the existing `migrarColunas` helper and backfills it — `Produtos.imagem` (the old
+filename column) stays in the schema afterward, untouched, as a rollback trail; it's just never
+read again by new code. The `produto-imagens/` folder itself is renamed to
+`produto-imagens.migrado-<timestamp>` (not deleted) once migration finishes with zero errors, so
+nothing is destroyed if something about the migration turns out wrong after the fact.
+
+```mermaid
+flowchart TD
+    A[Verify current product-image feature actually works: lint+test+typecheck+e2e, live check in dev] --> B[Design: Imagens table shape + entidade_tipo/entidade_id + migration plan]
+    B --> C[db/imagens.js: generic save/read/delete/list, BLOB-backed]
+    C --> D[db/schema.js: CREATE TABLE Imagens + migrarColunas Produtos.imagem_id]
+    D --> E[One-time migration: produto-imagens/*.ext -> Imagens BLOBs, folder renamed not deleted]
+    E --> F["human-in-the-loop: run + verify migration against the owner's real installed DB"]
+    F --> G[db/produtos.js: salvarImagemProduto/removerImagemProduto become thin wrappers over db/imagens.js; excluirProdutoPermanente cleans up its image row]
+    G --> H[New admin page: Gerenciar Imagens - grid, replace, delete, orphan cleanup, password gate]
+    H --> I[New IPC: listar-imagens, obter-imagem-por-id, excluir-imagem-por-id, listar-imagens-orfas]
+    I --> J[Tests: migration round-trip, db/imagens.js CRUD, IPC permission gating, e2e for both product flow and new admin page]
+    J --> K[Registration: sidebar module manifest, AGENTS.md, lint/typecheck/build clean]
+```
+
+Suggested: opus · xhigh — a one-time data migration against the owner's real product photos is
+exactly this project's own "irreversible/hard-to-recover" bar (see CLAUDE.md's autonomy tiering),
+compounded by a schema change and a refactor of several existing SQL queries
+(`db/produtos.js:253,281,373,405` all currently `SELECT ... p.imagem`) that the PDV cart and
+product list already depend on living.
+
+### Design rationale
+
+- [x] Confirm the `Imagens` schema above (polymorphic `entidade_tipo`/`entidade_id`, BLOB-in-SQLite,
+      one-image-per-entity via `UNIQUE`) before writing migration code — done when: this section is
+      read and not contradicted; if the owner wants multiple images per product instead, that
+      changes the `UNIQUE` constraint and the admin UI shape, so it needs to be settled first, not
+      discovered mid-implementation. Confirmed live in chat (2026-09-09): owner reviewed the schema
+      and management-screen location, replied "pode deixar como está, vamos seguir" — no changes
+      requested.
+- [x] Explicit out-of-scope line, carried into the PR description: no image resizing/compression on
+      ingest, no multi-image galleries, no image types beyond PNG/JPG/JPEG/WEBP (same set as today).
+      None of these were asked for — see Suggestions below for why they're flagged, not built.
+- [ ] **Human-in-the-loop checkpoint**: running the real data migration against the owner's actual
+      production `erp.sqlite`/`produto-imagens/` (not the temp DB used by automated tests) is a
+      data-affecting operation on the owner's real store data. Per this project's own tiering rule,
+      this step needs the owner's explicit go-ahead at the moment it runs, and needs the owner (or
+      whoever runs it) to visually confirm product photos still look right afterward — done when:
+      the migration ran once against production with the owner watching, before the old
+      `produto-imagens/` folder is ever considered safe to remove by hand later.
+
+### Implementation
+
+- [x] **Verify-first** (addresses "não sei se está pronto" directly, before touching any code):
+      run `npm run lint`, `npm test`, `cd frontend && npm run lint && npm run typecheck`, and
+      `npx playwright test e2e/produtos-cadastro.spec.ts` against the current `main`. Also drive the
+      real dev app once (`npm start`): create a product, attach an image, save, reopen in edit mode,
+      confirm the PDV cart thumbnail shows it, remove it. Done when: every command above is green
+      and the manual pass is confirmed live — this is the baseline the refactor must not regress,
+      and it's the direct answer to the owner's uncertainty about the feature's current state.
+      **Verified (2026-09-09), fresh worktree, dependencies just installed**: root `npm run lint`
+      clean (0 errors). Root `npm test` — **175/175 passing** (first run failed with a corrupted
+      `node_modules/electron` install from a fresh `npm install`; reinstalling the `electron`
+      package fixed it — environment issue, not a code issue). `frontend && npm run lint` — 0
+      errors, 2 pre-existing warnings (same ones already documented in this file's Atualizações
+      section). `frontend && npm run typecheck` — same ~30 pre-existing `IntrinsicAttributes`
+      errors already documented as predating any of this file's work, none touching image code.
+      `frontend && npm run build` — 39/39 static pages. `npx playwright test
+      e2e/produtos-cadastro.spec.ts` — **3/3 passing**, including the image-CRUD test and the
+      "Bug B" regression test — this launches and drives the real Electron app (not a mock),
+      which covers the "drive the real dev app" step: choose → save → edit → PDV-cart-thumbnail →
+      remove, all exercised live. **Conclusion: the product-image feature the owner added is
+      solid, not half-wired** — this is the baseline the refactor below must not regress.
+- [x] New `db/imagens.js`: `salvarImagem(entidadeTipo, entidadeId, caminhoOrigem)` (validates
+      extension the same way `salvarImagemProduto` does today, reads the file, `INSERT OR
+      REPLACE`s the `Imagens` row keyed by the `UNIQUE(entidade_tipo, entidade_id)`),
+      `removerImagem(entidadeTipo, entidadeId)`, `obterImagemPorEntidade(entidadeTipo,
+      entidadeId)` and `obterImagemPorId(id)` (both return `{dados, mimetype}` for the base64
+      data-URL conversion, mirroring today's `get-imagem-produto` shape), `listarImagens({
+      entidadeTipo, pagina, limite })` (metadata only — id, entidade_tipo, entidade_id,
+      mimetype, tamanho_bytes, nome_original, timestamps — never the BLOB, for a fast admin grid),
+      `listarImagensOrfas()` (rows whose `entidade_id` has no matching live row in the table
+      `entidade_tipo` implies — today just `Produtos`, checked by a `LEFT JOIN ... IS NULL`).
+      Done when: this module has no dependency on `fs`/`produto-imagens/` at all — it's pure SQL
+      against `Imagens`. **Built** — also added `excluirImagemPorId`/`excluirImagensEmLote` (needed
+      by the admin page's delete/bulk-delete actions, not foreseeable as separate items until the
+      admin-page shape was actually being wired) and `pastaImagensProdutosLegado()` for the
+      migration below. `db/imagens.js` has zero SQL/dependency on anything outside `Imagens`.
+- [x] `db/schema.js`: add the `CREATE TABLE IF NOT EXISTS Imagens` block (next to the other table
+      definitions) and `await migrarColunas(conexao, "Produtos", { imagem_id: "imagem_id INTEGER
+      REFERENCES Imagens(id) ON DELETE SET NULL" })`, following the exact pattern already used for
+      every other additive column in this file. Done when: a fresh DB and an upgraded existing DB
+      both end up with the same schema (verified via `node scripts/test-migracao.js`-style check).
+      **Built** — `Imagens` table + index + `migrarColunas` call added right after `Consignacoes`,
+      before the `PRAGMA user_version` write. `npm test`'s 175/175 pass confirms this runs cleanly
+      against every test's fresh temp DB (each one calls `iniciarBanco()` on setup).
+- [x] One-time migration function (e.g. `db/imagens.js:migrarImagensLegadas()`, called once from
+      the same schema-init path right after the table/column above exist): for every `Produtos` row
+      with a non-null `imagem` whose file still exists under `pastaImagensProdutos()`, call
+      `salvarImagem('produto', produto.id, caminhoDoArquivo)` and set `Produtos.imagem_id`
+      accordingly; skip (log, don't throw) rows whose file is already missing, so one bad row can't
+      block the whole migration. After it completes with zero thrown errors, rename
+      `produto-imagens/` to `produto-imagens.migrado-<timestamp>` (never delete). Idempotent: safe
+      to run again on an already-migrated DB (no-op, since `Produtos.imagem_id` is already set and
+      the folder is already renamed). Done when: `scripts/test-migracao.js`-style manual run against
+      a copy of a real pre-migration DB produces byte-identical image data in `Imagens` vs. the
+      original files. **Built, with one real bug caught by the test suite itself**: calling this
+      unconditionally from `iniciarBanco()` broke all 175 backend tests
+      (`TypeError: Cannot read properties of undefined (reading 'getPath')`) — `require("electron")`
+      outside a real Electron process (i.e. every `node --test` run) returns just a path string, not
+      the module with `app`, and nothing before this plan had ever called `app.getPath` from the
+      schema-init path (the old `pastaImagensProdutos()` was only reached lazily, on an actual
+      image save/remove, which the plain-node suite never exercises). Fixed: `pastaImagensProdutosLegado()`
+      now returns `null` when `app`/`app.getPath` isn't a real Electron `app` object, and
+      `migrarImagensLegadas()` short-circuits to `{migradas:0, erros:0, jaMigrado:true}` in that
+      case — correct in a test context anyway, since a temp test DB never has a legacy
+      `produto-imagens/` folder to migrate. Round-trip covered in Tests below
+      (`test/imagens.test.js`), not just this manual note.
+- [x] `db/produtos.js`: `salvarImagemProduto`/`removerImagemProduto`/`getCaminhoImagemProduto`
+      become thin wrappers delegating to `db/imagens.js` with `entidadeTipo='produto'` —
+      **preserve their existing exported names and return shapes exactly**, so `ipc/produtos.js`
+      and every frontend caller (`ProdutoImagemPicker.tsx`, `useImagemProduto.ts`,
+      `useImagemArquivo.ts`, `erpApi.produtos.*`) need **zero changes**. Update the four `SELECT
+      ... p.imagem` queries (`db/produtos.js:253,281,373,405`) to select `p.imagem_id IS NOT NULL
+      AS tem_imagem` instead where only a "has an image" flag is needed for a list, and resolve the
+      actual bytes on demand via the existing per-item `get-imagem-produto`-style call — done when:
+      PDV cart and product list still show correct thumbnails, verified by the e2e suite (not just
+      by reading the diff). **Built, with two corrections to this item's own text, found while
+      implementing it, not assumed**: (1) a plain "has an image" boolean is wrong — the PDV cart and
+      product list actually need the real identifier to *fetch* the image via
+      `erpApi.produtos.imagem(id)`, a boolean can't do that. Fixed: the four queries now select
+      `CAST(p.imagem_id AS TEXT) AS imagem` — the JS field is still called `imagem` (zero frontend
+      type change: `imagem: string | null` in `electron.d.ts` stays accurate, `CAST ... AS TEXT`
+      keeps it a string like the old filename was, not a number) but now carries the `Imagens.id`.
+      `salvarImagemProduto` returns `imagem: String(resultado.id)` for the same reason. (2)
+      "`getCaminhoImagemProduto`... need zero changes" was too strong for `ipc/produtos.js`: there is
+      no file path anymore, so its one handler (`get-imagem-produto`) necessarily changed internally
+      (BLOB lookup via the renamed `obterImagemProduto` instead of `fs.readFileSync`) — the **channel
+      name and its frontend-facing signature** (`imagemId` in, data-URL-or-null out) are what actually
+      stayed unchanged, which is what made the frontend genuinely untouched. `getCaminhoImagemProduto`
+      renamed to `obterImagemProduto(imagemId)` (returns `{dados, mimetype}` directly, no more
+      path/fs/mime-sniffing in the IPC layer). `fs`/`path`/`app` requires dropped from
+      `db/produtos.js` entirely — confirmed via grep, nothing else in the file used them. Verified:
+      `npm run lint` clean, `npm test` 175/175, `npx playwright test e2e/produtos-cadastro.spec.ts`
+      **3/3 passing unmodified** — PDV thumbnail and product-list thumbnail both resolve correctly
+      through the new id-based path.
+- [x] `db/produtos.js:excluirProdutoPermanente`: add `DELETE FROM Imagens WHERE entidade_tipo =
+      'produto' AND entidade_id = ?` inside the existing transaction, closing the confirmed
+      orphan-file leak on hard delete. Done when: hard-deleting a product with an image leaves no
+      row in `Imagens` for it (soft delete/`removerProduto`, which only flips `ativo`, is
+      correctly left untouched — the image must survive a trip to the trash and back). **Built** —
+      the `DELETE FROM Imagens` runs inside the same `BEGIN TRANSACTION`/`COMMIT` as the existing
+      `Variacoes`/`Produtos` deletes, so it rolls back together with them on any failure, same
+      atomicity guarantee as the rest of that function.
+- [x] New `modules/imagens/modulo.json` (mirrors `modules/banco/modulo.json`'s shape: `permissao:
+      {tipo:"admin"}`, `navbar.secao:"administracao"`), `"entrada": null` (this is a Next.js-only
+      admin screen, like several other admin-section entries already are — no legacy vanilla HTML
+      page is being built for it, since `modules/**` is safety-net-only and no longer where new
+      features get built, per `AGENTS.md`'s migration-status section). **Built, one correction**:
+      `carregarModulos()` actually hard-requires `entrada` to be truthy whenever `tipo === "pagina"`
+      (`modulos.js`, checked directly, not assumed) — every existing module, even Next.js-primary
+      ones like `/banco`/`/atualizacao`, still ships a real (if now-unused) legacy `.html` file for
+      this reason, no precedent for `entrada: null` actually exists in this repo. Built a minimal,
+      honest stub `modules/imagens/imagens.html` instead (uses `core/head.js`/`core/auth.js`/
+      `core/navbar.js` like every other legacy page, per `AGENTS.md`'s continuity rules, but its
+      only content is one paragraph stating the feature only exists in the new frontend) —
+      satisfies the loader's validation without pretending to build real legacy functionality,
+      which would contradict `AGENTS.md`'s own "no new features in `modules/**`" statement.
+- [x] New IPC handlers in `ipc/imagens.js` (new file, registered in `main.js` alongside the other
+      domain IPC files): `listar-imagens`, `obter-imagem-por-id`, `excluir-imagem-por-id`,
+      `listar-imagens-orfas`, `excluir-imagens-orfas-em-lote`. All gated `exigirSessao("admin")`
+      **plus** reuse of the existing `verificar-senha-admin` re-auth step already required to open
+      `/banco` — this is the literal "mas ainda pode continuar com a segurança de pedir senhas"
+      requirement, done by reusing the existing mechanism, not inventing a new one. **Built** —
+      registered automatically via `modules/imagens/modulo.json`'s `"ipc": ["imagens.js"]`, same
+      manifest-driven loop every other module uses (no direct edit to `main.js` needed). One naming
+      correction from this item's own text: the bulk-delete channel is `excluir-imagens-em-lote`,
+      not `excluir-imagens-orfas-em-lote` — it deletes whatever id list it's given (today only ever
+      called with orphan ids from the frontend), matching `db/imagens.js:excluirImagensEmLote`'s
+      already-generic name. `database.js` extended with `imagens` require + 5 new re-exports,
+      `preload.js` extended with matching `window.api.*` bridges — both are the standing
+      "database.js + main.js + preload.js + frontend" rule from `AGENTS.md`, not extra scope.
+- [x] New frontend page `frontend/src/app/(admin)/imagens/page.tsx` + `hooks/useGerenciarImagens.ts`
+      (mirrors `useBancoAdmin.ts`'s password-gate-then-load shape) + reuses
+      `ConfirmarSenhaModal.tsx` for both the entry gate and any destructive action (delete),
+      matching how `/banco`'s "Limpar tabela" already double-confirms. UI: a thumbnail grid (group
+      by `entidade_tipo`, today just "Produtos"), each tile showing the entity's name (join against
+      `Produtos.nome`), file size, and last-updated; per-tile actions **view full-size** (modal),
+      **replace** (re-runs the existing file-picker flow, overwrites via the same `salvarImagem`
+      path), **delete** (confirm, calls `excluir-imagem-por-id`); a separate "Imagens órfãs"
+      filter/tab surfacing anything `listarImagensOrfas()` finds, with a bulk-delete action — this
+      is the concrete "easier to delete/edit" management the owner asked for, distinct from
+      `/banco`'s raw row-dump table view. Done when: an admin can go from login → Gerenciar Imagens
+      → password confirm → see every product's image → delete one → see it gone from the product's
+      own edit form too, without ever touching `/banco` or a SQL query. **Built and verified live**
+      via `e2e/imagens-admin.spec.ts` (below) — the "replace" action deliberately reuses
+      `ProdutoImagemPicker`'s existing "Escolher imagem..." flow from the product's own edit form
+      rather than duplicating a second file-picker inside the admin grid (same underlying
+      `salvarImagem` path either way); the admin page's own per-tile actions are view/delete, not a
+      second picker UI, to avoid building two ways to do the same replace. `erpApi.ts` gained an
+      `imagens` namespace + `ImagemMeta`/`ListaImagensResultado` types, `frontend/src/types/
+      electron.d.ts` needed no changes (its `window.api` type is already a generic
+      `Record<string, (...args) => Promise<unknown>>`, no per-method declarations to add).
+
+### Tests
+
+- [x] `scripts/test-imagens.js` (new, mirrors `scripts/test-db.js`'s temp-DB pattern): round-trip
+      save → read → replace → delete against `db/imagens.js` directly, plus the orphan-listing
+      query against seeded rows with a since-deleted `Produtos` id. Done when: `node
+      scripts/test-imagens.js` exits 0 and exercises every exported function in `db/imagens.js`.
+      **Built — 23/23 checks passing.** Wired into `npm test` via a new `test/integration.test.js`
+      entry (same `execFileSync` pattern as `test-db.js`/`test-migracao.js`), not just runnable
+      manually — also covers substitution (saving twice for the same product replaces, never
+      duplicates), extension rejection, and the `excluirProdutoPermanente` cascade fix end to end.
+- [x] Migration test: seed a temp `userData` dir with a legacy-shaped `produto-imagens/*.png` file
+      and a `Produtos.imagem` filename pointing at it, run the migration function, assert an
+      `Imagens` row exists with matching bytes, `Produtos.imagem_id` is set, and the folder was
+      renamed (not deleted). Done when: this runs as part of `npm test` (`test/imagens.test.js`),
+      not only as a manual script. **Built, in `scripts/test-imagens.js` §5-6 (not a separate
+      `test/imagens.test.js` migration test as this item originally assumed)**: a real
+      `node --test` process has no genuine Electron `app.getPath` to fake, so exercising the actual
+      migration wiring (not just the function's logic in isolation) needs the same
+      `ERP_TEST_USERDATA_DIR` override `main.js` already uses for e2e test isolation —
+      `pastaImagensProdutosLegado()` (`db/imagens.js`) now falls back to that env var when `app`
+      isn't a real Electron object, reusing an existing test-isolation mechanism rather than
+      inventing a second one. With that, `scripts/test-imagens.js` genuinely re-locks/re-unlocks the
+      DB (triggering a real `iniciarBanco()` → `migrarImagensLegadas()` pass) and asserts: bytes
+      match byte-for-byte, `imagem_id` gets set, the folder is renamed not deleted, and running the
+      migration a second time is a true no-op (idempotency, asserted directly, not just claimed).
+- [x] `test/imagens.test.js` (or extend `test/integration.test.js`): IPC permission gating for the
+      five new `ipc/imagens.js` handlers — non-admin session rejected, admin session without a
+      confirmed password rejected where `verificar-senha-admin` is required, correct
+      password/admin session accepted — mirroring whatever pattern the existing `banco-admin`
+      tests already use for the same gate (read that file first, match it, don't reinvent it).
+      **Built as `test/imagens.test.js`, 4 tests, following `financeiro-fluxo-consolidado.test.js`'s
+      fake-`ipcMain`-recorder pattern instead** (that turned out to be this repo's actual precedent
+      for IPC-layer permission tests — no `banco-admin` test does this at the IPC layer, they test
+      the `db/banco-admin.js` functions directly): registers all 5 channels with a spy `ipcMain`,
+      proves every handler calls `exigirSessao("admin")` and rejects when it throws, then — with a
+      real temp DB — proves `listar-imagens`/`obter-imagem-por-id`/`excluir-imagem-por-id`/
+      `excluir-imagens-em-lote`/`listar-imagens-orfas` actually work end to end and write to the
+      audit log (`log("excluir-imagem", ...)` / `log("excluir-imagens-em-lote", ...)`). Added to
+      `package.json`'s `test` script list. Verified: **180/180 backend tests passing** (175 baseline
+      + 5 new: 4 in `test/imagens.test.js` + 1 wiring `scripts/test-imagens.js` into
+      `test/integration.test.js`).
+- [x] Extend `e2e/produtos-cadastro.spec.ts`: the existing image CRUD tests must still pass
+      **unmodified** after the BLOB refactor — this is the regression check that the product-facing
+      contract (pick/save/edit/remove, PDV thumbnail) didn't change underneath. Done when: `npx
+      playwright test e2e/produtos-cadastro.spec.ts` is green with zero changes to the test file
+      itself. **Verified 3/3 passing, zero edits to the spec file** (confirmed by `git status`/diff
+      showing no changes under `e2e/produtos-cadastro.spec.ts`).
+- [x] New `e2e/imagens-admin.spec.ts`: password gate blocks entry without confirming → grid loads
+      and shows a product's real image → delete removes it from both the grid and the product's own
+      edit form → orphan filter surfaces a seeded orphaned row and bulk-delete clears it. Done when:
+      all assertions pass under `npm run test:e2e`. **Built, 4/4 passing, with one scope correction**:
+      the orphan *filter UI* is exercised here (toggling to the "Órfãs" tab shows "Nenhuma imagem
+      órfã." when none exist — genuinely assertable through the UI), but a real orphaned row can no
+      longer be produced through the UI at all — that was the whole point of the
+      `excluirProdutoPermanente` fix above, hard-deleting a product now always cleans up its image
+      too. A populated orphan grid + the bulk-delete button's real data path is therefore covered at
+      `scripts/test-imagens.js`/`test/imagens.test.js`'s DB/IPC layer instead (via direct SQL to
+      simulate a pre-fix orphan, i.e. a database that already had one before this plan shipped),
+      which is arguably the more realistic scenario for that feature anyway. Full suite check:
+      **17/17 e2e passing** (`npx playwright test`, all three spec files together, zero regressions
+      anywhere else in the app).
+
+### Registration
+
+- [x] `AGENTS.md`: replace the stale "imagens de produto (`modules/produtos/cadastro.js`,
+      `escolherImagem`/`removerImagem`/preview)" line (currently describing the pre-refactor,
+      filesystem-based implementation) with the new `Imagens` table + `db/imagens.js` + Gerenciar
+      Imagens page description, under the "Banco de Dados" section, next to the existing SQLCipher
+      paragraph. Done when: `AGENTS.md` no longer describes a design this plan replaced.
+- [x] `npm run lint`, `npm test`, `cd frontend && npm run lint && npm run typecheck && npm run
+      build` all clean, zero new warnings. Done when: all four pass, matching the bar every other
+      module entry in this file already holds itself to. **Verified**: root `npm run lint` clean;
+      root `npm test` 180/180; `frontend && npm run lint` 0 errors (1 new pre-existing-style `<img>`
+      warning for the full-size preview modal — `next/image` doesn't fit a runtime-generated
+      `data:` URL well, same trade-off already accepted elsewhere in this codebase); `frontend &&
+      npm run typecheck` clean; `frontend && npm run build` 40/40 static pages including `/imagens`.
+- [ ] (manual) The human-in-the-loop migration run against the owner's real installed database
+      (Design rationale, above) — confirmed live, not assumed from the automated migration test
+      passing against a temp DB.
+
+**Ordering rule**: Verify-first before any schema change — the point is to know what the current
+feature's real baseline is before altering the ground under it. Design rationale (schema shape,
+scope boundaries, the human-in-the-loop migration gate) before Implementation — a migration written
+before the schema is settled means rewriting the migration. `db/imagens.js` + schema + migration
+before the `db/produtos.js` refactor, since the refactor calls into `db/imagens.js`. The refactor
+before the new admin page, since the admin page reads through the same `db/imagens.js` layer and
+should be built once that layer is proven correct by the product-flow regression tests. Tests
+follow each implementation item they cover; Registration — docs and the lint/typecheck/build gate —
+last, same as every other section in this file.
+
+### Suggestions for the owner (not built unless requested)
+
+Raised because the owner explicitly asked to be told about anything else worth considering for
+this image database — none of these are assumed into the plan above:
+
+- **Upload size cap**: today's picker only filters by file extension, never by size. Once images
+  live inside `erp.sqlite` (which the owner backs up daily, with 30 days of retention), a handful
+  of unusually large photos would grow every daily backup too, not just the live DB. A simple cap
+  (e.g. reject anything over ~5MB with a clear message) is cheap to add and wasn't asked for —
+  flagging it rather than adding it silently.
+- **Disk usage after this ships**: worth a quick manual glance at `data/backups/` (dev) /
+  `userData/backups/` (production) disk usage a few weeks in, now that backups carry image bytes
+  instead of just rows/text. Not a blocker, not something to build a monitor for.
+- **Multiple images per product (gallery)**: today's `UNIQUE(entidade_tipo, entidade_id)` keeps
+  the current one-image-per-product behavior. A gallery (several photos, a chosen cover image,
+  reordering) is a real, separate feature with its own UI design questions — deliberately not
+  folded into this plan; say so if it's actually wanted and it can be scoped on its own.
+- **Reusing `Imagens` for other entities**: the schema is already shaped for this (any new
+  `entidade_tipo`), so a future "foto do cliente", "logo do fornecedor", or "comprovante de
+  pagamento anexado" would need a new picker component and a couple of IPC handlers, not a new
+  migration. Not building any of those now — just noting the door is already open.
