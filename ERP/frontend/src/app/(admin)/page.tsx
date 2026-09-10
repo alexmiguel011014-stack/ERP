@@ -14,7 +14,6 @@ type DashboardStats = {
 	estoqueBaixo: number;
 	aReceberHoje: number;
 	aPagarHoje: number;
-	faturamentoUltimos7Dias: { dia: string; faturamento: number }[];
 	topProdutos: {
 		nome: string;
 		imagem: string | null;
@@ -69,7 +68,7 @@ export default function DashboardPage() {
 				</div>
 				<MaisVendidos produtos={stats.topProdutos} />
 			</div>
-			<FaturamentoChart dados={stats.faturamentoUltimos7Dias} />
+			<FaturamentoChart />
 		</div>
 	);
 }

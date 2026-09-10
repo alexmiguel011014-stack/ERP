@@ -39,7 +39,6 @@ type DashboardStats = {
 	estoqueBaixo: number;
 	aReceberHoje: number;
 	aPagarHoje: number;
-	faturamentoUltimos7Dias: { dia: string; faturamento: number }[];
 	topProdutos: {
 		nome: string;
 		imagem: string | null;
@@ -47,6 +46,13 @@ type DashboardStats = {
 		quantidade: number;
 		receita: number;
 	}[];
+};
+
+type EscopoPeriodo = "7d" | "1m" | "6m" | "1a" | "5a" | "tudo";
+
+type FaturamentoPorPeriodo = {
+	granularidade: "dia" | "semana" | "mes";
+	dados: { periodo: string; faturamento: number }[];
 };
 
 declare global {
@@ -60,6 +66,9 @@ declare global {
 			logout?: () => Promise<{ success: boolean }>;
 			getModulosCarregados?: () => Promise<ManifestoModulo[]>;
 			dashboardStats?: () => Promise<DashboardStats>;
+			dashboardFaturamentoPeriodo?: (
+				range: EscopoPeriodo,
+			) => Promise<FaturamentoPorPeriodo>;
 		};
 	}
 }
