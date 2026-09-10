@@ -344,6 +344,16 @@ certificado A1 e conta em provedor de pagamento ainda pendentes de acesso — ve
 - Use `modules/core/auth.js` em todas as páginas protegidas (exceto `login.html`).
 - `package.json` `files` usa glob `modules/**/*` — novos arquivos incluídos automaticamente.
 
+## Worktrees
+
+- Worktrees do Claude Code sempre ficam em `.claude/worktrees/<slug>`, na raiz do repo. Esse
+  caminho é fixo na ferramenta (`EnterWorktree`) — não existe como apontar pra outra pasta, então
+  não adianta procurar as branches em outro lugar: é sempre ali.
+- O Explorer esconde `.claude/` por padrão. Ative "Itens ocultos" ou navegue direto pelo caminho.
+- Elas não são limpas sozinhas e acumulam. De tempos em tempos rode `git worktree list` e, pra
+  cada uma já mesclada (`git log main..claude/<slug>` vazio), remova:
+  `git worktree remove .claude/worktrees/<slug>` seguido de `git branch -d claude/<slug>`.
+
 ## Funcionalidades Implementadas (resumo)
 
 Setup Electron seguro · SQLite 8 tabelas + extensões · SQLCipher (criptografia por senha) + migração automática plaintext→cipher · Migração de colunas (`migrarColunas`) · Cadastro de produtos c/ variações + SKU auto + estoque_mínimo · Clientes CRUD (CPF/CNPJ, e-mail, endereço) · Fornecedores CRUD · PDV (leitor SKU, carrinho, cliente, desconto, observação, fiado, orçamento, transação atômica com guarda de estoque, recibo) · Orçamentos (salvar → converter em venda; não movimenta estoque até conversão) · Histórico de vendas (filtro data+status, badge, detalhes modal, conversão de orçamento, CSV) · Entrada de mercadorias (custo médio ponderado, ledger `MovimentacoesEstoque`) · Alerta de estoque mínimo (dashboard, PDV, página de entrada) · Pedidos de compra (criar/receber/cancelar; recebimento gera conta a pagar) · Financeiro (contas a pagar/receber, baixa, fluxo de caixa por dia, provisão de DAS por regime de caixa) · Relatórios (vendas por período, por pagamento, ticket médio, Curva ABC A/B/C + CSV, DRE, margem de contribuição, ponto de equilíbrio, giro de estoque) · Dashboard (vendas/faturamento/estoque/hoje + a receber e a pagar hoje) · Navbar por perfil · Tema escuro · Login multi-usuário (admin) + Gerenciar Acessos · Backup/Restore + automático diário · Auto-update · Build NSIS v1.0.0 · Janela maximizada · Launcher silencioso (VBS)

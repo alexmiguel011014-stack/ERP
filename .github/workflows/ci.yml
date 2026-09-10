@@ -11,9 +11,6 @@ on:
 jobs:
   backend:
     runs-on: windows-latest
-    defaults:
-      run:
-        working-directory: ERP
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,7 +20,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: ERP/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -41,7 +38,7 @@ jobs:
     runs-on: windows-latest
     defaults:
       run:
-        working-directory: ERP/frontend
+        working-directory: frontend
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -51,7 +48,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: ERP/frontend/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -76,7 +73,7 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-  # Lança o Electron de verdade (via Playwright _electron, ver ERP/e2e/README.md)
+  # Lança o Electron de verdade (via Playwright _electron, ver e2e/README.md)
   # — por isso precisa do frontend/out buildado primeiro, e não roda no mesmo
   # job que só faz lint+typecheck acima.
   e2e:
@@ -90,20 +87,18 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: ERP/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies (backend)
-        working-directory: ERP
         run: npm ci
 
       - name: Install dependencies (frontend)
-        working-directory: ERP/frontend
+        working-directory: frontend
         run: npm ci
 
       - name: Build frontend
-        working-directory: ERP/frontend
+        working-directory: frontend
         run: npm run build
 
       - name: E2E
-        working-directory: ERP
         run: npm run test:e2e

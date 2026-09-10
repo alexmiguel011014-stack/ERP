@@ -1,3 +1,64 @@
+# Node
+node_modules/
+dist/
+dist_locked/
+
+# Dados locais (dev)
+data/
+*.sqlite
+*.sqlite3
+*.log
+# JSONs financeiros reais são artefatos externos de revisão, nunca fixtures do repo.
+loja-house-financeiro-*.json
+
+# Export "Backup local" (db/banco-admin.js:exportarBancoJSON) — em dev, cai
+# na raiz do projeto (pastaExecutavel = __dirname quando !app.isPackaged);
+# empacotado, cai do lado do .exe, fora do repo por definição.
+Backup local/
+
+# Repos de referencia (baixados pelo bootstrap)
+external/
+mcp-servers/
+servers/
+
+# Grafo de conhecimento
+graphify-out/
+
+# Mapa XML do RepoMix
+repomix-output.xml
+
+# Python
+.venv/
+venv/
+__pycache__/
+
+# SO
+.DS_Store
+Thumbs.db
+
+# Segredos
+.env
+
+# Config de MCP é global (~/.config/opencode/mcp.json ou escopo de usuário do
+# Claude Code), nunca de projeto — evita repetir o vazamento do commit beb22d8.
+.mcp.json
+
+# Playwright (e2e)
+test-results/
+playwright-report/
+blob-report/
+
+# Frontend (Next.js): cache de build e output dev
+frontend/.next/
+frontend/out/
+
+# Worktrees do Claude Code — cópias locais do repo, cada uma com o próprio
+# checkout. Até agora só o .git/info/exclude segurava isso, que é local e não
+# acompanha o clone; aqui vale em qualquer máquina. NÃO ignorar `.claude/`
+# inteiro: `.claude/settings.json` é versionado de propósito (ver AGENTS.md,
+# seção "Worktrees").
+.claude/worktrees/
+
 # Projetos separados que vivem em repositórios próprios — nunca devem
 # ser versionados aqui por engano (ver: remoção do PONTO_APP e base_project).
 PONTO_APP/
@@ -7,15 +68,10 @@ TunelSSH/
 Personal_app/
 Personal_app_android/
 
-# Generated artifacts (bootstrap)
-graphify-out/
-repomix-output.xml
-
 # Exports/pastas de trabalho da migração de dados reais Loja House (clientes,
 # financeiro histórico, estoque) — dados sensíveis, só existem localmente pra
 # importação, nunca devem subir pro GitHub. Ver AGENTS.md / IMPORT_LOJA_HOUSE.md.
 /loja-house-migracao-*/
-ERP/importacao-loja-house-simples-*/
-ERP/teste-import-kimono-draken-*/
-ERP/cadastro-simples-loja-house-*.json
-
+importacao-loja-house-simples-*/
+teste-import-kimono-draken-*/
+cadastro-simples-loja-house-*.json

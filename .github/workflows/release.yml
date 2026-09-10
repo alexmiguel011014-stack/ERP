@@ -27,18 +27,16 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: ERP/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies (backend)
-        working-directory: ERP
         run: npm ci
 
       - name: Install dependencies (frontend)
-        working-directory: ERP/frontend
+        working-directory: frontend
         run: npm ci
 
       - name: Build installer
-        working-directory: ERP
         run: npm run build -- --publish never
 
       - name: Upload release assets
@@ -48,7 +46,7 @@ jobs:
         run: |
           TAG="${{ inputs.release_tag || github.ref_name }}"
           gh release upload "$TAG" \
-            ERP/dist/ALLU-ERP-Setup-*.exe \
-            ERP/dist/latest.yml \
-            ERP/dist/*.blockmap \
+            dist/ALLU-ERP-Setup-*.exe \
+            dist/latest.yml \
+            dist/*.blockmap \
             --clobber
