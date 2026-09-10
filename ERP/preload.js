@@ -36,6 +36,8 @@ contextBridge.exposeInMainWorld("api", {
 		ipcRenderer.invoke("buscar-produtos-termo", termo),
 	finalizarVenda: (dados) => ipcRenderer.invoke("finalizar-venda", dados),
 	dashboardStats: () => ipcRenderer.invoke("dashboard-stats"),
+	dashboardFaturamentoPeriodo: (range) =>
+		ipcRenderer.invoke("dashboard-faturamento-periodo", range),
 	getClientes: (incluirInativos) =>
 		ipcRenderer.invoke("get-clientes", incluirInativos),
 	salvarCliente: (dados) => ipcRenderer.invoke("salvar-cliente", dados),
