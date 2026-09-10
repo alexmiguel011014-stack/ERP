@@ -180,7 +180,9 @@ test("carregarModulos: ids duplicados entre manifestos lança erro", () => {
 // dado fixo justamente para detectar se algum handler silenciosamente
 // deixasse de ser registrado numa mudança futura. "consignacoes.js" foi
 // adicionado deliberadamente ao módulo "produtos" (GOALS.md, seção "2.
-// Consignação") — atualizado aqui junto, não uma regressão da lista antiga.
+// Consignação"), "imagens.js" pelo novo módulo "imagens" (GOALS.md, "Image
+// Database & Management") — atualizados aqui junto, não uma regressão da
+// lista antiga.
 test("carregarModulos: loop de registro de IPC cobre o mesmo conjunto de arquivos que a lista antiga hardcoded", () => {
 	const ANTIGA_LISTA_HARDCODED = [
 		"produtos.js",
@@ -203,6 +205,7 @@ test("carregarModulos: loop de registro de IPC cobre o mesmo conjunto de arquivo
 		"pix.js",
 		"fiscal.js",
 		"consignacoes.js",
+		"imagens.js",
 	].sort();
 
 	const modulos = carregarModulos(path.join(__dirname, "..", "modules"));
@@ -316,7 +319,7 @@ test("aplicarEntitlements: entitlements.json malformado lança erro", () => {
 	);
 });
 
-test("aplicarEntitlements: contra o projeto real, sem entitlements.json, todos os 19 módulos continuam habilitados", () => {
+test("aplicarEntitlements: contra o projeto real, sem entitlements.json, todos os módulos continuam habilitados", () => {
 	const modulos = carregarModulos(path.join(__dirname, "..", "modules"));
 	const habilitados = aplicarEntitlements(
 		modulos,

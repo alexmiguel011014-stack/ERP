@@ -1,5 +1,6 @@
 const { getConexao, runOn } = require("./conexao");
 const { criarVariacoesPadrao } = require("./produtos");
+const { migrarImagensLegadas } = require("./imagens");
 
 // Marcador de versão do schema (PRAGMA user_version, nativo do SQLite — não
 // precisa de tabela própria). Incremente manualmente sempre que uma migração
@@ -620,6 +621,44 @@ async function iniciarBanco() {
     )
   `,
 	);
+
+	// Banco de imagens (ver GOALS.md "Image Database & Management"): bytes
+	// dentro do próprio erp.sqlite, não mais soltos em disco — assim backup/
+	// restore (que só copiam o .sqlite) passam a cobrir as imagens também.
+	// entidade_tipo/entidade_id é proposital: hoje só 'produto', mas qualquer
+	// entidade futura (cliente, fornecedor, comprovante) reaproveita esta
+	// tabela sem migração de schema nova. UNIQUE mantém o comportamento atual
+	// de uma imagem por entidade (substituir, não empilhar).
+	await runOn(
+		conexao,
+		`
+    CREATE TABLE IF NOT EXISTS Imagens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      entidade_tipo TEXT NOT NULL,
+      entidade_id INTEGER NOT NULL,
+      dados BLOB NOT NULL,
+      mimetype TEXT NOT NULL,
+      tamanho_bytes INTEGER NOT NULL,
+      nome_original TEXT,
+      criado_em TEXT NOT NULL DEFAULT (datetime('now')),
+      atualizado_em TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(entidade_tipo, entidade_id)
+    )
+  `,
+	);
+	await runOn(
+		conexao,
+		"CREATE INDEX IF NOT EXISTS idx_imagens_entidade ON Imagens(entidade_tipo, entidade_id)",
+	);
+	// REFERENCES real (não polimórfico, Produtos é a única tabela do outro
+	// lado) — ON DELETE SET NULL limpa Produtos.imagem_id sozinho quando a
+	// imagem é apagada direto pela tela de administração, sem UPDATE manual.
+	await migrarColunas(conexao, "Produtos", {
+		imagem_id: "imagem_id INTEGER REFERENCES Imagens(id) ON DELETE SET NULL",
+	});
+	// Migração única dos arquivos legados em produto-imagens/ pro BLOB acima —
+	// idempotente (produtos já migrados são pulados via imagem_id IS NULL).
+	await migrarImagensLegadas();
 
 	// Grava a versão do schema por último, só depois de toda migração acima
 	// já ter rodado com sucesso — se `iniciarBanco` falhar no meio, o marcador

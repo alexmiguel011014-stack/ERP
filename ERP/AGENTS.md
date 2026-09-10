@@ -195,6 +195,8 @@ ERP/
 │   ├── entrada/                     -- Entrada de estoque + estoque negativo
 │   ├── financeiro/                  -- Contas a pagar/receber + fluxo de caixa
 │   ├── fornecedores/                -- CRUD de fornecedores
+│   ├── imagens/                     -- Gerenciar Imagens: ver/substituir/excluir (admin,
+│   │                                  Next.js-only — entrada .html é só um stub, ver GOALS.md)
 │   ├── importacao/                  -- Importação de dados
 │   ├── pagamentos/                  -- Recebimentos (Pix/Boleto/etc.) vinculados a vendas
 │   ├── pdv/                         -- Frente de Caixa + recibo
@@ -258,6 +260,18 @@ pro racional completo). Os dois frontends coexistem até o cutover final (Fase 6
 - `PRAGMA foreign_keys = ON`; FKs com `ON DELETE CASCADE/RESTRICT`.
 - **Criptografia**: ao fazer login, a senha do app deriva a chave (SHA-256) que destrava o banco via SQLCipher. Banco em texto plano é migrado automaticamente no primeiro login. Troca de senha usa `PRAGMA rekey`. Backups são cópias do arquivo criptografado. Cada usuário do sistema tem login+senha; a chave-mestre é embrulhada por login/senha via AES-256-GCM (`erp_usuarios.json` ao lado do DB), permitindo vários usuários de acesso.
 - Backups automáticos diários em `data/backups/` (dev) ou `userData/backups/` (produção).
+- **Imagens** (`Imagens`, ver `GOALS.md` "Image Database & Management"): bytes gravados dentro
+  do próprio `erp.sqlite` (BLOB), não mais soltos em `userData/produto-imagens/` — o backup/
+  restore de antes só copiava o `.sqlite`, então fotos de produto nunca eram cobertas por
+  nenhum backup. `entidade_tipo`/`entidade_id` é polimórfico de propósito (hoje só `'produto'`);
+  uma entidade futura (cliente, fornecedor, comprovante) reusa a mesma tabela, sem migração
+  nova. `db/imagens.js` concentra o CRUD + a migração única e idempotente dos arquivos legados
+  (`migrarImagensLegadas()`, chamada em `db/schema.js:iniciarBanco()`); `db/produtos.js`
+  (`salvarImagemProduto`/`removerImagemProduto`/`obterImagemProduto`) é hoje um wrapper fino
+  sobre ela para o fluxo de produtos (`modules/produtos/cadastro.js` no antigo,
+  `ProdutoImagemPicker.tsx` no novo). Tela de administração dedicada, `/imagens` ("Gerenciar
+  Imagens", admin), reusa o mesmo gate de senha do `/banco` (`verificarSenhaAdmin`) — grid com
+  ver/substituir/excluir + aba de imagens órfãs (entidade dona já não existe).
 
 ## Integrações Externas (Pix / Fiscal)
 
@@ -369,7 +383,9 @@ recibo térmico continua existindo em paralelo, não foi removido.
 Esta linha estava desatualizada (checado em 2026-08-19, via GOALS.md): os três já existem e
 funcionam — troco automático (`modules/pdv/pdv.js:atualizarTroco()`), busca de cliente no PDV
 (`modules/pdv/pdv.js`, campo `clienteBusca` com dropdown de resultados) e imagens de produto
-(`modules/produtos/cadastro.js`, `escolherImagem`/`removerImagem`/preview).
+(à época em `modules/produtos/cadastro.js`, `escolherImagem`/`removerImagem`/preview — desde a
+migração pro frontend novo e o banco de imagens, ver `ProdutoImagemPicker.tsx` e a seção
+"Imagens" acima; a linha original fica como registro histórico do que foi checado naquela data).
 Log de erros em arquivo + `window.onerror` global já implementados (`main.js:logErro`/`CAMINHO_LOG_ERRO`).
 
 Ver `GOALS.md` para o plano completo (o que falta, por área) e o que já foi corrigido nesta rodada.

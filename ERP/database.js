@@ -6,6 +6,7 @@
 const conexao = require("./db/conexao");
 const schema = require("./db/schema");
 const produtos = require("./db/produtos");
+const imagens = require("./db/imagens");
 const categorias = require("./db/categorias");
 const clientes = require("./db/clientes");
 const estoque = require("./db/estoque");
@@ -180,7 +181,12 @@ module.exports = {
 	getPrecoCliente: clientes.getPrecoCliente,
 	salvarImagemProduto: produtos.salvarImagemProduto,
 	removerImagemProduto: produtos.removerImagemProduto,
-	getCaminhoImagemProduto: produtos.getCaminhoImagemProduto,
+	obterImagemProduto: produtos.obterImagemProduto,
+	listarImagens: imagens.listarImagens,
+	listarImagensOrfas: imagens.listarImagensOrfas,
+	obterImagemPorId: imagens.obterImagemPorId,
+	excluirImagemPorId: imagens.excluirImagemPorId,
+	excluirImagensEmLote: imagens.excluirImagensEmLote,
 	buscaGlobal: vendas.buscaGlobal,
 	executarImportacaoLojHouse: importacoes.executarImportacaoLojHouse,
 	obterHistoricoLotes: importacoes.obterHistoricoLotes,

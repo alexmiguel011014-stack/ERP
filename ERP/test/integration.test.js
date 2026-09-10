@@ -26,3 +26,8 @@ test("scripts/test-migracao.js: migração de banco de schema antigo", () => {
 	const { saida, erro } = rodarScript("test-migracao.js");
 	if (erro) assert.fail(saida || erro.message);
 });
+
+test("scripts/test-imagens.js: banco de imagens (db/imagens.js) + migração de produto-imagens/ legado", () => {
+	const { saida, erro } = rodarScript("test-imagens.js");
+	if (erro) assert.fail(saida || erro.message);
+});

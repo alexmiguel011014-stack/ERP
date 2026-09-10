@@ -31,6 +31,12 @@ contextBridge.exposeInMainWorld("api", {
 		ipcRenderer.invoke("remover-imagem-produto", produtoId),
 	getImagemProduto: (nomeArquivo) =>
 		ipcRenderer.invoke("get-imagem-produto", nomeArquivo),
+	listarImagens: (opcoes) => ipcRenderer.invoke("listar-imagens", opcoes),
+	listarImagensOrfas: () => ipcRenderer.invoke("listar-imagens-orfas"),
+	obterImagemPorId: (id) => ipcRenderer.invoke("obter-imagem-por-id", id),
+	excluirImagemPorId: (id) => ipcRenderer.invoke("excluir-imagem-por-id", id),
+	excluirImagensEmLote: (ids) =>
+		ipcRenderer.invoke("excluir-imagens-em-lote", ids),
 	buscarSKU: (sku) => ipcRenderer.invoke("buscar-sku", sku),
 	buscarProdutosTermo: (termo) =>
 		ipcRenderer.invoke("buscar-produtos-termo", termo),

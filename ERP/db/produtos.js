@@ -1,6 +1,3 @@
-const path = require("path");
-const fs = require("fs");
-const { app } = require("electron");
 const {
 	getConexao,
 	runAsync,
@@ -8,6 +5,7 @@ const {
 	runOn,
 	normalizarBusca,
 } = require("./conexao");
+const { salvarImagem, removerImagem, obterImagemPorId } = require("./imagens");
 
 function obterAtributoLegado(atributos, chaveProcurada) {
 	if (!Array.isArray(atributos)) return null;
@@ -250,7 +248,7 @@ async function buscarSKU(sku) {
             c.nome AS categoria_nome, s.nome AS subcategoria_nome,
             v.tamanho, v.cor, v.preco, v.preco_custo, v.quantidade_estoque, v.quantidade_reservada,
             (v.quantidade_estoque - v.quantidade_reservada) AS quantidade_disponivel,
-            v.estoque_minimo, v.sku, v.codigo_barras, v.atributos, p.imagem
+            v.estoque_minimo, v.sku, v.codigo_barras, v.atributos, CAST(p.imagem_id AS TEXT) AS imagem
      FROM Variacoes v
      JOIN Produtos p ON p.id = v.produto_id
      LEFT JOIN Categorias c ON c.id = p.categoria_id
@@ -278,7 +276,7 @@ async function buscarProdutosPorTermo(termo) {
 		`SELECT v.id AS id, p.id AS produto_id, v.sku, v.codigo_barras, p.nome, v.tamanho, v.cor, v.preco,
               v.quantidade_estoque, v.quantidade_reservada,
               (v.quantidade_estoque - v.quantidade_reservada) AS quantidade_disponivel,
-              v.estoque_minimo, v.atributos, p.imagem
+              v.estoque_minimo, v.atributos, CAST(p.imagem_id AS TEXT) AS imagem
        FROM Variacoes v
        JOIN Produtos p ON p.id = v.produto_id
        WHERE p.ativo = 1
@@ -370,7 +368,7 @@ async function listProdutosDetalhados(incluirInativos) {
 	const produtos = await all(
 		`SELECT p.id, p.nome, p.categoria AS categoria_legada,
             c.nome AS categoria_nome, s.nome AS subcategoria_nome,
-            p.categoria_id, p.subcategoria_id, p.imagem, p.ativo
+            p.categoria_id, p.subcategoria_id, CAST(p.imagem_id AS TEXT) AS imagem, p.ativo
      FROM Produtos p
      LEFT JOIN Categorias c ON c.id = p.categoria_id
      LEFT JOIN Categorias s ON s.id = p.subcategoria_id
@@ -797,6 +795,15 @@ async function excluirProdutoPermanente(id) {
 		}
 
 		await run("DELETE FROM Variacoes WHERE produto_id = ?", [id]);
+		// Imagens não tem FK de volta pra Produtos (entidade_tipo/entidade_id é
+		// polimórfico, não dá pra declarar ON DELETE CASCADE no schema) — sem
+		// isto, excluir um produto definitivamente vazava a imagem dele pra
+		// sempre em Imagens (achado real, ver GOALS.md "Image Database &
+		// Management").
+		await run(
+			"DELETE FROM Imagens WHERE entidade_tipo = 'produto' AND entidade_id = ?",
+			[id],
+		);
 		await run("DELETE FROM Produtos WHERE id = ?", [id]);
 		await run("COMMIT");
 		return { success: true };
@@ -807,76 +814,44 @@ async function excluirProdutoPermanente(id) {
 }
 
 /* ============ Imagem do produto ============ */
+// Wrappers finos sobre db/imagens.js (entidadeTipo='produto') — os bytes já
+// não ficam soltos em disco, ver GOALS.md "Image Database & Management" pro
+// porquê (backup/restore só cobria o .sqlite, nunca a pasta de imagens).
+// Nomes/formatos de retorno preservados pra não exigir mudança em
+// ipc/produtos.js além do que este arquivo já documenta, nem no frontend.
 
-function pastaImagensProdutos() {
-	const dir = path.join(app.getPath("userData"), "produto-imagens");
-	if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-	return dir;
-}
-
-// Copia o arquivo escolhido (caminho absoluto já validado pelo diálogo nativo
-// do main.js) para a pasta de imagens do app e grava o nome do arquivo salvo.
-// Remove a imagem anterior do produto, se houver, para não acumular lixo.
 async function salvarImagemProduto(produtoId, caminhoOrigem) {
 	const id = Number(produtoId);
 	if (!Number.isInteger(id) || id <= 0) throw new Error("Produto inválido.");
-	if (!caminhoOrigem || !fs.existsSync(caminhoOrigem))
-		throw new Error("Arquivo de imagem não encontrado.");
-
-	const extensoesPermitidas = [".png", ".jpg", ".jpeg", ".webp"];
-	const ext = path.extname(caminhoOrigem).toLowerCase();
-	if (!extensoesPermitidas.includes(ext))
-		throw new Error("Formato de imagem não suportado. Use PNG, JPG ou WEBP.");
-
-	const produto = await getAsync("SELECT imagem FROM Produtos WHERE id = ?", [
-		id,
-	]);
+	const produto = await getAsync("SELECT id FROM Produtos WHERE id = ?", [id]);
 	if (!produto) throw new Error("Produto não encontrado.");
 
-	const dir = pastaImagensProdutos();
-	const nomeArquivo = "produto-" + id + "-" + Date.now() + ext;
-	fs.copyFileSync(caminhoOrigem, path.join(dir, nomeArquivo));
-
-	if (produto.imagem) {
-		try {
-			fs.unlinkSync(path.join(dir, produto.imagem));
-		} catch {
-			/* já não existe */
-		}
-	}
-
-	await runAsync("UPDATE Produtos SET imagem = ? WHERE id = ?", [
-		nomeArquivo,
+	const resultado = await salvarImagem("produto", id, caminhoOrigem);
+	await runAsync("UPDATE Produtos SET imagem_id = ? WHERE id = ?", [
+		resultado.id,
 		id,
 	]);
-	return {
-		success: true,
-		imagem: nomeArquivo,
-		caminho: path.join(dir, nomeArquivo),
-	};
+	// String, não number: mantém o tipo que o frontend já espera pra este campo
+	// (era um nome de arquivo antes, ver `imagem: string | null` em electron.d.ts)
+	// — evita qualquer mudança de tipo do lado do frontend.
+	return { success: true, imagem: String(resultado.id) };
 }
 
+// FK ON DELETE SET NULL (Produtos.imagem_id REFERENCES Imagens) já limpa
+// Produtos.imagem_id sozinho quando a linha em Imagens é removida — sem
+// UPDATE manual aqui.
 async function removerImagemProduto(produtoId) {
 	const id = Number(produtoId);
-	const produto = await getAsync("SELECT imagem FROM Produtos WHERE id = ?", [
-		id,
-	]);
+	const produto = await getAsync("SELECT id FROM Produtos WHERE id = ?", [id]);
 	if (!produto) throw new Error("Produto não encontrado.");
-	if (produto.imagem) {
-		try {
-			fs.unlinkSync(path.join(pastaImagensProdutos(), produto.imagem));
-		} catch {
-			/* já não existe */
-		}
-	}
-	await runAsync("UPDATE Produtos SET imagem = NULL WHERE id = ?", [id]);
+	await removerImagem("produto", id);
 	return { success: true };
 }
 
-function getCaminhoImagemProduto(nomeArquivo) {
-	if (!nomeArquivo) return null;
-	return path.join(pastaImagensProdutos(), nomeArquivo);
+async function obterImagemProduto(imagemId) {
+	return obterImagemPorId(imagemId);
 }
+
 module.exports = {
 	salvarProduto,
 	atualizarProduto,
@@ -890,8 +865,7 @@ module.exports = {
 	buscarProdutosPorTermo,
 	salvarImagemProduto,
 	removerImagemProduto,
-	getCaminhoImagemProduto,
-	pastaImagensProdutos,
+	obterImagemProduto,
 	validarVariacao,
 	obterAtributoLegado,
 	criarVariacoesPadrao,
