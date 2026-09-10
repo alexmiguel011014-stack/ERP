@@ -58,6 +58,7 @@ export default function PrecificacaoPage() {
 	const [busca, setBusca] = useState("");
 	const [categoriaFiltro, setCategoriaFiltro] = useState("");
 	const [selecionados, setSelecionados] = useState<number[]>([]);
+	const [aba, setAba] = useState<"precos" | "parcelamento">("precos");
 	const [massaMargem, setMassaMargem] = useState("");
 	const [aplicandoMassa, setAplicandoMassa] = useState(false);
 	const [alteracoes, setAlteracoes] = useState<
@@ -314,7 +315,34 @@ export default function PrecificacaoPage() {
 
 	return (
 		<div className="grid grid-cols-1 gap-4">
-			<div className="grid grid-cols-1 gap-4 rounded-xl border border-gray-200 bg-white p-4 sm:grid-cols-3 dark:border-gray-800 dark:bg-white/[0.03]">
+			<div className="flex gap-2 border-b border-gray-200 dark:border-gray-800">
+				<button
+					type="button"
+					onClick={() => setAba("precos")}
+					className={
+						aba === "precos"
+							? "border-b-2 border-brand-500 px-3 py-2 text-sm font-semibold text-brand-600 dark:text-brand-400"
+							: "px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+					}
+				>
+					Preços
+				</button>
+				<button
+					type="button"
+					onClick={() => setAba("parcelamento")}
+					className={
+						aba === "parcelamento"
+							? "border-b-2 border-brand-500 px-3 py-2 text-sm font-semibold text-brand-600 dark:text-brand-400"
+							: "px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+					}
+				>
+					Parcelamento
+				</button>
+			</div>
+
+			{aba === "precos" && (
+				<>
+					<div className="grid grid-cols-1 gap-4 rounded-xl border border-gray-200 bg-white p-4 sm:grid-cols-3 dark:border-gray-800 dark:bg-white/[0.03]">
 				<div>
 					<Label>Margem de Lucro Padrão (%)</Label>
 					<div className="flex gap-2">
@@ -486,17 +514,23 @@ export default function PrecificacaoPage() {
 					{mensagem.texto}
 				</div>
 			)}
+				</>
+			)}
 
-			<CondicoesParcelamentoPanel
-				condicoes={condicoesParcelamento}
-				produtos={dados.map((produto) => ({
-					id: produto.produto_id,
-					nome: produto.produto_nome,
-					preco: produto.preco_venda,
-				}))}
-				onSalvar={recarregar}
-			/>
+			{aba === "parcelamento" && (
+				<CondicoesParcelamentoPanel
+					condicoes={condicoesParcelamento}
+					produtos={dados.map((produto) => ({
+						id: produto.produto_id,
+						nome: produto.produto_nome,
+						preco: produto.preco_venda,
+					}))}
+					onSalvar={recarregar}
+				/>
+			)}
 
+			{aba === "precos" && (
+				<>
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				<div className="flex flex-wrap items-center gap-3">
 					<input
@@ -582,6 +616,8 @@ export default function PrecificacaoPage() {
 					)}
 				</div>
 			</div>
+				</>
+			)}
 		</div>
 	);
 }

@@ -84,11 +84,24 @@ test.describe("parcelamento no Electron", () => {
 	test("configura condições e finaliza Fiado e Cartão com o comportamento financeiro correto", async () => {
 		test.setTimeout(60_000);
 		await window.locator("aside").getByTitle("Produtos", { exact: true }).click();
-		await window.locator('a[href="/produtos/precificacao/"]').evaluateAll((links) => {
-			const link = links.find((item) => item.getClientRects().length > 0);
-			if (!link) throw new Error("Aba de Precificação não está visível.");
-			(link as HTMLElement).click();
-		});
+		const linkPrecificacao = window
+			.locator('a[href="/produtos/precificacao/"]')
+			.and(visible());
+		// "Produtos" no sidebar navega pra /produtos, que so redireciona pra
+		// /produtos/cadastro (e monta essa aba) via useEffect no client — sem
+		// esperar o link ficar visivel, a aba ainda nao existe no DOM.
+		await expect(linkPrecificacao).toBeVisible();
+		// .click() via coordenadas falha nesse elemento especifico (quirk de
+		// mapeamento de coordenadas do CDP/Electron nessa janela) mesmo com o
+		// elemento visivel, estavel e sem nada sobrepondo — dispatchEvent
+		// aciona o mesmo handler de navegacao sem depender de coordenadas.
+		await linkPrecificacao.dispatchEvent("click");
+		// A pagina de Precificacao abre na aba "Precos"; "Condicoes de
+		// parcelamento" mora na aba "Parcelamento".
+		await window
+			.getByRole("button", { name: "Parcelamento", exact: true })
+			.and(visible())
+			.click();
 		const tituloCondicoes = window
 			.getByRole("heading", { name: "Condições de parcelamento" })
 			.and(visible());
@@ -221,7 +234,14 @@ test.describe("parcelamento no Electron", () => {
 		await expect(window.locator("html")).toHaveClass(/dark/);
 
 		await window.locator("aside").getByTitle("Produtos", { exact: true }).click();
-		await window.getByRole("link", { name: "Precificação", exact: true }).click();
+		await window
+			.getByRole("link", { name: "Precificação", exact: true })
+			.and(visible())
+			.dispatchEvent("click");
+		await window
+			.getByRole("button", { name: "Parcelamento", exact: true })
+			.and(visible())
+			.click();
 		await expect(
 			window
 				.getByRole("heading", { name: "Condições de parcelamento" })
@@ -234,6 +254,11 @@ test.describe("parcelamento no Electron", () => {
 		await window.evaluate(() => localStorage.setItem("theme", "light"));
 		await window.reload();
 		await expect(window.locator("html")).not.toHaveClass(/dark/);
+		// reload remonta a pagina — a aba "Parcelamento" nao persiste sozinha.
+		await window
+			.getByRole("button", { name: "Parcelamento", exact: true })
+			.and(visible())
+			.click();
 		await expect(
 			window
 				.getByRole("heading", { name: "Condições de parcelamento" })
