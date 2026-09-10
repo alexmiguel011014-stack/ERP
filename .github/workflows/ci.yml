@@ -56,6 +56,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # next-env.d.ts é gerado automaticamente pelo Next.js na primeira vez
+      # que `next dev`/`next build` roda, e fica no .gitignore — este job
+      # nunca builda (só lint+typecheck, o build de verdade é do job e2e),
+      # então sem isso o arquivo nunca existe aqui. Sem ele, `tsc --noEmit`
+      # perde a referência ambiente que o Next injeta e ~30 erros reais de
+      # `IntrinsicAttributes`/className aparecem em componentes que não têm
+      # nada a ver com a mudança sendo testada (reproduzido localmente:
+      # apagar o next-env.d.ts local reproduz os mesmos erros, nas mesmas
+      # linhas, de qualquer PR).
+      - name: Generate next-env.d.ts (needed for typecheck; normally created by next dev/build)
+        run: |
+          Set-Content -Path next-env.d.ts -Value '/// <reference types="next" />'
+          Add-Content -Path next-env.d.ts -Value '/// <reference types="next/image-types/global" />'
+
       - name: Lint
         run: npm run lint
 
