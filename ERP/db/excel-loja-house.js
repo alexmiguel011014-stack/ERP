@@ -12,6 +12,7 @@
 // exportação de outra loja precisaria do próprio módulo, não de mudanças
 // aqui dentro.
 const fs = require("fs");
+const path = require("path");
 const crypto = require("crypto");
 const XLSX = require("xlsx");
 
@@ -163,6 +164,13 @@ function extrairValorAVista(texto) {
 // conhecido — nunca lança, porque data ausente é o caso normal em várias
 // abas (Crediário, Contas a Pagar, Custos Fixos).
 function paraDataISO(valor) {
+	if (typeof valor === "number" && Number.isFinite(valor) && valor >= 20000) {
+		const dataExcel = XLSX.SSF.parse_date_code(valor);
+		if (dataExcel?.y && dataExcel?.m && dataExcel?.d) {
+			return `${dataExcel.y}-${String(dataExcel.m).padStart(2, "0")}-${String(dataExcel.d).padStart(2, "0")}`;
+		}
+	}
+
 	const texto = celulaTexto(valor);
 	if (!texto) return null;
 
@@ -1273,6 +1281,615 @@ function parseAbaFinanceiroMes(linhas, nomeAba, financeiroHistorico) {
 }
 
 // ---------------------------------------------------------------------------
+// Piloto de histórico financeiro: uma aba mensal, sem tentar reconstituir
+// catálogo, estoque, cliente ou meio de pagamento. Este caminho é separado do
+// parseExcelLojaHouse porque o importador completo ainda usa o formato legado
+// de LancamentosFinanceiros para os seus outros dados.
+// ---------------------------------------------------------------------------
+
+const MES_FINANCEIRO_PILOTO = "JANEIRO";
+const COMPETENCIA_FINANCEIRO_PILOTO = "2026-01";
+const FORMATO_MODELO_FINANCEIRO_HISTORICO =
+	"loja_house.financeiro_historico";
+const VERSAO_MODELO_FINANCEIRO_HISTORICO = 1;
+const CATEGORIAS_PAGAMENTO_HISTORICO = new Set([
+	"Pagamento de cartão",
+	"Compra para estoque histórica",
+	"Consumo interno",
+	"Empréstimo/adiantamento",
+]);
+
+function paraCentavos(valor, campo) {
+	const numero = Number(valor);
+	if (!Number.isFinite(numero)) {
+		throw new TypeError(`${campo} precisa ser um valor numérico finito`);
+	}
+	return Math.round(numero * 100);
+}
+
+function deCentavos(valor) {
+	return valor / 100;
+}
+
+function hashFinanceiroHistorico(conteudo) {
+	return crypto
+		.createHash("sha256")
+		.update(JSON.stringify(conteudo))
+		.digest("hex");
+}
+
+function exigirChavesExatas(objeto, chaves, contexto) {
+	if (!objeto || typeof objeto !== "object" || Array.isArray(objeto)) {
+		throw new TypeError(`${contexto} precisa ser um objeto`);
+	}
+	for (const chave of Object.keys(objeto)) {
+		if (!chaves.includes(chave)) {
+			throw new TypeError(`${contexto} contém o campo não permitido "${chave}"`);
+		}
+	}
+	for (const chave of chaves) {
+		if (!(chave in objeto)) {
+			throw new TypeError(`${contexto} não contém o campo obrigatório "${chave}"`);
+		}
+	}
+}
+
+function chaveExternaModeloFinanceiro(competencia, checksumArquivo, movimento) {
+	return hashFinanceiroHistorico([
+		"LOJA-HOUSE-FINANCEIRO-V1",
+		competencia,
+		checksumArquivo,
+		movimento.linha_origem,
+		movimento.direcao,
+		movimento.data,
+		movimento.descricao_original,
+		movimento.valor_centavos,
+	]);
+}
+
+function modeloCanonicoFinanceiro(modelo) {
+	return {
+		formato: modelo.formato,
+		versao: modelo.versao,
+		competencia: modelo.competencia,
+		origem: {
+			arquivo_nome: modelo.origem.arquivo_nome,
+			aba: modelo.origem.aba,
+			sha256_arquivo: modelo.origem.sha256_arquivo,
+		},
+		auditoria: {
+			saldo_abertura_centavos: modelo.auditoria.saldo_abertura_centavos,
+			total_entradas_centavos: modelo.auditoria.total_entradas_centavos,
+			total_saidas_centavos: modelo.auditoria.total_saidas_centavos,
+			saldo_fechamento_calculado_centavos:
+				modelo.auditoria.saldo_fechamento_calculado_centavos,
+			saldo_fechamento_informado_centavos:
+				modelo.auditoria.saldo_fechamento_informado_centavos,
+			diferenca_centavos: modelo.auditoria.diferenca_centavos,
+		},
+		movimentos: modelo.movimentos.map((movimento) => ({
+			chave_externa: movimento.chave_externa,
+			linha_origem: movimento.linha_origem,
+			data: movimento.data,
+			direcao: movimento.direcao,
+			descricao_original: movimento.descricao_original,
+			valor_centavos: movimento.valor_centavos,
+			destino: movimento.destino,
+			categoria: movimento.categoria,
+			motivo_pendencia: movimento.motivo_pendencia,
+		})),
+	};
+}
+
+function checksumModeloFinanceiroMensal(modelo) {
+	return hashFinanceiroHistorico(modeloCanonicoFinanceiro(modelo));
+}
+
+function classificarMovimentoFinanceiroHistorico(movimento) {
+	const descricaoNormalizada = normalizarTexto(movimento.descricao);
+	const pendente = (motivo) => ({ destino: "pendente", motivo });
+
+	if (movimento.direcao === "entrada") {
+		if (
+			/CREDIARIO|EMPRESTIMO|RESGATE|CAIXINHA|COFRE|TROCO|CASHBACK|DIFERENCA/.test(
+				descricaoNormalizada,
+			)
+		) {
+			return pendente(
+				"Entrada sem evidência suficiente de venda histórica; requer conferência manual",
+			);
+		}
+		return { destino: "venda" };
+	}
+
+	if (/CARTAO/.test(descricaoNormalizada)) {
+		return { destino: "pagamento", categoria: "Pagamento de cartão" };
+	}
+	if (/CAFE|ALMOCO|LANCHE|PADARIA|MARMITA|PAO/.test(descricaoNormalizada)) {
+		return { destino: "pagamento", categoria: "Consumo interno" };
+	}
+	if (/EMPRESTIMO/.test(descricaoNormalizada)) {
+		return { destino: "pagamento", categoria: "Empréstimo/adiantamento" };
+	}
+	if (/CAIXINHA|COFRE|TROCO|CASHBACK|DIFERENCA/.test(descricaoNormalizada)) {
+		return pendente(
+			"Saída de natureza de caixa/reconciliação sem classificação confirmada",
+		);
+	}
+	if (
+		/KIMONO|FAIXA|PROTETOR|RASH|CAMISA|SHORT|MOLETOM|CORTA[ -]?VENTO|MOCHILA|CONJUNTO|NO[ -]?GI/.test(
+			descricaoNormalizada,
+		)
+	) {
+		return {
+			destino: "pagamento",
+			categoria: "Compra para estoque histórica",
+		};
+	}
+
+	return pendente(
+		"Saída sem natureza comprovada de cartão, consumo, empréstimo ou compra histórica",
+	);
+}
+
+function extrairMovimentosFinanceiroMensal(linhas, nomeAba) {
+	const movimentos = [];
+	let saldoInformado = null;
+	let saldoAbertura = null;
+	const cabecalhos = encontrarCabecalhos(linhas, ROTULOS_FINANCEIRO);
+
+	for (const cab of cabecalhos) {
+		for (let r = cab.linha + 1; r < linhas.length; r++) {
+			const linha = linhas[r] || [];
+			const dataBruta = linha[cab.coluna];
+			const descricao = celulaTexto(linha[cab.coluna + 1]);
+			const entradaBruta = linha[cab.coluna + 2];
+			const saidaBruta = linha[cab.coluna + 3];
+			const totalBruto = linha[cab.coluna + 4];
+			const linhaVazia =
+				ehVazia(dataBruta) &&
+				!descricao &&
+				ehVazia(entradaBruta) &&
+				ehVazia(saidaBruta) &&
+				ehVazia(totalBruto);
+			if (linhaVazia) break;
+
+			const totalDaLinha = paraNumero(totalBruto);
+			if (totalDaLinha != null) saldoInformado = totalDaLinha;
+			if (normalizarTexto(descricao) === "SALDO ANTERIOR") {
+				if (saldoAbertura == null && totalDaLinha != null) {
+					saldoAbertura = totalDaLinha;
+				}
+				continue;
+			}
+
+			const data = paraDataISO(dataBruta);
+			const entrada = paraNumero(entradaBruta);
+			const saida = paraNumero(saidaBruta);
+			if (!data || (!entrada && !saida)) continue;
+
+			if (entrada) {
+				movimentos.push({
+					chave_externa: hashChave("FIN-HIST", nomeAba, r, "entrada"),
+					linha: r + 1,
+					data,
+					descricao: descricao || "(sem descrição)",
+					valor: entrada,
+					direcao: "entrada",
+				});
+			}
+			if (saida) {
+				movimentos.push({
+					chave_externa: hashChave("FIN-HIST", nomeAba, r, "saida"),
+					linha: r + 1,
+					data,
+					descricao: descricao || "(sem descrição)",
+					valor: saida,
+					direcao: "saida",
+				});
+			}
+		}
+	}
+
+	return { movimentos, saldoInformado, saldoAbertura };
+}
+
+function arredondarFinanceiro(valor) {
+	return Math.round((Number(valor) || 0) * 100) / 100;
+}
+
+function parseFinanceiroHistoricoMensal(caminhoXlsx, mes) {
+	const mesNormalizado = normalizarTexto(mes);
+	if (mesNormalizado !== MES_FINANCEIRO_PILOTO) {
+		throw new Error(
+			`O piloto financeiro está limitado a ${MES_FINANCEIRO_PILOTO}; ${mes || "(sem mês)"} ainda não foi revisado.`,
+		);
+	}
+	if (!caminhoXlsx || !fs.existsSync(caminhoXlsx)) {
+		throw new Error("Arquivo Excel não encontrado: " + caminhoXlsx);
+	}
+
+	const workbook = XLSX.readFile(caminhoXlsx);
+	const nomeAba = workbook.SheetNames.find(
+		(nome) => normalizarTexto(nome) === `FINANCEIRO LOJA${mesNormalizado}`,
+	);
+	if (!nomeAba) {
+		throw new Error(`Aba Financeiro Loja${mesNormalizado} não encontrada.`);
+	}
+
+	const { movimentos, saldoInformado, saldoAbertura } = extrairMovimentosFinanceiroMensal(
+		lerAba(workbook, nomeAba, true),
+		nomeAba,
+	);
+	const resultado = {
+		mes: mesNormalizado,
+		aba: nomeAba,
+		arquivoNome: path.basename(caminhoXlsx),
+		arquivoChecksum: crypto
+			.createHash("sha256")
+			.update(fs.readFileSync(caminhoXlsx))
+			.digest("hex"),
+		vendasHistoricas: [],
+		pagamentosHistoricos: [],
+		pendenciasHistoricas: [],
+	};
+
+	for (const movimento of movimentos) {
+		if (movimento.data.slice(5, 7) !== "01") {
+			resultado.pendenciasHistoricas.push({
+				...movimento,
+				destino: "pendente",
+				motivo: `Data ${movimento.data} fora de janeiro na aba selecionada`,
+			});
+			continue;
+		}
+
+		const classificacao = classificarMovimentoFinanceiroHistorico(movimento);
+		if (classificacao.destino === "venda") {
+			resultado.vendasHistoricas.push({
+				...movimento,
+				destino: "venda_historica",
+			});
+		} else if (classificacao.destino === "pagamento") {
+			resultado.pagamentosHistoricos.push({
+				...movimento,
+				destino: "pagamento_historico",
+				categoria: classificacao.categoria,
+				tipo: "pagar",
+				status: "pago",
+				data_vencimento: movimento.data,
+				data_pagamento: movimento.data,
+			});
+		} else {
+			resultado.pendenciasHistoricas.push({
+				...movimento,
+				destino: "pendente",
+				motivo: classificacao.motivo,
+			});
+		}
+	}
+
+	const totalEntradas = arredondarFinanceiro(
+		movimentos
+			.filter((movimento) => movimento.direcao === "entrada")
+			.reduce((soma, movimento) => soma + movimento.valor, 0),
+	);
+	const totalSaidas = arredondarFinanceiro(
+		movimentos
+			.filter((movimento) => movimento.direcao === "saida")
+			.reduce((soma, movimento) => soma + movimento.valor, 0),
+	);
+	const saldoCalculado = arredondarFinanceiro(
+		(saldoAbertura || 0) + totalEntradas - totalSaidas,
+	);
+	resultado.reconciliacao = {
+		saldoAbertura: saldoAbertura || 0,
+		totalEntradas,
+		totalSaidas,
+		saldoCalculado,
+		saldoInformado,
+		diferenca:
+			saldoInformado == null
+				? null
+				: arredondarFinanceiro(saldoInformado - saldoCalculado),
+		valida:
+			saldoInformado != null &&
+			Math.abs(arredondarFinanceiro(saldoInformado - saldoCalculado)) < 0.01,
+	};
+
+	return resultado;
+}
+
+function criarModeloFinanceiroMensal(dados) {
+	if (!dados || dados.mes !== MES_FINANCEIRO_PILOTO) {
+		throw new Error("O modelo financeiro mensal aceita apenas o piloto de JANEIRO.");
+	}
+	if (!dados.reconciliacao?.valida || dados.reconciliacao.saldoInformado == null) {
+		throw new Error("A planilha de janeiro não fecha para gerar o JSON revisado.");
+	}
+	const origem = {
+		arquivo_nome: dados.arquivoNome || "Loja House.xlsx",
+		aba: dados.aba,
+		sha256_arquivo: dados.arquivoChecksum,
+	};
+	const movimentos = [
+		...(dados.vendasHistoricas || []),
+		...(dados.pagamentosHistoricos || []),
+		...(dados.pendenciasHistoricas || []),
+	]
+		.sort((a, b) => a.linha - b.linha || a.direcao.localeCompare(b.direcao))
+		.map((movimento) => {
+			const item = {
+				linha_origem: movimento.linha,
+				data: movimento.data,
+				direcao: movimento.direcao,
+				descricao_original: movimento.descricao,
+				valor_centavos: paraCentavos(movimento.valor, "valor do movimento"),
+				destino: movimento.destino,
+				categoria: movimento.categoria || null,
+				motivo_pendencia: movimento.motivo || null,
+			};
+			return {
+				chave_externa: chaveExternaModeloFinanceiro(
+					COMPETENCIA_FINANCEIRO_PILOTO,
+					origem.sha256_arquivo,
+					item,
+				),
+				...item,
+			};
+		});
+	const auditoria = {
+		saldo_abertura_centavos: paraCentavos(
+			dados.reconciliacao?.saldoAbertura || 0,
+			"saldo de abertura",
+		),
+		total_entradas_centavos: paraCentavos(
+			dados.reconciliacao?.totalEntradas,
+			"total de entradas",
+		),
+		total_saidas_centavos: paraCentavos(
+			dados.reconciliacao?.totalSaidas,
+			"total de saídas",
+		),
+		saldo_fechamento_calculado_centavos: paraCentavos(
+			dados.reconciliacao?.saldoCalculado,
+			"saldo calculado",
+		),
+		saldo_fechamento_informado_centavos: paraCentavos(
+			dados.reconciliacao?.saldoInformado,
+			"saldo informado",
+		),
+		diferenca_centavos: paraCentavos(
+			dados.reconciliacao?.diferenca,
+			"diferença de conciliação",
+		),
+	};
+	const modelo = {
+		formato: FORMATO_MODELO_FINANCEIRO_HISTORICO,
+		versao: VERSAO_MODELO_FINANCEIRO_HISTORICO,
+		competencia: COMPETENCIA_FINANCEIRO_PILOTO,
+		origem,
+		auditoria,
+		movimentos,
+	};
+	return validarModeloFinanceiroMensal(modelo).modelo;
+}
+
+function validarInteiroCentavos(valor, campo) {
+	if (!Number.isSafeInteger(valor)) {
+		throw new TypeError(`${campo} precisa ser um inteiro em centavos`);
+	}
+}
+
+function validarModeloFinanceiroMensal(modelo) {
+	exigirChavesExatas(
+		modelo,
+		["formato", "versao", "competencia", "origem", "auditoria", "movimentos"],
+		"Modelo financeiro",
+	);
+	if (modelo.formato !== FORMATO_MODELO_FINANCEIRO_HISTORICO) {
+		throw new TypeError("Formato do modelo financeiro não suportado");
+	}
+	if (modelo.versao !== VERSAO_MODELO_FINANCEIRO_HISTORICO) {
+		throw new TypeError("Versão do modelo financeiro não suportada");
+	}
+	if (modelo.competencia !== COMPETENCIA_FINANCEIRO_PILOTO) {
+		throw new TypeError("O modelo financeiro aceita apenas a competência 2026-01");
+	}
+	exigirChavesExatas(
+		modelo.origem,
+		["arquivo_nome", "aba", "sha256_arquivo"],
+		"origem",
+	);
+	if (
+		typeof modelo.origem.arquivo_nome !== "string" ||
+		typeof modelo.origem.aba !== "string" ||
+		!/^Financeiro LojaJANEIRO$/i.test(modelo.origem.aba) ||
+		!(/^[a-f0-9]{64}$/i.test(modelo.origem.sha256_arquivo))
+	) {
+		throw new TypeError("Origem do modelo financeiro inválida");
+	}
+	exigirChavesExatas(
+		modelo.auditoria,
+		[
+			"saldo_abertura_centavos",
+			"total_entradas_centavos",
+			"total_saidas_centavos",
+			"saldo_fechamento_calculado_centavos",
+			"saldo_fechamento_informado_centavos",
+			"diferenca_centavos",
+		],
+		"auditoria",
+	);
+	for (const [campo, valor] of Object.entries(modelo.auditoria)) {
+		validarInteiroCentavos(valor, `auditoria.${campo}`);
+	}
+	if (!Array.isArray(modelo.movimentos) || modelo.movimentos.length === 0) {
+		throw new TypeError("movimentos precisa conter ao menos uma linha");
+	}
+
+	const chaves = new Set();
+	const movimentos = modelo.movimentos.map((movimento, indice) => {
+		const contexto = `movimentos[${indice}]`;
+		exigirChavesExatas(
+			movimento,
+			[
+				"chave_externa",
+				"linha_origem",
+				"data",
+				"direcao",
+				"descricao_original",
+				"valor_centavos",
+				"destino",
+				"categoria",
+				"motivo_pendencia",
+			],
+			contexto,
+		);
+		if (
+			typeof movimento.linha_origem !== "number" ||
+			!Number.isSafeInteger(movimento.linha_origem) ||
+			movimento.linha_origem < 1 ||
+			typeof movimento.data !== "string" ||
+			!/^\d{4}-\d{2}-\d{2}$/.test(movimento.data) ||
+			typeof movimento.descricao_original !== "string" ||
+			!movimento.descricao_original.trim() ||
+			!["entrada", "saida"].includes(movimento.direcao)
+		) {
+			throw new TypeError(`${contexto} contém fato de origem inválido`);
+		}
+		validarInteiroCentavos(movimento.valor_centavos, `${contexto}.valor_centavos`);
+		if (movimento.valor_centavos <= 0) {
+			throw new TypeError(`${contexto}.valor_centavos precisa ser positivo`);
+		}
+		const chaveEsperada = chaveExternaModeloFinanceiro(
+			modelo.competencia,
+			modelo.origem.sha256_arquivo,
+			movimento,
+		);
+		if (movimento.chave_externa !== chaveEsperada || chaves.has(movimento.chave_externa)) {
+			throw new TypeError(`${contexto}.chave_externa é inválida ou duplicada`);
+		}
+		chaves.add(movimento.chave_externa);
+		const dentroDaCompetencia = movimento.data.startsWith(`${modelo.competencia}-`);
+		if (movimento.destino === "venda_historica") {
+			if (
+				movimento.direcao !== "entrada" ||
+				!dentroDaCompetencia ||
+				movimento.categoria !== null ||
+				movimento.motivo_pendencia !== null
+			) {
+				throw new TypeError(`${contexto} não é uma venda histórica válida`);
+			}
+		} else if (movimento.destino === "pagamento_historico") {
+			if (
+				movimento.direcao !== "saida" ||
+				!dentroDaCompetencia ||
+				!CATEGORIAS_PAGAMENTO_HISTORICO.has(movimento.categoria) ||
+				movimento.motivo_pendencia !== null
+			) {
+				throw new TypeError(`${contexto} não é um pagamento histórico válido`);
+			}
+		} else if (movimento.destino === "pendente") {
+			if (
+				movimento.categoria !== null ||
+				typeof movimento.motivo_pendencia !== "string" ||
+				!movimento.motivo_pendencia.trim()
+			) {
+				throw new TypeError(`${contexto} não descreve uma pendência válida`);
+			}
+		} else {
+			throw new TypeError(`${contexto}.destino não é suportado`);
+		}
+		return {
+			chave_externa: movimento.chave_externa,
+			linha_origem: movimento.linha_origem,
+			data: movimento.data,
+			direcao: movimento.direcao,
+			descricao_original: movimento.descricao_original,
+			valor_centavos: movimento.valor_centavos,
+			destino: movimento.destino,
+			categoria: movimento.categoria,
+			motivo_pendencia: movimento.motivo_pendencia,
+		};
+	});
+
+	const entradas = movimentos
+		.filter((movimento) => movimento.direcao === "entrada")
+		.reduce((soma, movimento) => soma + movimento.valor_centavos, 0);
+	const saidas = movimentos
+		.filter((movimento) => movimento.direcao === "saida")
+		.reduce((soma, movimento) => soma + movimento.valor_centavos, 0);
+	const calculado = modelo.auditoria.saldo_abertura_centavos + entradas - saidas;
+	if (
+		entradas !== modelo.auditoria.total_entradas_centavos ||
+		saidas !== modelo.auditoria.total_saidas_centavos ||
+		calculado !== modelo.auditoria.saldo_fechamento_calculado_centavos ||
+		calculado !== modelo.auditoria.saldo_fechamento_informado_centavos ||
+		modelo.auditoria.diferenca_centavos !== 0
+	) {
+		throw new TypeError("A conciliação do modelo financeiro não fecha em centavos");
+	}
+
+	const modeloCanonico = modeloCanonicoFinanceiro({ ...modelo, movimentos });
+	const reconciliacao = {
+		saldoAbertura: deCentavos(modeloCanonico.auditoria.saldo_abertura_centavos),
+		totalEntradas: deCentavos(modeloCanonico.auditoria.total_entradas_centavos),
+		totalSaidas: deCentavos(modeloCanonico.auditoria.total_saidas_centavos),
+		saldoCalculado: deCentavos(
+			modeloCanonico.auditoria.saldo_fechamento_calculado_centavos,
+		),
+		saldoInformado: deCentavos(
+			modeloCanonico.auditoria.saldo_fechamento_informado_centavos,
+		),
+		diferenca: 0,
+		valida: true,
+	};
+	const paraPreview = (movimento) => ({
+		chave_externa: movimento.chave_externa,
+		linha: movimento.linha_origem,
+		data: movimento.data,
+		descricao: movimento.descricao_original,
+		valor: deCentavos(movimento.valor_centavos),
+		direcao: movimento.direcao,
+		destino: movimento.destino,
+		categoria: movimento.categoria || undefined,
+		motivo: movimento.motivo_pendencia || undefined,
+	});
+	return {
+		modelo: modeloCanonico,
+		checksum: hashFinanceiroHistorico(modeloCanonico),
+		dados: {
+			mes: MES_FINANCEIRO_PILOTO,
+			competencia: COMPETENCIA_FINANCEIRO_PILOTO,
+			aba: modeloCanonico.origem.aba,
+			arquivoChecksum: modeloCanonico.origem.sha256_arquivo,
+			vendasHistoricas: movimentos
+				.filter((movimento) => movimento.destino === "venda_historica")
+				.map(paraPreview),
+			pagamentosHistoricos: movimentos
+				.filter((movimento) => movimento.destino === "pagamento_historico")
+				.map((movimento) => ({
+					...paraPreview(movimento),
+					tipo: "pagar",
+					status: "pago",
+					data_vencimento: movimento.data,
+					data_pagamento: movimento.data,
+				})),
+			pendenciasHistoricas: movimentos
+				.filter((movimento) => movimento.destino === "pendente")
+				.map(paraPreview),
+			reconciliacao,
+			modeloChecksum: hashFinanceiroHistorico(modeloCanonico),
+		},
+	};
+}
+
+function serializarModeloFinanceiroMensal(modelo) {
+	return JSON.stringify(validarModeloFinanceiroMensal(modelo).modelo, null, 2);
+}
+
+// ---------------------------------------------------------------------------
 // Abas que viram pendência (Crediário, Contas a Pagar, Custos Fixos +
 // Investimento Loja, Consignado, analise2025)
 // ---------------------------------------------------------------------------
@@ -1453,12 +2070,12 @@ function parseAbaAnalise(linhas, pendencias) {
 
 // ---------------------------------------------------------------------------
 
-function lerAba(workbook, nomeAba) {
+function lerAba(workbook, nomeAba, raw = false) {
 	const planilha = workbook.Sheets[nomeAba];
 	if (!planilha) return [];
 	return XLSX.utils.sheet_to_json(planilha, {
 		header: 1,
-		raw: false,
+		raw,
 		defval: null,
 	});
 }
@@ -1565,6 +2182,11 @@ function parseExcelLojaHouse(caminhoXlsx) {
 
 module.exports = {
 	parseExcelLojaHouse,
+	parseFinanceiroHistoricoMensal,
+	criarModeloFinanceiroMensal,
+	validarModeloFinanceiroMensal,
+	serializarModeloFinanceiroMensal,
+	checksumModeloFinanceiroMensal,
 	// Exportados só para teste unitário direto dos helpers puros.
 	paraNumero,
 	extrairValorAVista,

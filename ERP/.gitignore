@@ -8,6 +8,8 @@ data/
 *.sqlite
 *.sqlite3
 *.log
+# JSONs financeiros reais são artefatos externos de revisão, nunca fixtures do repo.
+loja-house-financeiro-*.json
 
 # Export "Backup local" (db/banco-admin.js:exportarBancoJSON) — em dev, cai
 # na raiz do projeto (pastaExecutavel = __dirname quando !app.isPackaged);

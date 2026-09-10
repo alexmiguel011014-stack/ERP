@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
 	erpApi,
+	type CondicaoParcelamento,
 	type CustoFixoConfig,
 	type PrecificacaoLinha,
 } from "@/lib/erpApi";
@@ -25,6 +26,9 @@ export function usePrecificacao() {
 	const [taxaAdquirenteCartao, setTaxaAdquirenteCartao] = useState<
 		number | null
 	>(null);
+	const [condicoesParcelamento, setCondicoesParcelamento] = useState<
+		CondicaoParcelamento[]
+	>([]);
 	const [carregando, setCarregando] = useState(true);
 	const [erro, setErro] = useState<string | null>(null);
 
@@ -32,7 +36,7 @@ export function usePrecificacao() {
 		setCarregando(true);
 		setErro(null);
 		try {
-			const [margem, linhas, custoFixo, taxa, taxaPix, taxaCartao] =
+			const [margem, linhas, custoFixo, taxa, taxaPix, taxaCartao, condicoes] =
 				await Promise.all([
 					erpApi.precificacao.margemGlobal(),
 					erpApi.precificacao.dados(),
@@ -40,6 +44,7 @@ export function usePrecificacao() {
 					erpApi.precificacao.taxaAdquirente(),
 					erpApi.precificacao.taxaAdquirentePorMetodo("pix"),
 					erpApi.precificacao.taxaAdquirentePorMetodo("cartao"),
+					erpApi.precificacao.condicoesParcelamento(undefined, true),
 				]);
 			setMargemGlobal(Number(margem) || 40);
 			setDados(linhas);
@@ -47,6 +52,7 @@ export function usePrecificacao() {
 			setTaxaAdquirente(Number(taxa) || 0);
 			setTaxaAdquirentePix(taxaPix);
 			setTaxaAdquirenteCartao(taxaCartao);
+			setCondicoesParcelamento(condicoes);
 		} catch (e) {
 			setErro(e instanceof Error ? e.message : String(e));
 		} finally {
@@ -71,6 +77,8 @@ export function usePrecificacao() {
 		setTaxaAdquirentePix,
 		taxaAdquirenteCartao,
 		setTaxaAdquirenteCartao,
+		condicoesParcelamento,
+		setCondicoesParcelamento,
 		carregando,
 		erro,
 		recarregar,

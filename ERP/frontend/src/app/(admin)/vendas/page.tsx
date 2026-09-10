@@ -25,6 +25,9 @@ export default function VendasPage() {
 		itensCache,
 		carregandoItens,
 		carregarItens,
+		parcelasCache,
+		carregandoParcelas,
+		carregarParcelas,
 		converterOrcamento,
 		atualizarNotaFiscal,
 	} = useVendas();
@@ -65,6 +68,7 @@ export default function VendasPage() {
 				onExpandirLinha={carregarItens}
 				onAbrirDetalhe={(venda) => {
 					carregarItens(venda.id);
+					carregarParcelas(venda.id);
 					setVendaSelecionada(venda);
 				}}
 			/>
@@ -72,8 +76,14 @@ export default function VendasPage() {
 			<VendaDetalheModal
 				venda={vendaSelecionada}
 				itens={vendaSelecionada ? itensCache[vendaSelecionada.id] : undefined}
+				parcelas={
+					vendaSelecionada ? parcelasCache[vendaSelecionada.id] : undefined
+				}
 				carregandoItens={
 					vendaSelecionada ? !!carregandoItens[vendaSelecionada.id] : false
+				}
+				carregandoParcelas={
+					vendaSelecionada ? !!carregandoParcelas[vendaSelecionada.id] : false
 				}
 				onClose={() => setVendaSelecionada(null)}
 				onConverter={converterOrcamento}

@@ -105,6 +105,7 @@ async function checarDuplicacao(chaves) {
 				chaveMapeamento("estoque", chave),
 				chaveMapeamento("cliente", chave),
 				chaveMapeamento("lancamento", chave),
+				chaveMapeamento("venda_historica", chave),
 			]),
 		),
 	];
@@ -122,6 +123,7 @@ async function checarDuplicacao(chaves) {
 			chaveMapeamento("estoque", chave),
 			chaveMapeamento("cliente", chave),
 			chaveMapeamento("lancamento", chave),
+			chaveMapeamento("venda_historica", chave),
 		].some((persistida) => existentesPersistidas.has(persistida)),
 	);
 	const novas = chaves.filter((chave) => !existentes.includes(chave));
@@ -137,6 +139,7 @@ function chaveMapeamento(tipo, chaveExterna) {
 		estoque: "estoque_",
 		cliente: "cliente_",
 		lancamento: "lancamento_",
+		venda_historica: "venda_historica_",
 	};
 	return `${prefixos[tipo] || ""}${chaveExterna}`;
 }
@@ -684,8 +687,8 @@ async function importarFinanceiroHistorico(dados, batchId, db) {
 			await runOn(
 				conn,
 				`INSERT INTO LancamentosFinanceiros
-				(tipo, descricao, valor, data_vencimento, data_pagamento, status, origem)
-				VALUES (?, ?, ?, ?, ?, ?, 'importacao_migracao')`,
+				(tipo, descricao, valor, data_vencimento, data_pagamento, status, categoria, origem)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 				[
 					item.tipo,
 					item.descricao,
@@ -693,6 +696,8 @@ async function importarFinanceiroHistorico(dados, batchId, db) {
 					item.data_vencimento || null,
 					item.data_pagamento || null,
 					item.status || "pago",
+					item.categoria || null,
+					item.origem || "importacao_migracao",
 				],
 			);
 
@@ -715,6 +720,236 @@ async function importarFinanceiroHistorico(dados, batchId, db) {
 	}
 
 	return { erros, importados, ignoradas };
+}
+
+// Uma venda do financeiro antigo só preserva o fato comprovado pela linha:
+// data, texto e valor. Não existe ItemVenda, SKU, cliente ou movimento de
+// estoque porque a planilha não dá esses vínculos com segurança.
+async function importarVendasFinanceiroHistorico(dados, batchId, db) {
+	const conn = db || getConexao();
+	const erros = [];
+	let importadas = 0;
+	let ignoradas = 0;
+
+	for (const item of dados) {
+		try {
+			if (await obterEntidadeMapeada(conn, "venda_historica", item.chave_externa)) {
+				ignoradas++;
+				continue;
+			}
+			if (!item.data || !item.descricao || !(Number(item.valor) > 0)) {
+				throw new Error("Venda histórica sem data, descrição ou valor válido");
+			}
+
+			await runOn(
+				conn,
+				`INSERT INTO Vendas
+				(total, forma_pagamento, data_venda, desconto, observacao, status, origem)
+				VALUES (?, NULL, ?, 0, ?, 'finalizada', 'importacao_financeiro_historico')`,
+				[
+					item.valor,
+					item.data,
+					`Histórico financeiro: ${item.descricao}`,
+				],
+			);
+
+			const resultado = await getOn(conn, "SELECT last_insert_rowid() as id");
+			await vincularChaveExterna(
+				conn,
+				"venda_historica",
+				item.chave_externa,
+				resultado.id,
+				batchId,
+			);
+			importadas++;
+		} catch (erro) {
+			erros.push({
+				chave_externa: item.chave_externa,
+				motivo: erro.message,
+			});
+		}
+	}
+
+	return { erros, importadas, ignoradas };
+}
+
+function resumirCategoriasFinanceiroHistorico(pagamentos) {
+	const categorias = {};
+	for (const pagamento of pagamentos) {
+		const categoria = pagamento.categoria || "Pendente de conferência";
+		categorias[categoria] =
+			Math.round(((categorias[categoria] || 0) + Number(pagamento.valor || 0)) * 100) /
+			100;
+	}
+	return categorias;
+}
+
+async function checarModeloFinanceiroMensalExistente(checksum) {
+	const lotes = await allAsync(
+		`SELECT id, checksum FROM ImportacaoBatch
+		WHERE origem = 'loja_house_financeiro_historico' AND status = 'sucesso'
+		ORDER BY data_importacao DESC`,
+		[],
+	);
+	return {
+		identico: lotes.find((lote) => lote.checksum === checksum) || null,
+		diferente: lotes.find((lote) => lote.checksum !== checksum) || null,
+	};
+}
+
+// Caminho deliberadamente separado da importação completa da Loja House: a
+// aba financeira é evidência histórica, não fonte para reconstruir estoque ou
+// catálogo. Pendências e falhas de reconciliação bloqueiam o commit inteiro.
+async function executarImportacaoFinanceiroMensal(dados, usuarioId, opcoes = {}) {
+	const conn = getConexao();
+	const { dryRun = true } = opcoes;
+	if (
+		!dados ||
+		dados.mes !== "JANEIRO" ||
+		dados.competencia !== "2026-01" ||
+		!(/^[a-f0-9]{64}$/i.test(dados.modeloChecksum || ""))
+	) {
+		throw new Error("A importação financeira mensal aceita apenas o piloto de JANEIRO.");
+	}
+
+	const vendas = Array.isArray(dados.vendasHistoricas)
+		? dados.vendasHistoricas
+		: [];
+	const pagamentos = Array.isArray(dados.pagamentosHistoricos)
+		? dados.pagamentosHistoricos
+		: [];
+	const pendencias = Array.isArray(dados.pendenciasHistoricas)
+		? dados.pendenciasHistoricas
+		: [];
+	const chaves = [...vendas, ...pagamentos].map((item) => item.chave_externa);
+	const { existentes } = await checarDuplicacao(chaves);
+	const lotesExistentes = await checarModeloFinanceiroMensalExistente(
+		dados.modeloChecksum,
+	);
+	const alertasRegrasNegocio = [];
+	if (pendencias.length > 0) {
+		alertasRegrasNegocio.push(
+			`${pendencias.length} linha(s) precisam de conferência antes do commit.`,
+		);
+	}
+	if (!dados.reconciliacao?.valida) {
+		alertasRegrasNegocio.push(
+			"A conciliação da planilha não fecha com os movimentos classificados.",
+		);
+	}
+	if (lotesExistentes.diferente) {
+		alertasRegrasNegocio.push(
+			"Já existe um JSON financeiro de janeiro diferente. A substituição exige uma operação auditada separada.",
+		);
+	}
+
+	const preview = {
+		mes: dados.mes,
+		vendasHistoricas: vendas.length,
+		pagamentosHistoricos: pagamentos.length,
+		pendenciasHistoricas: pendencias.length,
+		porCategoria: resumirCategoriasFinanceiroHistorico(pagamentos),
+		reconciliacao: dados.reconciliacao,
+	};
+	const conflitos = {
+		duplicadasJaImportadas: existentes.length,
+		alertasRegrasNegocio,
+		loteIdenticoJaImportado: Boolean(lotesExistentes.identico),
+		loteDiferenteJaImportado: Boolean(lotesExistentes.diferente),
+	};
+
+	if (dryRun) {
+		return {
+			dryRun: true,
+			preview,
+			conflitos,
+			checksum: dados.modeloChecksum,
+		};
+	}
+	if (alertasRegrasNegocio.length > 0) {
+		throw new Error(alertasRegrasNegocio.join(" "));
+	}
+	if (lotesExistentes.identico) {
+		return {
+			batchId: lotesExistentes.identico.id,
+			importadas: { vendasHistoricas: 0, pagamentosHistoricos: 0 },
+			ignoradas: vendas.length + pagamentos.length,
+			pendencias: 0,
+			erros: [],
+			reconciliacao: dados.reconciliacao,
+			jaImportado: true,
+		};
+	}
+
+	return executarComTransacao(async (connTxn) => {
+		const batchId = gerarIdUnido();
+		await runOn(
+			connTxn,
+			`INSERT INTO ImportacaoBatch
+			(id, usuario_id, origem, status, total_itens, itens_importados, itens_ignorados, itens_erro)
+			VALUES (?, ?, 'loja_house_financeiro_historico', 'em_progresso', 0, 0, 0, 0)`,
+			[batchId, usuarioId],
+		);
+
+		const resultado = {
+			batchId,
+			importadas: { vendasHistoricas: 0, pagamentosHistoricos: 0 },
+			ignoradas: 0,
+			pendencias: 0,
+			erros: [],
+			reconciliacao: dados.reconciliacao,
+			competencia: dados.competencia,
+			arquivoChecksum: dados.arquivoChecksum,
+			modeloChecksum: dados.modeloChecksum,
+		};
+		const resVendas = await importarVendasFinanceiroHistorico(
+			vendas,
+			batchId,
+			connTxn,
+		);
+		resultado.importadas.vendasHistoricas = resVendas.importadas;
+		resultado.ignoradas += resVendas.ignoradas;
+		resultado.erros.push(...resVendas.erros);
+
+		const resPagamentos = await importarFinanceiroHistorico(
+			pagamentos.map((pagamento) => ({
+				...pagamento,
+				origem: "importacao_financeiro_historico",
+			})),
+			batchId,
+			connTxn,
+		);
+		resultado.importadas.pagamentosHistoricos = resPagamentos.importados;
+		resultado.ignoradas += resPagamentos.ignoradas;
+		resultado.erros.push(...resPagamentos.erros);
+
+		if (resultado.erros.length > 0) {
+			throw new Error(
+				`Importação cancelada para não deixar dados parciais: ${resultado.erros
+					.map((erro) => `${erro.chave_externa}: ${erro.motivo}`)
+					.join("; ")}`,
+			);
+		}
+
+		const totalItens = vendas.length + pagamentos.length;
+		await runOn(
+			connTxn,
+			`UPDATE ImportacaoBatch
+			SET status = 'sucesso', total_itens = ?, itens_importados = ?, itens_ignorados = ?, itens_erro = 0, log = ?, checksum = ?
+			WHERE id = ?`,
+			[
+				totalItens,
+				resultado.importadas.vendasHistoricas +
+					resultado.importadas.pagamentosHistoricos,
+				resultado.ignoradas,
+				JSON.stringify(resultado),
+				dados.modeloChecksum,
+				batchId,
+			],
+		);
+
+		return resultado;
+	}, conn);
 }
 
 // Vendas históricas de crediário (Fiado) já vinculadas a um cliente real —
@@ -1287,10 +1522,12 @@ async function obterDetalhesLote(batchId) {
 
 module.exports = {
 	executarImportacaoLojHouse,
+	executarImportacaoFinanceiroMensal,
 	obterHistoricoLotes,
 	obterDetalhesLote,
 	validarStructura,
 	checarDuplicacao,
+	importarVendasFinanceiroHistorico,
 	normalizarConteudoArquivo,
 	mesclarDuplicidadesImportacao,
 };

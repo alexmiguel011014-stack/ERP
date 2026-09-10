@@ -1,12 +1,44 @@
 const {
 	getConexao,
 	allAsync,
+	getAsync,
 	runAsync,
 	runOn,
 	normalizarBusca,
 } = require("./conexao");
 const { criarLancamentoInterno } = require("./financeiro");
 const { getCaixaAberto } = require("./caixa");
+const { calcularParcelamento, calcularVendaParcelada } = require("./parcelamento");
+
+function normalizarRequestId(valor) {
+	if (valor == null || valor === "") return null;
+	const requestId = String(valor).trim();
+	if (!requestId || requestId.length > 128) {
+		throw new Error("Identificador da venda inválido.");
+	}
+	return requestId;
+}
+
+async function buscarVendaIdempotente(requestId) {
+	if (!requestId) return null;
+	const venda = await getAsync(
+		"SELECT id, total, status FROM Vendas WHERE request_id = ?",
+		[requestId],
+	);
+	if (!venda) return null;
+	const parcelas = await allAsync(
+		"SELECT parcela_num AS numero, valor, data_vencimento AS vencimento FROM LancamentosFinanceiros WHERE venda_id = ? ORDER BY parcela_num, id",
+		[venda.id],
+	);
+	return {
+		success: true,
+		vendaId: venda.id,
+		total: venda.total,
+		parcelas,
+		status: venda.status,
+		idempotente: true,
+	};
+}
 
 // eslint-disable-next-line no-unused-vars
 async function finalizarVendaPDV02(dados) {
@@ -24,7 +56,6 @@ async function finalizarVendaPDV02(dados) {
 				erro ? reject(erro) : resolve(linha),
 			);
 		});
-
 	const requestId = String((dados && dados.requestId) || "").trim();
 	if (!requestId) throw new Error("Identificador da venda ausente.");
 
@@ -188,6 +219,9 @@ async function finalizarVenda(dados, usuarioId) {
 		throw new Error("A venda precisa de pelo menos um item.");
 
 	const status = dados.status === "orcamento" ? "orcamento" : "finalizada";
+	const requestId = normalizarRequestId(dados.request_id);
+	const vendaExistente = await buscarVendaIdempotente(requestId);
+	if (vendaExistente) return vendaExistente;
 
 	// Guarda de caixa: só se aplica a venda finalizada de verdade (dinheiro/
 	// pagamento passando pelo caixa) — orçamento não move dinheiro nenhum,
@@ -204,8 +238,6 @@ async function finalizarVenda(dados, usuarioId) {
 		}
 	}
 
-	const desconto = Math.max(0, Number(dados.desconto) || 0);
-	const total = Math.max(0, Number(dados.total) || 0);
 	const clienteId = dados.cliente_id ? Number(dados.cliente_id) : null;
 	const formaPagamento = dados.forma_pagamento || null;
 	const observacao = dados.observacao || null;
@@ -219,8 +251,20 @@ async function finalizarVenda(dados, usuarioId) {
 	await run("BEGIN TRANSACTION");
 
 	try {
+		// O processo principal é a fonte de verdade: preços enviados pelo
+		// renderer (inclusive total e parcela) são apenas uma prévia visual.
+		const calculo = await calcularVendaParcelada({
+			itens,
+			cliente_id: clienteId,
+			forma_pagamento: formaPagamento,
+			condicao_parcelamento_id: dados.condicao_parcelamento_id,
+			desconto: dados.desconto,
+			data_primeiro_vencimento: dados.data_primeiro_vencimento,
+		});
+		const desconto = calculo.desconto;
+		const total = calculo.total;
 		const result = await run(
-			"INSERT INTO Vendas (cliente_id, total, forma_pagamento, data_venda, desconto, observacao, status, usuario_id, origem) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			"INSERT INTO Vendas (cliente_id, total, forma_pagamento, data_venda, desconto, observacao, status, usuario_id, origem, condicao_parcelamento_id, condicao_parcelamento_nome, parcelas, acrescimo_percentual, acrescimo_parcelamento, valor_a_vista, valor_base_parcelamento, total_parcelado, data_primeiro_vencimento, request_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 			[
 				clienteId,
 				total,
@@ -231,11 +275,21 @@ async function finalizarVenda(dados, usuarioId) {
 				status,
 				usuarioId || null,
 				origemVenda,
+				calculo.condicao ? calculo.condicao.id : null,
+				calculo.condicao ? calculo.condicao.nome : null,
+				calculo.parcelas.length,
+				calculo.acrescimoPercentual,
+				calculo.acrescimo,
+				calculo.valorBase,
+				calculo.valorBase,
+				calculo.total,
+				formaPagamento === "Fiado" ? calculo.parcelas[0].vencimento : null,
+				requestId,
 			],
 		);
 		const vendaId = result.lastID;
 
-		for (const item of itens) {
+		for (const item of calculo.itens) {
 			await run(
 				"INSERT INTO ItensVenda (venda_id, variacao_id, quantidade, preco_unitario) VALUES (?, ?, ?, ?)",
 				[vendaId, item.variacao_id, item.quantidade, item.preco_unitario],
@@ -294,23 +348,47 @@ async function finalizarVenda(dados, usuarioId) {
 			}
 		}
 
-		// Venda a prazo gera conta a receber automaticamente.
+		// Só Fiado gera recebíveis do cliente. Cartão parcelado descreve a
+		// condição comercial da venda, mas foi confirmado na maquininha no
+		// checkout e não pode criar uma agenda fictícia de recebimento.
 		if (status === "finalizada" && formaPagamento === "Fiado") {
-			await criarLancamentoInterno(run, {
-				tipo: "receber",
-				descricao: "Venda #" + vendaId + " (fiado)",
-				valor: total,
-				data_vencimento: new Date().toISOString(),
-				origem: "venda",
-				referencia_id: vendaId,
-				forma_pagamento: formaPagamento,
-			});
+			const grupoId = "venda-" + vendaId;
+			for (const parcela of calculo.parcelas) {
+				await criarLancamentoInterno(run, {
+					tipo: "receber",
+					descricao:
+						"Venda #" +
+						vendaId +
+						" (fiado " +
+						parcela.numero +
+						"/" +
+						calculo.parcelas.length +
+						")",
+					valor: parcela.valor,
+					data_vencimento: parcela.vencimento,
+					origem: "venda",
+					referencia_id: vendaId,
+					venda_id: vendaId,
+					cliente_id: clienteId,
+					grupo_id: grupoId,
+					parcela_num: parcela.numero,
+					parcela_total: calculo.parcelas.length,
+					forma_pagamento: formaPagamento,
+				});
+			}
 		}
 
 		await run("COMMIT");
-		return { success: true, vendaId };
+		return { success: true, vendaId, total, parcelas: calculo.parcelas };
 	} catch (erro) {
 		await run("ROLLBACK");
+		if (
+			requestId &&
+			String(erro && erro.message).includes("Vendas.request_id")
+		) {
+			const vendaExistente = await buscarVendaIdempotente(requestId);
+			if (vendaExistente) return vendaExistente;
+		}
 		throw erro;
 	}
 }
@@ -387,15 +465,40 @@ async function converterOrcamento(vendaId) {
 		);
 
 		if (venda.forma_pagamento === "Fiado") {
-			await criarLancamentoInterno(run, {
-				tipo: "receber",
-				descricao: "Venda #" + vendaId + " (fiado)",
-				valor: venda.total,
-				data_vencimento: new Date().toISOString(),
-				origem: "venda",
-				referencia_id: vendaId,
-				forma_pagamento: venda.forma_pagamento,
-			});
+			if (!venda.cliente_id) {
+				throw new Error("Orçamento fiado precisa de cliente antes da conversão.");
+			}
+			const parcelas = calcularParcelamento({
+				valorBase: venda.total,
+				numeroParcelas: Number(venda.parcelas) || 1,
+				primeiroVencimento:
+					venda.data_primeiro_vencimento ||
+					new Date().toISOString().slice(0, 10),
+			}).parcelas;
+			const grupoId = "venda-" + vendaId;
+			for (const parcela of parcelas) {
+				await criarLancamentoInterno(run, {
+					tipo: "receber",
+					descricao:
+						"Venda #" +
+						vendaId +
+						" (fiado " +
+						parcela.numero +
+						"/" +
+						parcelas.length +
+						")",
+					valor: parcela.valor,
+					data_vencimento: parcela.vencimento,
+					origem: "venda",
+					referencia_id: vendaId,
+					venda_id: vendaId,
+					cliente_id: venda.cliente_id,
+					grupo_id: grupoId,
+					parcela_num: parcela.numero,
+					parcela_total: parcelas.length,
+					forma_pagamento: "Fiado",
+				});
+			}
 		}
 
 		await run("COMMIT");
@@ -531,6 +634,13 @@ async function registrarDevolucao(dados, usuarioId) {
 				resolve(linha);
 			});
 		});
+	const all = (sql, params = []) =>
+		new Promise((resolve, reject) => {
+			conn.all(sql, params, (erro, linhas) => {
+				if (erro) return reject(erro);
+				resolve(linhas);
+			});
+		});
 
 	const vendaId = Number(dados && dados.venda_id);
 	const itens = Array.isArray(dados && dados.itens) ? dados.itens : [];
@@ -617,25 +727,42 @@ async function registrarDevolucao(dados, usuarioId) {
 			devolucaoId,
 		]);
 
-		// Venda fiado com conta a receber ainda aberta: abate o valor devolvido.
+		// Uma devolução de Fiado ainda em aberto reduz as próximas parcelas por
+		// vencimento. Parcelas já pagas nunca são reescritas: se o crédito em
+		// aberto não cobre a devolução, a operação inteira é bloqueada para um
+		// ajuste manual explícito.
 		if (venda.forma_pagamento === "Fiado") {
-			const lancamento = await get(
-				"SELECT * FROM LancamentosFinanceiros WHERE origem = 'venda' AND referencia_id = ? AND tipo = 'receber' AND status = 'aberto'",
-				[vendaId],
+			const abertas = await all(
+				`SELECT id, valor FROM LancamentosFinanceiros
+         WHERE origem = 'venda' AND tipo = 'receber' AND status = 'aberto'
+           AND (venda_id = ? OR (venda_id IS NULL AND referencia_id = ?))
+         ORDER BY DATE(data_vencimento), parcela_num, id`,
+				[vendaId, vendaId],
 			);
-			if (lancamento) {
-				const novoValor = Math.max(0, lancamento.valor - valorTotal);
-				if (novoValor <= 0.005) {
-					await run(
-						"UPDATE LancamentosFinanceiros SET status = 'pago', data_pagamento = ?, valor = 0 WHERE id = ?",
-						[new Date().toISOString(), lancamento.id],
-					);
-				} else {
-					await run(
-						"UPDATE LancamentosFinanceiros SET valor = ? WHERE id = ?",
-						[Math.round(novoValor * 100) / 100, lancamento.id],
-					);
-				}
+			let restanteCentavos = Math.round(valorTotal * 100);
+			const saldoAbertoCentavos = abertas.reduce(
+				(total, lancamento) => total + Math.round(Number(lancamento.valor) * 100),
+				0,
+			);
+			if (restanteCentavos > saldoAbertoCentavos) {
+				throw new Error(
+					"A devolução excede o saldo fiado em aberto. Faça um ajuste manual para parcelas já recebidas.",
+				);
+			}
+			for (const lancamento of abertas) {
+				if (restanteCentavos === 0) break;
+				const valorCentavos = Math.round(Number(lancamento.valor) * 100);
+				const abatimento = Math.min(restanteCentavos, valorCentavos);
+				const novoValorCentavos = valorCentavos - abatimento;
+				await run(
+					novoValorCentavos === 0
+						? "UPDATE LancamentosFinanceiros SET valor = 0, status = 'cancelado', data_pagamento = NULL WHERE id = ? AND status = 'aberto'"
+						: "UPDATE LancamentosFinanceiros SET valor = ? WHERE id = ? AND status = 'aberto'",
+					novoValorCentavos === 0
+						? [lancamento.id]
+						: [novoValorCentavos / 100, lancamento.id],
+				);
+				restanteCentavos -= abatimento;
 			}
 		}
 
@@ -680,11 +807,27 @@ async function getItensDevolucao(devolucaoId) {
 	);
 }
 
+async function getParcelasVenda(vendaId) {
+	const id = Number(vendaId);
+	if (!Number.isInteger(id) || id <= 0) throw new Error("Venda inválida.");
+	return allAsync(
+		`SELECT lf.id, lf.parcela_num AS numero, lf.parcela_total AS total,
+            lf.valor, lf.data_vencimento AS vencimento, lf.data_pagamento,
+            lf.status, lf.cliente_id, c.nome AS cliente_nome
+       FROM LancamentosFinanceiros lf
+       LEFT JOIN Clientes c ON c.id = lf.cliente_id
+       WHERE lf.origem = 'venda' AND lf.tipo = 'receber'
+         AND (lf.venda_id = ? OR (lf.venda_id IS NULL AND lf.referencia_id = ?))
+       ORDER BY lf.parcela_num, lf.id`,
+		[id, id],
+	);
+}
+
 async function getVendas(filtro) {
 	const conn = getConexao();
 	return new Promise((resolver, rejeitar) => {
 		let sql =
-			"SELECT v.id, v.total, v.forma_pagamento, v.data_venda, v.desconto, v.observacao, v.status, v.nota_status, v.nota_numero, c.nome AS cliente_nome FROM Vendas v LEFT JOIN Clientes c ON c.id = v.cliente_id";
+			"SELECT v.id, v.total, v.forma_pagamento, v.data_venda, v.desconto, v.observacao, v.status, v.nota_status, v.nota_numero, v.condicao_parcelamento_nome, v.parcelas, v.acrescimo_parcelamento, v.data_primeiro_vencimento, c.nome AS cliente_nome FROM Vendas v LEFT JOIN Clientes c ON c.id = v.cliente_id";
 		const params = [];
 		const where = [];
 
@@ -977,6 +1120,7 @@ module.exports = {
 	importarVendasHistoricas,
 	registrarVendaFiadoHistorica,
 	getItensVenda,
+	getParcelasVenda,
 	buscaGlobal,
 	registrarDevolucao,
 	getDevolucoes,

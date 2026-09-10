@@ -39,7 +39,9 @@ export default function LancamentosUnificados({
 	onAtualizado: (texto: string) => void;
 }) {
 	const [tipo, setTipo] = useState<"" | "receber" | "pagar">("");
-	const [status, setStatus] = useState<"" | "aberto" | "pago">("");
+	const [status, setStatus] = useState<
+		"" | "aberto" | "pago" | "cancelado"
+	>("");
 	const [categoria, setCategoria] = useState("");
 	const [dataInicio, setDataInicio] = useState("");
 	const [dataFim, setDataFim] = useState("");
@@ -154,7 +156,9 @@ export default function LancamentosUnificados({
 				<select
 					value={status}
 					onChange={(e) =>
-						setStatus(e.target.value as "" | "aberto" | "pago")
+						setStatus(
+							e.target.value as "" | "aberto" | "pago" | "cancelado",
+						)
 					}
 					aria-label="Status do lançamento"
 					className="h-11 rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
@@ -162,6 +166,7 @@ export default function LancamentosUnificados({
 					<option value="">Todos os status</option>
 					<option value="aberto">Em aberto</option>
 					<option value="pago">Pago</option>
+					<option value="cancelado">Cancelado</option>
 				</select>
 				<select
 					value={categoria}
@@ -261,6 +266,14 @@ export default function LancamentosUnificados({
 										</td>
 										<td className="px-3 py-2 font-medium text-gray-800 dark:text-white/90">
 											{lancamento.descricao}
+											{lancamento.cliente_nome && (
+												<div className="text-xs font-normal text-gray-400">
+													Cliente: {lancamento.cliente_nome}
+													{lancamento.parcela_total && lancamento.parcela_total > 1
+														? ` · parcela ${lancamento.parcela_num}/${lancamento.parcela_total}`
+														: ""}
+												</div>
+											)}
 											{lancamento.status === "pago" && lancamento.data_pagamento ? (
 												<div className="text-xs font-normal text-gray-400">
 													Pago em {formatarData(lancamento.data_pagamento)}
@@ -279,14 +292,18 @@ export default function LancamentosUnificados({
 										<td className="whitespace-nowrap px-3 py-2">
 											<span
 												className={
-													lancamento.status === "pago"
+													lancamento.status === "cancelado"
+														? "rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300"
+														: lancamento.status === "pago"
 														? "rounded-full bg-success-50 px-2.5 py-0.5 text-xs font-semibold text-success-600 dark:bg-success-500/10 dark:text-success-400"
 														: atrasado
 															? "rounded-full bg-error-50 px-2.5 py-0.5 text-xs font-semibold text-error-600 dark:bg-error-500/10 dark:text-error-400"
 															: "rounded-full bg-warning-50 px-2.5 py-0.5 text-xs font-semibold text-warning-600 dark:bg-warning-500/10 dark:text-warning-400"
 												}
 											>
-												{lancamento.status === "pago"
+												{lancamento.status === "cancelado"
+													? "Cancelado"
+													: lancamento.status === "pago"
 													? "Pago"
 													: atrasado
 														? "Vencido"

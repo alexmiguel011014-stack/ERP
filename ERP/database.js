@@ -24,6 +24,7 @@ const usuarios = require("./db/usuarios");
 const importacoes = require("./db/importacoes");
 const excelLojaHouse = require("./db/excel-loja-house");
 const consignacoes = require("./db/consignacoes");
+const parcelamento = require("./db/parcelamento");
 
 module.exports = {
 	db: conexao.getConexao,
@@ -56,6 +57,11 @@ module.exports = {
 	buscarSKU: produtos.buscarSKU,
 	buscarProdutosPorTermo: produtos.buscarProdutosPorTermo,
 	finalizarVenda: vendas.finalizarVenda,
+	calcularParcelamento: parcelamento.calcularParcelamento,
+	calcularVendaParcelada: parcelamento.calcularVendaParcelada,
+	listarCondicoesParcelamento: parcelamento.listarCondicoesParcelamento,
+	obterCondicaoParcelamento: parcelamento.obterCondicaoParcelamento,
+	salvarCondicaoParcelamento: parcelamento.salvarCondicaoParcelamento,
 	setDBPath: conexao.setDBPath,
 	getDBPath: conexao.getDBPath,
 	setPastaExecutavel: conexao.setPastaExecutavel,
@@ -75,6 +81,7 @@ module.exports = {
 	registrarVendaFiadoHistorica: vendas.registrarVendaFiadoHistorica,
 	getFaturamentoMedioHistorico: precificacao.getFaturamentoMedioHistorico,
 	getItensVenda: vendas.getItensVenda,
+	getParcelasVenda: vendas.getParcelasVenda,
 	getMovimentacoesCliente: clientes.getMovimentacoesCliente,
 	getEstoqueNegativo: estoque.getEstoqueNegativo,
 	getCategorias: categorias.getCategorias,
@@ -189,10 +196,18 @@ module.exports = {
 	excluirImagensEmLote: imagens.excluirImagensEmLote,
 	buscaGlobal: vendas.buscaGlobal,
 	executarImportacaoLojHouse: importacoes.executarImportacaoLojHouse,
+	executarImportacaoFinanceiroMensal:
+		importacoes.executarImportacaoFinanceiroMensal,
 	obterHistoricoLotes: importacoes.obterHistoricoLotes,
 	obterDetalhesLote: importacoes.obterDetalhesLote,
 	normalizarConteudoArquivoImportacao: importacoes.normalizarConteudoArquivo,
 	parseExcelLojaHouse: excelLojaHouse.parseExcelLojaHouse,
+	parseFinanceiroHistoricoMensal:
+		excelLojaHouse.parseFinanceiroHistoricoMensal,
+	criarModeloFinanceiroMensal: excelLojaHouse.criarModeloFinanceiroMensal,
+	validarModeloFinanceiroMensal: excelLojaHouse.validarModeloFinanceiroMensal,
+	serializarModeloFinanceiroMensal:
+		excelLojaHouse.serializarModeloFinanceiroMensal,
 	registrarConsignacao: consignacoes.registrarConsignacao,
 	marcarDevolvida: consignacoes.marcarDevolvida,
 	marcarPerdida: consignacoes.marcarPerdida,

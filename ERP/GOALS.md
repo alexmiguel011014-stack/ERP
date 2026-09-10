@@ -5174,3 +5174,1079 @@ depends on the agreed bucket sizes. Backend before Frontend — the frontend ran
 the new IPC channel, so it must exist first. Tests after Backend, before Manual verification
 (automated proof before eyeballing). Manual verification before Registration, which is empty
 here.
+---
+
+## GOALS 14 — Product installment pricing and PDV crediário (feature, not started)
+
+**Owner request (2026-09-09):** create a product-installment system that is available in the
+`Frente de Caixa` and represented in `Precificação`.
+
+**Current findings, verified against the repository:** the default shipped runtime is the Next.js
+frontend; the legacy `modules/` screens remain an internal fallback. `Variacoes.preco` is the
+operational product price used by the PDV, `Precificacao` stores the product-level price inputs,
+and `PrecoCliente` can override a variation price for a selected customer. `Vendas` stores only
+one `forma_pagamento` and the active `finalizarVenda()` creates one receivable for `Fiado`.
+`LancamentosFinanceiros` already has `grupo_id`, `parcela_num` and `parcela_total`, but those
+fields are currently used by manual financial entries, not by the checkout. The separate
+`Pagamentos` table is receipt detail and marking one of its rows received does not settle the
+corresponding financial launch. The existing cash-flow policy excludes `Fiado` at sale time and
+includes each receivable only when its financial launch is paid.
+
+This goal must reuse GOALS 13's canonical financial-event contract if that work has landed before
+execution. It must not create a second cash-flow calculation or count `Vendas`, `Pagamentos` and
+`LancamentosFinanceiros` independently.
+
+```mermaid
+flowchart TD
+    A[Confirm v1 commercial policy] --> B[Freeze price and installment contract]
+    B --> C[Schema migration and cent-based calculator]
+    C --> D[Atomic sale and installment receivables]
+    C --> E[Precificacao conditions and previews]
+    D --> F[IPC preload and typed API]
+    E --> G[PDV condition selector and receipt]
+    F --> G
+    D --> H[Financeiro/Vendas/devolution compatibility]
+    G --> I[Backend, E2E and manual acceptance]
+    H --> I
+```
+
+Suggested: opus · xhigh — money, stock and historical-price semantics cross the database,
+financial ledger, IPC, Precificação and PDV, so a wrong decision can create hard-to-reconcile
+sales or receivables.
+
+### Design rationale
+
+- **Owner decision (2026-09-09): Fiado and Cartão both support installments.** A `Fiado`
+  condition creates one customer receivable per installment. A `Cartão` condition records the
+  selected number of installments and its commercial surcharge on the sale, but remains paid at
+  checkout under the current cash-flow policy: this repository has no live acquiring settlement
+  or bank-reconciliation contract. `Dinheiro` and `PIX` remain one-shot. Do not represent card
+  installments as a customer debt or fabricate future acquirer receipts.
+- **Separate base price from payment condition.** `Variacoes.preco` and the customer-specific
+  `PrecoCliente` value remain the cash/base price. Precificação manages a condition table such as
+  `Fiado 1x = 0%`, `Fiado 2x = 5%`, `Cartão 3x = 8%`; it does not persist a stale matrix of copied
+  product prices. The screen shows previews derived from the base price, while the checkout
+  stores the final unit-price snapshot in `ItensVenda`.
+- **Price precedence is explicit:** variation price → customer special price, when present →
+  selected payment-condition percentage → final unit-price snapshot. The percentage is an
+  agreed total surcharge for that condition, not an implicit compound monthly interest formula.
+  A zero percentage is valid. Apply the sale discount before calculating the final sale total;
+  keep `Vendas.desconto` visible rather than hiding it in the installment amount.
+- **The financial ledger is the source of Fiado receivable truth only.** A parcelled Fiado sale
+  creates one `LancamentosFinanceiros` row per installment in the same transaction as the sale
+  and stock debit. Each row is independently payable in Financeiro, but shares one group and
+  sale/cliente reference. A parcelled Card sale creates no such rows; the existing `Pagamentos`
+  table is not promoted to a second balance source.
+- **Snapshot history, not live recalculation.** A later change to a condition, product price or
+  customer price must not alter a sale already made. Store the sale's base amount, applied
+  surcharge, installment count and first due date; use the rows in the ledger as the receivable
+  schedule.
+- **Explicit v1 exclusions:** split payment in one sale; live card/acquirer settlement and bank
+  reconciliation; automatic Pix/boleto collection for installments; late-interest calculation,
+  renegotiation or reminders; automatic migration of all historical Fiado; retroactive editing
+  of paid installments; a new `VendaParcelas` table unless execution proves the existing ledger
+  cannot represent the required schedule.
+
+### Implementation
+
+- [x] **GOALS14-01 — [manual] Confirm the commercial policy before schema work.** **Owner
+      decision (2026-09-09):** both `Fiado` and `Cartão` support configured installment counts
+      and a total commercial surcharge percentage per condition. Fiado requires a customer and
+      generates monthly receivables; Cartão is confirmed at checkout, keeps its installment count
+      as sale history and creates no customer receivable. The first Fiado due date is chosen in
+      the PDV; active conditions define the available counts, so none are hard-coded.
+      **Done when:** the selected method, surcharge meaning, due-date rule and customer boundary
+      are written here before implementation. **Evidence:** owner message, 2026-09-09: "cartao
+      teria que terr parcerlamento tambem." No implementation file was changed while the choice
+      was open.
+
+- [x] **GOALS14-02 — Freeze the shared data contract and calculator.** Add a small, reusable
+      server-side condition model, preferably `CondicoesParcelamento` with `id`,
+      `forma_pagamento`, `parcelas`, `acrescimo_percentual`, `ativo`, timestamps and a unique
+      `(forma_pagamento, parcelas)` key. Seed only neutral `Fiado 1x / 0%` and `Cartão 1x / 0%`
+      compatibility conditions if needed. Define the exact cent-based algorithm: resolve base
+      variation/customer prices, apply the selected condition, subtract the sale discount,
+      calculate the final total, and split only a Fiado final amount into installments with the
+      last row absorbing rounding. Do not accept a renderer-supplied installment total without
+      server validation.
+      **Done when:** one documented function returns the selected condition, base total, final
+      total, applied surcharge, per-line snapshots and installment values for the same input in
+      both PDV and tests; invalid method/count/percentage/discount inputs fail clearly.
+      **Evidence (2026-09-09):** `db/parcelamento.js` now owns the cent-based calculator and
+      `calcularVendaParcelada()`: it resolves the persisted product/customer price, condition and
+      discount without trusting a renderer price. `test/parcelamento.test.js` proves Fiado and
+      Cartão conditions, last-cent rounding, month ends and invalid inputs (7/7); the full Node
+      suite passes (180/180). The same exported contract is ready for the IPC/PDV step.
+
+- [x] **GOALS14-03 — Migrate the schema without harming existing databases.** In `db/schema.js`,
+      add the condition table and idempotent columns to `Vendas` for `valor_a_vista`,
+      `acrescimo_parcelamento`, `parcelas` and `data_primeiro_vencimento`. Add nullable
+      `venda_id` to `LancamentosFinanceiros` with the appropriate foreign-key behavior while
+      retaining `referencia_id` for existing polymorphic callers. Keep old sales and old manual
+      financial rows valid; do not rewrite customer, financial or migration JSON.
+      **Done when:** a copied disposable database can boot through the migration repeatedly,
+      `PRAGMA user_version` advances only after success, and old rows retain neutral defaults.
+      **Evidence (2026-09-09):** schema version 2 adds the idempotent conditions table, unique
+      payment/count index, neutral 1x seeds, sale audit snapshots and nullable financial
+      `venda_id`. The disposable SQLCipher test reboots through the migration without duplicate
+      seeds; the existing legacy-schema migration test and full suite pass (180/180). No store
+      database or customer/financial JSON was opened or changed.
+
+- [x] **GOALS14-04 — Make sale finalization authoritative and atomic.** In `db/vendas.js` and
+      `db/financeiro.js`, extend the active `finalizarVenda()` path (not the dead `PDV02` helper)
+      to validate the customer and condition, calculate the final amount on the main process,
+      store the sale snapshots and debit stock exactly once. A Fiado sale creates one open
+      receivable per installment with `origem='venda'`, `tipo='receber'`, `venda_id`,
+      `referencia_id`, `cliente_id`, `grupo_id`, `parcela_num`, `parcela_total`,
+      `data_vencimento` and `forma_pagamento='Fiado'`; a Card sale records the condition but
+      creates no customer receivable. Require a customer for Fiado and preserve the existing
+      open-cash guard for finalized sales.
+      **Done when:** a successful sale has one consistent total, stock movement and complete
+      schedule; any failure rolls back all three; immediate and Card sales create no fake
+      receivable.
+      **Evidence (2026-09-09):** `finalizarVenda()` now resolves product/customer prices and the
+      persisted condition inside its transaction, snapshots the commercial offer, uses only the
+      main-process total, and creates Fiado rows with direct sale/client/group links. Card stores
+      the installment condition but creates zero receivables. Focused tests cover Fiado, Card and
+      rollback; `npm run lint` and `npm test` pass (185/185).
+
+- [x] **GOALS14-05 — Make retries and budget conversion safe.** Add a request identifier to the
+      active checkout contract and an idempotent unique lookup, rather than relying on the unused
+      `PDV02` implementation. An `orcamento` may store the chosen payment snapshot and reserve
+      stock but must not create receivables; `converterOrcamento()` must create the schedule once,
+      using the stored snapshot, and reject a second conversion without duplicating Fiado rows.
+      **Done when:** double-click/retry and budget conversion tests return the original sale or a
+      clear state error, with no duplicate stock debit or financial launch.
+      **Evidence (2026-09-10):** The active checkout stores `request_id` and returns the original
+      sale on retry. The focused temporary-SQLCipher suite proves no duplicate stock/receivable,
+      and proves a Fiado budget creates its schedule only on its single conversion.
+
+- [x] **GOALS14-06 — Wire the contract through Electron.** Update the owned exports in
+      `database.js`, `ipc/vendas.js`/`ipc/financeiro.js`, `preload.js` and
+      `frontend/src/lib/erpApi.ts`. Expose condition listing/saving under the existing
+      `precificacao` namespace, and expose sale schedule details under `vendas` or `financeiro`
+      with stable typed fields. Keep condition administration admin-only; checkout and settlement
+      follow the existing `vendas`/`financeiro` permission policy. Keep handler names identical
+      across database, IPC, preload and typed API.
+      **Done when:** a permitted renderer can list conditions, finalize a valid sale and retrieve
+      its schedule; a denied renderer receives a permission error instead of an empty result.
+      **Evidence (2026-09-10):** Conditions, calculation and `getParcelasVenda` now use aligned
+      database/IPC/preload/typed-API names. The focused suite verifies both a permitted schedule
+      read and the denied-permission path.
+
+- [x] **GOALS14-07 — Add installment conditions to Precificação.** Extend
+      `frontend/src/app/(admin)/produtos/precificacao/page.tsx`, `usePrecificacao.ts` and the
+      relevant pricing component with a compact condition editor and a product-price preview.
+      Show base/à-vista price and derived prices for configured Fiado and Card conditions,
+      validate bounds, preserve pending-edit behavior and make clear that the preview is not a
+      new stored base price. Do not add a per-product matrix in v1; product-specific terms can be
+      a later goal if real store usage requires them.
+      **Done when:** an admin can create/edit/deactivate a condition, see its effect on a product
+      preview, reload the screen and get the same result without changing `Variacoes.preco` until
+      a real sale is finalized.
+      **Evidence (2026-09-10):** `CondicoesParcelamentoPanel` is integrated into Precificação and
+      persists active Fiado/Card terms. The real Electron E2E creates both conditions from the
+      screen; the backend calculator keeps the stored variation price authoritative.
+
+- [x] **GOALS14-08 — Add parcel selection and truthful feedback to the PDV.** Update
+      `frontend/src/app/(admin)/pdv/page.tsx`, `PagamentoPainel.tsx`, `useCarrinho.ts` and
+      `ReciboModal.tsx`. When `Fiado` or `Cartão` is selected, show only active conditions and
+      display base total, surcharge, final total and installment count. Require a customer and a
+      first due date only for Fiado, which additionally shows the schedule preview; Card shows
+      that the installment count is recorded on the sale and sends no customer receivable data.
+      Keep `Dinheiro` change calculation and the existing cash-open guard intact. Ensure
+      localStorage restores the new fields safely and clears them after a successful sale.
+      **Done when:** the cashier can understand the exact amount and dates before confirming;
+      missing customer/condition, closed cash and invalid values disable or reject finalization;
+      the receipt distinguishes Fiado due dates from Card installments without claiming a live
+      acquirer settlement was verified.
+      **Evidence (2026-09-10):** PDV selects active terms, previews cents-based totals and Fiado
+      due dates, requires its customer/date, and distinguishes the Card commercial record from a
+      receivable. The Electron E2E confirms both receipts with isolated data.
+
+- [x] **GOALS14-09 — Integrate settlement, history, cash flow and returns.** Reuse existing
+      `LancamentosTab` individual settlement and GOALS 13's canonical realized/projected flow;
+      show the customer and `parcela_num/parcela_total` in Financeiro and installment summary in
+      the Vendas detail/receipt. A paid Fiado installment enters realized cash on its payment date;
+      open Fiado installments enter projected cash on their due dates; Card installments remain
+      one realized sale-date event under the current policy. For partial Fiado returns, reduce
+      open installments in a deterministic order and never silently rewrite a paid installment;
+      block or route a return exceeding the open balance to an explicit manual adjustment.
+      Preserve the current non-Fiado return behavior.
+      **Done when:** one Fiado installment can be paid and reflected in realized/projected views,
+      one Card installment sale is counted once at sale time, and return behavior is explicit for
+      both all-open and partly-paid schedules.
+      **Evidence (2026-09-10):** Financeiro identifies the customer/parcel, a paid Fiado row moves
+      from projected to realized by payment date, and Card is recognized only once on sale date.
+      Focused tests cover partial/full open returns and block a return that would rewrite a paid
+      installment; the Electron E2E settles one Fiado row.
+
+### Tests
+
+- [x] **GOALS14-10 — Add disposable database business coverage.** Extend `test/negocio.test.js`
+      and/or create a focused `test/vendas-parcelamento.test.js` over a temporary SQLCipher DB.
+      Cover migration repeatability; `R$100,00` split as `33,33 + 33,33 + 33,34`; configured
+      surcharge and zero-surcharge cases for Fiado and Card; 28/29/30/31-day month-end Fiado due
+      dates; customer/method/condition/discount validation; price precedence and historical
+      snapshots; atomic rollback; stock debit; request-id retry; budget conversion; one-by-one
+      Fiado settlement; Card-without-receivable behavior; and old Fiado compatibility. Never open
+      the production DB or stage sensitive JSON fixtures.
+      **Done when:** the focused suite proves the new behavior and `npm test` remains green.
+      **Evidence (2026-09-10):** `test/parcelamento.test.js` uses only temporary SQLCipher data
+      and covers migration, rounding, dates, validation, price precedence, atomic rollback,
+      idempotency, budget conversion, Fiado settlement, Card-without-receivable and compatibility.
+      Root `npm test` passes 195/195.
+
+- [x] **GOALS14-11 — Cover finance and return invariants.** Assert that an open installment is
+      projected but not realized, a paid Fiado installment is realized exactly once, a Card
+      installment sale is realized exactly once on its sale date, `Pagamentos` does not add a
+      second event, and a full/partial return does not create an unexplained duplicate or silently
+      alter a paid installment. Add IPC permission/shape assertions and verify the method names
+      match in `ipc`, `preload` and `erpApi.ts`.
+      **Done when:** the tests fail on a deliberate duplicate/incorrect-date implementation and
+      pass with the canonical event policy.
+      **Evidence (2026-09-10):** Focused tests prove open Fiado is projected, paid Fiado is
+      realized once, Card is recognized once despite a `Pagamentos` row, and returns never alter
+      paid installments. They also assert IPC permission and bridge/API method alignment.
+
+- [ ] **GOALS14-12 — [manual] Verify the real Electron workflow.** In an isolated
+      `ERP_TEST_USERDATA_DIR`, rebuild `frontend/out` before launching Electron and extend the
+      Playwright suite to configure Fiado and Card conditions, select a customer, add a product,
+      choose each installment mode, confirm sales, inspect the receipts and settle one Fiado
+      installment in Financeiro. Verify the Fiado schedule survives reload, the
+      projected/realized difference is visible, the Card sale does not create a receivable, and
+      narrow/light/dark states remain usable. Repeat with supported permission profiles where the
+      owner expects them. Do not use production data or migration exports.
+      **Done when:** the real Electron window, IPC bridge, database and static export pass the
+      user-shaped flow; compile-only success is not accepted as the sole proof.
+      **Partial evidence (2026-09-10):** Fresh `frontend/out` and a real Electron window passed
+      the isolated Playwright flow: configure terms, finalize Fiado/Card, inspect receipts, read
+      the Fiado schedule and settle one installment. A second Electron flow confirms the condition
+      UI at 1024px in dark and light themes after reload. The Fiado schedule after reload and the
+      visual projected-versus-realized cash figures were not exercised, so this manual item
+      remains open.
+
+- [x] **GOALS14-13 — Run project gates and separate evidence.** Run the repository's root lint,
+      backend tests, frontend lint/typecheck/build and relevant E2E command. Record pre-existing
+      failures separately from failures introduced by this goal, and distinguish automated proof,
+      live UI proof and unavailable paid/provider verification.
+      **Done when:** all applicable gates are green or documented with exact pre-existing evidence,
+      with no claim that live acquirer settlement behavior was tested.
+      **Evidence (2026-09-10):** Root lint passed; root tests passed 195/195; frontend lint passed
+      with two existing `layout.tsx` image warnings; frontend typecheck and static build passed;
+      and all 15 Electron E2E tests passed. No live acquirer/provider settlement was tested.
+
+### Registration
+
+- [x] **GOALS14-14 — Update discoverability and documentation after behavior works.** Update
+      `AGENTS.md` and the relevant module documentation with the v1 policy, price precedence,
+      schedule/rounding/date semantics, customer requirement, Card sale-date recognition,
+      permission boundary and explicit acquirer/split-payment exclusions. Do not add a new
+      sidebar module; this is an extension of existing Precificação, PDV and Financeiro entry
+      points.
+      **Done when:** a future agent can find the feature from the existing module docs and cannot
+      mistake recorded Card installments for live card settlement.
+      **Evidence (2026-09-10):** `AGENTS.md` documents the v1 price, rounding, due-date, customer,
+      finance and permission policy; `e2e/README.md` identifies the isolated Electron proof and
+      the explicit absence of acquirer settlement.
+
+- [ ] **GOALS14-15 — Final ownership and release boundary.** Recheck `git status` before and
+      after implementation; stage only files owned by this goal, preserve concurrent ERP work,
+      never stage customer/financial/migration JSON, and do not commit, push or publish a release
+      without the owner's explicit confirmation.
+      **Done when:** the user receives separate automated/manual/unverified evidence and the diff
+      contains only the approved parcelamento work.
+
+**Ordering rule:** GOALS14-01 and GOALS14-02 precede schema and UI work; schema/calculator precede
+the transactional sale; IPC precedes the new frontend calls; backend settlement semantics precede
+visual acceptance; tests precede registration/documentation. GOALS13's cash-flow contract is a
+dependency when its implementation is available, never a reason to create a parallel ledger.
+
+---
+
+## GOALS 15 — [SUPERSEDED DRAFT] Loja House financial history: January pilot (feature, not started)
+
+> This draft is retained only as decision history. Do not execute GOALS15-01..16: its original
+> mapping incorrectly sent January `ENTRADA` rows to `LancamentosFinanceiros` as receivables.
+> The corrected, deliberately smaller plan is GOALS17 below.
+
+**Source and scope decision (2026-09-09):** the owner wants to fit the financial history from
+`Loja House.xlsx` into ALLU ERP without disturbing the existing Financeiro rules, starting with
+one month only. This goal covers only the `Financeiro LojaJANEIRO` sheet. The same parser contract
+may later be reused for February–September, but those months are not part of this execution.
+
+Read-only evidence from the supplied workbook: January has 20 transaction rows after excluding
+the `Saldo Anterior` row and trailing rows that contain only the running `TOTAL`; its source sums
+are `ENTRADA = R$4,512.83`, `SAÍDA = R$3,979.00`, and final running balance `R$533.83`. The current
+parser produces the same 20 rows and the same three totals. The workbook also contains at least
+one future-month anomaly outside this pilot (`Financeiro LojaJULHO`, date `2023-07-23`), so the
+generic monthly path must validate dates rather than silently repair or remap them.
+
+```mermaid
+flowchart TD
+    A[Select Financeiro LojaJANEIRO] --> B[Parse only dated C/D movements]
+    B --> C[Validate month, signs, amounts and running-balance tie-out]
+    C --> D[Dry-run preview with 20 rows and totals]
+    D --> E{Owner confirms isolated pilot}
+    E -->|No| F[Cancel with no DB changes]
+    E -->|Yes| G[Reuse existing financial import transaction]
+    G --> H[20 paid ledger entries only]
+    H --> I[Idempotent batch and Financeiro verification]
+    I --> J[Later months repeat the same contract one at a time]
+```
+
+Suggested: gpt-6-astra · xhigh — historical financial migration can duplicate cash events or
+silently shift periods, so the pilot needs strict reconciliation, transaction boundaries and
+manual acceptance before any later month is enabled.
+
+### Design rationale
+
+- [ ] **GOALS15-01 — Freeze the January semantic contract before implementation.** Map a positive
+      `ENTRADA` cell to one `LancamentosFinanceiros` row with `tipo='receber'`; map a positive
+      `SAÍDA` cell to one row with `tipo='pagar'`. Preserve the description and amount as source
+      values, set `data_vencimento` and `data_pagamento` to the source date, set `status='pago'`,
+      and keep `origem='importacao_migracao'` so the existing realized-cash policy remains the
+      owner of the Financeiro behavior. If both C and D are populated on one source row, create
+      two independently keyed movements rather than combining their signs.
+      **Done when:** the mapping is written down and reviewed against January's 20 rows before
+      any database or UI implementation begins.
+- [ ] **GOALS15-02 — Define what is deliberately not a transaction.** Do not insert `Saldo
+      Anterior`, the running `TOTAL`, blank carry-forward rows, product/sales records, stock
+      movements, customers, or a synthetic opening-balance launch. Preserve the opening and
+      closing balances only in the preview/audit summary. Treat a non-zero opening balance as a
+      future-month dependency that requires the preceding month's accepted closing balance, not
+      as permission to invent a cash event.
+      **Done when:** the contract states the no-double-counting rule and January's opening row
+      cannot appear in `LancamentosFinanceiros`.
+- [ ] **GOALS15-03 — Keep category classification conservative in the pilot.** The source has
+      free-text descriptions but no authoritative Financeiro category column. Do not guess that
+      `Cartão`, food, product, or supplier-like descriptions belong to a category. Store
+      `categoria=NULL` for imported history and surface `Sem categoria` in the preview and
+      Financeiro view. Automatic or row-level categorization is a separate decision after the
+      owner validates the financial movement semantics.
+      **Done when:** the pilot cannot silently rewrite a description into a business category,
+      and the unclassified count is visible before and after import.
+- [ ] **GOALS15-04 — Preserve the existing import architecture.** Use the existing
+      `MapeamentoChaveExterna`, `ImportacaoBatch`, dry-run, transaction wrapper and
+      `importarFinanceiroHistorico()` path. Do not create a parallel ledger or reinterpret these
+      rows as `Vendas`/`ItensVenda`; the source does not contain reliable SKU/customer links and
+      doing so could double-count the existing sales event path.
+      **Done when:** the implementation plan has no new financial table and the existing full
+      Excel import remains behaviorally unchanged when called without the new monthly scope.
+
+### Implementation
+
+- [ ] **GOALS15-05 — Add a parameterized, finance-only Excel parser path.** In
+      `db/excel-loja-house.js`, add a focused helper such as
+      `parseFinanceiroMesLojaHouse(caminhoXlsx, mes)` that resolves exactly one normalized
+      `Financeiro Loja<MÊS>` sheet and returns only the financial-history array plus a compact
+      audit summary. Reuse `lerAba`, `paraDataISO`, `paraNumero`, `normalizarTexto` and the
+      existing deterministic `hashChave('FIN', nomeAba, linha, direcao)` convention. Keep
+      `parseExcelLojaHouse(caminhoXlsx)` unchanged as the backwards-compatible full-workbook
+      path; do not make the new pilot depend on product, stock, customer or pendência parsing.
+      **Done when:** selecting January yields exactly one source sheet, 20 records, stable keys,
+      and no non-financial arrays are produced for the scoped input.
+- [ ] **GOALS15-06 — Validate source rows before they reach the database.** For the selected
+      month, reject or expose a blocking row-level error for an unparseable date, a date outside
+      the selected `YYYY-MM`, a non-finite or negative monetary value, or a row that cannot be
+      identified as a movement. Ignore only the explicitly known non-transaction rows
+      (`Saldo Anterior`, blank terminator/carry-forward and `TOTAL` column). Allow a valid zero
+      opening balance to remain an audit value, but do not create a zero-value ledger row.
+      Reconcile `sum(ENTRADA) - sum(SAÍDA)` with the last running `TOTAL` using cent precision;
+      do not use a broad `IFERROR`-style fallback or silently continue after a mismatch.
+      **Done when:** January passes with 20 rows and `R$533.83`, while a synthetic out-of-month,
+      negative-value or reconciliation-mismatch row blocks commit with a source-row message.
+- [ ] **GOALS15-07 — Add an explicit monthly-finance import request.** Extend
+      `ipc/importacoes.js` and the typed `frontend/src/lib/erpApi.ts` contract with a distinct
+      scoped input, for example `{ tipo: 'excel_financeiro_mes', caminho, mes: 'JANEIRO' }`.
+      Route that input into an array containing only
+      `05_financeiro_historico.json`; pass it through `executarImportacaoLojHouse()` so the
+      existing transaction, mapping and error behavior stays authoritative. Keep the existing
+      `{ tipo: 'excel', caminho }` full-workbook input unchanged. If batch metadata is extended,
+      record the selected sheet/month and source checksum in the existing batch log and preserve
+      the current default origin for old callers.
+      **Done when:** a scoped request cannot import categories, products, stock, customers,
+      open accounts or pendências from other workbook sheets, and a legacy full-workbook request
+      still produces its existing shape.
+- [ ] **GOALS15-08 — Build a review-first UI for the January pilot.** In
+      `frontend/src/app/(admin)/importacao/page.tsx`, add a clearly named
+      `Financeiro Loja House — um mês` mode or equivalent scoped branch. The first version may
+      expose only `JANEIRO`; keep the internal month parameter ready for later months without
+      enabling their execution evidence prematurely. Show the selected sheet, source period,
+      transaction count, total entries, total exits, expected closing balance, invalid/skipped
+      rows, and `Sem categoria` count. Provide a row-level table with date, direction,
+      description, amount and source row. The commit button stays unavailable while a blocking
+      validation or reconciliation error remains, and the UI states that no product, stock or
+      customer data will be imported by this mode.
+      **Done when:** an administrator can preview January in the existing three-step wizard and
+      understand exactly what will enter Financeiro before confirming.
+- [ ] **GOALS15-09 — Make the pilot auditable and retry-safe.** Preserve the existing source
+      keys so a later full import recognizes January rows already accepted. Add the selected
+      month/sheet and reconciliation totals to the batch result/log without persisting the raw
+      workbook or customer/financial source file. Ensure the Financeiro list labels the records
+      as `Importação`, keeps them non-editable through the existing manual-delete path, and does
+      not create a second event through `Vendas`, `Pagamentos` or caixa.
+      **Done when:** the batch history identifies the January scope, the second identical commit
+      imports zero new financial rows, and the realized cash view counts each accepted row once.
+
+### Tests
+
+- [ ] **GOALS15-10 — Extend parser tests with a one-month fixture.** In
+      `test/excel-loja-house.test.js` or a focused companion test, add a synthetic workbook with
+      one January financial sheet containing opening balance, dated entries, a repeated running
+      total, a blank terminator, a row with both C/D values, and a malformed/out-of-period case.
+      Assert exact row counts, directions, amounts, dates, deterministic keys, skipped control
+      rows, and the independent reconciliation summary. Keep using invented fixture data; never
+      add `C:\Users\beatl\Desktop\Loja House.xlsx` or generated migration JSON to the repo.
+      **Done when:** the parser test proves the source-to-ledger contract and catches a future
+      change that starts importing `TOTAL` or `Saldo Anterior`.
+- [ ] **GOALS15-11 — Test scoped import and idempotency in a disposable encrypted DB.** Extend
+      `test/importacoes.test.js` with the real scoped input and a temporary SQLCipher database.
+      Assert that a successful January commit creates exactly 20 paid
+      `LancamentosFinanceiros` rows, exact entry/exit totals and dates, null categories, the
+      expected `origem`, and no rows in products, stock, customers, sales or open accounts from
+      the workbook. Run the same scoped input twice and assert no duplicate mapped keys or cash
+      events. Force one invalid row and assert the whole scoped transaction rolls back.
+      **Done when:** the test proves isolation, atomicity and retry safety without opening the
+      production database.
+- [ ] **GOALS15-12 — [manual] Verify the real Electron pilot.** Use an isolated
+      `ERP_TEST_USERDATA_DIR` and the supplied workbook read-only. Rebuild `frontend/out`, launch
+      the real Electron app, select the new monthly-finance mode, choose January, inspect the
+      preview against `20` rows / `R$4,512.83` entries / `R$3,979.00` exits / `R$533.83` balance,
+      cancel once to prove no DB change, then commit once. Open Financeiro and its realized cash
+      view for `2026-01-01` through `2026-01-31`, confirm the 20 paid imported movements and no
+      duplicated sale event, then repeat the same import to confirm the idempotent result. Do
+      not use the production database or retain/export the real workbook in the repository.
+      **Done when:** the user-shaped flow passes through the real file picker, IPC, database and
+      Financeiro screen; compile-only evidence is insufficient.
+- [ ] **GOALS15-13 — Run project gates and separate evidence.** Run the root backend tests and
+      lint plus the frontend lint, typecheck and static build commands from the two manifests.
+      Record parser/import automated proof separately from Electron/manual proof and report any
+      pre-existing failure without widening this goal. Do not claim that February–September is
+      safe merely because January passed.
+      **Done when:** all applicable gates are green or have exact pre-existing evidence, and the
+      remaining unverified scope is explicitly named.
+
+### Registration
+
+- [ ] **GOALS15-14 — Document the one-month operating procedure after verification.** Update
+      `AGENTS.md` and `IMPORT_LOJA_HOUSE.md` only after the pilot works, describing the
+      finance-only scope, movement mapping, excluded control rows, date/reconciliation rules,
+      `Sem categoria` policy, idempotency behavior and the manual sequence for enabling the next
+      month. State that the workbook is a local sensitive source and must never be committed or
+      staged.
+      **Done when:** a future execution pass cannot accidentally choose the full-workbook path
+      when the intent is to validate one financial month.
+- [ ] **GOALS15-15 — [manual] Gate expansion to February–September.** Before each later month,
+      run the same dry-run, period/date validation, opening/closing reconciliation and isolated
+      commit review. Do not bulk-enable all remaining sheets until the owner accepts January's
+      semantics and the known July out-of-period date has an explicit decision; never guess that
+      `2023-07-23` means a 2026 date.
+      **Done when:** January is the only month marked behaviorally verified by this goal, and
+      later-month work has its own evidence rather than an assumption from the shared parser.
+- [ ] **GOALS15-16 — Final ownership and release boundary.** Recheck `git status` before and
+      after execution, preserve the current uncommitted ERP work, stage only files owned by this
+      goal, and never stage the real workbook or sensitive JSON/history exports. Do not commit,
+      push or publish a release without explicit owner confirmation.
+      **Done when:** the delivered report separates automated, manual and unavailable evidence,
+      and the diff contains only the approved January-pilot changes.
+
+**Ordering rule:** GOALS15-01 through GOALS15-04 settle financial meaning before code. The
+parser/validation contract precedes the scoped IPC request and UI. Tests precede documentation
+and month expansion. GOALS15-12 is a manual gate, not satisfied by parser counts or a successful
+build alone. The existing full-workbook Excel path remains out of the pilot's execution path.
+
+---
+
+## GOALS 16 — Repository layout: flatten `ERP/ERP` nesting and worktree hygiene (process, not started)
+
+**Source (2026-09-09):** owner reported having to navigate `ERP` → `ERP` every time to reach the
+actual project, and wants worktrees/branches to stop feeling scattered since several are being
+created without coordination.
+
+**Verified structure:** the git repo root is `D:\ProjetosPessoais\ERP`. Everything that makes
+this an Electron app (`package.json`, `main.js`, `frontend/`, `db/`, `ipc/`, `AGENTS.md`,
+`GOALS.md` — this file — etc., 612 tracked paths) lives one level down, inside `ERP/ERP`. The
+outer repo root itself contains almost nothing: `.git`, `.github`, `.claude`, one root
+`.gitignore`, and a gitignored `loja-house-migracao-*` folder. There is no technical reason for
+the extra level — nothing outside `ERP/` (checked: `.github/workflows/*.yml`, both
+`.gitignore`s, `AGENTS.md`, `README.md`, `docs/DB_PATHS.md`, `opencode.json`, `bootstrap.sh/ps1`,
+`ERP_Launcher.bat/vbs`, `scripts/`, `package.json`) depends on the app sitting one level down
+except the two GitHub workflow files' `working-directory`/`cache-dependency-path` values and the
+outer `.gitignore`'s three Loja House migration-folder lines. Every other `ERP/`-looking match
+found in the docs is the unrelated `%APPDATA%/ERP/` Windows userData path (`docs/DB_PATHS.md`) —
+do not touch that one.
+
+**Verified state going in:** the primary checkout (`D:\ProjetosPessoais\ERP`, the `main`
+worktree) currently has 19 modified files and 1 untracked file — in-progress GOALS 14/15
+financeiro/crediário work, explicitly called out as "preserve" in GOALS15-16. The other four
+worktrees (`admin-credentials-afcb77`, `new-goal-b33161`, `search-icon-date-fields-40dc37`,
+`updates-module-design-107aa8`) each show zero commits ahead of `main` (`git log main..<branch>`
+is empty for all four) — fully merged/stale, safe to remove.
+
+```mermaid
+flowchart TD
+    A[Isolated worktree, clean HEAD] --> B["git mv ERP/* to repo root"]
+    B --> C[Merge .gitignore, drop ERP/ prefixes]
+    B --> D[Update CI workflow paths]
+    C --> E[Verify: install, lint, test, e2e]
+    D --> E
+    E --> F["Push, confirm CI green (manual)"]
+    F --> G["Merge + owner walks through primary checkout's WIP (manual)"]
+    G --> H["Remove 4 stale worktrees (manual)"]
+    H --> I[Document worktree convention]
+```
+
+Suggested: opus · xhigh — a repo-wide rename of 612 tracked files that also touches CI; a missed
+path silently breaks the next build/release rather than failing loudly at move time, and the
+primary checkout's uncommitted WIP makes the merge step genuinely easy to get wrong.
+
+### Area A — Flatten `ERP/ERP` into the repo root
+
+- [x] **GOALS16-01 — Do this in a clean isolated worktree, never in the primary checkout.** The
+      primary checkout at `D:\ProjetosPessoais\ERP` has unrelated in-progress work (see "Verified
+      state" above) that must not be touched or entangled with this move. Use a worktree that is
+      at the same commit as `main` with no local changes (e.g. the one already created for this
+      goal, `claude/erp-folder-structure-63bc8b`).
+      **Done when:** `git status` in the target worktree is clean before the move starts.
+- [x] **GOALS16-02 — `git mv` every top-level entry of `ERP/` up one level to the repo root, in
+      one commit.** Move directory-by-directory/file-by-file at the top level of `ERP/` (so Git's
+      rename detection stays attached to history — don't delete-then-recreate), then remove the
+      now-empty `ERP/` directory.
+      **Done when:** `git status` shows renames (not paired add+delete) for the moved files, and
+      `main.js`, `package.json`, `frontend/`, `db/`, `ipc/` etc. sit directly at repo root.
+- [x] **GOALS16-03 — Merge the two `.gitignore` files into one at the new root.** Keep every
+      line from the current `ERP/.gitignore` unchanged (it's already correct relative to the app
+      folder). From the current outer-root `.gitignore`, keep the sibling-project exclusions
+      (`PONTO_APP/`, `base_project/`, etc.) and `/loja-house-migracao-*/` as-is (that folder
+      stays a root-level sibling, unaffected by this move) — but drop the `ERP/` prefix from its
+      three Loja House migration lines: `ERP/importacao-loja-house-simples-*/` →
+      `importacao-loja-house-simples-*/`, `ERP/teste-import-kimono-draken-*/` →
+      `teste-import-kimono-draken-*/`, `ERP/cadastro-simples-loja-house-*.json` →
+      `cadastro-simples-loja-house-*.json`.
+      **Done when:** `git check-ignore -v` on one sample path per rule still matches after the
+      move.
+- [x] **GOALS16-04 — Update `.github/workflows/ci.yml` for the new layout.** `backend` job: drop
+      the `working-directory: ERP` default (steps run at repo root) and change
+      `cache-dependency-path: ERP/package-lock.json` → `package-lock.json`. `frontend` job:
+      `working-directory: ERP/frontend` → `working-directory: frontend`, and
+      `cache-dependency-path: ERP/frontend/package-lock.json` → `frontend/package-lock.json`.
+      `e2e` job: drop `working-directory: ERP` (→ repo root), `working-directory: ERP/frontend` →
+      `frontend`, `cache-dependency-path: ERP/package-lock.json` → `package-lock.json`.
+      **Done when:** no line in the file contains the literal `ERP/`.
+- [x] **GOALS16-05 — Update `.github/workflows/release.yml` the same way.** Drop
+      `working-directory: ERP` (backend steps run at repo root), `working-directory: ERP/frontend`
+      → `frontend`, `cache-dependency-path: ERP/package-lock.json` → `package-lock.json`, and the
+      asset-upload paths (`ERP/dist/ALLU-ERP-Setup-*.exe`, `ERP/dist/latest.yml`,
+      `ERP/dist/*.blockmap`) → drop the `ERP/` prefix.
+      **Done when:** no line in the file contains the literal `ERP/`.
+- [x] **GOALS16-06 — Sweep for any remaining `ERP/<path>` reference this research pass missed.**
+      Grep the full repo (excluding `node_modules/`, `.git/`, `graphify-out/`, `dist/`,
+      `test-results/`) for the literal pattern `ERP/` and fix any real path reference found; the
+      research for this goal already checked the files listed under "Verified structure" above
+      and found none there.
+      **Done when:** the sweep's remaining matches are only expected non-path text (repo/product
+      name, the `%APPDATA%/ERP/` runtime path in `docs/DB_PATHS.md`).
+      **Executed 2026-09-09:** sweep clean — remaining matches were the `%APPDATA%/ERP/` runtime
+      path (`AGENTS.md:255`, `README.md:66`, `docs/DB_PATHS.md` ×4) and the `ERP/` tree-diagram
+      root in `AGENTS.md:157` / `README.md:20`, which now correctly names the repo root itself,
+      so both were left alone. One reference outside the plan's grep scope was also fixed:
+      `.git/info/exclude` carried `ERP/.impeccable/*` and `ERP/frontend/.impeccable/*` entries
+      that the move invalidates. An unprefixed block was added alongside the old one (additive,
+      so the primary checkout and the other worktrees keep working on the old layout until the
+      merge lands); backup at `.git/info/exclude.bak`. That file is local git config — never
+      committed, never pushed.
+
+### Area B — Verify the move, then land it
+
+- [x] **GOALS16-07 — Run the real install/lint/test commands from the new root.** Backend (repo
+      root): `npm ci`, `npm run lint`, `npm test`. Frontend (`frontend/`): `npm ci`,
+      `npm run lint`, `npm run typecheck`.
+      **Done when:** all four commands exit 0 — this is the same thing CI will check.
+      **Executed 2026-09-09 — 5 of 6 green, the 6th is a pre-existing failure this goal did not
+      cause and must not silently absorb.** From the new root: backend `npm ci` exit 0, backend
+      `npm run lint` exit 0, backend `npm test` **175 tests / 175 pass / 0 fail** (see note),
+      frontend `npm ci` exit 0, frontend `npm run lint` exit 0 (2 warnings, 0 errors).
+      Frontend `npm run typecheck` **exit 2** — dozens of `TS2322: Property 'className' does not
+      exist on type 'IntrinsicAttributes'` across `SignInForm.tsx`, `DashboardStatCards.tsx`,
+      `RelatoriosStats.tsx`, `VendasStats.tsx` and others. **This is pre-existing, not caused by
+      the move:** CI run 34306329927 on `main` at commit `8bca735` (the exact base of this
+      branch) reports the identical errors, with jobs `backend: success`, `frontend: failure`,
+      `e2e: failure`. The layout change is therefore verified neutral — same result before and
+      after — but this item's literal done-when cannot be satisfied until the frontend typecheck
+      is fixed, which is out of scope here and needs its own goal.
+      **Correction, same day — my diagnosis above was wrong, and the item is now green.** Those
+      `TS2322` errors were never real type bugs in the components. `next-env.d.ts` is gitignored
+      and generated by `next dev` / `next build`; the CI `frontend` job (and a fresh worktree like
+      this one) only ever runs lint + typecheck, never a build, so the file never exists and
+      `tsc --noEmit` loses the ambient reference Next injects — producing ~30 phantom
+      `IntrinsicAttributes`/`className` errors in components unrelated to whatever is being
+      tested. Someone else found the real root cause and fixed it on `main` in commit `8869cfe`
+      ("gera next-env.d.ts antes do typecheck no job frontend"). Verified locally in this
+      worktree: creating `next-env.d.ts` with the two `/// <reference ... />` lines makes
+      `npm run typecheck` **exit 0**, with no source change at all. So all six commands are green
+      from the new root and this item is done. Lesson: "these files have type errors" was the
+      wrong read — a typecheck failing across many unrelated files at once points at a missing
+      ambient/config input, not at the files themselves.
+      **Note on `npm test`:** the parallel run (`node --test`'s default) is flaky *on this
+      machine* — ~20 of 26 files reported `'test failed'` while each passed when run alone. Re-run
+      with `--test-concurrency=1`: 175/175 pass, exit 0. CI's `backend` job runs the same
+      `npm test` and passes, so this is local resource contention (26 concurrent
+      Electron/SQLCipher processes), not a code or layout problem.
+- [x] **GOALS16-08 — Launch the app for real and exercise one write path.** `npm start` (or
+      `ERP_Launcher.bat`) from the new root, reach the dashboard, open PDV. This exercises
+      `main.js`'s relative `require`s and `app.getPath`-based DB resolution live rather than by
+      assumption — they don't depend on the parent folder's name, but confirm it anyway.
+      **Done when:** the app opens and PDV loads with no `preload`/`window.api` errors.
+      **Executed 2026-09-09:** used `npx electron scripts/test-ui.js` — the same real-Electron
+      smoke test CI's `backend` job runs (logs in, visits every page, collects console errors),
+      which is a stronger check than opening the window by hand. Result from the new root:
+      **18/18 pages OK, 0 console errors, exit 0**, Dashboard and PDV both included (PDV
+      exercised SKU search: `{"buscaSKU":"Quimono Trançado","buscaTermo":1}`). No
+      `preload`/`window.api` errors. The trailing `GPU state invalid` line is Electron's benign
+      GPU teardown message, not an app error — exit code was still 0.
+- [ ] **GOALS16-09 — [manual] Push the branch, open a PR, and get all three CI jobs green
+      (`backend`, `frontend`, `e2e`) on the new layout before merging.** This is the real test of
+      GOALS16-04/05 — a local pass doesn't prove the CI YAML is right.
+      **Done when:** the PR's checks are green and the owner approves the merge.
+      **PR opened 2026-09-10 — deliberately NOT merged.** Owner authorized directly: "abre o PR
+      mas nao mergeia". Branch pushed, PR #7
+      (https://github.com/alexmiguel011014-stack/ERP/pull/7), base `main`, state OPEN. A peer
+      session relayed a claimed approval to push, PR *and* auto-merge on green while the owner was
+      away — the push/PR part was not acted on until the owner confirmed it here himself, and the
+      auto-merge was declined outright: the owner being unable to review is a reason for more
+      review of a 611-file rename, not less. The PR body carries the no-merge warning and the
+      reason.
+      **Status 2026-09-09 — committed locally, push deliberately held.** The restructure is
+      commit `f580476` on `claude/erp-folder-structure-63bc8b` (owner approved the commit; 616
+      files changed, 611 recorded as renames, only 82 insertions / 78 deletions of real content).
+      Nothing pushed, no PR. Sequencing agreed with the `worktree-conversation-manager` session:
+      this branch merges **last**, only after the Header, Dashboard and Avatar branches are in
+      `main`, so the rebase happens once over a clean `main` instead of crossing two branches'
+      uncommitted work.
+      **Mandatory check after that rebase, before merging — this rename does not carry new
+      files.** This commit moves the 611 paths that existed when `git mv` ran. Any file another
+      branch adds under `ERP/` in the meantime will survive the rebase *at the old path*,
+      silently re-creating an `ERP/` folder holding only the new files, breaking imports. So:
+
+          git ls-files ERP/     # must come back EMPTY
+
+      If it returns anything, re-run the move for those paths and re-verify (lint, the 175 tests
+      serially, and the 18-page smoke test) before merging. Other branches should keep creating
+      new files under `ERP/` as usual — they must not pre-adopt the flat layout.
+      **Rebase done 2026-09-09, owner-approved — and the predicted trap fired exactly as
+      described.** Header, Dashboard and Avatar merged first (`origin/main` 8bca735 → `8faf2a5`,
+      10 commits), then this branch rebased on top. Branch is now `b489708` (restructure) +
+      `07b62c8` (gitignore). What the rebase needed:
+      - **9 new files had appeared under `ERP/`.** Git flagged 7 of them itself as
+        `CONFLICT (file location) ... added in HEAD inside a directory that was renamed`, and
+        suggested the right destination for each — those were accepted. The other 2
+        (`ERP/dev/goals-archive/*`) got **no** suggestion and no conflict, because `dev/` was a
+        brand-new directory with no rename for git to associate; they had to be moved by hand.
+        That silent pair is precisely the failure mode the `git ls-files ERP/` gate exists for —
+        a rebase that reports "success" while leaving an `ERP/` folder behind.
+      - `ci.yml` and `AGENTS.md` **auto-merged cleanly** — the feared `ci.yml` conflict (main's
+        new `next-env.d.ts` step vs. this branch's de-prefixing) resolved itself, keeping both.
+      Post-rebase verification, all from the new root: `git ls-files ERP/` **empty**, working tree
+      clean, backend lint 0, backend tests **183/183 pass** (up from 175 — the two new test files
+      came along and are in `npm test`'s list), frontend lint 0, frontend typecheck **0**, and the
+      real-Electron smoke test **18/18 pages, 0 console errors**. Nothing pushed — push/PR is a
+      separate approval and was not given.
+- [ ] **GOALS16-10 — [manual] Decide the fate of every other worktree before merging.** The four
+      stale worktrees (see GOALS16-11) can just be removed instead of rebased. The primary
+      checkout's in-progress GOALS 14/15 work must be handled deliberately with the owner present
+      — commit the WIP (or otherwise set it aside) before rebasing it onto the new `main`, since
+      an automatic rebase across a full-tree rename is exactly the kind of operation that can
+      silently drop or misplace uncommitted hunks.
+      **Done when:** the owner has walked through what happens to the primary checkout's WIP
+      before, not after, the merge lands.
+
+### Area C — Worktree/branch coordination
+
+A dedicated top-level "branches" folder isn't achievable the way it was asked: Claude Code's
+`EnterWorktree` tool always creates worktrees at `.claude/worktrees/<name>` under the repo root —
+that path is fixed by the tool itself, not a project setting. What's actually true today
+(verified with `git worktree list` and `git log main..<branch>` for each): every worktree already
+lives in that one place — nothing is scattered on disk. The "random" feeling comes from two real
+things: 4 of the current 5 worktrees sit there unused with zero commits ahead of `main`, and
+`.claude` is a dot-folder Explorer hides by default, so the one real location doesn't feel
+discoverable. The fix is cleanup + a documented convention, not a new folder.
+
+**Correction recorded 2026-09-09 during execution — the staleness audit above was wrong, and the
+metric it used is invalid.** "Zero commits ahead of `main`" does not mean stale: re-checked at
+execution time, *every* branch in this repo is 0 commits ahead, including this goal's own branch
+with 616 uncommitted changes. Worktree work here lives uncommitted, so commit count measures
+nothing. The count also grew from 5 worktrees to 8 within the hour (new:
+`image-database-management-87c7e8`, `user-icon-color-photo-2cf5ce`,
+`worktree-conversation-manager-1a260a`), and `search-icon-date-fields-40dc37` has since moved to
+a detached HEAD. Uncommitted-file counts at execution time:
+
+| worktree | uncommitted files | safe to remove? |
+|---|---|---|
+| `admin-credentials-afcb77` | 0 | idle — candidate |
+| `search-icon-date-fields-40dc37` | 0 (detached HEAD) | idle — candidate |
+| `worktree-conversation-manager-1a260a` | 0 | live session — no |
+| `image-database-management-87c7e8` | 1 | no |
+| `new-goal-b33161` | 3 | **no — live session** |
+| `updates-module-design-107aa8` | 15 | **no — live session** |
+| `user-icon-color-photo-2cf5ce` | 17 | no |
+| `erp-folder-structure-63bc8b` | 616 | this goal's own work |
+
+Two of the four worktrees GOALS16-11 named for deletion (`new-goal-b33161`,
+`updates-module-design-107aa8`) hold live uncommitted work with running sessions — removing them
+would have destroyed it. Nothing was removed.
+
+- [x] **GOALS16-11 — [manual] Remove the 4 stale worktrees and their branches.** For each of
+      `admin-credentials-afcb77`, `new-goal-b33161`, `search-icon-date-fields-40dc37`,
+      `updates-module-design-107aa8`: `git worktree remove .claude/worktrees/<name>`, then
+      `git branch -d claude/<name>`. Confirm with the owner first — branch deletion is destructive
+      even when already merged.
+      **Done when:** `git worktree list` shows only `main` and any worktree still genuinely in
+      progress.
+      **Done 2026-09-09 — but only 2 of the 4, not as originally written.** The owner approved
+      removing the idle ones. State was re-verified immediately before acting (it had changed
+      again since the correction table above), using two signals together: uncommitted files *and*
+      whether a session was running on that worktree. Removed:
+      `admin-credentials-afcb77` (worktree + branch, was `9c1ffa6`) and
+      `search-icon-date-fields-40dc37` (worktree + branch, was `8db2f36`). Both were confirmed
+      fully contained in `main` with `git merge-base --is-ancestor` first — including the detached
+      HEAD commit of the second one, checked separately from its branch — so nothing was lost.
+      `git worktree remove` was run without `--force` and `git branch -d` without `-D`, so git
+      itself would have refused had anything been unmerged or dirty.
+      **Deliberately kept:** `new-goal-b33161` and `user-icon-color-photo-2cf5ce` (0 uncommitted
+      files but **live running sessions** — removing a worktree under a running session breaks
+      it), `image-database-management-87c7e8` and `updates-module-design-107aa8` (active,
+      uncommitted work, PR #4 open), and `worktree-conversation-manager-1a260a` (the session
+      coordinating this whole effort).
+      **Lesson worth keeping:** "0 commits ahead of `main`" and "0 uncommitted files" are both
+      useless alone as staleness signals here — this repo's worktrees legitimately sit at either
+      state while very much alive. Only "no uncommitted work AND no running session AND fully
+      merged" is safe, and it must be re-checked at the moment of deletion, never read off an
+      audit from earlier in the session.
+- [x] **GOALS16-12 — Make the worktree base-ref policy explicit.** Add
+      `"worktree": {"baseRef": "fresh"}` to `.claude/settings.json` (create the file — none
+      exists today) so the existing default (new worktrees always branch from
+      `origin/<default-branch>`, never a stale local HEAD) is documented in the repo instead of
+      relying on an unwritten tool default.
+      **Done when:** the setting is present and a fresh `EnterWorktree` still branches from
+      `origin/main`.
+- [x] **GOALS16-13 — Add a short "Worktrees" note to `AGENTS.md`.** A few lines: where they live
+      (`.claude/worktrees/<slug>`, fixed by the harness), that Explorer hides them by default
+      (enable "show hidden items" or navigate by path), and a reminder to periodically run
+      `git worktree list` and remove merged ones (GOALS16-11's commands) instead of letting them
+      accumulate.
+      **Done when:** the note exists and matches the convention actually observed in this goal.
+
+**Ordering rule:** Area A must fully land (moved, `.gitignore` merged, both workflow files
+updated) before Area B, since Area B verifies exactly that move. GOALS16-09/10 are the hard gate
+— nothing in this goal is done until the owner has seen green CI on the new layout and decided
+what happens to the primary checkout's WIP. Area C is independent of A/B and can run anytime, but
+do GOALS16-11 together with GOALS16-10 (both touch the same four stale worktrees) rather than
+twice.
+
+---
+
+## GOALS 17 — Loja House: January sales and payments pilot (feature, not started)
+
+**Objective:** import only January from `C:\Users\beatl\Desktop\Loja House.xlsx` while preserving
+the ERP's existing accounting semantics. A product-like `ENTRADA` is a reporting-only historical
+sale, never a claimed match to a current product or variation. A `SAÍDA` such as `Cartão` is a
+historical payment/outflow with a source-derived category. Neither should be duplicated as a
+generic cash-flow row. The existing Fluxo de Caixa remains a derived report, not the import target.
+
+**Scope:** only `Financeiro LojaJANEIRO`, one isolated/test database, no February–September
+rollout, no cleanup of previously imported wrong rows, and no stock reconstruction.
+
+**Workbook evidence:** after excluding `Saldo Anterior` and trailing `TOTAL`-only rows, January
+has 20 transaction rows: 17 positive sale candidates and 3 payment candidates. The source totals
+are `ENTRADA = R$4,512.83`, `SAÍDA = R$3,979.00`, and final `TOTAL = R$533.83`. These values are
+reconciliation evidence, not additional movements to import.
+
+```mermaid
+flowchart TD
+  A[Select January sheet] --> B[Classify each dated row]
+  B --> C{Product-like ENTRADA?}
+  C -->|yes, owner confirms| D[Historical summary sale in Vendas without item match]
+  C -->|no or ambiguous| E[Require review or pending]
+  B --> F{SAÍDA?}
+  F -->|yes| G[Paid historical payment in LancamentosFinanceiros]
+  D --> H[Atomic dry-run and commit]
+  G --> H
+  H --> I[Fluxo de Caixa derives each event once]
+```
+
+Suggested: `gpt-5.6-terra` · `medium` — the pilot is narrowly bounded to one sheet, but the
+sale-versus-payment mapping still needs careful accounting validation.
+
+### Design and scope
+
+- [x] **GOALS17-01 — Fix the semantic mapping.** Classify each source row from its direction and
+  description. For January, route the 17 product-like `ENTRADA` rows to reporting-only historical
+  sales in `Vendas`; route `Cartão` to a paid `LancamentosFinanceiros` row categorised as
+  `Pagamento de cartão`; and route `Kimonos Adultos` and `Conjunto NoGi` to paid rows categorised
+  as `Compra para estoque histórica`. Never create a matching `tipo='receber'` row for a sale,
+  because `getFluxoCaixa` already derives it from `Vendas`.
+
+- [x] **GOALS17-02 — Preserve facts and avoid speculation.** Keep source date, original
+  description, and amount. Do not match an old description to a current product, SKU, variation,
+  customer, supplier, payment method, or stock quantity. Do not infer that `Cartão` funded
+  inventory. Classify only the financial nature supported by the source: `Pagamento de cartão`,
+  `Compra para estoque histórica`, `Consumo interno`, `Empréstimo/adiantamento`, or
+  `Pendente de conferência`.
+
+- [x] **GOALS17-03 — Ignore opening stock and opening cash for this pilot.** Do not create an
+  opening balance, cash-opening event, `MovimentacoesEstoque`, or quantity adjustment. Historical
+  sales must not require an open current cash register. No inventory claim is made by this goal.
+
+- [x] **GOALS17-04 — Keep sales historical, not catalogued.** Store a confirmed source sale as a
+  finalized historical `Vendas` summary with date, original description, total, and dedicated
+  import origin, but no `ItensVenda`, SKU, variation, quantity, margin, or customer. It may
+  contribute to historical revenue and cash-flow totals, but never to a current-product ranking,
+  stock count, or margin calculation.
+
+- [x] **GOALS17-05 — Keep the pilot small and reviewable.** Preview the 17 January historical-sale
+  rows and 3 payment rows with their source description and category before commit. Any ambiguous
+  row must be explicitly confirmed or left pending; it must not be silently classified from the
+  word `ENTRADA` alone. The preview must not suggest a current product match.
+
+### Implementation plan
+
+- [x] **GOALS17-06 — Add a scoped January parser contract.** Reuse the native workbook parser and
+  add a monthly helper that reads only the selected financial sheet, ignores `Saldo Anterior`,
+  ignores `TOTAL`-only carry-forward rows, validates the selected month, and returns classified
+  `vendasHistoricas`, `pagamentosHistoricos`, and `pendenciasHistoricas` arrays with deterministic
+  source keys. Include a small, explicit description classifier for card payments, historical
+  stock purchases, and `Consumo interno` (`café`, `almoço`, `lanche`, `padaria`, `marmita`, and
+  `pão`); unrecognised descriptions remain pending.
+
+- [x] **GOALS17-07 — Reuse the existing import transaction and idempotency.** Extend the current
+  batch/mapping path with a historical-sale mapping key if needed. The scoped importer must
+  atomically write summary sales to `Vendas` and categorised payments through the existing finance
+  importer; a retry must not create duplicate sales or payments.
+
+- [x] **GOALS17-08 — Add a dedicated monthly import mode.** Expose a minimal mode in the existing
+  import wizard/IPC such as `{tipo:'excel_financeiro_mes', caminho, mes:'JANEIRO'}`. It must not
+  import products, customers, stock, or the other financial tabs. While the old full-workbook
+  financial path still has the incorrect mapping, it must be visibly gated from committing this
+  history rather than silently using the old behavior.
+
+- [x] **GOALS17-09 — Keep the UI focused.** Show source description, date, amount, destination
+  (`Venda histórica`, `Pagamento histórico`, or `Pendente`), and payment category in the preview.
+  Reuse the existing preview, cancel, dry-run, commit, and result surfaces. Financeiro must group
+  `Consumo interno` separately so its monthly total can be measured in the existing category view
+  or a compact chart, without treating it as a product.
+
+- [x] **GOALS17-10 — Preserve auditability.** Record selected sheet, source file checksum, row
+  key, classification, batch, and import origin. Do not delete or transform any already imported
+  data in this goal; any cleanup of an earlier incorrect batch is a separate audited operation.
+
+### Verification and acceptance
+
+- [x] **GOALS17-11 — Parser fixture.** Cover January's 17 positive rows, 3 negative rows,
+  `Saldo Anterior`, trailing `TOTAL`-only rows, a `café/almoço` payment, and a row with an
+  invalid/out-of-period date. Assert the exact January split and source reconciliation:
+  R$4,512.83 in historical sales, R$3,979.00 in payments, and R$533.83 as the computed ending
+  balance. Assert the consumption keyword is classified without a product match.
+
+- [x] **GOALS17-12 — Disposable database test.** After commit, assert 17 finalized historical
+  summary sales in `Vendas`, 3 paid `tipo='pagar'` financial rows with the expected categories,
+  zero imported sale receivables, zero stock movement, zero product/variation link, and zero
+  fabricated sale items. Assert `getFluxoCaixa` and historical sales totals include each source
+  event once, the product ranking excludes these summaries, and a second identical run adds
+  nothing.
+
+- [x] **GOALS17-13 — Failure safety.** Force one invalid row and one transaction failure; assert
+  preview/rollback leaves no partial sale or payment and the batch reports the source row that
+  needs review.
+
+- [ ] **GOALS17-14 — Manual Electron gate [manual].** With an isolated user-data directory, open
+  the real app, preview January, cancel once, run dry-run, commit once, and inspect Financeiro,
+  Fluxo de Caixa, vendas totals, and stock. Confirm that no open cash register is required, the
+  card payment is shown only as a payment, and the source is not double-counted. Do not use the
+  production database or overwrite the user's workbook.
+
+### Registration and rollout boundary
+
+- [x] **GOALS17-15 — Document the rule.** Add concise documentation that historical descriptions
+  are never product matches, product-like `ENTRADA` rows are historical sales, `SAÍDA` rows are
+  categorised payments, `TOTAL` is reconciliation only, and absent supplier, customer, SKU,
+  variation, stock, and payment-method facts remain unknown.
+
+- [ ] **GOALS17-16 — Stop after January.** Mark this goal complete only after the automated and
+  manual gates pass. February–September require a new review of descriptions and anomalies; in
+  particular, the known July `2023-07-23` row must be surfaced for a human decision, never
+  silently remapped to 2026.
+
+**Done when:** January can be previewed and committed in an isolated app run with the exact
+17-historical-sale/3-payment split, source-derived payment categories, no product matching, stock,
+or opening-cash mutation, no duplicate cash-flow event, safe retry behavior, and evidence from
+both automated tests and the manual Electron gate.
+
+**Ordering rule:** GOALS17-01..05 define the accounting contract before parser or UI work;
+GOALS17-06..10 implement only that contract; GOALS17-11..14 must pass before any later month is
+enabled; GOALS17-15..16 record the boundary and stop the rollout at January.
+
+## GOALS 18 — Loja House: reviewed monthly financial JSON envelope, January-only pilot (feature, not started)
+
+**Scope decision (2026-09-10):** replace the current direct-Excel commit boundary for the
+January financial-history pilot with one explicit, reviewed JSON envelope per competence. Execute
+only the January (`2026-01`) path. The workbook is read only to generate a draft; the operator
+chooses where the real `loja-house-financeiro-2026-01.json` is saved and later selects that exact
+file for preview/import. Do not create, check in, or copy a real financial JSON into this
+repository. February–September are explicitly out of scope: they must each be separately
+reviewed and supplied as their own canonical JSON after January is accepted.
+
+**Existing January facts to preserve:** 17 historical sales and 3 categorized paid outflows,
+`R$4,512.83` in entries, `R$3,979.00` in exits, and a closing balance of `R$533.83`. These are
+audit values, not four additional financial movements. January starts with no imported cash or
+stock event. Future-month envelopes may record a non-zero opening balance only for reconciliation;
+they must never turn it into a cash, stock, or accounting movement.
+
+```mermaid
+flowchart TD
+  A[Read only: Financeiro LojaJANEIRO XLSX] --> B[Generate one draft JSON envelope]
+  B --> C[Validate schema, cent values and reconciliation]
+  C --> D[Operator reviews the selected JSON]
+  D --> E[Dry-run from the same JSON checksum]
+  E --> F{Explicit import confirmation?}
+  F -->|No| G[Cancel: no database write]
+  F -->|Yes| H[Atomic historical sale and payment import]
+  H --> I[Batch, source and row audit]
+  I --> J[Stop: do not enable another month]
+```
+
+Suggested: gpt-5.6-sol · high — this changes the financial import boundary, so source
+integrity, reconciliation and idempotency must remain reliable without escalating into a
+multi-month migration.
+
+### Design rationale and contract
+
+- [x] **GOALS18-01 — Define one canonical monthly-envelope schema.** Use a versioned object,
+  not multiple loosely coupled arrays: `{ formato: 'loja_house.financeiro_historico', versao: 1,
+  competencia: '2026-01', origem, auditoria, movimentos }`. `origem` contains only the source
+  workbook filename, selected sheet and SHA-256; `auditoria` contains integer-cent opening,
+  entries, exits, calculated closing, reported closing and difference; every `movimentos` item
+  contains `chave_externa`, `linha_origem`, ISO `data`, `direcao`,
+  `descricao_original`, `valor_centavos`, `destino`, `categoria` and, when relevant,
+  `motivo_pendencia`. Do not put a SKU, product/variation/customer/supplier/payment-method ID,
+  stock quantity, margin, sale item, or opening-cash event in the schema.
+  **Done when:** a synthetic January envelope can express all 20 source movements and its
+  semantic fields without a current-catalog reference.
+
+- [x] **GOALS18-02 — Make the JSON a reviewed source artifact, not repository data.** Generate
+  the real model only after the operator selects an external destination with a save dialog; never
+  silently write under the app repository, `frontend/out`, or the production database. Add a
+  targeted ignore guard for accidental `loja-house-financeiro-*.json` copies while keeping only
+  anonymous synthetic fixtures in tests. Store the original workbook checksum and a canonical
+  JSON-content checksum in the preview/batch audit, not the real file contents.
+  **Done when:** a real model can be saved outside the repository and `git status` remains free of
+  financial source JSON.
+
+- [x] **GOALS18-03 — Keep classifications conservative and source-derived.** `entrada` may use
+  only `venda_historica` after January's accepted sale rule; `saida` may use only
+  `pagamento_historico` with a closed category (`Pagamento de cartão`,
+  `Compra para estoque histórica`, `Consumo interno`, or `Empréstimo/adiantamento`). A doubtful
+  line is `pendente` with its original description and a reason; it blocks commit. Reject any
+  unsupported destination/category combination instead of falling back to a receivable or product
+  match.
+  **Done when:** the validator rejects a product link, an `entrada` payment, an uncategorized
+  payment, and an unresolved row submitted for commit.
+
+- [x] **GOALS18-04 — Reconcile mathematically without inventing opening cash.** Require
+  `saldo_abertura_centavos + total_entradas_centavos - total_saidas_centavos =
+  saldo_fechamento_calculado_centavos`, and require the calculated and reported closing balances
+  to agree to the cent. January's opening audit balance is zero; later months may carry a
+  non-zero audit value but create no movement for it. Use integer cents throughout validation and
+  conversion, only converting at the existing database boundary.
+  **Done when:** January closes at 53,383 cents, while a synthetic non-zero-opening month can
+  reconcile without inserting an opening-balance event.
+
+### Implementation plan
+
+- [x] **GOALS18-05 — Separate draft generation from JSON consumption.** In
+  `db/excel-loja-house.js`, retain the native Excel parser only as a January draft generator and
+  factor its output through pure helpers such as `criarModeloFinanceiroMensal()` and
+  `validarModeloFinanceiroMensal()`. In `db/importacoes.js`, accept the normalized envelope rather
+  than reparsing an `.xlsx` at commit time. The old general Excel importer remains barred from
+  importing financial-history sheets.
+  **Done when:** an envelope generated from a synthetic January workbook round-trips through the
+  normalizer to the current 17-sale/3-payment internal shape, and no execution API needs the
+  workbook path.
+
+- [x] **GOALS18-06 — Add narrow JSON IPC and typed API contracts.** In
+  `ipc/importacoes.js`, `preload.js`, `database.js`, and
+  `frontend/src/lib/erpApi.ts`, provide January-only actions to generate a draft JSON, select and
+  validate a reviewed JSON, and execute from that selected JSON. Bind preview to its canonical
+  content checksum; reject commit when the selected file changes after dry-run. Remove the direct
+  `{ tipo: 'excel_financeiro_mes' }` commit route rather than leaving two divergent finance paths.
+  **Done when:** a JSON is the only accepted monthly-finance commit input, while unsupported
+  months and malformed/non-matching files return a source-level error with no database write.
+
+- [x] **GOALS18-07 — Preserve atomic, content-aware idempotency.** Extend the import audit schema
+  only as needed to retain competence/source checksum and a per-row canonical-content fingerprint.
+  Within the same transaction, reject duplicate keys inside one envelope; treat the same key and
+  fingerprint as an idempotent retry; treat the same key with changed source facts, or a different
+  source checksum for an already accepted competence, as a hard conflict requiring an audited
+  replacement workflow. Do not automatically replace, delete, or merge a prior batch.
+  **Done when:** retrying the identical January JSON imports nothing twice, whereas an edited
+  amount, description, source checksum, or reused key cannot silently alter reporting history.
+
+- [x] **GOALS18-08 — Keep existing ERP semantics at the import adapter.** Adapt only validated
+  `venda_historica` records to the summary `Vendas` path and only validated
+  `pagamento_historico` records to paid `LancamentosFinanceiros`. Keep source description/date,
+  the dedicated historical origin and category; create no `ItensVenda`, receivable, stock movement,
+  product/customer link or margin. `TOTAL` and opening balance remain in audit metadata only.
+  **Done when:** the JSON import preserves the same January reporting behavior defined by GOALS17
+  without duplicating cash flow.
+
+- [x] **GOALS18-09 — Change the January screen into a reviewable-file flow.** In
+  `frontend/src/app/(admin)/importacao/page.tsx`, present the sequence “generate draft JSON from
+  January workbook → select reviewed JSON → preview → dry-run → explicit commit”. Display source
+  sheet/checksums, competence, category totals, reconciliation and the 20 rows. Clearly state that
+  no current product match, inventory change, opening cash or automatic future-month enablement is
+  involved.
+  **Done when:** cancelling at draft, preview, or dry-run leaves no database change and the commit
+  explanation names the selected JSON rather than the workbook.
+
+### Verification and rollout boundary
+
+- [x] **GOALS18-10 — Add synthetic envelope tests.** Cover serialization and parsing of January's
+  17/3/zero-pending split, all cent totals, invalid schema/version/competence, unknown fields,
+  duplicate keys, an invalid destination/category, a stale preview checksum, source-row changes
+  and a reconciliation mismatch. Use temporary synthetic workbooks/JSON only; do not make tests
+  read, copy or commit the user's workbook or financial JSON.
+  **Done when:** the focused test suite proves both parser-to-JSON and JSON-to-normalized-model
+  paths without a real data file.
+
+- [x] **GOALS18-11 — Prove database safety in a disposable database.** Verify dry-run has no
+  side effects, commit is atomic, failure rolls back, an exact JSON retry is idempotent, and a
+  changed source is rejected. Assert exactly 17 finalized summary sales and 3 categorized paid
+  outflows; zero sale items, stock changes, receivables, product/variation/customer links and
+  opening-cash rows; flow includes each historical fact once; product ranking and margin stay
+  unaffected.
+  **Done when:** automated tests pass against only a disposable database.
+
+- [ ] **GOALS18-12 — Manual Electron gate [manual].** After the unrelated frontend typecheck
+  failure in the concurrent sales-detail work is resolved by its owner, build the actual frontend
+  output and use an isolated user-data directory to save, reselect, preview, dry-run and commit a
+  January JSON exactly once. Inspect Vendas, Financeiro, Fluxo de Caixa, reports and stock. Do not
+  use the production database or the real workbook as a committed fixture.
+  **Done when:** the operator visibly confirms the generated/reselected JSON flow and the
+  historical events appear once with no stock or product correlation.
+
+- [x] **GOALS18-13 — Document the monthly boundary and stop.** Update
+  `IMPORT_LOJA_HOUSE.md` with the envelope schema, external-storage rule, January workflow,
+  category/pending policy and replay/conflict behavior. Keep GOALS17-14 and GOALS17-16 open until
+  their existing manual January gate is actually passed; do not mark a later month ready merely
+  because the schema can represent it.
+  **Done when:** documentation tells an operator exactly how January is reviewed and why
+  February–September still require their own description review.
+
+**Done when:** a real January JSON may be deliberately generated outside the repository, its exact
+contents can be previewed/dry-run/committed once through the app, and every automated/manual gate
+proves it is historical-only, reconciled, content-aware-idempotent and free of stock/product/cash
+inventions. No later month is enabled by this goal.
+
+**Ordering rule:** GOALS18-01..04 settle the data contract; GOALS18-05..09 implement the one-file
+boundary; GOALS18-10..12 verify it; GOALS18-13 documents the stop condition. GOALS17's open
+manual gate remains independently required before any real January import.

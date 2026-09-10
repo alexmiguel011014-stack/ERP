@@ -137,7 +137,7 @@ export type Lancamento = {
 	valor: number;
 	data_vencimento: string;
 	data_pagamento: string | null;
-	status: "aberto" | "pago";
+	status: "aberto" | "pago" | "cancelado";
 	origem: "manual" | "venda" | "compra";
 	referencia_id: number | null;
 	forma_pagamento: string | null;
@@ -146,6 +146,9 @@ export type Lancamento = {
 	parcela_num: number | null;
 	parcela_total: number | null;
 	categoria: string | null;
+	cliente_id: number | null;
+	cliente_nome: string | null;
+	venda_id: number | null;
 };
 
 export type NovoLancamento = {
@@ -159,7 +162,7 @@ export type NovoLancamento = {
 
 export type FiltroLancamentos = {
 	tipo?: "receber" | "pagar";
-	status?: "aberto" | "pago";
+	status?: "aberto" | "pago" | "cancelado";
 	categoria?: string;
 	dataInicio?: string;
 	dataFim?: string;
@@ -309,6 +312,10 @@ export type Venda = {
 	nota_status: string | null;
 	nota_numero: string | null;
 	cliente_nome: string | null;
+	condicao_parcelamento_nome: string | null;
+	parcelas: number | null;
+	acrescimo_parcelamento: number | null;
+	data_primeiro_vencimento: string | null;
 };
 
 export type FiltroVendas = {
@@ -427,10 +434,52 @@ export type NovaVendaDados = {
 	total: number;
 	cliente_id?: number | null;
 	forma_pagamento?: string | null;
+	condicao_parcelamento_id?: number | null;
+	data_primeiro_vencimento?: string | null;
+	request_id?: string | null;
 	observacao?: string | null;
 };
 
-export type ResultadoVenda = { success: boolean; vendaId: number };
+export type ParcelaVenda = {
+	id?: number;
+	numero: number;
+	total?: number;
+	valor: number;
+	vencimento: string | null;
+	data_pagamento?: string | null;
+	status?: "aberto" | "pago" | "cancelado";
+	cliente_id?: number | null;
+	cliente_nome?: string | null;
+};
+
+export type ResultadoVenda = {
+	success: boolean;
+	vendaId: number;
+	total?: number;
+	parcelas?: ParcelaVenda[];
+	idempotente?: boolean;
+};
+
+export type CondicaoParcelamento = {
+	id: number;
+	codigo: string;
+	nome: string;
+	forma_pagamento: "Fiado" | "Cartão";
+	numero_parcelas: number;
+	acrescimo_percentual: number;
+	ativo: number;
+	ordem: number;
+};
+
+export type PreviaVendaParcelada = {
+	condicao: CondicaoParcelamento | null;
+	formaPagamento: string;
+	valorBase: number;
+	acrescimo: number;
+	desconto: number;
+	total: number;
+	parcelas: ParcelaVenda[];
+};
 
 // Crediário histórico (GOALS.md "4. Crediário histórico") — lançamento
 // manual de uma dívida de Fiado antiga já vinculada a um cliente real.
@@ -853,6 +902,84 @@ export type ValidacaoArquivoExcelImportacao =
 			preview: PreviewImportacao;
 	  };
 
+export type MovimentoFinanceiroHistoricoPreview = {
+	chave_externa: string;
+	linha: number;
+	data: string;
+	descricao: string;
+	valor: number;
+	direcao: "entrada" | "saida";
+	destino: "venda_historica" | "pagamento_historico" | "pendente";
+	categoria?: string;
+	motivo?: string;
+};
+
+export type ReconciliacaoFinanceiroHistorico = {
+	saldoAbertura: number;
+	totalEntradas: number;
+	totalSaidas: number;
+	saldoCalculado: number;
+	saldoInformado: number | null;
+	diferenca: number | null;
+	valida: boolean;
+};
+
+export type PreviewFinanceiroJaneiroImportacao = {
+	mes: "JANEIRO";
+	aba: string;
+	arquivoChecksum: string;
+	vendasHistoricas: MovimentoFinanceiroHistoricoPreview[];
+	pagamentosHistoricos: MovimentoFinanceiroHistoricoPreview[];
+	pendenciasHistoricas: MovimentoFinanceiroHistoricoPreview[];
+	reconciliacao: ReconciliacaoFinanceiroHistorico;
+};
+
+export type ValidacaoFinanceiroJaneiroImportacao =
+	| { cancelado: true }
+	| { erro: string }
+	| {
+			formato: "json_financeiro_mes";
+			caminho: string;
+			checksum: string;
+			preview: PreviewFinanceiroJaneiroImportacao;
+	  };
+
+export type EntradaImportacaoFinanceiroJaneiro = {
+	tipo: "json_financeiro_mes";
+	caminho: string;
+	checksum: string;
+};
+
+export type PreviewDryRunFinanceiroJaneiro = {
+	mes: "JANEIRO";
+	vendasHistoricas: number;
+	pagamentosHistoricos: number;
+	pendenciasHistoricas: number;
+	porCategoria: Record<string, number>;
+	reconciliacao: ReconciliacaoFinanceiroHistorico;
+};
+
+export type ResultadoDryRunFinanceiroJaneiro = {
+	dryRun: true;
+	preview: PreviewDryRunFinanceiroJaneiro;
+	conflitos: ConflitosImportacao;
+	checksum: string;
+};
+
+export type ResultadoImportacaoFinanceiroJaneiro = {
+	batchId: string;
+	importadas: { vendasHistoricas: number; pagamentosHistoricos: number };
+	ignoradas: number;
+	pendencias: number;
+	erros: ErroImportacaoItem[];
+	reconciliacao: ReconciliacaoFinanceiroHistorico;
+};
+
+export type ResultadoExecucaoFinanceiroJaneiro =
+	| ResultadoDryRunFinanceiroJaneiro
+	| ResultadoImportacaoFinanceiroJaneiro
+	| ErroImportacao;
+
 // Entrada aceita por executarImportacao: pasta de JSONs (string), ou
 // planilha Excel nativa — espelha os dois formatos que
 // executarImportacaoLojHouse (via ipc/importacoes.js) já aceita além do
@@ -874,6 +1001,8 @@ export type PreviewDryRunImportacao = {
 export type ConflitosImportacao = {
 	duplicadasJaImportadas: number;
 	alertasRegrasNegocio: string[];
+	loteIdenticoJaImportado?: boolean;
+	loteDiferenteJaImportado?: boolean;
 };
 
 export type ResultadoDryRunImportacao = {
@@ -1123,6 +1252,28 @@ export const erpApi = {
 	},
 	precificacao: {
 		dados: () => invocar<PrecificacaoLinha[]>("getPricingData"),
+		condicoesParcelamento: (
+			formaPagamento?: "Fiado" | "Cartão",
+			incluirInativas = false,
+		) =>
+			invocar<CondicaoParcelamento[]>(
+				"listarCondicoesParcelamento",
+				formaPagamento,
+				incluirInativas,
+			),
+		salvarCondicaoParcelamento: (dados: {
+			id?: number;
+			nome: string;
+			forma_pagamento: "Fiado" | "Cartão";
+			numero_parcelas: number;
+			acrescimo_percentual: number;
+			ativo?: boolean;
+			ordem?: number;
+		}) =>
+			invocar<{ success: boolean; condicaoId: number }>(
+				"salvarCondicaoParcelamento",
+				dados,
+			),
 		margemGlobal: () => invocar<number>("getGlobalMargin"),
 		salvarMargemGlobal: (valor: number) =>
 			invocar<{ success: boolean }>("saveGlobalMargin", valor),
@@ -1209,10 +1360,14 @@ export const erpApi = {
 			),
 	},
 	vendas: {
+		calcularParcelada: (dados: NovaVendaDados) =>
+			invocar<PreviaVendaParcelada>("calcularVendaParcelada", dados),
 		importarHistorico: (linhas: LinhaImportacaoVenda[]) =>
 			invocar<ResultadoImportacaoVendas>("importarVendasHistoricas", linhas),
 		listar: (filtro?: FiltroVendas) => invocar<Venda[]>("getVendas", filtro),
 		itens: (vendaId: number) => invocar<ItemVenda[]>("getItensVenda", vendaId),
+		parcelas: (vendaId: number) =>
+			invocar<ParcelaVenda[]>("getParcelasVenda", vendaId),
 		converterOrcamento: (vendaId: number) =>
 			invocar<{ success: boolean; vendaId: number }>(
 				"converterOrcamento",
@@ -1363,11 +1518,34 @@ export const erpApi = {
 				"validarArquivoExcelImportacao",
 				caminho,
 			),
+		gerarModeloFinanceiroJaneiro: (
+			caminhoPlanilha?: string,
+			caminhoDestino?: string,
+		) =>
+			invocar<ValidacaoFinanceiroJaneiroImportacao>(
+				"gerarModeloFinanceiroJaneiro",
+				caminhoPlanilha,
+				caminhoDestino,
+			),
+		validarModeloFinanceiroJaneiro: (caminho?: string) =>
+			invocar<ValidacaoFinanceiroJaneiroImportacao>(
+				"validarModeloFinanceiroJaneiro",
+				caminho,
+			),
 		executar: (
 			pasta: EntradaImportacao,
 			opcoes: { dryRun: boolean; dataMovimentacao?: string },
 		) =>
 			invocar<ResultadoExecucaoImportacao>("executarImportacao", pasta, opcoes),
+		executarFinanceiroJaneiro: (
+			entrada: EntradaImportacaoFinanceiroJaneiro,
+			opcoes: { dryRun: boolean },
+		) =>
+			invocar<ResultadoExecucaoFinanceiroJaneiro>(
+				"executarImportacao",
+				entrada,
+				opcoes,
+			),
 		historico: () => invocar<LoteImportacao[]>("historicoImportacoes"),
 		detalhes: (batchId: string) =>
 			invocar<DetalhesLoteImportacao>("detalhesImportacao", batchId),

@@ -14,6 +14,8 @@ const {
 	saveTaxaAdquirente,
 	getTaxaAdquirentePorMetodo,
 	saveTaxaAdquirentePorMetodo,
+	listarCondicoesParcelamento,
+	salvarCondicaoParcelamento,
 } = require("../database");
 
 function registrar(ipcMain, deps) {
@@ -164,6 +166,37 @@ function registrar(ipcMain, deps) {
 			}
 		},
 	);
+
+	ipcMain.handle(
+		"get-condicoes-parcelamento",
+		async (event, formaPagamento, incluirInativas) => {
+		try {
+			exigirSessao();
+			return await listarCondicoesParcelamento(
+				formaPagamento || null,
+				!!incluirInativas,
+			);
+		} catch (erro) {
+			throw erro.message;
+		}
+		},
+	);
+
+	ipcMain.handle("salvar-condicao-parcelamento", async (event, dados) => {
+		try {
+			exigirSessao("admin");
+			const resultado = await salvarCondicaoParcelamento(dados);
+			log(
+				"salvar-condicao-parcelamento",
+				"CondicoesParcelamento",
+				resultado.condicaoId,
+				dados && dados.nome,
+			);
+			return resultado;
+		} catch (erro) {
+			throw erro.message;
+		}
+	});
 }
 
 module.exports = { registrar };

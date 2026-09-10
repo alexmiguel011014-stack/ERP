@@ -1,10 +1,12 @@
 const {
 	finalizarVenda,
+	calcularVendaParcelada,
 	getVendas,
 	getVendasHoje,
 	importarVendasHistoricas,
 	registrarVendaFiadoHistorica,
 	getItensVenda,
+	getParcelasVenda,
 	converterOrcamento,
 	cancelarOrcamento,
 	registrarDevolucao,
@@ -28,6 +30,15 @@ function registrar(ipcMain, deps) {
 				"Total: " + (dados.total || 0),
 			);
 			return resultado;
+		} catch (erro) {
+			throw erro.message;
+		}
+	});
+
+	ipcMain.handle("calcular-venda-parcelada", async (event, dados) => {
+		try {
+			exigirSessao();
+			return await calcularVendaParcelada(dados);
 		} catch (erro) {
 			throw erro.message;
 		}
@@ -91,6 +102,15 @@ function registrar(ipcMain, deps) {
 		try {
 			exigirSessao();
 			return await getItensVenda(vendaId);
+		} catch (erro) {
+			throw erro.message;
+		}
+	});
+
+	ipcMain.handle("get-parcelas-venda", async (event, vendaId) => {
+		try {
+			exigirSessao("admin");
+			return await getParcelasVenda(vendaId);
 		} catch (erro) {
 			throw erro.message;
 		}

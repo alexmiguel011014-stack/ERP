@@ -158,7 +158,7 @@ function consolidarEventosFluxo(eventos, periodo, modo) {
 
 async function criarLancamentoInterno(run, dados) {
 	await run(
-		"INSERT INTO LancamentosFinanceiros (tipo, descricao, valor, data_vencimento, data_pagamento, status, origem, referencia_id, forma_pagamento, data_criacao) VALUES (?, ?, ?, ?, NULL, 'aberto', ?, ?, ?, ?)",
+		"INSERT INTO LancamentosFinanceiros (tipo, descricao, valor, data_vencimento, data_pagamento, status, origem, referencia_id, forma_pagamento, data_criacao, cliente_id, venda_id, grupo_id, parcela_num, parcela_total) VALUES (?, ?, ?, ?, NULL, 'aberto', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		[
 			dados.tipo,
 			dados.descricao,
@@ -168,38 +168,44 @@ async function criarLancamentoInterno(run, dados) {
 			dados.referencia_id || null,
 			dados.forma_pagamento || null,
 			new Date().toISOString(),
+			dados.cliente_id || null,
+			dados.venda_id || null,
+			dados.grupo_id || null,
+			dados.parcela_num || 1,
+			dados.parcela_total || 1,
 		],
 	);
 }
 
 async function getLancamentos(filtro) {
 	filtro = filtro || {};
-	let sql = "SELECT * FROM LancamentosFinanceiros";
+	let sql =
+		"SELECT lf.*, c.nome AS cliente_nome FROM LancamentosFinanceiros lf LEFT JOIN Clientes c ON c.id = lf.cliente_id";
 	const where = [];
 	const params = [];
 	if (filtro.tipo) {
-		where.push("tipo = ?");
+		where.push("lf.tipo = ?");
 		params.push(filtro.tipo);
 	}
 	if (filtro.status) {
-		where.push("status = ?");
+		where.push("lf.status = ?");
 		params.push(filtro.status);
 	}
 	if (filtro.categoria) {
-		where.push("categoria = ?");
+		where.push("lf.categoria = ?");
 		params.push(filtro.categoria);
 	}
 	if (filtro.dataInicio) {
-		where.push("DATE(data_vencimento) >= ?");
+		where.push("DATE(lf.data_vencimento) >= ?");
 		params.push(filtro.dataInicio);
 	}
 	if (filtro.dataFim) {
-		where.push("DATE(data_vencimento) <= ?");
+		where.push("DATE(lf.data_vencimento) <= ?");
 		params.push(filtro.dataFim);
 	}
 	if (where.length > 0) sql += " WHERE " + where.join(" AND ");
 	sql +=
-		" ORDER BY (CASE WHEN status = 'aberto' THEN 0 ELSE 1 END), DATE(data_vencimento) ASC, id DESC LIMIT 200";
+		" ORDER BY (CASE WHEN lf.status = 'aberto' THEN 0 ELSE 1 END), DATE(lf.data_vencimento) ASC, lf.id DESC LIMIT 200";
 	return allAsync(sql, params);
 }
 
@@ -329,7 +335,7 @@ async function getFluxoCaixa(dataInicio, dataFim) {
 	);
 
 	const entradasVendas = await allAsync(
-		`SELECT id, DATE(data_venda) AS dia, total, forma_pagamento
+		`SELECT id, DATE(data_venda) AS dia, total, forma_pagamento, origem, observacao
      FROM Vendas
      WHERE status = 'finalizada'
        AND (forma_pagamento IS NULL OR forma_pagamento != 'Fiado')
@@ -360,7 +366,9 @@ async function getFluxoCaixa(dataInicio, dataFim) {
 	const devolucoes = await allAsync(
 		`SELECT d.id, d.venda_id, d.valor_total, DATE(d.data) AS dia
      FROM Devolucoes d
+     JOIN Vendas v ON v.id = d.venda_id
      WHERE d.data IS NOT NULL
+       AND (v.forma_pagamento IS NULL OR v.forma_pagamento != 'Fiado')
        AND DATE(d.data) BETWEEN ? AND ?
      ORDER BY dia, d.id`,
 		[periodo.inicio, periodo.fim],
@@ -370,9 +378,18 @@ async function getFluxoCaixa(dataInicio, dataFim) {
 		...entradasVendas.map((venda) => ({
 			data: venda.dia,
 			tipo: "entrada",
-			origem: "venda",
-			descricao: `Venda #${venda.id}`,
-			categoria: null,
+			origem:
+				venda.origem === "importacao_financeiro_historico"
+					? "importacao_financeiro_historico"
+					: "venda",
+			descricao:
+				venda.origem === "importacao_financeiro_historico"
+					? venda.observacao || "Venda histórica importada"
+					: `Venda #${venda.id}`,
+			categoria:
+				venda.origem === "importacao_financeiro_historico"
+					? "Vendas históricas"
+					: null,
 			valor: venda.total,
 			referenciaId: venda.id,
 			formaPagamento: venda.forma_pagamento || null,

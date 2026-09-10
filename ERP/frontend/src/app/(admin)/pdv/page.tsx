@@ -4,7 +4,13 @@ import { usePageHeader } from "@/context/PageHeaderContext";
 import { useCarrinho } from "@/hooks/useCarrinho";
 import { useCaixa } from "@/hooks/useCaixa";
 import { useClientes } from "@/hooks/useClientes";
-import { erpApi, type Cliente, type ProdutoBusca } from "@/lib/erpApi";
+import {
+	erpApi,
+	type Cliente,
+	type CondicaoParcelamento,
+	type PreviaVendaParcelada,
+	type ProdutoBusca,
+} from "@/lib/erpApi";
 import BuscaProduto from "@/components/pdv/BuscaProduto";
 import Carrinho from "@/components/pdv/Carrinho";
 import ClienteSelector from "@/components/pdv/ClienteSelector";
@@ -27,6 +33,9 @@ type FormularioSalvo = {
 	valorRecebido: string;
 	observacao: string;
 	clienteId: number | null;
+	condicaoParcelamentoId: number | null;
+	dataPrimeiroVencimento: string;
+	requestId: string | null;
 };
 
 function carregarFormularioSalvo(): FormularioSalvo | null {
@@ -53,6 +62,19 @@ export default function PdvPage() {
 	const [formaPagamento, setFormaPagamento] = useState("");
 	const [valorRecebido, setValorRecebido] = useState("");
 	const [observacao, setObservacao] = useState("");
+	const [condicoesParcelamento, setCondicoesParcelamento] = useState<
+		CondicaoParcelamento[]
+	>([]);
+	const [condicaoParcelamentoId, setCondicaoParcelamentoId] = useState<
+		number | null
+	>(null);
+	const [dataPrimeiroVencimento, setDataPrimeiroVencimento] = useState("");
+	const [previaParcelamento, setPreviaParcelamento] =
+		useState<PreviaVendaParcelada | null>(null);
+	const [erroPreviaParcelamento, setErroPreviaParcelamento] = useState<string | null>(
+		null,
+	);
+	const [requestId, setRequestId] = useState<string | null>(null);
 	const [processando, setProcessando] = useState(false);
 	const [mensagem, setMensagem] = useState<{
 		texto: string;
@@ -76,6 +98,9 @@ export default function PdvPage() {
 			setValorRecebido(salvo.valorRecebido);
 			setObservacao(salvo.observacao);
 			setClienteIdPendente(salvo.clienteId);
+			setCondicaoParcelamentoId(salvo.condicaoParcelamentoId ?? null);
+			setDataPrimeiroVencimento(salvo.dataPrimeiroVencimento || "");
+			setRequestId(salvo.requestId || null);
 		}
 		setFormularioCarregado(true);
 	}, []);
@@ -99,6 +124,9 @@ export default function PdvPage() {
 				valorRecebido,
 				observacao,
 				clienteId: clienteSelecionado?.id ?? null,
+				condicaoParcelamentoId,
+				dataPrimeiroVencimento,
+				requestId,
 			};
 			window.localStorage.setItem(CHAVE_FORMULARIO, JSON.stringify(dados));
 		} catch {
@@ -111,7 +139,110 @@ export default function PdvPage() {
 		valorRecebido,
 		observacao,
 		clienteSelecionado,
+		condicaoParcelamentoId,
+		dataPrimeiroVencimento,
+		requestId,
 		formularioCarregado,
+	]);
+
+	useEffect(() => {
+		if (formaPagamento !== "Fiado" && formaPagamento !== "Cartão") {
+			setCondicoesParcelamento([]);
+			setCondicaoParcelamentoId(null);
+			setPreviaParcelamento(null);
+			setErroPreviaParcelamento(null);
+			return;
+		}
+		let ativo = true;
+		erpApi.precificacao
+			.condicoesParcelamento(formaPagamento)
+			.then((condicoes) => {
+				if (!ativo) return;
+				setCondicoesParcelamento(condicoes);
+				setCondicaoParcelamentoId((atual) =>
+					condicoes.some((condicao) => condicao.id === atual)
+						? atual
+						: (condicoes[0]?.id ?? null),
+				);
+			})
+			.catch((erro) => {
+				if (ativo) {
+					mostrarMensagem(
+						"Não foi possível carregar as condições: " +
+							(erro instanceof Error ? erro.message : String(erro)),
+						false,
+					);
+				}
+			});
+		return () => {
+			ativo = false;
+		};
+	}, [formaPagamento]);
+
+	useEffect(() => {
+		if (
+			(formaPagamento !== "Fiado" && formaPagamento !== "Cartão") ||
+			!condicaoParcelamentoId ||
+			carrinho.itens.length === 0 ||
+			(formaPagamento === "Fiado" &&
+				(!clienteSelecionado || !dataPrimeiroVencimento))
+		) {
+			setPreviaParcelamento(null);
+			setErroPreviaParcelamento(null);
+			return;
+		}
+		let ativo = true;
+		erpApi.vendas
+			.calcularParcelada({
+				itens: carrinho.itens.map((item) => ({
+					variacao_id: item.variacao_id,
+					quantidade: item.quantidade,
+					preco_unitario: item.preco_unitario,
+				})),
+				total: Math.max(0, carrinho.subtotal - (Number(desconto) || 0)),
+				desconto: Math.max(0, Number(desconto) || 0),
+				cliente_id: clienteSelecionado?.id ?? null,
+				forma_pagamento: formaPagamento,
+				condicao_parcelamento_id: condicaoParcelamentoId,
+				data_primeiro_vencimento:
+					formaPagamento === "Fiado" ? dataPrimeiroVencimento : null,
+			})
+			.then((previa) => {
+				if (ativo) {
+					setPreviaParcelamento(previa);
+					setErroPreviaParcelamento(null);
+				}
+			})
+			.catch((erro) => {
+				if (ativo) {
+					setPreviaParcelamento(null);
+					setErroPreviaParcelamento(
+						erro instanceof Error ? erro.message : String(erro),
+					);
+				}
+			});
+		return () => {
+			ativo = false;
+		};
+	}, [
+		carrinho.itens,
+		carrinho.subtotal,
+		clienteSelecionado,
+		condicaoParcelamentoId,
+		dataPrimeiroVencimento,
+		desconto,
+		formaPagamento,
+	]);
+
+	useEffect(() => {
+		setRequestId(null);
+	}, [
+		carrinho.itens,
+		clienteSelecionado,
+		condicaoParcelamentoId,
+		dataPrimeiroVencimento,
+		desconto,
+		formaPagamento,
 	]);
 
 	function mostrarMensagem(texto: string, sucesso: boolean) {
@@ -132,6 +263,17 @@ export default function PdvPage() {
 		setClienteSelecionado(null);
 	}
 
+	function alterarFormaPagamento(forma: string) {
+		setFormaPagamento(forma);
+		setCondicaoParcelamentoId(null);
+		setPreviaParcelamento(null);
+		setErroPreviaParcelamento(null);
+		if (forma === "Fiado" && !dataPrimeiroVencimento) {
+			setDataPrimeiroVencimento(new Date().toISOString().slice(0, 10));
+		}
+		if (forma !== "Fiado") setDataPrimeiroVencimento("");
+	}
+
 	function resetarFormularioPosVenda() {
 		carrinho.limpar();
 		setClienteSelecionado(null);
@@ -139,17 +281,38 @@ export default function PdvPage() {
 		setFormaPagamento("");
 		setValorRecebido("");
 		setObservacao("");
+		setCondicaoParcelamentoId(null);
+		setDataPrimeiroVencimento("");
+		setPreviaParcelamento(null);
+		setErroPreviaParcelamento(null);
+		setRequestId(null);
 	}
 
 	async function finalizar() {
 		const descontoNum = Math.max(0, Number(desconto) || 0);
-		const total = Math.max(0, carrinho.subtotal - descontoNum);
+		const total =
+			previaParcelamento?.total ??
+			Math.max(0, carrinho.subtotal - descontoNum);
+		const condicao = condicoesParcelamento.find(
+			(item) => item.id === condicaoParcelamentoId,
+		);
+		const idDaVenda =
+			requestId ||
+			(typeof crypto !== "undefined" && crypto.randomUUID
+				? crypto.randomUUID()
+				: `pdv-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+		setRequestId(idDaVenda);
 		const resumo =
 			`Confirmar venda de ${formatarMoeda(total)} via ${formasPagamentoLabel(formaPagamento)}?` +
 			(formaPagamento === "Fiado"
-				? "\n\nUma conta a receber será criada para este cliente."
+				? `\n\n${previaParcelamento?.parcelas.length || 0} parcela(s) serão criadas para este cliente.`
+				: formaPagamento === "Cartão"
+					? `\n\n${condicao?.nome || "Condição"} será registrada na venda; nenhuma conta a receber será criada.`
 				: "");
-		if (!confirm(resumo)) return;
+		if (!confirm(resumo)) {
+			setRequestId(null);
+			return;
+		}
 
 		setProcessando(true);
 		try {
@@ -164,6 +327,10 @@ export default function PdvPage() {
 				total,
 				cliente_id: clienteSelecionado?.id ?? null,
 				forma_pagamento: formaPagamento || null,
+				condicao_parcelamento_id: condicaoParcelamentoId,
+				data_primeiro_vencimento:
+					formaPagamento === "Fiado" ? dataPrimeiroVencimento : null,
+				request_id: idDaVenda,
 				observacao: observacao.trim() || null,
 			});
 			setRecibo({
@@ -171,8 +338,10 @@ export default function PdvPage() {
 				itens: carrinho.itens,
 				subtotal: carrinho.subtotal,
 				desconto: descontoNum,
-				total,
+				total: resultado.total ?? total,
 				formaPagamento,
+				condicaoNome: condicao?.nome || null,
+				parcelas: resultado.parcelas || previaParcelamento?.parcelas || [],
 				clienteNome: clienteSelecionado?.nome ?? null,
 				valorRecebido:
 					formaPagamento === "Dinheiro" ? Number(valorRecebido) || 0 : null,
@@ -202,7 +371,9 @@ export default function PdvPage() {
 		setProcessando(true);
 		try {
 			const descontoNum = Math.max(0, Number(desconto) || 0);
-			const total = Math.max(0, carrinho.subtotal - descontoNum);
+			const total =
+				previaParcelamento?.total ??
+				Math.max(0, carrinho.subtotal - descontoNum);
 			const resultado = await erpApi.vendas.finalizar({
 				itens: carrinho.itens.map((i) => ({
 					variacao_id: i.variacao_id,
@@ -214,6 +385,9 @@ export default function PdvPage() {
 				total,
 				cliente_id: clienteSelecionado?.id ?? null,
 				forma_pagamento: formaPagamento || null,
+				condicao_parcelamento_id: condicaoParcelamentoId,
+				data_primeiro_vencimento:
+					formaPagamento === "Fiado" ? dataPrimeiroVencimento : null,
 				observacao: observacao.trim() || null,
 			});
 			mostrarMensagem(`Orçamento #${resultado.vendaId} criado!`, true);
@@ -293,7 +467,15 @@ export default function PdvPage() {
 						desconto={desconto}
 						setDesconto={setDesconto}
 						formaPagamento={formaPagamento}
-						setFormaPagamento={setFormaPagamento}
+						setFormaPagamento={alterarFormaPagamento}
+						condicoes={condicoesParcelamento}
+						condicaoId={condicaoParcelamentoId}
+						setCondicaoId={setCondicaoParcelamentoId}
+						previaParcelamento={previaParcelamento}
+						erroPreviaParcelamento={erroPreviaParcelamento}
+						clienteFiadoSelecionado={!!clienteSelecionado}
+						dataPrimeiroVencimento={dataPrimeiroVencimento}
+						setDataPrimeiroVencimento={setDataPrimeiroVencimento}
 						valorRecebido={valorRecebido}
 						setValorRecebido={setValorRecebido}
 						observacao={observacao}
