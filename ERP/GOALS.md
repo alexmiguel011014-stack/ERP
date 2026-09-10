@@ -4052,3 +4052,206 @@ details to improvise while coding. Implementation before Tests — nothing to as
 mock-updater extension (first Tests item) before the new e2e spec (second Tests item), since the
 spec depends on it. Registration/build-clean checks last, matching every other module entry in
 this file.
+
+---
+
+## Header Tab Bar — Height & Color Refinement (feature, implemented 2026-09-09, pending live verification)
+
+**Owner's ask (2026-09-09), verbatim intent**: the header tab strip needs to improve further —
+increase the vertical space each tab has (height) even more than it already is; width is fine as
+is, don't touch it. Invert the tab color scheme: the tab that's currently active (being viewed)
+should be white; the tabs that aren't active should use a lighter blue. Added in the same
+follow-up: the theme (light/dark) toggle button, sitting in the header's right-side icon cluster
+right next to the tab strip, should also become smaller.
+
+This is a further visual iteration on the tab strip built in "Header Tab System" (2026-08-26) and
+refined again by the compaction fix in "Pre-production QA pass" (2026-08-29) — not a new build.
+Those passes left the active tab as `bg-blue-500`/white text and inactive tabs as a barely-visible
+`bg-white/5`/gray text, with `py-1` vertical padding on both the strip and each pill; this section
+reverses the color emphasis and increases the vertical padding, touching only
+`frontend/src/layout/AppHeader.tsx`.
+
+```mermaid
+flowchart TD
+    A[AppHeader.tsx tab strip] --> B[Height pass: more vertical padding\non wrapper + tab pill, width untouched]
+    A --> C[Color pass: invert active/inactive scheme]
+    C --> D[Active tab -> white bg + dark text]
+    C --> E[Inactive tabs -> lighter blue bg + white text]
+    C --> F[Close-button x hover states\nre-tuned for the new backgrounds]
+    D --> G[Compact-mode first-letter badge\nverified legible against new active color]
+    E --> G
+    I[ThemeToggleButton.tsx] --> J[Shrink button box + icon size]
+    B --> H[(manual) live visual check]
+    G --> H
+    J --> H
+```
+
+Suggested: sonnet · low — a Tailwind class change on one existing file, purely cosmetic, no
+state/logic touched, low blast radius.
+
+### Design rationale
+
+- **Scope**: only `AppHeader.tsx`'s tab-strip styling — `corAtiva`, the close-button (`botaoFechar`)
+  hover classes, and vertical padding on the strip wrapper, the normal-mode pill, and the
+  compact-mode pill. Width-affecting classes (`flex-[0_1_170px]`, `LARGURA_MIN_ABA_NORMAL`,
+  `pl-2`/`pr-1`/`pr-2`, `gap-1.5`) are explicitly out of scope — the owner confirmed current width
+  is fine.
+- **Color direction is a deliberate inversion** of the scheme chosen in the original Header Tab
+  System pass (active = `bg-blue-500`, inactive = `bg-white/5`): the owner now wants white to read
+  as "this is the one you're in" and light blue to read as "background, still open" — the reverse
+  emphasis of before.
+- No DESIGN.md ledger-palette token applies here — the header is already a standalone dark-navy
+  chrome element exempt from the light/dark theme and the ledger palette (see the existing
+  `AppHeader.tsx` comment on why the logo is always the white variant regardless of theme), so this
+  stays a direct Tailwind-blue choice consistent with the existing code, not a new design token.
+- **"Lighter blue"** read as literally lighter than the current `blue-500`, not the same hue reused
+  at low opacity (today's inactive state is a translucent *white* overlay on navy, not blue at
+  all). Concrete pick: `blue-400` at full opacity — clearly blue against the navy header, lighter
+  than `blue-500`, and has enough contrast for white tab-label text.
+- **Active tab becomes a solid white chip**, which needs dark text for contrast — reuses the
+  header's own hardcoded navy (`#0F172A`) as the active tab's text color instead of introducing a
+  new dark shade, since that's the one dark color this component already hardcodes elsewhere (the
+  `<header>` background itself).
+- **Close-button (×) hover overlay** currently reads `hover:bg-white/20` for the active tab and
+  `hover:bg-white/10` for inactive. Once active = white background, a white/20 hover overlay is
+  nearly invisible — flips the active hover to a dark overlay (`hover:bg-black/10`) and bumps the
+  inactive hover to `hover:bg-white/20` (now sitting on solid blue instead of near-black
+  translucent, needs a touch more contrast to still read as "hovering").
+- **Compact mode** (the Chrome-style first-letter badge shown when the strip is too narrow for full
+  labels — `modoCompacto` in `AppHeader.tsx`) reuses the same `corAtiva` string for its outer pill,
+  so the color change cascades there automatically. Its inner circle badge (`bg-white/10`) does
+  **not** cascade — same white-on-white legibility failure as the close button, called out as its
+  own implementation line rather than assumed fixed.
+- **Height increase** continues the same axis as the two prior passes in this file (the original
+  title-block-replacement cut, then the 2026-08-29 compaction fix) rather than reversing either.
+  The exact pixel amount is a visual judgment call — picks a concrete Tailwind value to implement
+  against, flagged `(manual)` for a live look once built, not left undefined.
+- **Theme toggle button** (`components/common/ThemeToggleButton.tsx`) — confirmed via grep it has
+  exactly one call site (`AppHeader.tsx:186`), so shrinking the component itself is equivalent to a
+  header-scoped change with no risk of resizing it somewhere else unintentionally. Current box is
+  `h-11 w-11` (44px) with two fixed `20`×`20` inline SVGs (sun/moon, toggled via `dark:hidden`/
+  `hidden dark:block`); shrinks to `h-8 w-8` (32px) with both SVGs down to `16`×`16` in the same
+  proportion, keeping the icon visually centered and legible at the smaller box size rather than
+  leaving it oversized inside a shrunk button.
+
+### Implementation
+
+- [x] `frontend/src/layout/AppHeader.tsx:96` — tab-strip wrapper: `overflow-x-auto py-1` →
+      `overflow-x-auto py-2.5` (vertical padding only, no width classes touched). Done.
+- [x] `frontend/src/layout/AppHeader.tsx:157` — normal-mode tab pill: `rounded-lg py-1 pl-2
+      text-sm` → `rounded-lg py-2.5 pl-2 text-sm` (`pl-2`/`pr-1`/`pr-2`/`flex-[0_1_170px]`
+      untouched). Done.
+- [x] `frontend/src/layout/AppHeader.tsx:138` — compact-mode pill: `rounded-lg p-1
+      transition-colors` → `rounded-lg px-1 py-2.5 transition-colors` (split so the vertical
+      bump doesn't also widen the compact circle's own horizontal padding). Done.
+- [x] `frontend/src/layout/AppHeader.tsx:101-103` — `corAtiva`, from:
+      ```
+      const corAtiva = ativa
+          ? "bg-blue-500 text-white"
+          : "bg-white/5 text-gray-300 hover:bg-white/10";
+      ```
+      to:
+      ```
+      const corAtiva = ativa
+          ? "bg-white text-[#0F172A]"
+          : "bg-blue-400 text-white hover:bg-blue-300";
+      ```
+      Done.
+- [x] `frontend/src/layout/AppHeader.tsx:109-113` — close-button hover, from:
+      ```
+      ativa
+          ? "hover:bg-white/20"
+          : "hover:bg-white/10 group-hover:text-white"
+      ```
+      to:
+      ```
+      ativa
+          ? "hover:bg-black/10"
+          : "hover:bg-white/20"
+      ```
+      (`group-hover:text-white` on the inactive branch drops — inactive text is already
+      `text-white` from the new `corAtiva`, so it was already redundant before this change too.)
+      Done.
+- [x] `frontend/src/layout/AppHeader.tsx:144` — compact-mode circle badge:
+      `bg-white/10 text-[11px] font-semibold uppercase` → conditional on `ativa`, e.g.
+      `` `${ativa ? "bg-black/10" : "bg-white/10"} text-[11px] font-semibold uppercase` `` — same
+      white-on-white legibility issue as the close button, needs its own fix rather than inheriting
+      the parent pill's `corAtiva`. Done.
+- [x] `frontend/src/components/common/ThemeToggleButton.tsx:10` — button box:
+      `h-11 w-11` → `h-8 w-8` (rest of the class string — colors, border, hover states —
+      untouched). Done.
+- [x] `frontend/src/components/common/ThemeToggleButton.tsx:14` and `:29` — both inline SVGs
+      (`width="20" height="20"`) → `width="16" height="16"`, keeping the sun/moon icons
+      proportional inside the smaller box. Done.
+- [x] (manual) Run the frontend (`npm run dev` inside `frontend/`, or the Electron shell) and
+      visually confirm: the tab strip is noticeably taller than before without changing width or
+      wrapping behavior; the active tab is clearly white with legible dark text/icon; inactive tabs
+      read as a clear light blue against the navy header, not washed out; each tab's × hover state
+      is visible in both active and inactive tabs; compact mode (narrow window or many tabs open)
+      still reads legibly in both states; the theme toggle button is visibly smaller but still
+      comfortably clickable and its icon isn't cramped inside the shrunk box. Verified
+      (2026-09-09): root `node_modules` installed (`npm ci`) and the real Electron app launched
+      (`npm start`) — owner confirmed live via screenshot: taller tab strip, correct active
+      (white)/inactive (light blue) colors, all as specced.
+- [x] **Follow-up (2026-09-09), owner's ask after seeing it live, then reverted**: tried making
+      the active tab look like it physically connects to the page below it — a classic
+      file/folder-tab look (owner's reference: Microsoft Edge's browser tabs). Attempted:
+      `corAtiva`'s active branch background changed from `bg-white` to
+      `bg-[#F0F4F8] dark:bg-gray-50` (copied from `globals.css`'s own `body` rule) plus
+      `rounded-t-lg` (square bottom) on the active pill instead of the full `rounded-lg`.
+      **Verified live and rejected by the owner** ("não ficou legal") — screenshot showed a
+      disconnected floating white rectangle with a separate, misaligned light-colored bar below
+      it, not a merged tab: matching color and squaring the bottom corner alone doesn't close the
+      real vertical gap between the tab strip and the content box (header's own bottom
+      padding/`lg:border-b` plus `(admin)/layout.tsx`'s content-wrapper top padding), so the
+      "seam" just moved instead of disappearing — confirms the design rationale's original
+      prediction that a true zero-seam merge needs restructuring that spacing, not a cosmetic
+      color/radius tweak. **Reverted in full**: `corAtiva` active branch back to
+      `bg-white text-[#0F172A]`; both normal and compact pills back to unconditional `rounded-lg`
+      (no more `ativa`-conditional rounding). Left as a disclosed non-goal — a real structural
+      merge is future scope, not attempted again speculatively.
+- [x] **Hitbox bug found and fixed (2026-09-09), owner-reported**: "o hitbox da caixa não está
+      igual ao tamanho dela, está menor" — after the height increase (`py-1` → `py-2.5` on the
+      tab pill), the visible colored pill grew taller, but the actual clickable element (the
+      inner `<button>` wrapping the icon+label) did not: the outer `<div>` uses `items-center`,
+      so a flex child with no explicit height sizes to its own content and centers within the
+      taller pill by default — leaving the extra padding at the top/bottom of the pill visually
+      part of the tab but not clickable. Root cause confirmed by re-reading `AppHeader.tsx`'s own
+      structure (the div's `py-2.5` padding is on the *pill*, not the inner button). Fixed:
+      normal-mode nav button gains `self-stretch` (`frontend/src/layout/AppHeader.tsx`, the
+      button inside the non-compact tab pill) so it fills the pill's full height — its own
+      `items-center` still centers the icon/label inside that taller button, but now every pixel
+      of the visible pill (outside the separate × close button) is clickable. Compact mode's
+      button (`size-5` circular letter badge) was not touched — that one is an intentionally
+      small fixed-size target, not a stretched fill, so the same bug doesn't apply there.
+- [ ] (manual) Re-verify live: tabs are back to the clean, owner-approved look (white active tab,
+      light-blue inactive tabs, all fully rounded, no floating-rectangle artifact); clicking
+      anywhere inside a tab's visible area — including the top/bottom padding, not just the
+      icon+label — switches to it, on both a normal-width and a narrow/compact-mode tab. Rebuilt
+      (`frontend`'s `npm run build`) and the Electron app restarted (old `electron.exe` process
+      tree killed first — `requestSingleInstanceLock()` in `main.js` makes a second concurrent
+      `npm start` exit immediately instead of opening a new window) — pending the owner's look.
+
+### Tests
+
+- [x] No automated UI test suite covers pixel-level styling (consistent with every other visual
+      item in this file). Checked `e2e/tab-system.spec.ts` directly — it asserts on tab open/close/
+      switch *behavior*, not on any of the class names this section changes, so no test update is
+      needed. Verification is the live look in the Implementation section's last item.
+- [x] `npm run lint`, `npm run typecheck`, and `frontend`'s `npm run build` stay clean — no logic
+      changed, but confirms the edited file still compiles and the static export still builds.
+      Verified (2026-09-09): this worktree had no `node_modules` yet (fresh worktree, never
+      installed) — ran `npm ci` in `frontend/` first. `npm run lint`: 0 errors, 2 pre-existing
+      warnings in an unrelated file (`(auth)/layout.tsx`, not touched by this section). `npm run
+      typecheck`: clean, no output. `npm run build`: succeeds, 39/39 static pages exported.
+
+### Registration
+
+- [x] None — this changes existing UI in place; nothing new to register anywhere (menu, `/status`,
+      manifest).
+
+**Ordering rule**: Design rationale before Implementation — the color/height direction and the
+compact-mode/close-button follow-on fixes are decided before touching code. Height pass and color
+pass have no dependency on each other (independent Tailwind class edits on the same lines' siblings)
+so either can be done first; both before the manual visual check, which is the actual gate.
+Tests/Registration last, matching every other module entry in this file.
