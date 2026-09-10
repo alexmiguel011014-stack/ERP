@@ -334,6 +334,14 @@ categoria **Investimento** (capex, distinta de despesa operacional recorrente) �
 "Lançar Venda Histórica" (`registrarVendaFiadoHistorica`, cria venda+recebível vinculado a
 cliente com data passada, sem exigir caixa aberto nem baixar estoque atual).
 
+**Adicionado 2026-09-10** (ver `GOALS.md`, seção "Avatar do Usuário Logado — Cor Aleatória e Foto
+de Perfil"): autoatendimento no `UserDropdown` do header — botão **"Meu Perfil"** abre um modal
+onde qualquer usuário logado (admin, dono ou vendedor) escolhe a cor do próprio ícone (8 cores
+fixas do design system + botão "Cor aleatória") ou envia uma foto de perfil (mesmo padrão de
+arquivo já usado pra imagem de produto, `usuario-imagens/` em vez de `produto-imagens/`), sem
+precisar de acesso à tela de Gerenciar Acessos. Foto tem prioridade sobre a cor quando as duas
+existem.
+
 ## Fora de escopo (decidido)
 
 ~~Emissão de NF-e / NFC-e: requer integração ao SEFAZ... inviável em ERP desktop offline.~~

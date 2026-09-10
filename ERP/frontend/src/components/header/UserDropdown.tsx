@@ -3,16 +3,12 @@ import React, { useState } from "react";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
-
-function iniciais(nome: string): string {
-	const partes = nome.trim().split(/\s+/);
-	const a = partes[0]?.[0] || "?";
-	const b = partes.length > 1 ? partes[partes.length - 1][0] : "";
-	return (a + b).toUpperCase();
-}
+import AvatarUsuarioLogado from "./AvatarUsuarioLogado";
+import MeuPerfilModal from "./MeuPerfilModal";
 
 export default function UserDropdown() {
 	const [isOpen, setIsOpen] = useState(false);
+	const [perfilAberto, setPerfilAberto] = useState(false);
 	const { sessao, isAdmin, logout } = useAuth();
 	const router = useRouter();
 
@@ -38,8 +34,13 @@ export default function UserDropdown() {
 				onClick={toggleDropdown}
 				className="flex items-center text-gray-200 dropdown-toggle"
 			>
-				<span className="mr-2.5 flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-xs font-bold text-white">
-					{iniciais(nome)}
+				<span className="mr-2.5">
+					<AvatarUsuarioLogado
+						nome={nome}
+						corAvatar={sessao.usuario?.corAvatar}
+						foto={sessao.usuario?.foto}
+						tamanho={36}
+					/>
 				</span>
 
 				<span className="mr-1 block font-medium text-theme-sm">{nome}</span>
@@ -78,8 +79,32 @@ export default function UserDropdown() {
 					</span>
 				</div>
 				<button
-					onClick={handleSignOut}
+					onClick={() => {
+						closeDropdown();
+						setPerfilAberto(true);
+					}}
 					className="mt-3 flex items-center gap-3 rounded-lg px-3 py-2 text-left font-medium text-gray-700 text-theme-sm hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5"
+				>
+					<svg
+						className="fill-gray-500 dark:fill-gray-400"
+						width="20"
+						height="20"
+						viewBox="0 0 24 24"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							fillRule="evenodd"
+							clipRule="evenodd"
+							d="M12 3.25a4.25 4.25 0 1 0 0 8.5 4.25 4.25 0 0 0 0-8.5ZM9.25 7.5a2.75 2.75 0 1 1 5.5 0 2.75 2.75 0 0 1-5.5 0ZM12 13.25c-3.797 0-7.25 2.164-7.25 5.5v.5a.75.75 0 0 0 .75.75h13a.75.75 0 0 0 .75-.75v-.5c0-3.336-3.453-5.5-7.25-5.5Zm-5.75 5.5c0-2.164 2.61-4 5.75-4s5.75 1.836 5.75 4v.25H6.25v-.25Z"
+							fill="currentColor"
+						/>
+					</svg>
+					Meu Perfil
+				</button>
+				<button
+					onClick={handleSignOut}
+					className="mt-1 flex items-center gap-3 rounded-lg px-3 py-2 text-left font-medium text-gray-700 text-theme-sm hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5"
 				>
 					<svg
 						className="fill-gray-500 dark:fill-gray-400"
@@ -99,6 +124,10 @@ export default function UserDropdown() {
 					Sair
 				</button>
 			</Dropdown>
+			<MeuPerfilModal
+				isOpen={perfilAberto}
+				onClose={() => setPerfilAberto(false)}
+			/>
 		</div>
 	);
 }
