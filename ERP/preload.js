@@ -42,6 +42,8 @@ contextBridge.exposeInMainWorld("api", {
 		ipcRenderer.invoke("buscar-produtos-termo", termo),
 	finalizarVenda: (dados) => ipcRenderer.invoke("finalizar-venda", dados),
 	dashboardStats: () => ipcRenderer.invoke("dashboard-stats"),
+	dashboardFaturamentoPeriodo: (range) =>
+		ipcRenderer.invoke("dashboard-faturamento-periodo", range),
 	getClientes: (incluirInativos) =>
 		ipcRenderer.invoke("get-clientes", incluirInativos),
 	salvarCliente: (dados) => ipcRenderer.invoke("salvar-cliente", dados),
@@ -238,6 +240,12 @@ contextBridge.exposeInMainWorld("api", {
 	listarUsuarios: () => ipcRenderer.invoke("listar-usuarios"),
 	salvarUsuario: (dados) => ipcRenderer.invoke("salvar-usuario", dados),
 	removerUsuario: (id) => ipcRenderer.invoke("remover-usuario", id),
+	salvarMinhaCorAvatar: (cor) =>
+		ipcRenderer.invoke("salvar-minha-cor-avatar", cor),
+	escolherMinhaFoto: () => ipcRenderer.invoke("escolher-minha-foto"),
+	removerMinhaFoto: () => ipcRenderer.invoke("remover-minha-foto"),
+	getFotoUsuario: (nomeArquivo) =>
+		ipcRenderer.invoke("get-foto-usuario", nomeArquivo),
 	getAuthSession: () => ipcRenderer.invoke("get-auth-session"),
 	logout: () => ipcRenderer.invoke("logout"),
 	listarTabelasBanco: () => ipcRenderer.invoke("listar-tabelas-banco"),

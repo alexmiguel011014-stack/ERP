@@ -25,6 +25,15 @@
           "modules/dashboard/index.html"
         ],
         "createdAt": "2026-08-21T02:59:31.633Z"
+      },
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "e2e/meu-perfil.spec.ts"
+        ],
+        "createdAt": "2026-09-10T01:13:50.316Z",
+        "reason": "false positive: literal text '<img>' inside a Playwright test description string / CSS locator selector in a .spec.ts test file, not rendered UI markup"
       }
     ]
   }

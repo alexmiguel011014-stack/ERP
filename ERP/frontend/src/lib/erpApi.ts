@@ -60,6 +60,10 @@ export type Usuario = {
 	comissao_percentual: number;
 	// JSON serializado (ver db/usuarios.js) — usar parsePermissoesUsuario() pra ler.
 	permissoes: string;
+	// Avatar do usuário logado — ver frontend/src/lib/avatarCores.ts (espelho manual
+	// da whitelist de db/usuarios.js#CORES_AVATAR) e useFotoUsuario.ts.
+	cor_avatar: string | null;
+	foto: string | null;
 };
 
 export type UsuarioFormData = {
@@ -1159,6 +1163,18 @@ export const erpApi = {
 			invocar<{ success: boolean }>("salvarUsuario", dados),
 		remover: (id: number) =>
 			invocar<{ success: boolean }>("removerUsuario", id),
+		salvarCorAvatar: (cor: string) =>
+			invocar<{ success: boolean; corAvatar: string }>(
+				"salvarMinhaCorAvatar",
+				cor,
+			),
+		escolherFoto: () =>
+			invocar<{ success: boolean; cancelado?: boolean; foto?: string }>(
+				"escolherMinhaFoto",
+			),
+		removerFoto: () => invocar<{ success: boolean }>("removerMinhaFoto"),
+		foto: (nomeArquivo: string) =>
+			invocar<string | null>("getFotoUsuario", nomeArquivo),
 	},
 	banco: {
 		logAtividades: (filtro: FiltroLogAtividades) =>

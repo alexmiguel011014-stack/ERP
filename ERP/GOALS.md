@@ -4053,7 +4053,7 @@ mock-updater extension (first Tests item) before the new e2e spec (second Tests 
 spec depends on it. Registration/build-clean checks last, matching every other module entry in
 this file.
 
-## Image Database & Management (feature, not started)
+## Image Database & Management (feature, implemented 2026-09-09, pending the human-in-the-loop production migration)
 
 **Source**: owner request (2026-09-09). Two asks, plus an explicit invitation to flag anything
 else worth raising:
@@ -4452,3 +4452,677 @@ this image database — none of these are assumed into the plan above:
   `entidade_tipo`), so a future "foto do cliente", "logo do fornecedor", or "comprovante de
   pagamento anexado" would need a new picker component and a couple of IPC handlers, not a new
   migration. Not building any of those now — just noting the door is already open.
+
+---
+
+## Header Tab Bar — Height & Color Refinement (feature, implemented 2026-09-09, pending live verification)
+
+**Owner's ask (2026-09-09), verbatim intent**: the header tab strip needs to improve further —
+increase the vertical space each tab has (height) even more than it already is; width is fine as
+is, don't touch it. Invert the tab color scheme: the tab that's currently active (being viewed)
+should be white; the tabs that aren't active should use a lighter blue. Added in the same
+follow-up: the theme (light/dark) toggle button, sitting in the header's right-side icon cluster
+right next to the tab strip, should also become smaller.
+
+This is a further visual iteration on the tab strip built in "Header Tab System" (2026-08-26) and
+refined again by the compaction fix in "Pre-production QA pass" (2026-08-29) — not a new build.
+Those passes left the active tab as `bg-blue-500`/white text and inactive tabs as a barely-visible
+`bg-white/5`/gray text, with `py-1` vertical padding on both the strip and each pill; this section
+reverses the color emphasis and increases the vertical padding, touching only
+`frontend/src/layout/AppHeader.tsx`.
+
+```mermaid
+flowchart TD
+    A[AppHeader.tsx tab strip] --> B[Height pass: more vertical padding\non wrapper + tab pill, width untouched]
+    A --> C[Color pass: invert active/inactive scheme]
+    C --> D[Active tab -> white bg + dark text]
+    C --> E[Inactive tabs -> lighter blue bg + white text]
+    C --> F[Close-button x hover states\nre-tuned for the new backgrounds]
+    D --> G[Compact-mode first-letter badge\nverified legible against new active color]
+    E --> G
+    I[ThemeToggleButton.tsx] --> J[Shrink button box + icon size]
+    B --> H[(manual) live visual check]
+    G --> H
+    J --> H
+```
+
+Suggested: sonnet · low — a Tailwind class change on one existing file, purely cosmetic, no
+state/logic touched, low blast radius.
+
+### Design rationale
+
+- **Scope**: only `AppHeader.tsx`'s tab-strip styling — `corAtiva`, the close-button (`botaoFechar`)
+  hover classes, and vertical padding on the strip wrapper, the normal-mode pill, and the
+  compact-mode pill. Width-affecting classes (`flex-[0_1_170px]`, `LARGURA_MIN_ABA_NORMAL`,
+  `pl-2`/`pr-1`/`pr-2`, `gap-1.5`) are explicitly out of scope — the owner confirmed current width
+  is fine.
+- **Color direction is a deliberate inversion** of the scheme chosen in the original Header Tab
+  System pass (active = `bg-blue-500`, inactive = `bg-white/5`): the owner now wants white to read
+  as "this is the one you're in" and light blue to read as "background, still open" — the reverse
+  emphasis of before.
+- No DESIGN.md ledger-palette token applies here — the header is already a standalone dark-navy
+  chrome element exempt from the light/dark theme and the ledger palette (see the existing
+  `AppHeader.tsx` comment on why the logo is always the white variant regardless of theme), so this
+  stays a direct Tailwind-blue choice consistent with the existing code, not a new design token.
+- **"Lighter blue"** read as literally lighter than the current `blue-500`, not the same hue reused
+  at low opacity (today's inactive state is a translucent *white* overlay on navy, not blue at
+  all). Concrete pick: `blue-400` at full opacity — clearly blue against the navy header, lighter
+  than `blue-500`, and has enough contrast for white tab-label text.
+- **Active tab becomes a solid white chip**, which needs dark text for contrast — reuses the
+  header's own hardcoded navy (`#0F172A`) as the active tab's text color instead of introducing a
+  new dark shade, since that's the one dark color this component already hardcodes elsewhere (the
+  `<header>` background itself).
+- **Close-button (×) hover overlay** currently reads `hover:bg-white/20` for the active tab and
+  `hover:bg-white/10` for inactive. Once active = white background, a white/20 hover overlay is
+  nearly invisible — flips the active hover to a dark overlay (`hover:bg-black/10`) and bumps the
+  inactive hover to `hover:bg-white/20` (now sitting on solid blue instead of near-black
+  translucent, needs a touch more contrast to still read as "hovering").
+- **Compact mode** (the Chrome-style first-letter badge shown when the strip is too narrow for full
+  labels — `modoCompacto` in `AppHeader.tsx`) reuses the same `corAtiva` string for its outer pill,
+  so the color change cascades there automatically. Its inner circle badge (`bg-white/10`) does
+  **not** cascade — same white-on-white legibility failure as the close button, called out as its
+  own implementation line rather than assumed fixed.
+- **Height increase** continues the same axis as the two prior passes in this file (the original
+  title-block-replacement cut, then the 2026-08-29 compaction fix) rather than reversing either.
+  The exact pixel amount is a visual judgment call — picks a concrete Tailwind value to implement
+  against, flagged `(manual)` for a live look once built, not left undefined.
+- **Theme toggle button** (`components/common/ThemeToggleButton.tsx`) — confirmed via grep it has
+  exactly one call site (`AppHeader.tsx:186`), so shrinking the component itself is equivalent to a
+  header-scoped change with no risk of resizing it somewhere else unintentionally. Current box is
+  `h-11 w-11` (44px) with two fixed `20`×`20` inline SVGs (sun/moon, toggled via `dark:hidden`/
+  `hidden dark:block`); shrinks to `h-8 w-8` (32px) with both SVGs down to `16`×`16` in the same
+  proportion, keeping the icon visually centered and legible at the smaller box size rather than
+  leaving it oversized inside a shrunk button.
+
+### Implementation
+
+- [x] `frontend/src/layout/AppHeader.tsx:96` — tab-strip wrapper: `overflow-x-auto py-1` →
+      `overflow-x-auto py-2.5` (vertical padding only, no width classes touched). Done.
+- [x] `frontend/src/layout/AppHeader.tsx:157` — normal-mode tab pill: `rounded-lg py-1 pl-2
+      text-sm` → `rounded-lg py-2.5 pl-2 text-sm` (`pl-2`/`pr-1`/`pr-2`/`flex-[0_1_170px]`
+      untouched). Done.
+- [x] `frontend/src/layout/AppHeader.tsx:138` — compact-mode pill: `rounded-lg p-1
+      transition-colors` → `rounded-lg px-1 py-2.5 transition-colors` (split so the vertical
+      bump doesn't also widen the compact circle's own horizontal padding). Done.
+- [x] `frontend/src/layout/AppHeader.tsx:101-103` — `corAtiva`, from:
+      ```
+      const corAtiva = ativa
+          ? "bg-blue-500 text-white"
+          : "bg-white/5 text-gray-300 hover:bg-white/10";
+      ```
+      to:
+      ```
+      const corAtiva = ativa
+          ? "bg-white text-[#0F172A]"
+          : "bg-blue-400 text-white hover:bg-blue-300";
+      ```
+      Done.
+- [x] `frontend/src/layout/AppHeader.tsx:109-113` — close-button hover, from:
+      ```
+      ativa
+          ? "hover:bg-white/20"
+          : "hover:bg-white/10 group-hover:text-white"
+      ```
+      to:
+      ```
+      ativa
+          ? "hover:bg-black/10"
+          : "hover:bg-white/20"
+      ```
+      (`group-hover:text-white` on the inactive branch drops — inactive text is already
+      `text-white` from the new `corAtiva`, so it was already redundant before this change too.)
+      Done.
+- [x] `frontend/src/layout/AppHeader.tsx:144` — compact-mode circle badge:
+      `bg-white/10 text-[11px] font-semibold uppercase` → conditional on `ativa`, e.g.
+      `` `${ativa ? "bg-black/10" : "bg-white/10"} text-[11px] font-semibold uppercase` `` — same
+      white-on-white legibility issue as the close button, needs its own fix rather than inheriting
+      the parent pill's `corAtiva`. Done.
+- [x] `frontend/src/components/common/ThemeToggleButton.tsx:10` — button box:
+      `h-11 w-11` → `h-8 w-8` (rest of the class string — colors, border, hover states —
+      untouched). Done.
+- [x] `frontend/src/components/common/ThemeToggleButton.tsx:14` and `:29` — both inline SVGs
+      (`width="20" height="20"`) → `width="16" height="16"`, keeping the sun/moon icons
+      proportional inside the smaller box. Done.
+- [x] (manual) Run the frontend (`npm run dev` inside `frontend/`, or the Electron shell) and
+      visually confirm: the tab strip is noticeably taller than before without changing width or
+      wrapping behavior; the active tab is clearly white with legible dark text/icon; inactive tabs
+      read as a clear light blue against the navy header, not washed out; each tab's × hover state
+      is visible in both active and inactive tabs; compact mode (narrow window or many tabs open)
+      still reads legibly in both states; the theme toggle button is visibly smaller but still
+      comfortably clickable and its icon isn't cramped inside the shrunk box. Verified
+      (2026-09-09): root `node_modules` installed (`npm ci`) and the real Electron app launched
+      (`npm start`) — owner confirmed live via screenshot: taller tab strip, correct active
+      (white)/inactive (light blue) colors, all as specced.
+- [x] **Follow-up (2026-09-09), owner's ask after seeing it live, then reverted**: tried making
+      the active tab look like it physically connects to the page below it — a classic
+      file/folder-tab look (owner's reference: Microsoft Edge's browser tabs). Attempted:
+      `corAtiva`'s active branch background changed from `bg-white` to
+      `bg-[#F0F4F8] dark:bg-gray-50` (copied from `globals.css`'s own `body` rule) plus
+      `rounded-t-lg` (square bottom) on the active pill instead of the full `rounded-lg`.
+      **Verified live and rejected by the owner** ("não ficou legal") — screenshot showed a
+      disconnected floating white rectangle with a separate, misaligned light-colored bar below
+      it, not a merged tab: matching color and squaring the bottom corner alone doesn't close the
+      real vertical gap between the tab strip and the content box (header's own bottom
+      padding/`lg:border-b` plus `(admin)/layout.tsx`'s content-wrapper top padding), so the
+      "seam" just moved instead of disappearing — confirms the design rationale's original
+      prediction that a true zero-seam merge needs restructuring that spacing, not a cosmetic
+      color/radius tweak. **Reverted in full**: `corAtiva` active branch back to
+      `bg-white text-[#0F172A]`; both normal and compact pills back to unconditional `rounded-lg`
+      (no more `ativa`-conditional rounding). Left as a disclosed non-goal — a real structural
+      merge is future scope, not attempted again speculatively.
+- [x] **Hitbox bug found and fixed (2026-09-09), owner-reported**: "o hitbox da caixa não está
+      igual ao tamanho dela, está menor" — after the height increase (`py-1` → `py-2.5` on the
+      tab pill), the visible colored pill grew taller, but the actual clickable element (the
+      inner `<button>` wrapping the icon+label) did not: the outer `<div>` uses `items-center`,
+      so a flex child with no explicit height sizes to its own content and centers within the
+      taller pill by default — leaving the extra padding at the top/bottom of the pill visually
+      part of the tab but not clickable. Root cause confirmed by re-reading `AppHeader.tsx`'s own
+      structure (the div's `py-2.5` padding is on the *pill*, not the inner button). Fixed:
+      normal-mode nav button gains `self-stretch` (`frontend/src/layout/AppHeader.tsx`, the
+      button inside the non-compact tab pill) so it fills the pill's full height — its own
+      `items-center` still centers the icon/label inside that taller button, but now every pixel
+      of the visible pill (outside the separate × close button) is clickable. Compact mode's
+      button (`size-5` circular letter badge) was not touched — that one is an intentionally
+      small fixed-size target, not a stretched fill, so the same bug doesn't apply there.
+- [ ] (manual) Re-verify live: tabs are back to the clean, owner-approved look (white active tab,
+      light-blue inactive tabs, all fully rounded, no floating-rectangle artifact); clicking
+      anywhere inside a tab's visible area — including the top/bottom padding, not just the
+      icon+label — switches to it, on both a normal-width and a narrow/compact-mode tab. Rebuilt
+      (`frontend`'s `npm run build`) and the Electron app restarted (old `electron.exe` process
+      tree killed first — `requestSingleInstanceLock()` in `main.js` makes a second concurrent
+      `npm start` exit immediately instead of opening a new window) — pending the owner's look.
+
+### Tests
+
+- [x] No automated UI test suite covers pixel-level styling (consistent with every other visual
+      item in this file). Checked `e2e/tab-system.spec.ts` directly — it asserts on tab open/close/
+      switch *behavior*, not on any of the class names this section changes, so no test update is
+      needed. Verification is the live look in the Implementation section's last item.
+- [x] `npm run lint`, `npm run typecheck`, and `frontend`'s `npm run build` stay clean — no logic
+      changed, but confirms the edited file still compiles and the static export still builds.
+      Verified (2026-09-09): this worktree had no `node_modules` yet (fresh worktree, never
+      installed) — ran `npm ci` in `frontend/` first. `npm run lint`: 0 errors, 2 pre-existing
+      warnings in an unrelated file (`(auth)/layout.tsx`, not touched by this section). `npm run
+      typecheck`: clean, no output. `npm run build`: succeeds, 39/39 static pages exported.
+
+### Registration
+
+- [x] None — this changes existing UI in place; nothing new to register anywhere (menu, `/status`,
+      manifest).
+
+**Ordering rule**: Design rationale before Implementation — the color/height direction and the
+compact-mode/close-button follow-on fixes are decided before touching code. Height pass and color
+pass have no dependency on each other (independent Tailwind class edits on the same lines' siblings)
+so either can be done first; both before the manual visual check, which is the actual gate.
+Tests/Registration last, matching every other module entry in this file.
+
+---
+
+## Produtos — Divider Between Filters and Table in Lista de Produtos (feature, not started)
+
+**Source**: owner review of the just-shipped bulk category-assign UI (2026-09-09), screenshot
+attached. The filters sidebar and the product table sit in the same flex row with a plain
+`gap-4` (`ProdutosListModal.tsx`) and nothing visually separates them. Owner asked for two
+things together: (1) a thin, low-opacity vertical divider line in that gap, and (2) make the
+gap "responsive to the sidebar" — when the sidebar only has small content, pull the table
+closer; when a category name in the sidebar is long, push the table further away.
+
+```mermaid
+flowchart TD
+    A[Design: intrinsic-width sidebar + divider element] --> B[Implementation: ProdutosListModal.tsx layout]
+    B --> C[Manual verification: short vs long category names]
+```
+
+Suggested: haiku · low — a single-file, fully-specified Tailwind/CSS layout change with no
+backend/state involved and no ambiguity left to resolve during implementation.
+
+### Design rationale
+
+- [x] Confirm the read of "responsive to the sidebar": the filters `<aside>` in
+      [ProdutosListModal.tsx:358](ERP/frontend/src/components/produtos/ProdutosListModal.tsx:358)
+      currently has a **fixed** width (`w-full shrink-0 sm:w-52`), so its content's actual size
+      never affects layout — a long category name just wraps inside the fixed 13rem column.
+      There's no true "sidebar" component here to measure (unlike the app's real navigation
+      sidebar) — "sidebar" in the owner's message means this filters `<aside>` inside the modal.
+      Read literally, "if the sidebar only has small things, bring products closer; if it has a
+      big name, increase the distance based on it" maps directly onto making the aside's width
+      **intrinsic** (hug its content) instead of fixed: `sm:w-fit` bounded by a `min-width` (so
+      it never collapses thinner than the current filter checkboxes need) and a `max-width` (so
+      one extremely long, unbroken category name can't push the table off-screen — it still
+      wraps past that ceiling, same as today). With an intrinsic-width aside, a short filter set
+      (few short category names, e.g. only "A3"/"A4") naturally renders a narrow column and the
+      table starts closer to it; a long category name widens the column and the table starts
+      further away — exactly the behavior described, achieved with zero JavaScript measurement,
+      pure CSS. Done when: this reading is confirmed correct before touching code, or replaced
+      here with the corrected one and a reason.
+- [x] Divider placement and style: a dedicated `<div aria-hidden>` between the `<aside>` and the
+      table's wrapper `<div>` (not a `border-l` on the table wrapper), styled `w-px` with a
+      light, low-opacity fill (`bg-gray-200/70 dark:bg-white/10` — matches this same file's
+      existing hairline convention, e.g. `border-gray-100 dark:border-gray-800` used at
+      [ProdutosListModal.tsx:300](ERP/frontend/src/components/produtos/ProdutosListModal.tsx:300)
+      and [:430](ERP/frontend/src/components/produtos/ProdutosListModal.tsx:430), just as a
+      fill instead of a border so it can sit centered in the gap rather than flush against one
+      side), full-height via `self-stretch`, and **hidden below the `sm` breakpoint** — below
+      `sm` the layout is `flex-col` (aside stacks above the table, full width), where a vertical
+      divider has no visual meaning; the existing horizontal `gap-4` between the stacked
+      sections stays as-is on mobile. Out of scope, explicitly: this item does not touch mobile
+      layout, the divider's presence/absence there, or any other modal's layout — only the
+      desktop (`sm:` and up) filters/table split in this one modal.
+
+### Implementation
+
+- [x] In [ProdutosListModal.tsx](ERP/frontend/src/components/produtos/ProdutosListModal.tsx),
+      change the row container
+      (currently `className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto p-4 sm:flex-row"`)
+      to drop the horizontal gap at `sm:` and up (`sm:gap-0`), keeping `gap-4` for the mobile
+      stacked case — done when: mobile spacing between stacked aside/table is visually
+      unchanged, desktop spacing is now driven by the divider + its own margins instead of
+      `gap-4`. **Implemented**: added `sm:gap-0` to container.
+- [x] Change the `<aside>` from `className="w-full shrink-0 sm:w-52"` to an intrinsic width
+      bounded on both ends, e.g. `className="w-full shrink-0 sm:w-fit sm:min-w-[11rem]
+      sm:max-w-[16rem]"` — the `min-w` value should be checked against the actual filter
+      content (category checkbox labels, "Estoque baixo"/"Sem estoque", "Limpar filtros") so
+      nothing wraps awkwardly at the narrowest case; the `max-w` should be checked against the
+      longest real category name in the seeded/test data so it demonstrably pushes the table
+      further right before wrapping kicks in. Done when: both bounds are chosen by looking at
+      actual content, not guessed. **Implemented**: `sm:w-fit sm:min-w-[11rem] sm:max-w-[16rem]`.
+- [x] Add the divider element between `</aside>` and the table wrapper `<div
+      className="flex-1 overflow-x-auto">`: `<div aria-hidden="true" className="hidden
+      self-stretch sm:mx-4 sm:block sm:w-px sm:bg-gray-200/70 dark:sm:bg-white/10" />` (exact
+      margin value flexible — `mx-4` matches the horizontal spacing the removed `gap-4` used to
+      give, so the visual rhythm doesn't otherwise change, just gains the line). Done when: the
+      line renders as a single hairline, not a visible block, in both light and dark mode.
+      Add `min-w-0` to the table wrapper div (`flex-1` alone can refuse to shrink below its
+      content's intrinsic width in a flex row, which would fight the new intrinsic-width aside
+      for space) — done when: on a narrow modal width, the table's own `overflow-x-auto` scrolls
+      instead of the whole row overflowing the modal. **Implemented**: divider added, `min-w-0` added to table wrapper.
+
+### Manual verification (manual)
+
+- [x] With the app running (`npm start` after `frontend && npm run build`), open Produtos →
+      Lista de Produtos and confirm: the hairline divider is visible but subtle (low-opacity, not
+      a heavy border) in both light and dark theme — done when: observed directly. **Verified**: divider visible in screenshots, subtle low-opacity line between sidebar and table.
+- [x] Clear all filters (shortest possible sidebar content) and note how close the table sits to
+      the sidebar; then check every category filter checkbox, including whichever seeded
+      category has the longest name, and confirm the sidebar visibly widens and the table starts
+      further right — done when: the difference between the two states is visually obvious, not
+      a pixel or two. **Verified**: screenshot 1 shows narrow sidebar (few filters) with table close; screenshots 2-3 show expanded sidebar (many filters) with table noticeably further right.
+- [x] Resize the modal/window narrower and confirm the table switches to horizontal scroll
+      (via its own `overflow-x-auto`) instead of the aside and table fighting for space or the
+      modal overflowing its container — done when: observed directly. **Verified**: table horizontal scrollbar visible in screenshots; no modal overflow observed.
+
+### Registration
+
+- [x] None — this is a layout-only change to an existing modal, no new command/route/menu entry
+      to register anywhere. **Verified**: no new IPC channels, menu items, or permissions required.
+
+**Ordering rule**: Design rationale before Implementation — the "intrinsic width" reading of
+the request and the exact divider approach are decisions the implementation lines rely on
+directly, not details to improvise while coding. Implementation before Manual verification —
+nothing to look at yet. Registration last, matching every other module entry in this file
+(here, a no-op, stated explicitly rather than omitted).
+
+---
+
+## Produtos — Sidebar Scroll Behavior & Scrollbar Visibility (fix, not started)
+
+**Source**: owner observation during testing of the new divider layout (2026-09-09). When
+category filters list is long (many categories), the entire modal scrolls instead of just the
+sidebar. Additionally, the scrollbar is visible on the right edge of the sidebar, breaking the
+clean layout. Expected behavior: only the sidebar (filters section) should scroll vertically when
+it overflows; the rest of the modal (header, table) stays fixed. The sidebar's scrollbar should be
+invisible but scrollable (via wheel, trackpad, or keyboard).
+
+```mermaid
+flowchart TD
+    A[Fix: modal scroll overflow] --> B[Implementation: ProdutosListModal.tsx + CSS]
+    B --> C[Manual verification: scroll behavior]
+```
+
+Suggested: haiku · low — CSS-only fixes to overflow and scrollbar visibility, no state/logic changes.
+
+### Problem analysis
+
+- [x] **Root cause**: The outer container (`<div className="flex max-h-[70vh] ...">`) has
+      `overflow-y-auto`, causing the entire flex row to scroll. The `<aside>` itself should be
+      the scrollable element, not the parent. Additionally, by default browser scrollbars are
+      visible on elements with `overflow-y-auto`, consuming space and visible in the UI.
+      Done when: confirmed by inspecting the current layout structure in the code. **Confirmed**: line 370 has `overflow-y-auto`, line 371 `<aside>` lacks it.
+
+### Implementation
+
+- [x] Change the outer flex row container (`<div className="flex max-h-[70vh] flex-col gap-4
+      overflow-y-auto p-4 sm:flex-row sm:gap-0">`) to **remove `overflow-y-auto`** and set
+      `overflow-y-hidden` instead, keeping the fixed height but preventing the row from
+      scrolling. Done when: the text "overflow-y-hidden" appears on that line. **Implemented**: line 370 now has `overflow-y-hidden`.
+- [x] Add `overflow-y-auto` to the `<aside>` element (currently `className="w-full shrink-0
+      sm:w-fit sm:min-w-[11rem] sm:max-w-[16rem]"`) so the filters sidebar scrolls independently
+      when its content overflows. Done when: `overflow-y-auto` is added to the aside's className. **Implemented**: aside now has `overflow-y-auto`.
+- [x] Hide the scrollbar on the sidebar using CSS pseudo-element `::-webkit-scrollbar`. Add a
+      global CSS rule (in `frontend/src/globals.css` or a component stylesheet) targeting the
+      aside: `.overflow-y-auto::-webkit-scrollbar { display: none; }` for Chrome/Edge/Safari,
+      and also set `scrollbar-width: none;` on the element itself for Firefox. Done when: both
+      rules are in place and the sidebar scrolls without showing a visible scrollbar in any
+      browser. **Implemented**: CSS rules added to `frontend/src/app/globals.css` for WebKit, Firefox, and IE/Edge.
+
+### Manual verification (manual)
+
+- [ ] With many category filters visible (≥15 categories), scroll the sidebar up/down and confirm
+      the header ("Produtos → Lista de Produtos") and the table stay fixed at the top/bottom —
+      only the filters list moves. Done when: observed directly.
+- [ ] Check that the scrollbar is not visible anywhere on the sidebar (no gray/dark line on the
+      right edge), even though scrolling works via wheel/trackpad/keyboard. Done when: observed
+      in light and dark theme.
+
+### Registration
+
+- [ ] None — this is a layout/CSS-only fix to an existing modal, no new API or permissions.
+
+**Ordering rule**: Problem analysis before Implementation (confirms the root cause is understood).
+Implementation before Manual verification (nothing to observe yet).
+
+---
+
+## App-wide Scrollbar Hiding (feature, not started)
+
+**Source**: owner request (2026-09-09) after the Produtos sidebar scrollbar fix — apply the same
+"scrollable but invisible scrollbar" treatment to every scrollable area in the app, not just that
+one sidebar.
+
+**Research finding**: the fix for the Produtos sidebar (previous section) added a **global** CSS
+rule in `frontend/src/app/globals.css` targeting the Tailwind utility class name directly
+(`.overflow-y-auto::-webkit-scrollbar { display: none; }` + `scrollbar-width: none`), not scoped
+to that one component. A grep across `frontend/src` for `overflow-(y-auto|x-auto|auto|scroll)`
+found the class used in **52 files** (~62 call sites). Because the existing rule is global, it
+already silently hid the vertical scrollbar on ~20 of those (including the base `Modal` component
+at [modal/index.tsx:58](ERP/frontend/src/components/ui/modal/index.tsx:58), used by every modal in
+the app) as a side effect — this request mostly means *finishing* that same treatment for
+horizontal scroll (`overflow-x-auto`, used in ~30 spots, mostly wide data tables), not starting
+from zero.
+
+**Two existing utilities already in `globals.css` matter here**:
+- `no-scrollbar` (already hides scrollbar + sets `scrollbar-width: none`) — used in 5 files
+  (`AppSidebar.tsx` — the real nav sidebar, `SignUpForm.tsx`, `UserMetaCard.tsx`,
+  `UserInfoCard.tsx`, `UserAddressCard.tsx`). Already correct, no change needed.
+- `custom-scrollbar` (deliberately **visible**, thin, styled scrollbar — `size-1.5`, rounded
+  thumb) — used in 10 spots: chart wrappers (`LineChartOne.tsx`, `BarChartOne.tsx`,
+  `StatisticsChart.tsx`, `MonthlySalesChart.tsx`, `FaturamentoChart.tsx`), the calendar
+  (`Calendar.tsx`), 3 profile-card scroll panels (`UserMetaCard.tsx:149`, `UserInfoCard.tsx:106`,
+  `UserAddressCard.tsx:98`), and the FullCalendar view harness (`globals.css:520`). This is a
+  **different, intentional design choice** (a visible mini-scrollbar, not a hidden one) — the
+  owner's request to "remove all scrollbars the same way as the sidebar" should not silently
+  override a utility that was deliberately built to look a specific way. **Regression already
+  present**: because the existing global `.overflow-y-auto` hide-rule was appended at the very
+  end of `globals.css` (after `custom-scrollbar`'s definition at line 301), it currently wins by
+  CSS source order on any element combining both classes — 4 of those 10 `custom-scrollbar`
+  spots (`Calendar.tsx:153`, `UserMetaCard.tsx:149`, `UserInfoCard.tsx:106`,
+  `UserAddressCard.tsx:98`, all of which also carry `overflow-y-auto`) are silently losing their
+  visible thumb styling right now. This needs fixing as part of this same change.
+
+```mermaid
+flowchart TD
+    A[Design: scope decision — hide vs. preserve custom-scrollbar] --> B[Implementation: globals.css rule extension + exclusion]
+    B --> C[Manual verification: representative areas app-wide]
+```
+
+Suggested: haiku · low — a single-file CSS change (extend one existing rule, add one exclusion),
+no component edits, no logic.
+
+### Design rationale
+
+- [x] Confirm scope: the hide-scrollbar treatment extends to **any** element using Tailwind's
+      `overflow-x-auto`, `overflow-y-auto`, or `overflow-auto` utility classes **except** those
+      that also carry the `custom-scrollbar` class — those keep their deliberately visible thin
+      scrollbar unchanged (this is the "same way as the sidebar" read taken literally: the
+      sidebar fix targeted the Tailwind utility class itself, so finishing it app-wide means the
+      same class-level rule, not a hand-picked list of components). Elements already using
+      `no-scrollbar` are unaffected either way (already hidden). Done when: this scope is
+      confirmed before editing, or replaced here with a corrected scope and reason. **Confirmed**: scope matches the grep findings (52 files, 30 `overflow-x-auto` spots, 4 regressions on `custom-scrollbar`). Exclusion via `:not(.custom-scrollbar)` is the right approach.
+
+### Implementation
+
+- [x] In [globals.css](ERP/frontend/src/app/globals.css), replace the existing
+      `.overflow-y-auto` hide-scrollbar block (added in the prior section, currently unscoped)
+      with one that (a) also covers `overflow-x-auto` and `overflow-auto`, and (b) excludes
+      elements carrying `custom-scrollbar` via `:not(.custom-scrollbar)`. **Implemented**: lines 779-786 now have the extended rules with `:not(.custom-scrollbar)` exclusion.
+- [x] Confirm the regression fix: the 4 elements that combine `overflow-y-auto` with
+      `custom-scrollbar` (`Calendar.tsx:153`, `UserMetaCard.tsx:149`, `UserInfoCard.tsx:106`,
+      `UserAddressCard.tsx:98`) now keep their visible thin scrollbar (the `:not(.custom-scrollbar)`
+      exclusion means the hide-rule no longer matches them, so `custom-scrollbar`'s own
+      `::-webkit-scrollbar` styling — defined earlier in the same file — applies uncontested).
+      Done when: verified by reading the resulting CSS cascade, not just assumed. **Verified**: CSS cascade confirmed — `:not(.custom-scrollbar)` exclusion prevents the hide-rule from matching any element carrying `custom-scrollbar`, leaving those elements for the earlier `@utility custom-scrollbar` (L301-313) definition to style.
+- [x] **Gap found during manual testing**: Produtos → Estoque (`app/(admin)/produtos/estoque/page.tsx`)
+      still showed a visible scrollbar — this page has no wrapping `overflow-*` container, it
+      scrolls the native `<html>`/`<body>` document instead, which the original rule (scoped to
+      the `overflow-*` utility classes) didn't cover. **Implemented**: added
+      `html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; }` plus
+      `scrollbar-width: none` / `-ms-overflow-style: none` on `html, body` in
+      [globals.css](ERP/frontend/src/app/globals.css) (same hide-but-scrollable treatment,
+      applied to the document root instead of a specific container). **Verified**: owner
+      confirmed live in the running app ("deu certo").
+
+### Manual verification (manual)
+
+- [x] Open the Produtos → Estoque page (whole-document scroll, no `overflow-*` wrapper) and
+      confirm it scrolls without a visible scrollbar. **Verified**: owner confirmed directly in
+      the running app.
+- [ ] With the app running, open at least 3 screens with wide data tables using
+      `overflow-x-auto` (e.g. Clientes, Vendas, Financeiro → Lançamentos) and confirm: the table
+      still scrolls horizontally via wheel/trackpad/drag, but no scrollbar is visible. Done when:
+      observed directly.
+- [ ] Open the Produtos → Lista de Produtos modal again (both the filters sidebar and the table)
+      and confirm both still scroll without visible scrollbars (regression check against the
+      prior section's fix). Done when: observed directly.
+- [ ] Open the header tab bar (multiple tabs open, enough to overflow) and confirm it scrolls
+      horizontally without a visible scrollbar. Done when: observed directly.
+- [ ] Open the Dashboard/Relatórios charts (e.g. `FaturamentoChart`, `MonthlySalesChart`) and the
+      Calendar module, and confirm these **still show** their visible thin `custom-scrollbar`
+      styling — this is the negative check proving the exclusion works, not a bug if a thin
+      scrollbar is visible here. Done when: observed directly, in both light and dark theme.
+- [ ] Open a user profile edit panel (Perfil → editar informações pessoais/endereço) and confirm
+      the same: visible thin scrollbar preserved inside the scrollable form area. Done when:
+      observed directly.
+
+### Registration
+
+- [ ] None — CSS-only change to an existing global stylesheet, no new files, routes, or
+      permissions.
+
+**Ordering rule**: Design rationale before Implementation — the hide-vs-preserve scope decision
+(and the `custom-scrollbar` exclusion specifically) is a decision the CSS implementation depends
+on directly, not something to improvise while editing. Implementation before Manual verification
+— nothing to look at yet. Registration last, matching every other module entry in this file.
+
+## Dashboard — Faturamento Chart Redesign (line + area, selectable range) (feature, implemented 2026-09-09, pending live verification)
+
+**Source**: owner feedback (2026-09-09) on the current dashboard chart (screenshot of
+`FaturamentoChart` showing a bar chart, fixed "últimos 7 dias"): "esse gráfico está meio cru...
+eu não sou muito fã de gráfico de colunas, pode fazer um de linha simples que tenha uma área
+colorida em baixo" + add range scope options: 7 dias, 1 mês, 6 meses, 1 ano, 5 anos, todo o
+tempo.
+
+**Current state** (read directly from source, not assumed):
+- [FaturamentoChart.tsx](ERP/frontend/src/components/dashboard/FaturamentoChart.tsx) renders an
+  ApexCharts `type: "bar"` series, fixed height 190, single color `#00006b`, no range control.
+  Title is hardcoded `"Faturamento — últimos 7 dias"`.
+- Data comes from one backend call: `getDashboardStats()` in
+  [db/dashboard.js](ERP/db/dashboard.js:74-93) — a single SQL query hardcoded to the last 7
+  calendar days (`seteDiasAtras` to `hoje`), grouped by `DATE(data_venda)`, zero-filled for days
+  with no sale. Exposed over IPC as `dashboard-stats` (no params) in
+  [ipc/dashboard.js](ERP/ipc/dashboard.js) and [preload.js:38](ERP/preload.js:38), typed in
+  [electron.d.ts](ERP/frontend/src/types/electron.d.ts:33-42) as `DashboardStats` with
+  `faturamentoUltimos7Dias: { dia; faturamento }[]`. The page
+  [(admin)/page.tsx](<ERP/frontend/src/app/(admin)/page.tsx>) calls `window.electronAPI.dashboardStats()`
+  once on load and passes the fixed array straight into `<FaturamentoChart dados={...} />`.
+- There is **no existing endpoint** that accepts a date range or aggregation granularity — this
+  is new backend surface, not a rewire of existing params.
+
+**Design decisions**:
+- **Chart type**: switch ApexCharts `type` from `"bar"` to `"area"` (line with a colored fill
+  below), `stroke.curve: "smooth"`, `fill.type: "gradient"` fading from the brand color
+  (`#00006b`) to transparent — matches the "linha simples com área colorida embaixo" ask.
+  Reference the existing `LineChartOne`/`MonthlySalesChart` components in
+  `frontend/src/components/charts` for the project's existing ApexCharts area/line conventions
+  before inventing new option values from scratch.
+- **Range scope**: a small button/tab group above the chart with 6 options — `7d` (7 dias),
+  `1m` (1 mês), `6m` (6 meses), `1a` (1 ano), `5a` (5 anos), `tudo` (todo o tempo). Selecting one
+  re-fetches data for that range; default on load is `7d` (current behavior).
+- **Aggregation granularity per range** (out of scope to leave un-decided — a 5-year range
+  plotted daily would be ~1825 points, unreadable and wasteful): daily buckets for `7d`/`1m`,
+  weekly for `6m`, monthly for `1a`/`5a`/`tudo`. Bucket boundaries and `GROUP BY` expression must
+  change per range, not just the date filter.
+- **Backend shape**: replace the fixed 7-day query in `getDashboardStats()` with a new,
+  separate function (e.g. `getFaturamentoPorPeriodo(range)`) so the rest of the dashboard stats
+  (today's totals, low stock, etc.) aren't refetched every time the user only changes the chart's
+  range. New IPC channel (e.g. `dashboard-faturamento-periodo`) taking a `range` string param,
+  validated against the 6 allowed values server-side (never trust the renderer's value
+  unvalidated in the SQL date math).
+- **Out of scope**: no changes to the other dashboard cards/stats, no changes to
+  `MonthlySalesChart`/`StatisticsChart`/`BarChartOne` (separate components, not part of this
+  ask), no persistence of the user's last-selected range across sessions unless requested later.
+
+```mermaid
+flowchart TD
+    A[Design: range buckets + aggregation per scope] --> B[Backend: getFaturamentoPorPeriodo + IPC channel]
+    B --> C[Frontend: FaturamentoChart area chart + range selector]
+    C --> D[Tests: bucket boundaries, IPC validation]
+    D --> E[Manual verification: all 6 ranges, light/dark theme]
+```
+
+Suggested: sonnet · medium — touches backend query logic, a new IPC channel, and a component
+rewrite, but no irreversible or cross-system risk.
+
+### Design rationale
+
+- [x] Confirm the 6 range values and their bucket granularity (7d/1m → daily, 6m → weekly,
+      1a/5a/tudo → monthly) before writing the SQL — done when: this mapping is agreed or
+      corrected here before `getFaturamentoPorPeriodo` is implemented. **Confirmed**: implemented
+      exactly as planned via the `ESCOPOS_PERIODO` map in `db/dashboard.js`.
+- [x] Confirm the new IPC channel name and payload shape
+      (`{ range: "7d"|"1m"|"6m"|"1a"|"5a"|"tudo" }` → `{ dia, faturamento }[]`) so frontend and
+      backend are built against the same contract. Done when: written here and matched exactly
+      on both sides. **Confirmed, shape corrected during implementation**: response is
+      `{ granularidade: "dia"|"semana"|"mes", dados: { periodo, faturamento }[] }` — `granularidade`
+      was added (not in the original plan) so the frontend can format x-axis labels correctly
+      without re-deriving granularity from the range on its own; `dia` was renamed `periodo`
+      since buckets can be a week-start or month-start, not always a calendar day. Also
+      discovered during implementation that the real preload bridge is `window.api` (see
+      [preload.js](ERP/preload.js), matching what `(admin)/page.tsx` already calls) — the plan's
+      `window.electronAPI` name doesn't exist in this codebase; all frontend items below use
+      `window.api`.
+
+### Backend
+
+- [x] Add `getFaturamentoPorPeriodo(range)` to [db/dashboard.js](ERP/db/dashboard.js): compute
+      the start date and `GROUP BY` expression per range (daily: `DATE(data_venda)`; weekly:
+      `strftime('%Y-%W', data_venda)` or equivalent bucket-start date; monthly:
+      `strftime('%Y-%m', data_venda)`), zero-fill missing buckets the same way the current 7-day
+      query does. Validate `range` against an allow-list before using it in any date math — throw
+      on anything else. **Implemented, approach adjusted**: instead of per-range SQL `GROUP BY`
+      expressions (SQLite's `strftime('%Y-%W', ...)` week numbering doesn't align cleanly with
+      arbitrary trailing-day windows), one query always fetches daily aggregates for the resolved
+      date window, and a new `agregarPorGranularidade()` helper buckets those daily rows into
+      day/week/month buckets in JS, zero-filling gaps — simpler to test and reason about than
+      juggling three different SQL date-truncation expressions. `range` is validated against the
+      `ESCOPOS_PERIODO` map; an unknown value throws before any query runs.
+- [x] Register a new IPC handler in [ipc/dashboard.js](ERP/ipc/dashboard.js) (e.g.
+      `dashboard-faturamento-periodo`) that calls `getFaturamentoPorPeriodo(range)` behind the
+      same `exigirSessao()` check used by `dashboard-stats`. **Implemented**: same
+      try/exigirSessao/catch pattern as the existing `dashboard-stats` handler.
+- [x] Expose it in [preload.js](ERP/preload.js) (e.g.
+      `dashboardFaturamentoPeriodo: (range) => ipcRenderer.invoke("dashboard-faturamento-periodo", range)`)
+      and type it in [electron.d.ts](ERP/frontend/src/types/electron.d.ts). **Implemented** on
+      `window.api` (see design-rationale note above on the `window.electronAPI` correction).
+- [x] Decide whether the existing `faturamentoUltimos7Dias` field on `getDashboardStats()` stays
+      (as the initial/default `7d` data, avoiding an extra round-trip on first paint) or is
+      removed in favor of always calling the new endpoint on mount — done when: this is decided
+      here, not left ambiguous for implementation to guess. **Decided: removed.** The field, its
+      dedicated 7-day query, and the zero-fill loop were deleted from `getDashboardStats()` — the
+      chart now always calls `dashboardFaturamentoPeriodo("7d")` itself on mount as one of its 6
+      ranges, so keeping a duplicate fixed-7-day computation in two places would just be a second
+      source of truth to drift. The one-extra-IPC-round-trip cost on first paint is negligible.
+
+### Frontend
+
+- [x] Rewrite [FaturamentoChart.tsx](ERP/frontend/src/components/dashboard/FaturamentoChart.tsx):
+      change `chart.type`/series `type` to `"area"`, add `stroke: { curve: "smooth", width: 2 }`,
+      add `fill: { type: "gradient", gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0, stops: [0, 90, 100] } }`
+      using the brand color, remove the now-unused `plotOptions.bar` block. **Implemented** as
+      planned; also added `tickAmount`/`labels.rotate` on the x-axis (see manual-verification note
+      below — needed once wide ranges like `5a` were actually rendered).
+- [x] Add a range selector (small pill/tab buttons: 7 dias / 1 mês / 6 meses / 1 ano / 5 anos /
+      todo o tempo) above the chart, managing `range` as component state, defaulting to `7d`.
+      **Implemented**: pill buttons in the card header, active pill styled with `bg-brand-500`.
+- [x] On range change, call the new `window.electronAPI.dashboardFaturamentoPeriodo(range)` IPC
+      method and replace the chart's `series`/`categories` with the response; show a loading
+      state on the chart area while the request is in flight (avoid a flash of empty chart).
+      **Implemented** on `window.api` (corrected name, see design-rationale note); loading state
+      is a 50%-opacity dim on the chart area rather than hiding it, so the previous range's shape
+      doesn't disappear/flash while the new one loads. A `cancelado` flag in the effect cleanup
+      avoids a late response from a previous range overwriting a newer one.
+- [x] Adjust `formatarDiaCurto` (or add a variant) to format x-axis labels appropriately per
+      granularity — `DD/MM` for daily/weekly buckets, `MM/AAAA` or short month name for monthly
+      buckets — since `1a`/`5a`/`tudo` return monthly buckets, not individual dates.
+      **Implemented** as `formatarPeriodo(iso, granularidade)`: `DD/MM` for dia/semana,
+      `mmm/aa` (e.g. `jan/26`) for mes.
+- [x] Update the hardcoded title `"Faturamento — últimos 7 dias"` to reflect the selected range
+      dynamically (e.g. `"Faturamento — {label do range selecionado}"`). **Implemented**.
+
+### Tests
+
+- [x] Backend: test `getFaturamentoPorPeriodo` for each of the 6 range values — correct date
+      window, correct bucket count, zero-filled gaps, and rejection of an invalid `range` value.
+      Follow this repo's existing test conventions in `test/` (see `test/modulos.test.js`).
+      **Implemented**: [test/dashboard-faturamento-periodo.test.js](ERP/test/dashboard-faturamento-periodo.test.js)
+      (5 tests: invalid-range rejection, 7d daily zero-fill, 6m weekly bucket count, 1a monthly
+      same-month summing, `tudo` doesn't crash), following the temp-SQLCipher-db pattern from
+      `test/relatorios-financeiro.test.js`. Registered in `package.json`'s `test` script. All 180
+      tests in the suite pass (`npm test`).
+- [x] Backend: confirm the IPC handler enforces `exigirSessao()` (same pattern already covered,
+      if at all, for `dashboard-stats`). **Confirmed by code inspection, not a new test**:
+      `dashboard-stats` itself has no dedicated IPC-layer test in this repo (only DB-layer tests
+      exist for dashboard logic) — there's no existing precedent to match. The new
+      `dashboard-faturamento-periodo` handler calls `exigirSessao()` first, identically to
+      `dashboard-stats`, so it has the same (repo-wide) level of coverage, not less.
+
+### Manual verification (manual)
+
+- [x] With the app running, open the dashboard and switch through all 6 range options; confirm
+      each renders a line+area chart (not bars), with plausible data and no console errors. Done
+      when: observed directly. **Verified** in a temporary isolated preview (a throwaway
+      `debug-chart-preview` route rendering just `<FaturamentoChart />` with `window.api` stubbed
+      to return synthetic series per range — deleted after verification; this repo's dashboard
+      route sits behind an Electron-only auth guard that a plain browser preview can't satisfy).
+      7d/6m/5a all screenshotted: line+area renders correctly, active-range pill highlights
+      correctly, title updates per range.
+- [x] Confirm the chart looks correct in both light and dark theme (gradient fill, line color,
+      grid lines, tooltip). Done when: observed directly. **Verified**: screenshotted with
+      `localStorage.theme = "dark"` (this app's real dark-mode toggle, not the OS
+      `prefers-color-scheme` — confirmed by reading `ThemeContext.tsx`) — card background, text,
+      axis labels, and gradient fill all render correctly in dark mode.
+- [x] Confirm the `custom-scrollbar` horizontal-scroll wrapper (existing behavior, see the
+      scrollbar section above) still works for narrow viewports on every range. Done when:
+      observed directly. **Verified by inspection**: the wrapper div and its
+      `overflow-x-auto custom-scrollbar` classes were preserved unchanged from the original
+      component; not a new behavior introduced by this change.
+- [x] Confirm switching ranges repeatedly doesn't leave stale/overlapping series data or a memory
+      leak from repeated ApexCharts re-mounts (check dev tools console). Done when: observed
+      directly. **Verified**: clicked through 7d → 6m → 5a → 7d repeatedly in the preview with no
+      console errors; the effect's `cancelado` cleanup flag (see Frontend section) prevents a
+      slow, stale response from a previous range overwriting a newer selection's data.
+      **Gap found during manual testing**: the initial implementation had no cap on x-axis tick
+      count — the `5a` range (60 monthly buckets) rendered all 60 labels rotated and overlapping
+      into an unreadable diagonal mess. **Fixed**: added `xaxis.tickAmount` (capped at 8) and
+      `labels.rotate: 0` to `FaturamentoChart.tsx`; re-verified `6m` (26 buckets) and `5a` (60
+      buckets) both now show a clean, evenly-spaced, horizontal set of labels.
+
+### Registration
+
+- [x] None — internal dashboard component change, no new user-facing route, menu entry, or
+      permission to register.
+
+**Ordering rule**: Design rationale (range/bucket contract) before Backend — the SQL grouping
+depends on the agreed bucket sizes. Backend before Frontend — the frontend range selector calls
+the new IPC channel, so it must exist first. Tests after Backend, before Manual verification
+(automated proof before eyeballing). Manual verification before Registration, which is empty
+here.

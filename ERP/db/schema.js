@@ -499,6 +499,12 @@ async function iniciarBanco() {
 		// JSON com toggles por módulo p/ perfil vendedor, ex: {"relatorios":true}.
 		// Admin ignora este campo (sempre tem acesso total). Ausente = "{}".
 		permissoes: "permissoes TEXT NOT NULL DEFAULT '{}'",
+		// Avatar do usuário logado (autoatendimento, ver GOALS.md "Avatar do Usuário
+		// Logado"): cor_avatar é uma das 8 chaves de CORES_AVATAR (db/usuarios.js),
+		// nunca hex livre. foto é só o nome do arquivo em usuario-imagens/, mesmo
+		// padrão de Produtos.imagem.
+		cor_avatar: "cor_avatar TEXT",
+		foto: "foto TEXT",
 	});
 	// Parcelamento: lançamentos da mesma compra/venda a prazo compartilham um
 	// grupo_id, cada linha é uma parcela (parcela_num de parcela_total).

@@ -93,23 +93,21 @@ const AppHeader: React.FC = () => {
 				{abas.length > 0 && (
 					<div
 						ref={faixaAbasRef}
-						className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-1"
+						className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-2.5"
 					>
 						{abas.map((aba) => {
 							const ativa = aba.id === abaAtivaId;
 							const fechavel = aba.id !== "dashboard";
 							const corAtiva = ativa
-								? "bg-blue-500 text-white"
-								: "bg-white/5 text-gray-300 hover:bg-white/10";
+								? "bg-white text-[#0F172A]"
+								: "bg-blue-400 text-white hover:bg-blue-300";
 							const botaoFechar = fechavel && (
 								<button
 									type="button"
 									onClick={() => fecharAba(aba.id)}
 									title={`Fechar ${aba.titulo}`}
 									className={`flex size-4 shrink-0 items-center justify-center rounded-full ${
-										ativa
-											? "hover:bg-white/20"
-											: "hover:bg-white/10 group-hover:text-white"
+										ativa ? "hover:bg-black/10" : "hover:bg-white/20"
 									}`}
 								>
 									<svg
@@ -135,13 +133,15 @@ const AppHeader: React.FC = () => {
 								return (
 									<div
 										key={aba.id}
-										className={`group flex shrink-0 items-center gap-0.5 rounded-lg p-1 transition-colors ${corAtiva}`}
+										className={`group flex shrink-0 items-center gap-0.5 rounded-lg px-1 py-2.5 transition-colors ${corAtiva}`}
 									>
 										<button
 											type="button"
 											onClick={() => router.push(aba.href)}
 											title={aba.titulo}
-											className="flex size-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-[11px] font-semibold uppercase"
+											className={`flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold uppercase ${
+												ativa ? "bg-black/10" : "bg-white/10"
+											}`}
 										>
 											{aba.titulo.trim().charAt(0) || "?"}
 										</button>
@@ -154,14 +154,14 @@ const AppHeader: React.FC = () => {
 								<div
 									key={aba.id}
 									style={{ minWidth: LARGURA_MIN_ABA_NORMAL }}
-									className={`group flex flex-[0_1_170px] items-center gap-1.5 rounded-lg py-1 pl-2 text-sm transition-colors ${
+									className={`group flex flex-[0_1_170px] items-center gap-1.5 rounded-lg text-sm transition-colors ${
 										fechavel ? "pr-1" : "pr-2"
 									} ${corAtiva}`}
 								>
 									<button
 										type="button"
 										onClick={() => router.push(aba.href)}
-										className="flex min-w-0 flex-1 items-center gap-1.5"
+										className="flex min-w-0 flex-1 items-center gap-1.5 py-2.5 pl-2"
 										title={aba.titulo}
 									>
 										<span className="shrink-0 [&>svg]:size-4">

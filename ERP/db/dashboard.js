@@ -1,4 +1,4 @@
-const { getConexao } = require("./conexao");
+const { getConexao, getAsync, allAsync } = require("./conexao");
 
 async function getDashboardStats() {
 	const conn = getConexao();
@@ -71,27 +71,6 @@ async function getDashboardStats() {
 		[hoje],
 	);
 
-	// Série curta para o mini-gráfico do dashboard — últimos 7 dias, incluindo
-	// hoje, preenchendo com zero os dias sem venda.
-	const seteDiasAtras = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000)
-		.toISOString()
-		.slice(0, 10);
-	const porDiaBruto = await all(
-		"SELECT DATE(data_venda) AS dia, COALESCE(SUM(total), 0) AS faturamento FROM Vendas WHERE status = 'finalizada' AND DATE(data_venda) BETWEEN ? AND ? GROUP BY DATE(data_venda)",
-		[seteDiasAtras, hoje],
-	);
-	const mapaDias = {};
-	porDiaBruto.forEach((r) => {
-		mapaDias[r.dia] = r.faturamento;
-	});
-	const faturamentoUltimos7Dias = [];
-	for (let i = 6; i >= 0; i--) {
-		const dia = new Date(Date.now() - i * 24 * 60 * 60 * 1000)
-			.toISOString()
-			.slice(0, 10);
-		faturamentoUltimos7Dias.push({ dia, faturamento: mapaDias[dia] || 0 });
-	}
-
 	// Produtos mais vendidos nos últimos 30 dias (por receita) — alimenta o
 	// painel "Mais vendidos" do dashboard.
 	const trintaDiasAtras = new Date(Date.now() - 29 * 24 * 60 * 60 * 1000)
@@ -120,10 +99,119 @@ async function getDashboardStats() {
 		estoqueBaixo: estoqueBaixo[0].total,
 		aReceberHoje: aReceber.soma,
 		aPagarHoje: aPagar.soma,
-		faturamentoUltimos7Dias,
 		topProdutos,
 	};
 }
+
+const ESCOPOS_PERIODO = {
+	"7d": { dias: 7, granularidade: "dia" },
+	"1m": { dias: 30, granularidade: "dia" },
+	"6m": { dias: 183, granularidade: "semana" },
+	"1a": { dias: 365, granularidade: "mes" },
+	"5a": { dias: 365 * 5, granularidade: "mes" },
+	tudo: { dias: null, granularidade: "mes" },
+};
+
+function formatarISO(data) {
+	return data.toISOString().slice(0, 10);
+}
+
+// Agrupa o mapa de faturamento por dia (já buscado do banco) em buckets do
+// tamanho pedido, zero-preenchendo os buckets sem venda — o front nunca vê
+// buracos na série, só zeros.
+function agregarPorGranularidade(
+	dataInicioISO,
+	dataFimISO,
+	mapaDias,
+	granularidade,
+) {
+	const inicio = new Date(`${dataInicioISO}T00:00:00`);
+	const fim = new Date(`${dataFimISO}T00:00:00`);
+	const resultado = [];
+
+	if (granularidade === "dia") {
+		for (const d = new Date(inicio); d <= fim; d.setDate(d.getDate() + 1)) {
+			const dia = formatarISO(d);
+			resultado.push({ periodo: dia, faturamento: mapaDias[dia] || 0 });
+		}
+		return resultado;
+	}
+
+	if (granularidade === "semana") {
+		for (const d = new Date(inicio); d <= fim; d.setDate(d.getDate() + 7)) {
+			let soma = 0;
+			for (
+				const cursor = new Date(d),
+					limite = Math.min(fim, new Date(d).setDate(d.getDate() + 6));
+				cursor.getTime() <= limite;
+				cursor.setDate(cursor.getDate() + 1)
+			) {
+				soma += mapaDias[formatarISO(cursor)] || 0;
+			}
+			resultado.push({ periodo: formatarISO(d), faturamento: soma });
+		}
+		return resultado;
+	}
+
+	// mensal
+	const diasOrdenados = Object.keys(mapaDias);
+	const cursor = new Date(inicio.getFullYear(), inicio.getMonth(), 1);
+	const limite = new Date(fim.getFullYear(), fim.getMonth(), 1);
+	while (cursor <= limite) {
+		const anoMes = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`;
+		const soma = diasOrdenados
+			.filter((dia) => dia.startsWith(anoMes))
+			.reduce((acc, dia) => acc + mapaDias[dia], 0);
+		resultado.push({ periodo: `${anoMes}-01`, faturamento: soma });
+		cursor.setMonth(cursor.getMonth() + 1);
+	}
+	return resultado;
+}
+
+// Série de faturamento para o gráfico do dashboard, com escopo selecionável
+// (ver GOALS.md "Dashboard — Faturamento Chart Redesign"). Granularidade
+// muda por escopo pra nunca plotar milhares de pontos diários num range de
+// anos: dia (7d/1m), semana (6m), mês (1a/5a/tudo).
+async function getFaturamentoPorPeriodo(range) {
+	const escopo = ESCOPOS_PERIODO[range];
+	if (!escopo) {
+		throw new Error(`Escopo de período inválido: ${range}`);
+	}
+
+	const hoje = formatarISO(new Date());
+	let dataInicio;
+	if (escopo.dias === null) {
+		const primeira = await getAsync(
+			"SELECT MIN(DATE(data_venda)) AS dia FROM Vendas WHERE status = 'finalizada'",
+		);
+		dataInicio = primeira.dia || hoje;
+	} else {
+		dataInicio = formatarISO(
+			new Date(Date.now() - (escopo.dias - 1) * 24 * 60 * 60 * 1000),
+		);
+	}
+
+	const linhas = await allAsync(
+		"SELECT DATE(data_venda) AS dia, COALESCE(SUM(total), 0) AS faturamento FROM Vendas WHERE status = 'finalizada' AND DATE(data_venda) BETWEEN ? AND ? GROUP BY DATE(data_venda)",
+		[dataInicio, hoje],
+	);
+	const mapaDias = {};
+	linhas.forEach((r) => {
+		mapaDias[r.dia] = r.faturamento;
+	});
+
+	return {
+		granularidade: escopo.granularidade,
+		dados: agregarPorGranularidade(
+			dataInicio,
+			hoje,
+			mapaDias,
+			escopo.granularidade,
+		),
+	};
+}
+
 module.exports = {
 	getDashboardStats,
+	getFaturamentoPorPeriodo,
 };
