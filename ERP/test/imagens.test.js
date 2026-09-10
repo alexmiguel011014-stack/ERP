@@ -1,5 +1,6 @@
-/* IPC do módulo "imagens" (ver GOALS.md "Image Database & Management"):
-   toda a autorização é exigirSessao("admin") — mesmo gate que /banco já usa
+/* IPC de ipc/imagens.js (registrado via modules/banco/modulo.json — "Gerenciar
+   Imagens" vive dentro de /banco, não é módulo próprio, ver GOALS.md "Image
+   Database & Management"): toda a autorização é exigirSessao("admin") — mesmo gate que /banco já usa
    — mais a reautenticação por senha do lado do frontend (verificar-senha-
    admin, ipc/banco-admin.js), não uma trava nova aqui. Cobertura de
    CRUD/migração fica em scripts/test-imagens.js (rodado via

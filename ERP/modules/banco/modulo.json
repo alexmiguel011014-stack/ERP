@@ -4,7 +4,7 @@
 	"versao": "1.0.0",
 	"tipo": "pagina",
 	"entrada": "banco.html",
-	"ipc": ["banco-admin.js"],
+	"ipc": ["banco-admin.js", "imagens.js"],
 	"permissao": { "tipo": "admin" },
 	"navbar": {
 		"secao": "administracao",

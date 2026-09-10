@@ -1,11 +1,23 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import Button from "@/components/ui/button/Button";
+import { Modal } from "@/components/ui/modal";
 import { usePageHeader } from "@/context/PageHeaderContext";
 import { useBancoAdmin } from "@/hooks/useBancoAdmin";
+import {
+	useGerenciarImagens,
+	type AbaImagens,
+} from "@/hooks/useGerenciarImagens";
 import ConfirmarSenhaModal from "@/components/common/ConfirmarSenhaModal";
+import { erpApi, type ImagemMeta } from "@/lib/erpApi";
+
+function formatarTamanho(bytes: number): string {
+	if (bytes < 1024) return bytes + " B";
+	if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+	return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+}
 
 export default function BancoPage() {
 	const {
@@ -34,11 +46,14 @@ export default function BancoPage() {
 		erroLimpeza,
 	} = useBancoAdmin();
 	const [senha, setSenha] = useState("");
+	const [modo, setModo] = useState<"tabelas" | "imagens">("tabelas");
 
 	usePageHeader(
-		"Banco de Dados",
+		modo === "imagens" ? "Gerenciar Imagens" : "Banco de Dados",
 		autorizado
-			? "Visão crua das tabelas do banco — use com cuidado"
+			? modo === "imagens"
+				? "Ver, substituir e excluir as imagens salvas no banco de dados"
+				: "Visão crua das tabelas do banco — use com cuidado"
 			: "Área sensível — confirme sua senha para ver os dados crus.",
 	);
 
@@ -76,6 +91,10 @@ export default function BancoPage() {
 		);
 	}
 
+	if (modo === "imagens") {
+		return <GerenciarImagensView onVoltar={() => setModo("tabelas")} />;
+	}
+
 	return (
 		<div className="relative grid grid-cols-1 gap-4">
 			{exportando && (
@@ -87,9 +106,12 @@ export default function BancoPage() {
 				</div>
 			)}
 
-			<div className="flex justify-end gap-2">
+			<div className="flex flex-wrap justify-end gap-2">
 				<Button variant="outline" onClick={atualizar}>
 					Atualizar
+				</Button>
+				<Button variant="outline" onClick={() => setModo("imagens")}>
+					Gerenciar Imagens
 				</Button>
 				<Button onClick={exportarJSON} disabled={exportando}>
 					{exportando ? "Exportando..." : "Exportar Banco (JSON)"}
@@ -259,6 +281,234 @@ export default function BancoPage() {
 				onClose={cancelarLimparTabela}
 				onConfirmado={confirmarLimparTabela}
 			/>
+		</div>
+	);
+}
+
+const ABAS: { chave: AbaImagens; label: (n: number) => string }[] = [
+	{ chave: "produtos", label: (n) => `Produtos (${n})` },
+	{ chave: "outros", label: (n) => `Outros (${n})` },
+	{ chave: "orfas", label: (n) => `Órfãs (${n})` },
+];
+
+function GerenciarImagensView({ onVoltar }: { onVoltar: () => void }) {
+	const {
+		aba,
+		setAba,
+		busca,
+		setBusca,
+		listaAtual,
+		carregandoAtual,
+		totalProdutos,
+		totalOutros,
+		totalOrfas,
+		erro,
+		visualizando,
+		visualizar,
+		fecharVisualizacao,
+		paraExcluir,
+		pedirExclusao,
+		cancelarExclusao,
+		confirmarExclusao,
+		excluindo,
+		resultadoExclusao,
+		orfasParaExcluir,
+		pedirExclusaoOrfasEmLote,
+		cancelarExclusaoOrfasEmLote,
+		confirmarExclusaoOrfasEmLote,
+	} = useGerenciarImagens(true);
+
+	const totais: Record<AbaImagens, number> = {
+		produtos: totalProdutos,
+		outros: totalOutros,
+		orfas: totalOrfas,
+	};
+
+	return (
+		<div className="grid grid-cols-1 gap-4">
+			<div className="flex flex-wrap items-center justify-between gap-2">
+				<Button variant="outline" onClick={onVoltar}>
+					Voltar para Tabelas
+				</Button>
+				{aba === "orfas" && totalOrfas > 0 && (
+					<button
+						type="button"
+						disabled={excluindo}
+						onClick={pedirExclusaoOrfasEmLote}
+						className="rounded-lg bg-error-50 px-3 py-1.5 text-xs font-semibold text-error-600 hover:bg-error-100 disabled:opacity-50 dark:bg-error-500/10 dark:text-error-400"
+					>
+						Excluir todas as órfãs
+					</button>
+				)}
+			</div>
+
+			<div className="flex flex-wrap items-center gap-3">
+				<div className="flex gap-2">
+					{ABAS.map((a) => (
+						<button
+							key={a.chave}
+							type="button"
+							onClick={() => setAba(a.chave)}
+							className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+								aba === a.chave
+									? "bg-brand-50 text-brand-600 dark:bg-brand-500/10"
+									: "text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5"
+							}`}
+						>
+							{a.label(totais[a.chave])}
+						</button>
+					))}
+				</div>
+				{aba !== "orfas" && (
+					<Input
+						type="text"
+						value={busca}
+						onChange={(e) => setBusca(e.target.value)}
+						placeholder="Buscar por nome do produto..."
+						className="max-w-xs"
+					/>
+				)}
+			</div>
+
+			{aba === "orfas" && (
+				<p className="text-sm text-gray-500 dark:text-gray-400">
+					Imagens cuja entidade dona (ex.: um produto) não existe mais — sobram
+					aqui porque a exclusão não tinha como limpá-las automaticamente antes
+					desta tela existir.
+				</p>
+			)}
+			{aba === "outros" && totalOutros === 0 && (
+				<p className="text-sm text-gray-500 dark:text-gray-400">
+					Nenhuma outra entidade além de produtos guarda imagem aqui ainda.
+				</p>
+			)}
+
+			{resultadoExclusao && (
+				<div className="rounded-lg border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700 dark:border-success-800 dark:bg-success-500/10 dark:text-success-400">
+					{resultadoExclusao}
+				</div>
+			)}
+			{erro && (
+				<div className="rounded-lg border border-error-300 bg-error-50 px-4 py-3 text-sm text-error-600 dark:border-error-800 dark:bg-error-500/10 dark:text-error-400">
+					{erro}
+				</div>
+			)}
+
+			{carregandoAtual ? (
+				<div className="py-8 text-center text-sm text-gray-400">
+					Carregando...
+				</div>
+			) : listaAtual.length === 0 ? (
+				<div className="py-8 text-center text-sm text-gray-400">
+					{busca
+						? "Nenhuma imagem encontrada para essa busca."
+						: aba === "orfas"
+							? "Nenhuma imagem órfã."
+							: "Nenhuma imagem salva ainda."}
+				</div>
+			) : (
+				<div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+					{listaAtual.map((imagem) => (
+						<CartaoImagemComPreview
+							key={imagem.id}
+							imagem={imagem}
+							onVisualizar={() => visualizar(imagem.id)}
+							onExcluir={() => pedirExclusao(imagem)}
+						/>
+					))}
+				</div>
+			)}
+
+			<Modal
+				isOpen={!!visualizando}
+				onClose={fecharVisualizacao}
+				className="max-w-[600px] p-6"
+			>
+				{visualizando && (
+					<img
+						src={visualizando.dataUrl}
+						alt="Imagem em tamanho grande"
+						className="max-h-[70vh] w-full rounded-lg object-contain"
+					/>
+				)}
+			</Modal>
+
+			<ConfirmarSenhaModal
+				isOpen={!!paraExcluir}
+				titulo="Excluir imagem"
+				descricao={
+					paraExcluir
+						? `Remover a imagem de "${paraExcluir.entidade_nome || "#" + paraExcluir.entidade_id}"? Esta ação não pode ser desfeita.`
+						: ""
+				}
+				onClose={cancelarExclusao}
+				onConfirmado={confirmarExclusao}
+			/>
+
+			<ConfirmarSenhaModal
+				isOpen={orfasParaExcluir}
+				titulo="Excluir imagens órfãs"
+				descricao={`Remover as ${totalOrfas} imagem(ns) órfã(s) listada(s)? Esta ação não pode ser desfeita.`}
+				onClose={cancelarExclusaoOrfasEmLote}
+				onConfirmado={confirmarExclusaoOrfasEmLote}
+			/>
+		</div>
+	);
+}
+
+// Miniatura carregada sob demanda (nunca o BLOB inteiro em todo o grid de
+// uma vez, só a imagem cujo cartão está montado) — mesmo princípio de
+// ProdutoThumbnail.tsx, mas por id de imagem em vez de produto.
+function CartaoImagemComPreview({
+	imagem,
+	onVisualizar,
+	onExcluir,
+}: {
+	imagem: ImagemMeta;
+	onVisualizar: () => void;
+	onExcluir: () => void;
+}) {
+	const [dataUrl, setDataUrl] = useState<string | null>(null);
+
+	useEffect(() => {
+		let cancelado = false;
+		erpApi.imagens
+			.obterPorId(imagem.id)
+			.then((url) => {
+				if (!cancelado) setDataUrl(url);
+			})
+			.catch(() => {
+				if (!cancelado) setDataUrl(null);
+			});
+		return () => {
+			cancelado = true;
+		};
+	}, [imagem.id]);
+
+	return (
+		<div className="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-white/[0.03]">
+			<button
+				type="button"
+				onClick={onVisualizar}
+				className="block h-28 w-full rounded-lg border border-gray-100 bg-gray-50 bg-cover bg-center dark:border-gray-800 dark:bg-white/5"
+				style={dataUrl ? { backgroundImage: `url('${dataUrl}')` } : undefined}
+				title="Ver em tamanho grande"
+			/>
+			<div className="mt-2 truncate text-sm font-medium text-gray-800 dark:text-white/90">
+				{imagem.entidade_nome || `#${imagem.entidade_id}`}
+			</div>
+			<div className="text-xs text-gray-400">
+				{imagem.mimetype} · {formatarTamanho(imagem.tamanho_bytes)}
+			</div>
+			<div className="mt-2 flex justify-end">
+				<button
+					type="button"
+					onClick={onExcluir}
+					className="rounded-lg bg-error-50 px-3 py-1.5 text-xs font-semibold text-error-600 hover:bg-error-100 dark:bg-error-500/10 dark:text-error-400"
+				>
+					Excluir
+				</button>
+			</div>
 		</div>
 	);
 }

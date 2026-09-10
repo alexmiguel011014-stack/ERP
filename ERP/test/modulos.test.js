@@ -180,9 +180,9 @@ test("carregarModulos: ids duplicados entre manifestos lança erro", () => {
 // dado fixo justamente para detectar se algum handler silenciosamente
 // deixasse de ser registrado numa mudança futura. "consignacoes.js" foi
 // adicionado deliberadamente ao módulo "produtos" (GOALS.md, seção "2.
-// Consignação"), "imagens.js" pelo novo módulo "imagens" (GOALS.md, "Image
-// Database & Management") — atualizados aqui junto, não uma regressão da
-// lista antiga.
+// Consignação"), "imagens.js" ao módulo "banco" (GOALS.md, "Image Database &
+// Management" — "Gerenciar Imagens" vive dentro de /banco, não é módulo
+// próprio) — atualizados aqui junto, não uma regressão da lista antiga.
 test("carregarModulos: loop de registro de IPC cobre o mesmo conjunto de arquivos que a lista antiga hardcoded", () => {
 	const ANTIGA_LISTA_HARDCODED = [
 		"produtos.js",
