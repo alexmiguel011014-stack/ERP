@@ -44,6 +44,12 @@ function formatarPeriodo(iso: string, granularidade: Granularidade): string {
 	return `${dia}/${mes}`;
 }
 
+function formatarEixoY(valor: number): string {
+	return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 }).format(
+		valor,
+	);
+}
+
 export default function FaturamentoChart() {
 	const [escopo, setEscopo] = useState<EscopoPeriodo>("7d");
 	const [granularidade, setGranularidade] = useState<Granularidade>("dia");
@@ -106,6 +112,9 @@ export default function FaturamentoChart() {
 			axisTicks: { show: false },
 			tickAmount: Math.max(0, Math.min(dados.length - 1, 8)),
 			labels: { rotate: 0 },
+		},
+		yaxis: {
+			labels: { formatter: formatarEixoY },
 		},
 		grid: {
 			xaxis: { lines: { show: false } },

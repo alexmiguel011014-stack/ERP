@@ -775,3 +775,29 @@ span.flatpickr-weekday,
   opacity: 0.8;
   cursor: grabbing; /* Changes the cursor to indicate dragging */
 }
+
+/* Hide scrollbar on overflow-* elements (except custom-scrollbar) while keeping scroll functionality */
+.overflow-y-auto:not(.custom-scrollbar)::-webkit-scrollbar,
+.overflow-x-auto:not(.custom-scrollbar)::-webkit-scrollbar,
+.overflow-auto:not(.custom-scrollbar)::-webkit-scrollbar {
+  display: none;
+}
+.overflow-y-auto:not(.custom-scrollbar),
+.overflow-x-auto:not(.custom-scrollbar),
+.overflow-auto:not(.custom-scrollbar) {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+/* Hide the native document scrollbar (pages that scroll the whole body, e.g.
+   Produtos > Estoque, which has no wrapping overflow-* container) — same
+   hide-but-still-scrollable treatment as above. */
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none;
+}
+html,
+body {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}

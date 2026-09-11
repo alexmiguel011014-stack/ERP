@@ -5163,6 +5163,18 @@ rewrite, but no irreversible or cross-system risk.
       into an unreadable diagonal mess. **Fixed**: added `xaxis.tickAmount` (capped at 8) and
       `labels.rotate: 0` to `FaturamentoChart.tsx`; re-verified `6m` (26 buckets) and `5a` (60
       buckets) both now show a clean, evenly-spaced, horizontal set of labels.
+- [x] **Bug found by the owner after this feature merged into `main`** (2026-09-10): the y-axis
+      showed raw unformatted numbers with a long decimal tail (e.g. `20000.000000000000`,
+      `15000.000000000000`) instead of a readable pt-BR number — `yaxis` had no `labels.formatter`
+      at all in the original implementation, so ApexCharts fell back to its own default numeric
+      rendering. **Fixed**: added `yaxis: { labels: { formatter: formatarEixoY } }` to
+      `FaturamentoChart.tsx`, where `formatarEixoY` is a local
+      `Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 })` formatter (e.g. `20000` → `20.000`)
+      — kept separate from `formatarMoeda` (used in the tooltip) since a currency symbol on every
+      y-axis tick would be cluttered in a 190px-tall chart; the tooltip on hover still shows the
+      full `R$` value. **Verified**: re-ran the isolated preview with intentionally non-integer
+      synthetic values (previous verification pass had rounded them, which masked this) —
+      y-axis now renders clean grouped integers (`7.000`, `6.000`, ...).
 
 ### Registration
 
