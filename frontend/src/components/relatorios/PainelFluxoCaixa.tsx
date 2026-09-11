@@ -1,7 +1,8 @@
 "use client";
-import Button from "@/components/ui/button/Button";
-import Input from "@/components/form/input/InputField";
 import { formatarMoeda } from "@/components/dashboard/formatos";
+import PeriodoRelatorioControles, {
+	type PeriodoRelatorio,
+} from "@/components/relatorios/PeriodoRelatorioControles";
 import type {
 	FluxoCaixa,
 	FluxoCaixaGrupo,
@@ -180,35 +181,21 @@ export default function PainelFluxoCaixa({
 	setDataInicio: (valor: string) => void;
 	dataFim: string;
 	setDataFim: (valor: string) => void;
-	onGerar: () => void;
+	onGerar: (periodo: PeriodoRelatorio) => void;
 	carregando: boolean;
 }) {
 	return (
 		<div className="grid grid-cols-1 gap-4">
-			<div className="flex flex-wrap items-end gap-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
-				<div>
-					<label className="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">
-						De
-					</label>
-					<Input
-						type="date"
-						value={dataInicio}
-						onChange={(e) => setDataInicio(e.target.value)}
-					/>
-				</div>
-				<div>
-					<label className="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">
-						Até
-					</label>
-					<Input
-						type="date"
-						value={dataFim}
-						onChange={(e) => setDataFim(e.target.value)}
-					/>
-				</div>
-				<Button onClick={onGerar} disabled={carregando}>
-					{carregando ? "Gerando..." : "Gerar fluxo"}
-				</Button>
+			<div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+				<PeriodoRelatorioControles
+					dataInicio={dataInicio}
+					setDataInicio={setDataInicio}
+					dataFim={dataFim}
+					setDataFim={setDataFim}
+					onAplicar={onGerar}
+					carregando={carregando}
+					idBase="fluxo-caixa"
+				/>
 			</div>
 
 			{!dados ? (
