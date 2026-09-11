@@ -6250,3 +6250,222 @@ inventions. No later month is enabled by this goal.
 **Ordering rule:** GOALS18-01..04 settle the data contract; GOALS18-05..09 implement the one-file
 boundary; GOALS18-10..12 verify it; GOALS18-13 documents the stop condition. GOALS17's open
 manual gate remains independently required before any real January import.
+
+## GOALS 19 — Relatórios: complete managerial PDF report with charts (feature, not started)
+
+**Owner-reported (2026-09-10):** the "generate report" action produces a "muito básico" (very
+basic) report. Investigated instead of guessing which button: the Relatórios page
+(`frontend/src/app/(admin)/relatorios/page.tsx`) itself is already rich on screen — 13 panels
+fetched together by `useRelatorios().gerar()` (`frontend/src/hooks/useRelatorios.ts`), 4 of them
+already showing an ApexCharts chart (`frontend/src/components/relatorios/RelatoriosCharts.tsx`).
+The actual gap is the **exported PDF** (`exportarRelatorioPdf` in
+`frontend/src/lib/utils/relatoriosExport.ts`, wired from `exportarPdf()` at
+`page.tsx`'s ~line 71, triggered by the "Exportar PDF" button in `RelatoriosFiltros.tsx`) — this
+is the one artifact a store owner actually keeps/prints/shares, i.e. "o relatório" in the
+colloquial sense, and today it only prints plain jsPDF text/tables, with **zero chart images**
+and only **7 of the 13** sections the screen already has (`vendasPeriodo`, `curvaAbc`,
+`comissoes`, `dre`, `margemContribuicao`, `pontoDeEquilibrio`, `giroEstoque` are wired;
+`segmentacaoClientes`, `produtosParados`, `sazonalidade`, `conversaoOrcamentos`,
+`agingRecebiveis`, and `fluxoCaixa` are fetched by the hook but never passed into the PDF
+function at all). The legacy `modules/relatorios/relatorios.js` PDF export was checked as a
+possible reference and is not one — it's equally text-only and has an actual duplicate-table
+bug (`exportarRelatorioPdf`'s own top-of-file comment already documents finding and fixing this
+when the function was ported). No backend change is needed anywhere in this goal — every field
+below is already computed by `db/relatorios.js` and already exposed by all 13
+`erpApi.relatorios.*` calls.
+
+```mermaid
+flowchart TD
+  A[Wire all 13 report sections into the PDF payload] --> B[Executive summary block]
+  A --> D[Existing charts: daily sales, payment method, ABC curve, DRE]
+  A --> E[New charts: stock turnover, receivables aging, segmentation, seasonality]
+  A --> F[New text sections: budget conversion, stalled products, cash flow]
+  C[Off-screen chart to image helper] --> D
+  C --> E
+  B --> G[Pagination and loading state polish]
+  D --> G
+  E --> G
+  F --> G
+  G --> H[Lint, typecheck, build and manual verification]
+  H --> I[Document in AGENTS.md]
+```
+
+Suggested: sonnet · high — nontrivial async/canvas logic and a real SSR pitfall to avoid, but
+fully scoped to two files with every field and gotcha already identified below, not an
+open-ended exploration.
+
+### Design rationale and contract
+
+- [x] **GOALS19-01 — Scope: PDF export only, reuse what already exists.** Touch only
+  `frontend/src/lib/utils/relatoriosExport.ts`, its call site in
+  `frontend/src/app/(admin)/relatorios/page.tsx`, and (only if the export file grows unwieldy) one
+  small sibling helper module in the same `lib/utils/` folder. No change to `db/relatorios.js`,
+  `ipc/relatorios.js`, or any on-screen panel component (`PainelGiroEstoque`,
+  `PainelAgingRecebiveis`, `PainelSegmentacaoClientes`, `PainelSazonalidade`, etc. stay exactly as
+  they are — the complaint is about the exported document, and the on-screen dashboard is not
+  broken or basic). For chart colors, match (duplicate the small palette if needed — this
+  codebase's own precedent, per the comment at the top of `formatos.ts`, is that a palette this
+  small isn't worth sharing a file over) the same values as `CORES` in `RelatoriosCharts.tsx`, so
+  the printed charts look like the on-screen ones.
+  **Done when:** this scope note is in the implementation commit/PR description, and no file
+  outside the ones listed above is touched.
+
+- [x] **GOALS19-02 — Decide the chart-to-image technique up front.** Render each chart with the
+  vanilla `apexcharts` package (already a direct `frontend/package.json` dependency,
+  `^4.3.0` — no install needed) into a container `document.body.appendChild`-ed off-screen
+  (e.g. `position: fixed; left: -10000px; top: 0` with explicit pixel `width`/`height` — never
+  `display: none`, which reports zero size to ApexCharts and produces a blank image), then
+  `await chart.render()`, `const { imgURI } = await chart.dataURI()`, then `chart.destroy()` and
+  remove the container. **Real constraint already found in this codebase:** `RelatoriosCharts.tsx`
+  wraps `react-apexcharts` in `dynamic(() => import("react-apexcharts"), { ssr: false })`
+  specifically because `apexcharts`'s runtime code touches `window`/`document` at import time,
+  which breaks `next build`'s static-export prerendering pass. The new code must load the
+  `ApexCharts` class the same safe way — `const { default: ApexCharts } = await import("apexcharts")`
+  **inside** the async export function, never as a static top-level `import ApexCharts from
+  "apexcharts"` in `relatoriosExport.ts`. (A type-only `import type { ApexOptions } from
+  "apexcharts"` at the top of the file is fine — it's erased at compile time and carries no
+  runtime `document`/`window` access.)
+  **Done when:** `cd frontend && npm run build` still completes successfully after the feature is
+  implemented (this is the actual regression check for this constraint, not typecheck alone).
+
+### Implementation plan
+
+- [x] **GOALS19-03 — Wire all 13 hook fields into the PDF call.** In `page.tsx`'s `exportarPdf()`
+  (~line 71), pass the 6 fields the hook already fetches but the PDF never receives —
+  `segmentacaoClientes`, `produtosParados`, `sazonalidade`, `conversaoOrcamentos`,
+  `agingRecebiveis`, `fluxoCaixa` — alongside the 7 already passed (`resumo: vendasPeriodo`,
+  `dre`, `comissoes`, `curvaAbc`, `margemContribuicao`, `pontoDeEquilibrio`, `giroEstoque`) plus
+  the separately-built `periodo`.
+  **Done when:** the object passed to `exportarRelatorioPdf` carries all 13 of `useRelatorios()`'s
+  data fields.
+
+- [x] **GOALS19-04 — Extend `exportarRelatorioPdf`'s parameter type.** Add the 6 new fields typed
+  exactly as `erpApi.ts` already defines them (`SegmentacaoClienteLinha[]`, `ProdutoParadoLinha[]`,
+  `SazonalidadeResultado | null`, `ConversaoOrcamentosResultado | null`,
+  `AgingRecebiveisResultado | null`, `RelatorioFluxoCaixaResultado | null`), following the file's
+  existing nullable-param convention (its own top comment already explains why: screen and PDF
+  silently diverging once before is the exact bug class this whole goal is closing for good).
+  **Done when:** TypeScript compiles with no `any`, and every field the screen can show has a
+  matching PDF parameter.
+
+- [x] **GOALS19-05 — Build the off-screen chart-to-image helper.** Per GOALS19-02's technique,
+  e.g. `async function graficoParaImagem(options: ApexOptions, series, larguraPx = 900, alturaPx =
+  380): Promise<string>` returning the base64 `imgURI` PNG. Render at a pixel size larger than its
+  eventual PDF placement (e.g. ~900×380px for a ~500×210pt placement) so the embedded PNG isn't
+  blurry when printed. Wrap render/`dataURI`/cleanup in try/finally so the detached container and
+  ApexCharts instance are always removed/destroyed, including on error.
+  **Done when:** calling it with a known series returns a non-empty `data:image/png;base64,...`
+  string and leaves no orphaned DOM node or chart instance behind afterward, success or failure.
+
+- [x] **GOALS19-06 — Add an "Indicadores-Chave" summary block.** Place it right after the existing
+  header (title/período/gerado-em) and before "Resumo de Vendas", visually distinct (boxed,
+  larger font) from the rest of the document — not just another `linhaTexto` line. Surface: Vendas,
+  Faturamento, Ticket médio (mirroring the on-screen `RelatoriosStats` cards); Lucro Líquido and
+  Margem Líquida % (from `dre`, when present); Total em aberto (from `agingRecebiveis.totalGeral`,
+  when present); count of Produtos Parados (from `produtosParados.length`, when present). Guard
+  each field independently so a partially-loaded report never crashes.
+  **Done when:** the block renders with whatever subset of these is available, clearly set apart
+  visually from the section text below it.
+
+- [x] **GOALS19-07 — Embed chart images for the 4 already-charted sections.** Mirror the same
+  `options`/`series` construction (colors, categories, tooltip formatters) as
+  `RelatoriosCharts.tsx`'s `PorDiaChart`, `PorPagamentoChart`, `CurvaAbcChart`, and `DreChart` —
+  expressed as plain ApexCharts config objects (not the React components) — built through
+  GOALS19-05's helper. Place each image directly above its existing table/text block, guarded by
+  the same emptiness check already used for that section's table, so an empty section prints
+  neither a broken chart nor an orphaned heading.
+  **Done when:** Resumo de Vendas (por dia + por forma de pagamento charts), Curva ABC, and DRE
+  each show a chart image above their existing table/text, in the same colors as on screen.
+
+- [x] **GOALS19-08 — Add a "Giro de Estoque" chart.** Horizontal bar of the top 10 products by
+  `giro` descending (skip null `giro`), placed before the existing giro table.
+  **Done when:** present only when `giroEstoque.length > 0`; renders correctly with fewer than 10
+  rows.
+
+- [x] **GOALS19-09 — Add an "Aging de Recebíveis" section.** A 5-bucket column chart
+  (`aVencer`/`atraso0a30`/`atraso31a60`/`atraso61a90`/`atraso90mais` totals) plus the existing
+  summary numbers, plus a table of the 10 most overdue open items — flatten `.itens` across the
+  three overdue buckets, sort by `diasAtraso` descending, cap at 10 with a trailing "+ N outros em
+  atraso" line when truncated. This actionable "who to call" list is what a text-only total can't
+  give.
+  **Done when:** present only when `agingRecebiveis` is non-null and `totalGeral > 0`.
+
+- [x] **GOALS19-10 — Add a "Segmentação de Clientes" section.** A donut chart of client counts per
+  `segmento` (Frequente/Ativo/Em risco/Inativo/Nunca comprou) plus a table of the top 10 clients by
+  `valorTotal` descending (nome, frequência, valor gasto, segmento).
+  **Done when:** present only when `segmentacaoClientes.length > 0`.
+
+- [x] **GOALS19-11 — Add a "Sazonalidade" chart.** Bar chart of `porDiaSemana` (faturamento by
+  weekday, using each entry's `nome`). Leave `porHora` (24 rows) as a single derived text line
+  instead of a second chart/table — e.g. "Horário de pico: {hora}h ({faturamento})" computed from
+  the max-faturamento entry — to keep the report a reasonable length.
+  **Done when:** present only when `sazonalidade` is non-null with at least one non-zero weekday.
+
+- [x] **GOALS19-12 — Add the two remaining lightweight text sections.** "Conversão de Orçamentos"
+  (convertidas/canceladas/abertas counts + `taxaConversaoPercentual`, mirroring
+  `PainelConversaoOrcamentos` — no chart needed for 3 numbers) and "Produtos Parados" (table capped
+  at 20 rows sorted by `quantidadeEstoque` descending, trailing "+ N outros parados" line when
+  truncated).
+  **Done when:** both present only when their guard condition (non-null / non-empty) holds,
+  matching the file's existing pattern for every other section.
+
+- [x] **GOALS19-13 — Add a "Fluxo de Caixa" summary section.** From `fluxoCaixa.realizado`: the 3
+  realized totals (entradas/saídas/saldo) plus its `porCategoria` groups as a compact table
+  (categoria, saldo, entradas, saídas) — same period as the rest of the report. Deliberately
+  exclude the full `eventos` array (a detailed day-by-day ledger meant for on-screen browsing —
+  printing it could make the PDF hundreds of pages long for an active store) and exclude
+  `projetado` (a forward-looking projection, out of place in a report about what already
+  happened).
+  **Done when:** present only when `fluxoCaixa?.realizado` exists; confirm neither the full
+  `eventos` list nor `projetado` data is printed.
+
+- [x] **GOALS19-14 — Async export with loading feedback and page numbers.**
+  `exportarRelatorioPdf` becomes `async` (it now builds up to 8 chart images before laying out the
+  document); its caller `exportarPdf()` in `page.tsx` becomes `async` too, wrapped in try/finally.
+  Add an `exportandoPdf` state in the page component; disable the "Exportar PDF" button and swap
+  its label to "Gerando PDF..." while true, mirroring the existing `{carregando ? "Gerando..." :
+  "Gerar"}` pattern already in `RelatoriosFiltros.tsx`. After all content is laid out, loop
+  `doc.internal.getNumberOfPages()` and stamp "Página X de Y" in the footer of every page (small
+  font, bottom margin) before the final `doc.save(...)`.
+  **Done when:** the button visibly shows a busy state for the render time, re-enables after
+  `save()` or on error, and every page of a multi-page export shows correct page numbers.
+
+### Verification
+
+- [x] **GOALS19-15 — Static checks.** Run `cd frontend && npm run lint`, `npm run typecheck`, and
+  `npm run build` (the build is the real regression check for GOALS19-02's SSR/dynamic-import
+  constraint).
+  **Done when:** all three commands exit 0.
+
+- [x] **GOALS19-16 — Manual Electron gate [manual].** Start the app (`npm start` at the repo
+  root), open Relatórios as an admin user, let it auto-load, click "Exportar PDF", and open the
+  resulting file. Confirm: the Indicadores-Chave block is correct; all 8 charts render as actual
+  images (not blank/broken); all 13 data sections appear (the 7 pre-existing ones plus the 6
+  newly wired ones); pagination and page numbers are correct across a multi-page result; no
+  console errors during export. Then repeat with a date range that has zero sales (e.g. a future
+  date range) to confirm every guarded section is skipped cleanly instead of crashing or printing
+  an empty/broken chart.
+  **Done when:** the operator visually confirms both the normal-data and zero-data runs produce a
+  correct PDF with no console errors.
+
+- [x] **GOALS19-17 — Document it.** Append a dated entry to `AGENTS.md`'s "Funcionalidades
+  Implementadas (resumo)" section (matching the existing "**Adicionado YYYY-MM-DD**" convention
+  used for the two most recent entries), summarizing that the exported PDF report now covers all
+  13 report sections with an executive summary and 8 embedded charts, referencing this GOALS.md
+  section by name.
+  **Done when:** `AGENTS.md` has the new dated paragraph and every GOALS 19 item above is checked
+  off.
+
+**Done when:** "Exportar PDF" on the Relatórios page produces a single PDF carrying all 13 report
+sections (up from 7), led by a key-indicators summary, illustrated with 8 chart images matching
+the on-screen palette, correctly paginated with page numbers — without touching the backend or
+any on-screen panel.
+
+**Ordering rule:** GOALS19-01..02 settle scope and the chart technique before any code is written
+— the SSR/dynamic-import constraint in particular must be decided first, since discovering it
+after implementation means redoing every chart call site. GOALS19-03..04 wire data end-to-end
+first, since every later item depends on the PDF function actually receiving the data it needs.
+GOALS19-05 (the chart helper) must exist before GOALS19-06..13, which fill in the document's
+content in roughly the order it reads top to bottom. GOALS19-14 (async/pagination polish) comes
+last because it wraps the now-complete content, not any single section. GOALS19-15..16 verify the
+finished feature; GOALS19-17 documents it once verified.

@@ -12,6 +12,7 @@ export default function RelatoriosFiltros({
 	onExportarCsv,
 	onExportarPdf,
 	carregando,
+	exportandoPdf,
 }: {
 	dataInicio: string;
 	setDataInicio: (v: string) => void;
@@ -21,6 +22,7 @@ export default function RelatoriosFiltros({
 	onExportarCsv: () => void;
 	onExportarPdf: () => void;
 	carregando: boolean;
+	exportandoPdf?: boolean;
 }) {
 	return (
 		<div className="flex flex-wrap items-end gap-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
@@ -46,8 +48,12 @@ export default function RelatoriosFiltros({
 			<Button variant="outline" onClick={onExportarCsv}>
 				Exportar ABC (CSV)
 			</Button>
-			<Button variant="outline" onClick={onExportarPdf}>
-				Exportar PDF
+			<Button
+				variant="outline"
+				onClick={onExportarPdf}
+				disabled={exportandoPdf}
+			>
+				{exportandoPdf ? "Gerando PDF..." : "Exportar PDF"}
 			</Button>
 		</div>
 	);
