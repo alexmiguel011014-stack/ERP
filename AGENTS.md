@@ -375,6 +375,15 @@ arquivo já usado pra imagem de produto, `usuario-imagens/` em vez de `produto-i
 precisar de acesso à tela de Gerenciar Acessos. Foto tem prioridade sobre a cor quando as duas
 existem.
 
+**Adicionado 2026-09-11** (ver `GOALS.md`, seção "Relatórios: complete managerial PDF report with
+charts"): botão "Exportar PDF" da tela de Relatórios agora gera um relatório gerencial completo
+com 13 seções (as 7 já existentes + Indicadores-Chave, Aging de Recebíveis, Segmentação de
+Clientes, Sazonalidade, Conversão de Orçamentos, Produtos Parados, Fluxo de Caixa) e 8 gráficos
+embutidos como imagem (`apexcharts` renderizado off-screen e convertido para PNG via
+`chart.dataURI()`, já que jsPDF não desenha gráficos nativamente). Cada gráfico/seção só aparece
+quando há dado real (`talvezGrafico`), evitando eixos vazios/quebrados quando todos os valores são
+zero.
+
 ## Fora de escopo (decidido)
 
 ~~Emissão de NF-e / NFC-e: requer integração ao SEFAZ... inviável em ERP desktop offline.~~
