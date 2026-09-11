@@ -131,6 +131,71 @@ test.describe("sistema de abas do header (frontend novo)", () => {
 			.click();
 		await expect(window.getByTitle("Fechar Compras")).toBeVisible();
 	});
+
+	test("Relatórios mantém o período estático nas três abas", async () => {
+		await window
+			.locator("aside")
+			.getByTitle("Relatórios", { exact: true })
+			.click();
+
+		await expect(
+			window.getByRole("button", { name: "Período", exact: true }),
+		).toHaveCount(0);
+		await expect(
+			window.getByRole("button", { name: "Este mês", exact: true }),
+		).toBeVisible();
+		await expect(
+			window.getByRole("button", { name: "Período todo", exact: true }),
+		).toBeVisible();
+		await expect(
+			window.getByRole("button", { name: "Exportar ABC (CSV)", exact: true }),
+		).toBeVisible();
+		await expect(
+			window.getByRole("button", { name: "Exportar PDF", exact: true }),
+		).toBeVisible();
+
+		await window.getByRole("button", { name: "Vendas", exact: true }).click();
+		await expect(
+			window.locator('input[type="date"]:visible'),
+		).toHaveCount(2);
+		await expect(
+			window.getByRole("button", { name: "Exportar CSV", exact: true }),
+		).toBeVisible();
+		const datasVendas = window.locator('input[type="date"]:visible');
+		await datasVendas.nth(0).fill("2026-01-01");
+		await datasVendas.nth(1).fill("2026-01-31");
+		await window
+			.getByRole("button", { name: "Aplicar período", exact: true })
+			.click();
+		await window
+			.getByRole("button", { name: "Período todo", exact: true })
+			.click();
+		await expect(datasVendas.nth(0)).toHaveValue("");
+		await expect(datasVendas.nth(1)).toHaveValue("");
+
+		await window
+			.getByRole("button", { name: "Fluxo de Caixa", exact: true })
+			.click();
+		const datas = window.locator('input[type="date"]:visible');
+		await datas.nth(0).fill("2026-01-01");
+		await datas.nth(1).fill("2026-01-31");
+		await window
+			.getByRole("button", { name: "Aplicar período", exact: true })
+			.click();
+		await expect(window.getByText("01/01/2026 — 31/01/2026").first()).toBeVisible();
+
+		await window
+			.getByRole("button", { name: "Período todo", exact: true })
+			.click();
+		await expect(datas.nth(0)).toHaveValue("");
+		await expect(datas.nth(1)).toHaveValue("");
+
+		const hoje = new Date(`${new Date().toISOString().slice(0, 10)}T12:00:00`)
+			.toLocaleDateString("pt-BR");
+		await expect(
+			window.getByText(`01/01/1900 — ${hoje}`).first(),
+		).toBeVisible();
+	});
 });
 
 // Fluxo redesenhado (2026-09-08, pedido do dono): baixar e instalar agora são
