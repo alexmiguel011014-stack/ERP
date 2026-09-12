@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApexOptions } from "apexcharts";
 import dynamic from "next/dynamic";
 import { formatarMoeda } from "./formatos";
@@ -56,6 +56,27 @@ export default function FaturamentoChart() {
 	const [dados, setDados] = useState<Ponto[]>([]);
 	const [carregando, setCarregando] = useState(true);
 	const [erro, setErro] = useState<string | null>(null);
+	const hostRef = useRef<HTMLDivElement>(null);
+	const [largura, setLargura] = useState<number | null>(null);
+
+	useEffect(() => {
+		const host = hostRef.current;
+		if (!host) return;
+		const atualizarLargura = (valor: number) => {
+			const proximaLargura = Math.round(valor);
+			if (proximaLargura > 0) {
+				setLargura((atual) =>
+					atual === proximaLargura ? atual : proximaLargura,
+				);
+			}
+		};
+		atualizarLargura(host.clientWidth);
+		const observador = new ResizeObserver(([entrada]) =>
+			atualizarLargura(entrada.contentRect.width),
+		);
+		observador.observe(host);
+		return () => observador.disconnect();
+	}, []);
 
 	useEffect(() => {
 		if (!window.api?.dashboardFaturamentoPeriodo) {
@@ -91,6 +112,8 @@ export default function FaturamentoChart() {
 			fontFamily: "Outfit, sans-serif",
 			type: "area",
 			height: 190,
+			redrawOnParentResize: false,
+			redrawOnWindowResize: false,
 			toolbar: { show: false },
 			animations: { enabled: true },
 		},
@@ -131,7 +154,10 @@ export default function FaturamentoChart() {
 	const labelEscopo = ESCOPOS.find((e) => e.chave === escopo)?.label ?? "";
 
 	return (
-		<div className="overflow-hidden rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+		<div
+			data-testid="dashboard-faturamento-chart"
+			className="overflow-hidden rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"
+		>
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				<h3 className="text-sm font-semibold text-gray-800 dark:text-white/90">
 					Faturamento — {labelEscopo}
@@ -158,17 +184,18 @@ export default function FaturamentoChart() {
 					{erro}
 				</p>
 			) : (
-				<div className="max-w-full overflow-x-auto custom-scrollbar">
-					<div
-						className={`-ml-4 mt-2 min-w-[500px] pl-2 xl:min-w-full ${carregando ? "opacity-50" : ""}`}
-					>
-						<ReactApexChart
-							options={options}
-							series={series}
-							type="area"
-							height={190}
-						/>
-					</div>
+				<div
+					ref={hostRef}
+					data-testid="dashboard-faturamento-chart-host"
+					className={`mt-2 min-w-0 w-full ${carregando ? "opacity-50" : ""}`}
+				>
+					<ReactApexChart
+						options={options}
+						series={series}
+						type="area"
+						width={largura ?? "100%"}
+						height={190}
+					/>
 				</div>
 			)}
 		</div>

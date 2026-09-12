@@ -6481,3 +6481,45 @@ GOALS19-05 (the chart helper) must exist before GOALS19-06..13, which fill in th
 content in roughly the order it reads top to bottom. GOALS19-14 (async/pagination polish) comes
 last because it wraps the now-complete content, not any single section. GOALS19-15..16 verify the
 finished feature; GOALS19-17 documents it once verified.
+
+## GOALS 20 — Stabilize the dashboard revenue chart and remove its scrollbars (fix)
+
+```mermaid
+flowchart TD
+    A[Reproduce at a narrow dashboard width] --> B[Remove forced scroll layout]
+    B --> C[Own chart resizing outside Apex's parent observer]
+    C --> D[Electron regression test: hover, resize, no overflow]
+    D --> E[Manual light and dark verification]
+```
+
+Suggested: gpt-5.6-terra · medium — this is a contained frontend fix, but it must preserve the chart while the hover-controlled sidebar changes the available width.
+
+**Current wrong behavior:** `FaturamentoChart` can display a horizontal scrollbar and repeatedly redraw while the user hovers its series, making the responsive chart look unstable. The dashboard may also expose an unnecessary vertical scroll rail around the chart area.
+
+**Expected behavior:** the revenue chart fits the available dashboard width without internal horizontal or vertical scrolling, keeps its area/tooltip interaction stable, and resizes once when the window or hover-controlled sidebar changes the usable width.
+
+### Reproduction and root cause
+
+- [x] **GOALS20-01 — Capture the regression in the real Electron surface.** Add a focused isolated-data Electron/Playwright scenario following `e2e/tab-system.spec.ts`: bootstrap a temporary `ERP_TEST_USERDATA_DIR`, authenticate, shrink the `BrowserWindow` to 480px wide, wait for the revenue chart, hover a rendered data point, then record console warnings/errors and the chart card's `scrollWidth`, `clientWidth`, `scrollHeight`, and `clientHeight`. The test must fail against the current component because its chart wrapper explicitly has `overflow-x-auto custom-scrollbar` and its child explicitly has `min-w-[500px]`; a card narrower than 500px therefore overflows by construction. It must also exercise the hover path which the owner reports as unstable.
+  **Done when:** the pre-fix test demonstrates horizontal overflow at the constrained width and gives an unambiguous baseline for the hover assertion, using only a disposable test database.
+
+- [x] **GOALS20-02 — Record and isolate the resize feedback path.** The chart configuration in `frontend/src/components/dashboard/FaturamentoChart.tsx` does not override ApexCharts' resize defaults. In the installed `apexcharts@4.3.0`, both `redrawOnParentResize` and `redrawOnWindowResize` default to `true`; the former registers a parent resize listener and redraws the complete SVG. That observer sits inside the component's forced-width, scrolling layout, so the graph's own hover/animation updates can feed browser layout back into chart redraw work. Confirm the Electron test sees no unrelated page error before treating a `ResizeObserver` warning as chart-originated.
+  **Done when:** the implementation notes name the forced `min-w-[500px]`/`overflow-x-auto` pair as the scrollbar cause and the unbounded Apex parent-resize listener as the redraw-loop cause; no global `overflow: hidden` workaround is proposed.
+
+### Fix
+
+- [x] **GOALS20-03 — Make the chart card intrinsically fit its grid column.** In `FaturamentoChart.tsx`, remove the chart-only `overflow-x-auto custom-scrollbar`, `min-w-[500px]`, negative margin, and padding compensation. Replace them with a `min-w-0 w-full` host whose dimensions are supplied by the dashboard grid. The chart card itself must not use `overflow-x-auto`, `overflow-y-auto`, `overflow-auto`, or `custom-scrollbar`. Do not alter global scrollbar utilities in `globals.css`: other tables, the calendar, and non-dashboard charts intentionally use them.
+  **Done when:** at a 480px window the revenue-chart host has `scrollWidth <= clientWidth` and neither dimension has computed scrolling overflow; the document may still scroll normally if the whole dashboard legitimately exceeds the viewport height.
+
+- [x] **GOALS20-04 — Replace ApexCharts' self-observing parent resize with one bounded size source.** Give the chart host a ref and observe its content box in a client-side effect. Store only a rounded, changed width; clean up the observer on unmount. Feed that explicit width to the chart and set `chart.redrawOnParentResize` and `chart.redrawOnWindowResize` to `false`, preventing Apex from attaching a second observer to a parent it also mutates. The component-owned observer must ignore equal widths, so a tooltip/marker update cannot schedule another render. This keeps the graph responsive when `AdminLayout` changes its `lg:ml-[76px]`/`lg:ml-[260px]` sidebar margin, which a window-only listener would miss.
+  **Done when:** a real host-width change causes at most one chart update, hovering points does not produce repeated updates or `ResizeObserver` loop messages, and the SVG remains sized to its host after sidebar enter/leave and window resize.
+
+### Regression checks
+
+- [x] **GOALS20-05 — Turn the observed behavior into a permanent Electron regression test.** Keep the scenario from GOALS20-01 as an `e2e/dashboard-chart.spec.ts` test with a stable `data-testid` on the revenue-chart card. It must assert no internal X/Y scrolling overflow, no console text matching `ResizeObserver loop`, and a visible Apex tooltip after hover. Resize the test window, then trigger the sidebar hover expansion/collapse and assert the chart remains visible and within the card after the component-owned width update settles.
+  **Done when:** the test fails on the current forced-scroll implementation and passes after GOALS20-03..04; it removes its temporary user-data directory in `afterAll`.
+
+- [ ] **GOALS20-06 — Run project checks and visually sign off [manual].** Run `cd frontend && npm run lint`, `npm run typecheck`, and `npm run build`, then run the focused E2E test. In a development Electron window, check the dashboard in light and dark themes at a normal desktop width and a narrow 480px window; hover several points and open/close the sidebar. Confirm no clipping, scrollbars, resize loop, or console error; also change all six range pills to verify the 7d, 1m, 6m, 1a, 5a, and all-time datasets still replace the series correctly.
+  **Done when:** all automated commands exit 0 and the operator sees a stable, scroll-free chart in both themes and widths.
+
+**Done when:** the Dashboard revenue chart has no internal horizontal or vertical scrollbar, hovering it is stable, and it correctly resizes with the dashboard without an ApexCharts parent-resize loop.
