@@ -11,6 +11,9 @@ import PrecificacaoTable, {
 	type AlteracaoPrecificacao,
 } from "@/components/produtos/PrecificacaoTable";
 import CondicoesParcelamentoPanel from "@/components/produtos/CondicoesParcelamentoPanel";
+import {
+	lerDecimalInformado,
+} from "@/lib/utils/formatos";
 
 export default function PrecificacaoPage() {
 	usePageHeader("Precificação", "Gerencie margens e preços de venda");
@@ -97,8 +100,10 @@ export default function PrecificacaoPage() {
 	}
 
 	async function salvarMargemGlobal() {
-		const val = parseFloat(margemGlobalInput || String(margemGlobal));
-		if (isNaN(val) || val < 0) {
+		const val = margemGlobalInput.trim()
+			? lerDecimalInformado(margemGlobalInput)
+			: margemGlobal;
+		if (val === null || !Number.isFinite(val) || val < 0 || val > 999) {
 			mostrarMensagem("Informe uma margem válida.", false);
 			return;
 		}
@@ -118,9 +123,10 @@ export default function PrecificacaoPage() {
 	}
 
 	async function salvarCustoFixo() {
-		const mensal =
-			parseFloat(custoFixoInput || String(custoFixoConfig.mensal)) || 0;
-		if (mensal < 0) {
+		const mensal = custoFixoInput.trim()
+			? lerDecimalInformado(custoFixoInput)
+			: custoFixoConfig.mensal;
+		if (mensal === null || !Number.isFinite(mensal) || mensal < 0) {
 			mostrarMensagem("Informe um valor válido.", false);
 			return;
 		}
@@ -140,8 +146,10 @@ export default function PrecificacaoPage() {
 	}
 
 	async function salvarTaxa() {
-		const taxa = parseFloat(taxaInput || String(taxaAdquirente)) || 0;
-		if (taxa < 0) {
+		const taxa = taxaInput.trim()
+			? lerDecimalInformado(taxaInput)
+			: taxaAdquirente;
+		if (taxa === null || !Number.isFinite(taxa) || taxa < 0 || taxa > 100) {
 			mostrarMensagem("Informe um valor válido.", false);
 			return;
 		}
@@ -169,11 +177,12 @@ export default function PrecificacaoPage() {
 	) {
 		// Pix sem valor informado significa explicitamente 0%: não reutilize uma
 		// taxa antiga, pois o padrão do Pix é sem taxa quando não há tarifa real.
-		const taxa =
-			metodo === "pix" && !valorInput.trim()
+		const taxa = valorInput.trim()
+			? lerDecimalInformado(valorInput)
+			: metodo === "pix"
 				? 0
-				: parseFloat(valorInput || String(valorAtual ?? 0)) || 0;
-		if (taxa < 0) {
+				: (valorAtual ?? 0);
+		if (taxa === null || !Number.isFinite(taxa) || taxa < 0 || taxa > 100) {
 			mostrarMensagem("Informe um valor válido.", false);
 			return;
 		}
@@ -279,8 +288,8 @@ export default function PrecificacaoPage() {
 			mostrarMensagem("Selecione ao menos um produto.", false);
 			return;
 		}
-		const margem = parseFloat(massaMargem);
-		if (isNaN(margem) || margem < 0) {
+		const margem = lerDecimalInformado(massaMargem);
+		if (margem === null || !Number.isFinite(margem) || margem < 0 || margem > 999) {
 			mostrarMensagem("Informe uma margem válida.", false);
 			return;
 		}
@@ -341,7 +350,8 @@ export default function PrecificacaoPage() {
 					<Label>Margem de Lucro Padrão (%)</Label>
 					<div className="flex gap-2">
 						<Input
-							type="number"
+							type="text"
+							inputMode="decimal"
 							value={margemGlobalInput || String(margemGlobal)}
 							onChange={(e) => setMargemGlobalInput(e.target.value)}
 							min="0"
@@ -365,7 +375,8 @@ export default function PrecificacaoPage() {
 					<Label>Custos Fixos do Mês (R$)</Label>
 					<div className="flex gap-2">
 						<Input
-							type="number"
+							type="text"
+							inputMode="decimal"
 							value={
 								custoFixoInput ||
 								(custoFixoConfig.mensal ? String(custoFixoConfig.mensal) : "")
@@ -395,7 +406,8 @@ export default function PrecificacaoPage() {
 					<Label>Taxa Média de Adquirente do Cartão (%)</Label>
 					<div className="flex gap-2">
 						<Input
-							type="number"
+							type="text"
+							inputMode="decimal"
 							value={
 								taxaInput || (taxaAdquirente ? String(taxaAdquirente) : "")
 							}
@@ -421,7 +433,8 @@ export default function PrecificacaoPage() {
 					<Label>Taxa de Adquirente — Pix (%, opcional)</Label>
 					<div className="flex gap-2">
 						<Input
-							type="number"
+							type="text"
+							inputMode="decimal"
 							value={
 								taxaPixInput ||
 								(taxaAdquirentePix !== null ? String(taxaAdquirentePix) : "")
@@ -430,7 +443,7 @@ export default function PrecificacaoPage() {
 							min="0"
 							max="100"
 							step={0.01}
-							placeholder="Ex: 0.5"
+							placeholder="Ex: 0,5"
 						/>
 						<Button
 							size="sm"
@@ -457,7 +470,8 @@ export default function PrecificacaoPage() {
 					<Label>Taxa de Adquirente — Cartão (%, opcional)</Label>
 					<div className="flex gap-2">
 						<Input
-							type="number"
+							type="text"
+							inputMode="decimal"
 							value={
 								taxaCartaoInput ||
 								(taxaAdquirenteCartao !== null
@@ -468,7 +482,7 @@ export default function PrecificacaoPage() {
 							min="0"
 							max="100"
 							step={0.01}
-							placeholder="Ex: 4"
+							placeholder="Ex: 4,0"
 						/>
 						<Button
 							size="sm"
@@ -567,7 +581,8 @@ export default function PrecificacaoPage() {
 						selecionado{selecionados.length === 1 ? "" : "s"}
 					</span>
 					<Input
-						type="number"
+						type="text"
+						inputMode="decimal"
 						value={massaMargem}
 						onChange={(e) => setMassaMargem(e.target.value)}
 						placeholder="Margem %"

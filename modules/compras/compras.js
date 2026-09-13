@@ -158,12 +158,12 @@
 			return;
 		}
 		var qtd = parseInt(qtdInput.value, 10);
-		var custo = Number(custoInput.value);
+		var custo = lerDecimalInformado(custoInput.value);
 		if (!Number.isInteger(qtd) || qtd <= 0) {
 			mostrarMensagem("Quantidade inválida.", "erro");
 			return;
 		}
-		if (!Number.isFinite(custo) || custo < 0) {
+		if (custo === null || custo < 0) {
 			mostrarMensagem("Custo inválido.", "erro");
 			return;
 		}

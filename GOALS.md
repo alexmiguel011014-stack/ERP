@@ -7,10 +7,10 @@ re-researching the codebase.
 
 **Project**: Offline desktop ERP for a Jiu-Jitsu retail store (ALLU). Electron + Node.js +
 SQLite (SQLCipher) + vanilla HTML/CSS/JS. No backend server, no cloud dependency — single
-`.exe` installer, single local encrypted database file. Current version `v1.0.5`
-(package.json), 21 tables in `db/schema.js`, 17 IPC domains, 18 frontend modules.
-Full inventory: `graphify-out/GRAPH_REPORT.md` (1800 nodes / 4267 edges / 180 communities,
-built from commit `16df208`).
+`.exe` installer, single local encrypted database file. Current version `v1.4.1`
+(package.json), 30 tables in `db/schema.js`, 22 IPC domains, 18 frontend modules.
+Full inventory: `graphify-out/GRAPH_REPORT.md` (5271 nodes / 11539 edges / 292 communities,
+built from commit `f1d54a63`).
 
 This file only lists what's incomplete, fragile, or missing. Fully working areas (PDV,
 produtos, clientes, fornecedores, compras, entrada de estoque, vendas, financeiro,

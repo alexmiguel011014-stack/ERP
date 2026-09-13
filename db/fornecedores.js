@@ -9,6 +9,17 @@ async function getFornecedores() {
 async function salvarFornecedor(dados) {
 	if (!dados || !String(dados.nome || "").trim())
 		throw new Error("O nome do fornecedor é obrigatório.");
+	const prazoBruto = dados.prazo_pagamento_dias;
+	const prazoPagamento = Number(prazoBruto);
+	if (
+		prazoBruto !== undefined &&
+		prazoBruto !== null &&
+		prazoBruto !== "" &&
+		!Number.isFinite(prazoPagamento)
+	)
+		throw new Error("O prazo de pagamento é inválido.");
+	if (Number.isFinite(prazoPagamento) && prazoPagamento < 0)
+		throw new Error("O prazo de pagamento não pode ser negativo.");
 	const result = await runAsync(
 		"INSERT INTO Fornecedores (nome, cnpj, telefone, email, contato, prazo_pagamento_dias, observacao) VALUES (?, ?, ?, ?, ?, ?, ?)",
 		[
@@ -17,7 +28,7 @@ async function salvarFornecedor(dados) {
 			dados.telefone || null,
 			dados.email || null,
 			dados.contato || null,
-			Number(dados.prazo_pagamento_dias) || 0,
+			Number.isFinite(prazoPagamento) ? prazoPagamento : 0,
 			dados.observacao || null,
 		],
 	);
@@ -27,6 +38,17 @@ async function salvarFornecedor(dados) {
 async function atualizarFornecedor(id, dados) {
 	if (!dados || !String(dados.nome || "").trim())
 		throw new Error("O nome do fornecedor é obrigatório.");
+	const prazoBruto = dados.prazo_pagamento_dias;
+	const prazoPagamento = Number(prazoBruto);
+	if (
+		prazoBruto !== undefined &&
+		prazoBruto !== null &&
+		prazoBruto !== "" &&
+		!Number.isFinite(prazoPagamento)
+	)
+		throw new Error("O prazo de pagamento é inválido.");
+	if (Number.isFinite(prazoPagamento) && prazoPagamento < 0)
+		throw new Error("O prazo de pagamento não pode ser negativo.");
 	const result = await runAsync(
 		"UPDATE Fornecedores SET nome=?, cnpj=?, telefone=?, email=?, contato=?, prazo_pagamento_dias=?, observacao=? WHERE id=?",
 		[
@@ -35,7 +57,7 @@ async function atualizarFornecedor(id, dados) {
 			dados.telefone || null,
 			dados.email || null,
 			dados.contato || null,
-			Number(dados.prazo_pagamento_dias) || 0,
+			Number.isFinite(prazoPagamento) ? prazoPagamento : 0,
 			dados.observacao || null,
 			id,
 		],
@@ -88,6 +110,8 @@ async function salvarProdutoFornecedor(dados) {
 		dados.prazo_entrega_dias !== ""
 			? Number(dados.prazo_entrega_dias)
 			: null;
+	if (prazo !== null && (!Number.isFinite(prazo) || prazo < 0))
+		throw new Error("O prazo de entrega não pode ser negativo.");
 
 	// Mesmo par fornecedor+SKU já cadastrado -> substitui (sem duplicar linha).
 	await runAsync(

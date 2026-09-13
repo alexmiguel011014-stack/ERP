@@ -12,6 +12,7 @@ import {
 	type SubtipoFinanceiro,
 } from "@/lib/erpApi";
 import { formatarMoeda } from "@/components/dashboard/formatos";
+import { lerDecimalInformado } from "@/lib/utils/formatos";
 
 export default function LancamentosRecorrentesTab() {
 	const [lista, setLista] = useState<LancamentoRecorrente[]>([]);
@@ -47,10 +48,11 @@ export default function LancamentosRecorrentesTab() {
 	}
 
 	async function criar() {
+		const valorInformado = lerDecimalInformado(valor);
 		const dados: NovoLancamentoRecorrente = {
 			tipo,
 			descricao: descricao.trim(),
-			valor: Number(valor),
+			valor: valorInformado ?? 0,
 			dia_mes: parseInt(diaMes, 10),
 			categoria: categoria || null,
 			subtipo: tipo === "pagar" && subtipo ? subtipo : null,
@@ -140,7 +142,8 @@ export default function LancamentosRecorrentesTab() {
 					<div>
 						<Label>Valor (R$)</Label>
 						<Input
-							type="number"
+							type="text"
+							inputMode="decimal"
 							value={valor}
 							onChange={(e) => setValor(e.target.value)}
 							min="0.01"

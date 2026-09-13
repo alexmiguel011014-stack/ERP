@@ -63,7 +63,7 @@ h1 { color: #1E293B; font-size: 1.3rem; font-weight: 600; margin-bottom: 6px; te
   align-items: center;
 }
 
-.config-input-row input[type="number"] {
+.config-input-row input:is([type="number"], [type="text"]) {
   width: 120px;
   padding: 8px 12px;
   border: 1px solid #E2E8F0;
@@ -73,7 +73,7 @@ h1 { color: #1E293B; font-size: 1.3rem; font-weight: 600; margin-bottom: 6px; te
   transition: border-color 0.15s;
 }
 
-.config-input-row input[type="number"]:focus { border-color: var(--cor-primaria); }
+.config-input-row input:is([type="number"], [type="text"]):focus { border-color: var(--cor-primaria); }
 
 .config-hint {
   display: block;
@@ -160,7 +160,7 @@ h1 { color: #1E293B; font-size: 1.3rem; font-weight: 600; margin-bottom: 6px; te
   align-items: center;
 }
 
-.mass-input-row input[type="number"] {
+.mass-input-row input:is([type="number"], [type="text"]) {
   width: 100px;
   padding: 6px 10px;
   border: 1px solid var(--cor-primaria);
@@ -169,7 +169,7 @@ h1 { color: #1E293B; font-size: 1.3rem; font-weight: 600; margin-bottom: 6px; te
   outline: none;
 }
 
-.mass-input-row input[type="number"]:focus { border-color: var(--cor-primaria); }
+.mass-input-row input:is([type="number"], [type="text"]):focus { border-color: var(--cor-primaria); }
 
 /* Table */
 .table-responsive { overflow-x: auto; }
@@ -207,7 +207,7 @@ td {
 tr:hover td { background: #F8FAFC; }
 
 /* Inline editable fields */
-td input[type="number"] {
+td input:is([type="number"], [type="text"]) {
   width: 100%;
   min-width: 70px;
   padding: 5px 8px;
@@ -220,9 +220,9 @@ td input[type="number"] {
   text-align: right;
 }
 
-td input[type="number"]:focus { border-color: var(--cor-primaria); background: #FFF; }
+td input:is([type="number"], [type="text"]):focus { border-color: var(--cor-primaria); background: #FFF; }
 
-td input[type="number"].readonly {
+td input:is([type="number"], [type="text"]).readonly {
   background: #F1F5F9;
   color: #64748B;
 }
@@ -324,18 +324,18 @@ td input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--cor-p
 .dark-theme .global-config { background: #0F172A; border-color: #334159; }
 .dark-theme .config-item label { color: #94A3B8; }
 .dark-theme .config-item + .config-item { border-left-color: #334159; }
-.dark-theme .config-input-row input[type="number"] { background: #1E293B; border-color: #334159; color: #F1F5F9; }
+.dark-theme .config-input-row input:is([type="number"], [type="text"]) { background: #1E293B; border-color: #334159; color: #F1F5F9; }
 .dark-theme .config-hint { color: #64748B; }
 .dark-theme .custo-fixo-resultado { color: var(--cor-primaria); }
 .dark-theme .mass-bar { background: var(--cor-primaria-fraca); border-color: var(--cor-primaria-forte); }
 .dark-theme .mass-bar #massCount { color: var(--cor-primaria); }
-.dark-theme .mass-input-row input[type="number"] { background: #1E293B; border-color: var(--cor-primaria-forte); color: #F1F5F9; }
+.dark-theme .mass-input-row input:is([type="number"], [type="text"]) { background: #1E293B; border-color: var(--cor-primaria-forte); color: #F1F5F9; }
 .dark-theme table { border-color: #334159; }
 .dark-theme th { background: #0F172A; color: #94A3B8; border-bottom-color: #334159; }
 .dark-theme td { border-bottom-color: #1E293B; color: #E2E8F0; }
 .dark-theme tr:hover td { background: #0F172A; }
-.dark-theme td input[type="number"] { background: #0F172A; border-color: #334159; color: #F1F5F9; }
-.dark-theme td input[type="number"].readonly { background: #1E293B; color: #64748B; }
+.dark-theme td input:is([type="number"], [type="text"]) { background: #0F172A; border-color: #334159; color: #F1F5F9; }
+.dark-theme td input:is([type="number"], [type="text"]).readonly { background: #1E293B; color: #64748B; }
 .dark-theme .prod-codigo { color: var(--cor-primaria); }
 .dark-theme .lucro-positivo { color: var(--cor-sucesso); }
 .dark-theme .lucro-negativo { color: var(--cor-erro); }

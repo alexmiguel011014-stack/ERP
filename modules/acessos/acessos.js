@@ -321,6 +321,16 @@
 		checksPermissoes.forEach((c) => {
 			if (c.checked) permissoesSelecionadas[c.value] = true;
 		});
+		var comissaoValor = lerDecimalInformado(comissao.value);
+		if (
+			comissaoValor === null ||
+			!Number.isFinite(comissaoValor) ||
+			comissaoValor < 0 ||
+			comissaoValor > 100
+		) {
+			mostrarMensagem("Informe uma comissão entre 0 e 100%.", "erro");
+			return;
+		}
 
 		var dados = {
 			login: loginVal,
@@ -329,7 +339,7 @@
 				perfil.value === "dono" || perfil.value === "vendedor"
 					? perfil.value
 					: "admin",
-			comissao_percentual: parseFloat(comissao.value) || 0,
+			comissao_percentual: comissaoValor,
 			ativo: ativo.checked,
 			senha: senhaVal,
 			senhaAtual: senhaAtual.value,

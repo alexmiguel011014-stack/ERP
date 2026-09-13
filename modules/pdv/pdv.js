@@ -201,9 +201,15 @@
 	}
 
 	function descontoAtual() {
-		var d = Number(descontoInput.value);
-		if (!Number.isFinite(d) || d < 0) return 0;
+		var d = lerDecimalInformado(descontoInput.value);
+		if (d === null || d < 0) return 0;
 		return d;
+	}
+
+	function descontoValido() {
+		var texto = descontoInput.value.trim();
+		var d = lerDecimalInformado(texto);
+		return texto === "" || (d !== null && d >= 0);
 	}
 
 	function totalCarrinho() {
@@ -842,6 +848,11 @@
 			mostrarMensagem("Carrinho vazio.", "erro");
 			return;
 		}
+		if (!descontoValido()) {
+			mostrarMensagem("Informe um desconto válido.", "erro");
+			descontoInput.focus();
+			return;
+		}
 
 		if (
 			!confirm(
@@ -857,6 +868,11 @@
 	btnFinalizar.addEventListener("click", () => {
 		if (carrinho.length === 0) {
 			mostrarMensagem("Carrinho vazio.", "erro");
+			return;
+		}
+		if (!descontoValido()) {
+			mostrarMensagem("Informe um desconto válido.", "erro");
+			descontoInput.focus();
 			return;
 		}
 
@@ -1372,12 +1388,11 @@
 	}
 
 	function lerValorMonetario(valorTexto) {
-		var texto = String(valorTexto || "").trim().replace(/\s/g, "");
-		if (texto.indexOf(",") >= 0)
-			return Number(texto.replace(/\./g, "").replace(",", "."));
-		if (/^\d{1,3}(\.\d{3})+$/.test(texto))
-			return Number(texto.replace(/\./g, ""));
-		return Number(texto);
+		return window.lerValorMonetario(valorTexto);
+	}
+
+	function lerDecimalInformado(valorTexto) {
+		return window.lerDecimalInformado(valorTexto);
 	}
 
 	if (btnCaixa) btnCaixa.addEventListener("click", abrirCaixaModal);
@@ -1389,8 +1404,8 @@
 
 	if (btnConfirmarAbrirCaixa) {
 		btnConfirmarAbrirCaixa.addEventListener("click", () => {
-			var valor = lerValorMonetario(caixaValorAbertura.value);
-			if (!Number.isFinite(valor) || valor < 0) {
+			var valor = lerDecimalInformado(caixaValorAbertura.value);
+			if (valor === null || !Number.isFinite(valor) || valor < 0) {
 				caixaMsg("Valor de abertura inválido.");
 				return;
 			}
@@ -1411,8 +1426,9 @@
 
 	if (btnConfirmarFecharCaixa) {
 		btnConfirmarFecharCaixa.addEventListener("click", () => {
-			var valor = lerValorMonetario(caixaValorFechamento.value);
-			if (!Number.isFinite(valor) || valor < 0) {
+			var textoValor = caixaValorFechamento.value.trim();
+			var valor = textoValor ? lerDecimalInformado(textoValor) : 0;
+			if (valor === null || !Number.isFinite(valor) || valor < 0) {
 				caixaMsg("Informe o valor contado no caixa.");
 				return;
 			}

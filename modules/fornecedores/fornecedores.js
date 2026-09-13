@@ -117,8 +117,8 @@
 			mostrarMensagem("Busque um SKU válido antes de adicionar.", "erro");
 			return;
 		}
-		var custo = Number(pfCusto.value);
-		if (!Number.isFinite(custo) || custo < 0) {
+		var custo = lerDecimalInformado(pfCusto.value);
+		if (custo === null || !Number.isFinite(custo) || custo < 0) {
 			mostrarMensagem("Custo inválido.", "erro");
 			return;
 		}

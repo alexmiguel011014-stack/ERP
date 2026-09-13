@@ -1,7 +1,7 @@
 "use client";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
-import { formatarMoeda, lerValorMonetario } from "./formatos";
+import { formatarMoeda, lerDecimalInformado, lerValorMonetario } from "./formatos";
 import type {
 	CondicaoParcelamento,
 	PagamentoVendaInput,
@@ -72,7 +72,9 @@ export default function PagamentoPainel({
 	onFinalizar: () => void;
 	onOrcamento: () => void;
 }) {
-	const descontoNum = Math.max(0, Number(desconto) || 0);
+	const descontoInformado = lerDecimalInformado(desconto);
+	const descontoInvalido = desconto.trim() !== "" && descontoInformado === null;
+	const descontoNum = Math.max(0, descontoInformado ?? 0);
 	const variasFormas = pagamentos.length > 1;
 	const condicao = !variasFormas
 		? condicoes.find((item) => item.id === condicaoId) || null
@@ -123,6 +125,7 @@ export default function PagamentoPainel({
 
 	const podeFinalizar =
 		!carrinhoVazio &&
+		!descontoInvalido &&
 		!!formaPagamentoEfetiva &&
 		!processando &&
 		(!variasFormas || pagamentosValidos) &&
@@ -138,12 +141,18 @@ export default function PagamentoPainel({
 			<div>
 				<Label>Desconto (R$)</Label>
 				<Input
-					type="number"
+					type="text"
+					inputMode="decimal"
 					value={desconto}
 					onChange={(e) => setDesconto(e.target.value)}
 					min="0"
 					step={0.01}
 				/>
+				{descontoInvalido && (
+					<p className="mt-1 text-xs text-error-600 dark:text-error-400">
+						Informe um desconto válido.
+					</p>
+				)}
 			</div>
 
 			<div>
@@ -234,7 +243,7 @@ export default function PagamentoPainel({
 				))}
 				<button
 					type="button"
-					disabled={!formaPagamentoEfetiva || formaPagamento === "Fiado" || processando}
+					disabled={!formaPagamentoEfetiva || formaPagamento === "Fiado" || processando || descontoInvalido}
 					onClick={() => {
 						setFormaPagamento("Misto");
 						setCondicaoId(null);

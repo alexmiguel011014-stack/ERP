@@ -192,8 +192,8 @@
 			mostrarMensagem("Quantidade inválida.", "erro");
 			return;
 		}
-		var custo = custoInput.value !== "" ? Number(custoInput.value) : null;
-		if (custo !== null && (!Number.isFinite(custo) || custo < 0)) {
+		var custo = custoInput.value !== "" ? lerDecimalInformado(custoInput.value) : null;
+		if (custoInput.value !== "" && (custo === null || custo < 0)) {
 			mostrarMensagem("Custo inválido.", "erro");
 			return;
 		}

@@ -4,7 +4,10 @@ import { Modal } from "@/components/ui/modal";
 import Button from "@/components/ui/button/Button";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
-import { formatarMoeda, lerValorMonetario } from "./formatos";
+import {
+	formatarMoeda,
+	lerDecimalInformado,
+} from "./formatos";
 import type { CaixaAberto, ResumoCaixa } from "@/lib/erpApi";
 
 export default function CaixaModal({
@@ -44,8 +47,8 @@ export default function CaixaModal({
 	}, [isOpen, caixa]);
 
 	async function confirmarAbrir() {
-		const valor = lerValorMonetario(valorAbertura);
-		if (!Number.isFinite(valor) || valor < 0) {
+		const valor = lerDecimalInformado(valorAbertura);
+		if (valor === null || !Number.isFinite(valor) || valor < 0) {
 			setErro("Valor de abertura inválido.");
 			return;
 		}
@@ -62,8 +65,10 @@ export default function CaixaModal({
 	}
 
 	async function confirmarFechar() {
-		const valor = lerValorMonetario(valorContado);
-		if (!Number.isFinite(valor) || valor < 0) {
+		const valor = valorContado.trim()
+			? lerDecimalInformado(valorContado)
+			: 0;
+		if (valor === null || !Number.isFinite(valor) || valor < 0) {
 			setErro("Valor contado inválido.");
 			return;
 		}

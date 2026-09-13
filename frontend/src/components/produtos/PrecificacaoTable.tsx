@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { PrecificacaoLinha } from "@/lib/erpApi";
+import { lerDecimalInformado } from "@/lib/utils/formatos";
 
 export type AlteracaoPrecificacao = {
 	preco_custo?: number;
@@ -53,6 +54,20 @@ function fmtPct(v: number) {
 	return Number(v || 0).toFixed(1);
 }
 
+function formatarNumeroInput(
+	numero: number,
+	casasDecimais: number,
+	monetario: boolean,
+) {
+	return monetario
+		? new Intl.NumberFormat("pt-BR", {
+				useGrouping: false,
+				minimumFractionDigits: casasDecimais,
+				maximumFractionDigits: casasDecimais,
+			}).format(numero)
+		: numero.toFixed(casasDecimais);
+}
+
 function EditableNumber({
 	valor,
 	onCommit,
@@ -60,6 +75,7 @@ function EditableNumber({
 	max,
 	step = 0.01,
 	casasDecimais = 2,
+	monetario = false,
 	placeholder,
 }: {
 	valor: number;
@@ -68,33 +84,39 @@ function EditableNumber({
 	max?: number;
 	step?: number;
 	casasDecimais?: number;
+	monetario?: boolean;
 	placeholder?: string;
 }) {
-	const [texto, setTexto] = useState(() => valor.toFixed(casasDecimais));
+	const [texto, setTexto] = useState(() =>
+		formatarNumeroInput(valor, casasDecimais, monetario),
+	);
 
 	// Resincroniza quando o valor muda por fora (recarga da página, aplicar
 	// margem em lote) — sem isso a célula ficaria mostrando um número velho
 	// depois de uma ação em outra linha/painel que também mexe nesse produto.
 	useEffect(() => {
-		setTexto(valor.toFixed(casasDecimais));
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [valor]);
+		setTexto(formatarNumeroInput(valor, casasDecimais, monetario));
+	}, [valor, monetario, casasDecimais]);
 
 	return (
 		<input
-			type="number"
+			type="text"
 			min={min}
 			max={max}
 			step={step}
+			inputMode="decimal"
 			value={texto}
 			placeholder={placeholder}
 			onChange={(e) => setTexto(e.target.value)}
 			onBlur={() => {
-				let v = parseFloat(texto);
-				if (isNaN(v)) v = 0;
+				let v = lerDecimalInformado(texto);
+				if (v === null || !Number.isFinite(v)) {
+					setTexto(formatarNumeroInput(valor, casasDecimais, monetario));
+					return;
+				}
 				if (min !== undefined && v < min) v = min;
 				if (max !== undefined && v > max) v = max;
-				setTexto(v.toFixed(casasDecimais));
+				setTexto(formatarNumeroInput(v, casasDecimais, monetario));
 				onCommit(v);
 			}}
 			className="h-9 w-24 rounded-lg border border-gray-300 bg-transparent px-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
@@ -249,12 +271,14 @@ export default function PrecificacaoTable({
 							<td className="px-3 py-2">
 								<EditableNumber
 									valor={p.preco_custo}
+									monetario
 									onCommit={(v) => salvarCusto(p.produto_id, v)}
 								/>
 							</td>
 							<td className="px-3 py-2">
 								<EditableNumber
 									valor={p.impostos_extras}
+									monetario
 									onCommit={(v) => salvarImpostos(p.produto_id, v)}
 								/>
 							</td>
@@ -291,6 +315,7 @@ export default function PrecificacaoTable({
 							<td className="px-3 py-2">
 								<EditableNumber
 									valor={precoCalculado}
+									monetario
 									onCommit={(v) => {
 										const novaMargem = calcMargem(
 											p.preco_custo,

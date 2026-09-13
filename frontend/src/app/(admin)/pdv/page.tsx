@@ -25,7 +25,11 @@ import ReciboModal, {
 	type PagamentoRecibo,
 } from "@/components/pdv/ReciboModal";
 import DevolucaoModal from "@/components/pdv/DevolucaoModal";
-import { formatarMoeda, lerValorMonetario } from "@/components/pdv/formatos";
+import {
+	formatarMoeda,
+	lerDecimalInformado,
+	lerValorMonetario,
+} from "@/components/pdv/formatos";
 
 function formasPagamentoLabel(forma: string): string {
 	return forma || "---";
@@ -284,8 +288,8 @@ export default function PdvPage() {
 					quantidade: item.quantidade,
 					preco_unitario: item.preco_unitario,
 				})),
-				total: Math.max(0, carrinho.subtotal - (Number(desconto) || 0)),
-				desconto: Math.max(0, Number(desconto) || 0),
+				total: Math.max(0, carrinho.subtotal - lerValorMonetario(desconto)),
+				desconto: Math.max(0, lerValorMonetario(desconto)),
 				cliente_id: clienteSelecionado?.id ?? null,
 				forma_pagamento: formaPagamento,
 				condicao_parcelamento_id: condicaoParcelamentoId,
@@ -400,7 +404,12 @@ export default function PdvPage() {
 	}
 
 	async function finalizar() {
-		const descontoNum = Math.max(0, Number(desconto) || 0);
+		const descontoNumInformado = lerDecimalInformado(desconto);
+		if (desconto.trim() !== "" && descontoNumInformado === null) {
+			mostrarMensagem("Informe um desconto válido.", false);
+			return;
+		}
+		const descontoNum = Math.max(0, descontoNumInformado ?? 0);
 		const total =
 			previaParcelamento?.total ??
 			Math.max(0, carrinho.subtotal - descontoNum);
@@ -519,7 +528,12 @@ export default function PdvPage() {
 
 		setProcessando(true);
 		try {
-			const descontoNum = Math.max(0, Number(desconto) || 0);
+			const descontoNumInformado = lerDecimalInformado(desconto);
+			if (desconto.trim() !== "" && descontoNumInformado === null) {
+				mostrarMensagem("Informe um desconto válido.", false);
+				return;
+			}
+			const descontoNum = Math.max(0, descontoNumInformado ?? 0);
 			const total =
 				previaParcelamento?.total ??
 				Math.max(0, carrinho.subtotal - descontoNum);

@@ -271,7 +271,7 @@
 				p.preco_custo = val;
 				debounceSalvar("cost", p.produto_id, val);
 				renderizar();
-			});
+			}, { monetario: true });
 			tdCusto.appendChild(inpCusto);
 			tr.appendChild(tdCusto);
 
@@ -281,7 +281,7 @@
 				p.impostos_extras = val;
 				debounceSalvar("taxes", p.produto_id, val);
 				renderizar();
-			});
+			}, { monetario: true });
 			tdImp.appendChild(inpImp);
 			tr.appendChild(tdImp);
 
@@ -350,7 +350,7 @@
 					debounceSalvarMargemPreco(p.produto_id, novaMargem, val);
 					renderizar();
 				},
-				{ min: 0, step: 0.01 },
+				{ min: 0, step: 0.01, monetario: true },
 			);
 			tdPreco.appendChild(inpPreco);
 			tr.appendChild(tdPreco);
@@ -393,14 +393,20 @@
 	function criarInputNumero(valor, onChange, opts) {
 		opts = opts || {};
 		var inp = document.createElement("input");
-		inp.type = "number";
+		inp.type = opts.monetario ? "text" : "number";
+		if (opts.monetario) inp.inputMode = "decimal";
 		inp.min = opts.min !== undefined ? opts.min : 0;
 		if (opts.max !== undefined) inp.max = opts.max;
 		inp.step = opts.step !== undefined ? opts.step : 0.01;
 		inp.value = arredonda(valor, opts.isPorcento ? 1 : 2);
 		inp.addEventListener("change", () => {
-			var v = parseFloat(inp.value);
-			if (isNaN(v)) v = 0;
+			var v = opts.monetario || opts.isPorcento
+				? lerDecimalInformado(inp.value)
+				: parseFloat(inp.value);
+			if (v === null || !Number.isFinite(v)) {
+				mostrarMensagem("Informe um valor válido.", "error");
+				return;
+			}
 			if (opts.min !== undefined && v < opts.min) v = opts.min;
 			if (opts.max !== undefined && v > opts.max) v = opts.max;
 			onChange(v);
@@ -480,8 +486,8 @@
 			mostrarMensagem("Selecione ao menos um produto.", "error");
 			return;
 		}
-		var margem = parseFloat(massMargin.value);
-		if (isNaN(margem) || margem < 0) {
+		var margem = lerDecimalInformado(massMargin.value);
+		if (margem === null || !Number.isFinite(margem) || margem < 0 || margem > 999) {
 			mostrarMensagem("Informe uma margem válida.", "error");
 			return;
 		}
@@ -511,8 +517,8 @@
 	/* ==================== Global margin ==================== */
 
 	btnSaveGlobal.addEventListener("click", () => {
-		var val = parseFloat(globalMarginInput.value);
-		if (isNaN(val) || val < 0) {
+		var val = lerDecimalInformado(globalMarginInput.value);
+		if (val === null || !Number.isFinite(val) || val < 0 || val > 999) {
 			mostrarMensagem("Informe uma margem válida.", "error");
 			return;
 		}
@@ -570,8 +576,8 @@
 	}
 
 	btnSaveCustoFixo.addEventListener("click", () => {
-		var mensal = parseFloat(custoFixoMensalInput.value) || 0;
-		if (mensal < 0) {
+		var mensal = lerDecimalInformado(custoFixoMensalInput.value);
+		if (mensal === null || !Number.isFinite(mensal) || mensal < 0) {
 			mostrarMensagem("Informe um valor válido.", "error");
 			return;
 		}
@@ -598,8 +604,8 @@
 	});
 
 	btnSaveTaxaAdquirente.addEventListener("click", () => {
-		var taxa = parseFloat(taxaAdquirenteInput.value) || 0;
-		if (taxa < 0) {
+		var taxa = lerDecimalInformado(taxaAdquirenteInput.value);
+		if (taxa === null || !Number.isFinite(taxa) || taxa < 0 || taxa > 100) {
 			mostrarMensagem("Informe um valor válido.", "error");
 			return;
 		}

@@ -20,7 +20,7 @@
         margin-bottom: 6px;
       }
       .config-input-row { display: flex; gap: 10px; align-items: center; }
-      .config-input-row input[type="number"] {
+      .config-input-row input:is([type="number"], [type="text"]) {
         width: 140px;
         padding: 8px 12px;
         border: 1px solid #e2e8f0;
@@ -29,9 +29,9 @@
         outline: none;
         transition: border-color 0.15s;
       }
-      .config-input-row input[type="number"]:focus { border-color: var(--cor-primaria); }
+      .config-input-row input:is([type="number"], [type="text"]):focus { border-color: var(--cor-primaria); }
       .dark-theme .config-item label { color: #94a3b8; }
-      .dark-theme .config-input-row input[type="number"] {
+      .dark-theme .config-input-row input:is([type="number"], [type="text"]) {
         background: #1e293b;
         border-color: #334159;
         color: #f1f5f9;
@@ -67,7 +67,7 @@
           </div>
           <div class="form-group">
             <label for="lancValor">Valor (R$)</label>
-            <input type="number" id="lancValor" min="0.01" step="0.01" />
+            <input type="text" id="lancValor" inputmode="decimal" placeholder="Ex: 1.234,56" />
           </div>
           <div class="form-group">
             <label for="lancVencimento">1º Vencimento</label>
@@ -129,7 +129,7 @@
           <div class="config-item">
             <label for="aliquotaDAS">Alíquota de provisão (%)</label>
             <div class="config-input-row">
-              <input type="number" id="aliquotaDAS" min="0" max="100" step="0.01" placeholder="Ex: 6" />
+              <input type="text" inputmode="decimal" id="aliquotaDAS" min="0" max="100" step="0.01" placeholder="Ex: 6,0" />
               <button type="button" id="btnSaveAliquotaDAS" class="btn btn-primary btn-sm">Salvar</button>
             </div>
           </div>

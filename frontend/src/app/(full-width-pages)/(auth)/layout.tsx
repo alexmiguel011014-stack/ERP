@@ -34,7 +34,7 @@ export default function AuthLayout({
 		<div className="relative p-6 bg-white z-1 sm:p-0">
 			<div className="relative flex lg:flex-row w-full h-screen justify-center flex-col sm:p-0">
 				{children}
-				{/* bg-[#071440]: fundo do loader_v3.gif (2026-08-31, terceira versão
+				{/* bg-[#071440]: fundo do Loader.gif (2026-08-31, terceira versão
 				    reexportada do Canva) — dessa vez genuinamente quase sólido:
 				    #071440 domina 33688 das amostras contra 54 da segunda cor mais
 				    comum (~600:1, e essa segunda nem é ruído de fundo, é borda de

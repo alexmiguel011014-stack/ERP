@@ -20,7 +20,7 @@ Stack: Electron.js + Node.js + SQLite + HTML/CSS/JS puro.
 Paleta visual: Tatame Clean (clara: `#F8FAFC`, `#FFFFFF`, `#1E293B`, `#2563EB`, `#16A34A`, `#E2E8F0`; dark: `#0F172A`, `#1E293B`, `#3B82F6`, `#E2E8F0`).
 
 Repositório: `https://github.com/alexmiguel011014-stack/ERP.git` (branch `main`, push via HTTPS).
-Versão atual: `v1.0.5` (`package.json`). Releases publicadas no GitHub Releases.
+Versão atual: `v1.4.1` (`package.json`). Releases publicadas no GitHub Releases.
 
 ### Processo de release (checado em 2026-08-19, era conhecimento tribal até aqui)
 
@@ -226,7 +226,7 @@ pro racional completo). Os dois frontends coexistem até o cutover final (Fase 6
   completa nas ~22 telas, os dois perfis, os dois temas, antes de remover de vez.
 - **Projeto npm isolado**: `frontend/` tem `package.json`/lockfile próprios — nunca rodar
   `npm install` nele a partir da raiz (que é `"type": "commonjs"`, só Electron). Só
-  `frontend/out/` (o build estático) entra no pacote final (`package.json` → `build.files`).
+  `frontend/out/` (o build estático) entra no pacote final (`package.json` → `build.extraResources`).
 - **`trailingSlash: true` é obrigatório** (export estático — cada rota vira
   `rota/index.html`), o que significa `usePathname()` sempre devolve a rota com barra no
   final (`"/financeiro/"`), nunca sem. Qualquer comparação direta com um href construído
@@ -356,7 +356,7 @@ certificado A1 e conta em provedor de pagamento ainda pendentes de acesso — ve
 
 ## Funcionalidades Implementadas (resumo)
 
-Setup Electron seguro · SQLite 8 tabelas + extensões · SQLCipher (criptografia por senha) + migração automática plaintext→cipher · Migração de colunas (`migrarColunas`) · Cadastro de produtos c/ variações + SKU auto + estoque_mínimo · Clientes CRUD (CPF/CNPJ, e-mail, endereço) · Fornecedores CRUD · PDV (leitor SKU, carrinho, cliente, desconto, observação, fiado, orçamento, transação atômica com guarda de estoque, recibo) · Orçamentos (salvar → converter em venda; não movimenta estoque até conversão) · Histórico de vendas (filtro data+status, badge, detalhes modal, conversão de orçamento, CSV) · Entrada de mercadorias (custo médio ponderado, ledger `MovimentacoesEstoque`) · Alerta de estoque mínimo (dashboard, PDV, página de entrada) · Pedidos de compra (criar/receber/cancelar; recebimento gera conta a pagar) · Financeiro (contas a pagar/receber, baixa, fluxo de caixa por dia, provisão de DAS por regime de caixa) · Relatórios (vendas por período, por pagamento, ticket médio, Curva ABC A/B/C + CSV, DRE, margem de contribuição, ponto de equilíbrio, giro de estoque) · Dashboard (vendas/faturamento/estoque/hoje + a receber e a pagar hoje) · Navbar por perfil · Tema escuro · Login multi-usuário (admin) + Gerenciar Acessos · Backup/Restore + automático diário · Auto-update · Build NSIS v1.0.0 · Janela maximizada · Launcher silencioso (VBS)
+Setup Electron seguro · SQLite 8 tabelas + extensões · SQLCipher (criptografia por senha) + migração automática plaintext→cipher · Migração de colunas (`migrarColunas`) · Cadastro de produtos c/ variações + SKU auto + estoque_mínimo · Clientes CRUD (CPF/CNPJ, e-mail, endereço) · Fornecedores CRUD · PDV (leitor SKU, carrinho, cliente, desconto, observação, fiado, orçamento, transação atômica com guarda de estoque, recibo) · Orçamentos (salvar → converter em venda; não movimenta estoque até conversão) · Histórico de vendas (filtro data+status, badge, detalhes modal, conversão de orçamento, CSV) · Entrada de mercadorias (custo médio ponderado, ledger `MovimentacoesEstoque`) · Alerta de estoque mínimo (dashboard, PDV, página de entrada) · Pedidos de compra (criar/receber/cancelar; recebimento gera conta a pagar) · Financeiro (contas a pagar/receber, baixa, fluxo de caixa por dia, provisão de DAS por regime de caixa) · Relatórios (vendas por período, por pagamento, ticket médio, Curva ABC A/B/C + CSV, DRE, margem de contribuição, ponto de equilíbrio, giro de estoque) · Dashboard (vendas/faturamento/estoque/hoje + a receber e a pagar hoje) · Navbar por perfil · Tema escuro · Login multi-usuário (admin) + Gerenciar Acessos · Backup/Restore + automático diário · Auto-update · Build NSIS · Janela maximizada · Launcher silencioso (VBS)
 
 **Adicionado 2026-09-03** (ver `GOALS.md`, seção "Native Excel Parser + Structural Gaps
 Surfaced by Loja House Data"): Importação — 3º modo "Importar de planilha Excel (.xlsx)"

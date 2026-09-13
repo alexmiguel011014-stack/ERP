@@ -11,6 +11,7 @@ import {
 	type NovoLancamento,
 	type SubtipoFinanceiro,
 } from "@/lib/erpApi";
+import { lerDecimalInformado } from "@/lib/utils/formatos";
 
 export default function NovoLancamentoForm({
 	onSalvo,
@@ -53,10 +54,11 @@ export default function NovoLancamentoForm({
 
 	async function adicionar() {
 		const parcelasNum = Math.max(1, parseInt(parcelas, 10) || 1);
+		const valorInformado = lerDecimalInformado(valor);
 		const dados: NovoLancamento = {
 			tipo,
 			descricao: descricao.trim(),
-			valor: Number(valor),
+			valor: valorInformado ?? 0,
 			data_vencimento: vencimento || null,
 			parcelas: parcelasNum,
 			categoria: categoria || null,
@@ -124,7 +126,8 @@ export default function NovoLancamentoForm({
 				<div>
 					<Label>Valor (R$)</Label>
 					<Input
-						type="number"
+						type="text"
+						inputMode="decimal"
 						value={valor}
 						onChange={(e) => setValor(e.target.value)}
 						min="0.01"

@@ -267,8 +267,8 @@
 			mostrarMensagem("Busque um SKU válido antes de adicionar.", "error");
 			return;
 		}
-		var preco = Number(pePreco.value);
-		if (!Number.isFinite(preco) || preco < 0) {
+		var preco = lerDecimalInformado(pePreco.value);
+		if (preco === null || preco < 0) {
 			mostrarMensagem("Preço inválido.", "error");
 			return;
 		}

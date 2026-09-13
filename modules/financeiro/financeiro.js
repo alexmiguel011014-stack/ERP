@@ -297,7 +297,7 @@
 		var dados = {
 			tipo: lancTipo.value,
 			descricao: lancDescricao.value.trim(),
-			valor: Number(lancValor.value),
+			valor: lerDecimalInformado(lancValor.value) ?? 0,
 			data_vencimento: lancVencimento.value || null,
 			parcelas: parcelas,
 			subtipo:
@@ -445,8 +445,8 @@
 	}
 
 	btnSaveAliquotaDAS.addEventListener("click", () => {
-		var aliquota = parseFloat(aliquotaDASInput.value) || 0;
-		if (aliquota < 0) {
+		var aliquota = lerDecimalInformado(aliquotaDASInput.value);
+		if (aliquota === null || !Number.isFinite(aliquota) || aliquota < 0 || aliquota > 100) {
 			mostrarMensagem("Informe um valor válido.", "error");
 			return;
 		}

@@ -150,6 +150,8 @@ export default function FornecedorFormModal({
 						type="number"
 						value={form.prazo_pagamento_dias}
 						onChange={(e) => campo("prazo_pagamento_dias", e.target.value)}
+						min="0"
+						step={1}
 					/>
 				</div>
 				<div>
