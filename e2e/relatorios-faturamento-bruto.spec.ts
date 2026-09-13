@@ -62,6 +62,7 @@ test.describe("Relatórios: faturamento bruto", () => {
 				total: 4104.2,
 				desconto: 0,
 				forma_pagamento: "Dinheiro",
+				valor_recebido: 4104.2,
 			});
 		});
 	});

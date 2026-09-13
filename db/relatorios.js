@@ -795,24 +795,45 @@ async function getPontoDeEquilibrio(dataInicio, dataFim) {
 
 // Giro de estoque: aproximação por estoque ATUAL (não médio do período) —
 // mesma simplificação que getDRE já documenta usar pro CMV (custo atual, não
-// histórico). Uma média de período real exigiria snapshots de estoque que não
-// existem hoje; documentado aqui como limitação conhecida, não passado como exato.
+// histórico). O estoque é somado entre todas as variações do produto e as
+// devoluções reduzem a quantidade vendida na data efetiva do retorno. Uma média
+// de período real exigiria snapshots de estoque que não existem hoje.
 async function getGiroEstoque(dataInicio, dataFim) {
 	const hoje = new Date().toISOString().slice(0, 10);
 	const inicio = dataInicio || hoje.slice(0, 8) + "01";
 	const fim = dataFim || hoje;
 
 	const linhas = await allAsync(
-		`SELECT p.id AS produto_id, p.nome AS produto_nome,
-   SUM(iv.quantidade) AS quantidade_vendida,
-   var.quantidade_estoque AS estoque_atual
-   FROM ItensVenda iv
-   JOIN Vendas v ON v.id = iv.venda_id
-   JOIN Variacoes var ON var.id = iv.variacao_id
-   JOIN Produtos p ON p.id = var.produto_id
-   WHERE v.status = 'finalizada' AND DATE(v.data_venda) BETWEEN ? AND ?
-   GROUP BY p.id`,
-		[inicio, fim],
+		`WITH vendidos AS (
+       SELECT var.produto_id, SUM(iv.quantidade) AS quantidade
+       FROM ItensVenda iv
+       JOIN Vendas v ON v.id = iv.venda_id
+       JOIN Variacoes var ON var.id = iv.variacao_id
+       WHERE v.status = 'finalizada' AND DATE(v.data_venda) BETWEEN ? AND ?
+       GROUP BY var.produto_id
+     ), devolvidos AS (
+       SELECT var.produto_id, SUM(idv.quantidade) AS quantidade
+       FROM ItensDevolucao idv
+       JOIN Devolucoes d ON d.id = idv.devolucao_id
+       JOIN Vendas v ON v.id = d.venda_id
+       JOIN Variacoes var ON var.id = idv.variacao_id
+       WHERE v.status = 'finalizada' AND DATE(d.data) BETWEEN ? AND ?
+       GROUP BY var.produto_id
+     ), estoque AS (
+       SELECT produto_id, SUM(quantidade_estoque) AS quantidade
+       FROM Variacoes
+       GROUP BY produto_id
+     )
+     SELECT p.id AS produto_id, p.nome AS produto_nome,
+       COALESCE(vendido.quantidade, 0) - COALESCE(devolvido.quantidade, 0) AS quantidade_vendida,
+       COALESCE(estoque.quantidade, 0) AS estoque_atual
+     FROM Produtos p
+     LEFT JOIN vendidos vendido ON vendido.produto_id = p.id
+     LEFT JOIN devolvidos devolvido ON devolvido.produto_id = p.id
+     LEFT JOIN estoque ON estoque.produto_id = p.id
+     WHERE vendido.produto_id IS NOT NULL OR devolvido.produto_id IS NOT NULL
+     ORDER BY p.nome COLLATE NOCASE`,
+		[inicio, fim, inicio, fim],
 	);
 
 	return linhas.map((l) => {

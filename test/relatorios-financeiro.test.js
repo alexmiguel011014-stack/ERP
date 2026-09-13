@@ -120,6 +120,48 @@ test("getGiroEstoque: giro = vendido/estoque atual, dias = 365/giro", async () =
 	assert.strictEqual(linha.diasParaReposicao, 1460, "365 / 0.25 = 1460");
 });
 
+test("getGiroEstoque soma todas as variações e desconta devoluções no retorno", async () => {
+	const produto = await runAsync("INSERT INTO Produtos (nome) VALUES (?)", [
+		"Produto Giro por Variação",
+	]);
+	const variacaoA = await runAsync(
+		"INSERT INTO Variacoes (produto_id, sku, preco, preco_custo, quantidade_estoque) VALUES (?, ?, 100, 50, 4)",
+		[produto.lastID, "GIRO-VAR-A"],
+	);
+	const variacaoB = await runAsync(
+		"INSERT INTO Variacoes (produto_id, sku, preco, preco_custo, quantidade_estoque) VALUES (?, ?, 120, 60, 6)",
+		[produto.lastID, "GIRO-VAR-B"],
+	);
+	const venda = await runAsync(
+		"INSERT INTO Vendas (total, forma_pagamento, data_venda, status) VALUES (560, 'Dinheiro', '2034-01-10T12:00:00Z', 'finalizada')",
+	);
+	const itemA = await runAsync(
+		"INSERT INTO ItensVenda (venda_id, variacao_id, quantidade, preco_unitario) VALUES (?, ?, 2, 100)",
+		[venda.lastID, variacaoA.lastID],
+	);
+	const itemB = await runAsync(
+		"INSERT INTO ItensVenda (venda_id, variacao_id, quantidade, preco_unitario) VALUES (?, ?, 3, 120)",
+		[venda.lastID, variacaoB.lastID],
+	);
+	const devolucao = await runAsync(
+		"INSERT INTO Devolucoes (venda_id, motivo, valor_total, data) VALUES (?, 'troca', 120, '2034-01-20T12:00:00Z')",
+		[venda.lastID],
+	);
+	await runAsync(
+		"INSERT INTO ItensDevolucao (devolucao_id, item_venda_id, variacao_id, quantidade, preco_unitario) VALUES (?, ?, ?, 1, 120)",
+		[devolucao.lastID, itemB.lastID, variacaoB.lastID],
+	);
+
+	const resultado = await db.getGiroEstoque("2034-01-01", "2034-01-31");
+	const linha = resultado.find((p) => p.produto_id === produto.lastID);
+	assert.ok(linha, "produto com variações deveria aparecer no giro");
+	assert.strictEqual(linha.quantidadeVendida, 4, "5 vendidos - 1 devolvido = 4");
+	assert.strictEqual(linha.estoqueAtual, 10, "4 + 6 em estoque nas duas variações");
+	assert.strictEqual(linha.giro, 0.4);
+	assert.strictEqual(linha.diasParaReposicao, 912.5);
+	assert.ok(itemA.lastID > 0);
+});
+
 test("getGiroEstoque: estoque zerado não quebra (não divide por zero)", async () => {
 	const { produtoId } = await criarCenarioVenda(2);
 	// Zera o estoque manualmente pra forçar o caso extremo.
