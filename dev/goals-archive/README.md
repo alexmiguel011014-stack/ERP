@@ -8,3 +8,4 @@ use it to confirm the file hasn't been altered since.
 | Plan | Status | File | SHA-256 |
 | --- | --- | --- | --- |
 | Avatar do Usuário Logado — Cor e Foto de Perfil | completed | [goals-01-avatar-usuario-logado.md](goals-01-avatar-usuario-logado.md) | `b51603be09c19ebb20892fb6c9a65387eff06dd56ec6fc6815339864146d5040` |
+| Reports: gross-revenue labels and readable daily-chart scale | completed | [goals-21-reports-gross-revenue-labels-readable-daily-chart-scale.md](goals-21-reports-gross-revenue-labels-readable-daily-chart-scale.md) | `bb955ff1b1f86fd82a475c573831f97077b8693909e1a18be2518cc8970498c4` |

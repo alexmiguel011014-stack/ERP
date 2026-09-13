@@ -17,6 +17,19 @@ const CATEGORIAS_FINANCEIRAS = [
 	"Outros",
 ];
 
+// Subclassificação opcional para despesas de pessoal. A categoria antiga
+// "Folha/Comissão" continua válida e é tratada como salário quando o subtipo
+// ainda não existe.
+const SUBTIPOS_FINANCEIROS = [
+	"salario",
+	"pro_labore",
+	"encargos",
+	"comissao",
+	"custo_fixo",
+	"variavel",
+	"investimento",
+];
+
 function validarCategoria(categoria) {
 	const c = String(categoria || "").trim();
 	if (!c) return null;
@@ -24,6 +37,27 @@ function validarCategoria(categoria) {
 		throw new Error("Categoria inválida.");
 	}
 	return c;
+}
+
+function validarSubtipo(subtipo, tipo) {
+	const valor = String(subtipo || "").trim().toLowerCase();
+	if (!valor) return null;
+	if (!SUBTIPOS_FINANCEIROS.includes(valor)) {
+		throw new Error("Subtipo financeiro inválido.");
+	}
+	if (tipo && tipo !== "pagar") {
+		throw new Error("Subtipo só pode ser usado em contas a pagar.");
+	}
+	return valor;
+}
+
+function validarCompetenciaMes(competenciaMes) {
+	const valor = String(competenciaMes || "").trim();
+	if (!valor) return null;
+	if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(valor)) {
+		throw new Error("Competência inválida. Use o formato AAAA-MM.");
+	}
+	return valor;
 }
 
 const DATA_ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -158,7 +192,7 @@ function consolidarEventosFluxo(eventos, periodo, modo) {
 
 async function criarLancamentoInterno(run, dados) {
 	await run(
-		"INSERT INTO LancamentosFinanceiros (tipo, descricao, valor, data_vencimento, data_pagamento, status, origem, referencia_id, forma_pagamento, data_criacao, cliente_id, venda_id, grupo_id, parcela_num, parcela_total) VALUES (?, ?, ?, ?, NULL, 'aberto', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		"INSERT INTO LancamentosFinanceiros (tipo, descricao, valor, data_vencimento, data_pagamento, status, origem, referencia_id, forma_pagamento, data_criacao, cliente_id, venda_id, grupo_id, parcela_num, parcela_total, subtipo, competencia_mes) VALUES (?, ?, ?, ?, NULL, 'aberto', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		[
 			dados.tipo,
 			dados.descricao,
@@ -173,6 +207,8 @@ async function criarLancamentoInterno(run, dados) {
 			dados.grupo_id || null,
 			dados.parcela_num || 1,
 			dados.parcela_total || 1,
+			dados.subtipo || null,
+			dados.competencia_mes || null,
 		],
 	);
 }
@@ -214,6 +250,8 @@ async function criarLancamento(dados) {
 	const descricao = String((dados && dados.descricao) || "").trim();
 	const valor = Number(dados && dados.valor);
 	const categoria = validarCategoria(dados && dados.categoria);
+	const subtipo = validarSubtipo(dados && dados.subtipo, tipo);
+	const competenciaMes = validarCompetenciaMes(dados && dados.competencia_mes);
 	if (tipo !== "pagar" && tipo !== "receber")
 		throw new Error("Tipo de lançamento inválido.");
 	if (!descricao) throw new Error("Informe a descrição do lançamento.");
@@ -228,6 +266,8 @@ async function criarLancamento(dados) {
 			valor,
 			parcelas,
 			categoria,
+			subtipo,
+			competenciaMes,
 		);
 	}
 
@@ -236,7 +276,7 @@ async function criarLancamento(dados) {
 		: new Date().toISOString();
 
 	const result = await runAsync(
-		"INSERT INTO LancamentosFinanceiros (tipo, descricao, valor, data_vencimento, data_pagamento, status, origem, referencia_id, forma_pagamento, data_criacao, categoria) VALUES (?, ?, ?, ?, NULL, 'aberto', 'manual', NULL, NULL, ?, ?)",
+		"INSERT INTO LancamentosFinanceiros (tipo, descricao, valor, data_vencimento, data_pagamento, status, origem, referencia_id, forma_pagamento, data_criacao, categoria, subtipo, competencia_mes) VALUES (?, ?, ?, ?, NULL, 'aberto', 'manual', NULL, NULL, ?, ?, ?, ?)",
 		[
 			tipo,
 			descricao,
@@ -244,6 +284,8 @@ async function criarLancamento(dados) {
 			vencimento,
 			new Date().toISOString(),
 			categoria,
+			subtipo,
+			competenciaMes,
 		],
 	);
 	return { success: true, lancamentoId: result.lastID };
@@ -258,6 +300,8 @@ async function criarLancamentoParcelado(
 	valor,
 	parcelas,
 	categoria,
+	subtipo,
+	competenciaMes,
 ) {
 	const grupoId =
 		Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -279,7 +323,7 @@ async function criarLancamentoParcelado(
 		somaParcelas += valorEsta;
 
 		const result = await runAsync(
-			"INSERT INTO LancamentosFinanceiros (tipo, descricao, valor, data_vencimento, data_pagamento, status, origem, referencia_id, forma_pagamento, data_criacao, grupo_id, parcela_num, parcela_total, categoria) VALUES (?, ?, ?, ?, NULL, 'aberto', 'manual', NULL, NULL, ?, ?, ?, ?, ?)",
+			"INSERT INTO LancamentosFinanceiros (tipo, descricao, valor, data_vencimento, data_pagamento, status, origem, referencia_id, forma_pagamento, data_criacao, grupo_id, parcela_num, parcela_total, categoria, subtipo, competencia_mes) VALUES (?, ?, ?, ?, NULL, 'aberto', 'manual', NULL, NULL, ?, ?, ?, ?, ?, ?, ?)",
 			[
 				tipo,
 				descricao + " (" + (i + 1) + "/" + parcelas + ")",
@@ -290,6 +334,8 @@ async function criarLancamentoParcelado(
 				i + 1,
 				parcelas,
 				categoria,
+				subtipo,
+				competenciaMes,
 			],
 		);
 		ids.push(result.lastID);
@@ -318,7 +364,8 @@ async function excluirLancamento(id) {
 }
 
 // Política canônica do fluxo realizado:
-// - venda finalizada não-Fiado entra na data da venda;
+// - venda finalizada em Dinheiro/PIX entra na data da venda;
+// - Cartão entra somente quando o recebimento é liquidado, pela data_liquidacao;
 // - venda Fiado não entra na data da venda; o lançamento a receber entra só
 //   quando pago, na data de pagamento;
 // - lançamento a pagar pago sai na data de pagamento;
@@ -334,13 +381,44 @@ async function getFluxoCaixa(dataInicio, dataFim) {
 		hoje,
 	);
 
+	// Cada alocação imediata é um evento. Isso evita que uma venda mista some
+	// também a parte do cartão antes da liquidação.
 	const entradasVendas = await allAsync(
-		`SELECT id, DATE(data_venda) AS dia, total, forma_pagamento, origem, observacao
-     FROM Vendas
-     WHERE status = 'finalizada'
-       AND (forma_pagamento IS NULL OR forma_pagamento != 'Fiado')
-       AND DATE(data_venda) BETWEEN ? AND ?
-     ORDER BY dia, id`,
+		`SELECT v.id, DATE(v.data_venda) AS dia, vp.valor, vp.forma_pagamento,
+            v.origem, v.observacao
+     FROM Vendas v
+     JOIN VendaPagamentos vp ON vp.venda_id = v.id
+     WHERE v.status = 'finalizada'
+       AND LOWER(TRIM(vp.forma_pagamento)) IN ('pix', 'dinheiro')
+       AND DATE(v.data_venda) BETWEEN ? AND ?
+     ORDER BY dia, v.id, vp.id`,
+		[periodo.inicio, periodo.fim],
+	);
+	// Compatibilidade: vendas legadas não têm VendaPagamentos. Só elas usam o
+	// total da venda como fallback; cartão nunca é presumido como recebido.
+	const entradasVendasLegadas = await allAsync(
+		`SELECT v.id, DATE(v.data_venda) AS dia, v.total, v.forma_pagamento,
+            v.origem, v.observacao
+     FROM Vendas v
+     WHERE v.status = 'finalizada'
+       AND (v.forma_pagamento IS NULL OR LOWER(TRIM(v.forma_pagamento)) IN ('pix', 'dinheiro'))
+       AND NOT EXISTS (SELECT 1 FROM VendaPagamentos vp WHERE vp.venda_id = v.id)
+       AND DATE(v.data_venda) BETWEEN ? AND ?
+     ORDER BY dia, v.id`,
+		[periodo.inicio, periodo.fim],
+	);
+	const recebimentosCartao = await allAsync(
+		`SELECT p.id, p.venda_id, p.valor_recebido AS valor,
+            DATE(p.data_liquidacao) AS dia,
+            p.metodo, p.numero_identificador, p.parcela_num
+     FROM Pagamentos p
+     LEFT JOIN Vendas v ON v.id = p.venda_id
+     WHERE LOWER(TRIM(p.metodo)) IN ('cartao', 'cartão')
+       AND p.status = 'recebido'
+       AND p.data_liquidacao IS NOT NULL
+       AND (v.id IS NULL OR v.status = 'finalizada')
+       AND DATE(p.data_liquidacao) BETWEEN ? AND ?
+     ORDER BY dia, p.id`,
 		[periodo.inicio, periodo.fim],
 	);
 	const entradasRecebimentos = await allAsync(
@@ -378,21 +456,44 @@ async function getFluxoCaixa(dataInicio, dataFim) {
 		...entradasVendas.map((venda) => ({
 			data: venda.dia,
 			tipo: "entrada",
-			origem:
-				venda.origem === "importacao_financeiro_historico"
-					? "importacao_financeiro_historico"
-					: "venda",
-			descricao:
-				venda.origem === "importacao_financeiro_historico"
-					? venda.observacao || "Venda histórica importada"
-					: `Venda #${venda.id}`,
+			origem: venda.origem === "importacao_financeiro_historico" ? "importacao_financeiro_historico" : "venda",
+			descricao: venda.origem === "importacao_financeiro_historico" ? venda.observacao || "Venda histórica importada" : `Venda #${venda.id}`,
 			categoria:
 				venda.origem === "importacao_financeiro_historico"
 					? "Vendas históricas"
 					: null,
+			valor: venda.valor,
+			referenciaId: venda.id,
+			formaPagamento: venda.forma_pagamento || null,
+		})),
+		...entradasVendasLegadas.map((venda) => ({
+			data: venda.dia,
+			tipo: "entrada",
+			origem: venda.origem === "importacao_financeiro_historico" ? "importacao_financeiro_historico" : "venda",
+			descricao: venda.origem === "importacao_financeiro_historico" ? venda.observacao || "Venda histórica importada" : `Venda #${venda.id}`,
+			categoria: venda.origem === "importacao_financeiro_historico" ? "Vendas históricas" : null,
 			valor: venda.total,
 			referenciaId: venda.id,
 			formaPagamento: venda.forma_pagamento || null,
+		})),
+		...recebimentosCartao
+			.filter((pagamento, indice, lista) => {
+				if (!pagamento.numero_identificador || !pagamento.venda_id) return true;
+				return lista.findIndex((item) =>
+					item.venda_id === pagamento.venda_id &&
+					item.numero_identificador === pagamento.numero_identificador &&
+					(item.parcela_num || 1) === (pagamento.parcela_num || 1)
+				) === indice;
+			})
+			.map((pagamento) => ({
+			data: pagamento.dia,
+			tipo: "entrada",
+			origem: "liquidacao_cartao",
+			descricao: `Liquidação cartão${pagamento.venda_id ? ` da venda #${pagamento.venda_id}` : ""}`,
+			categoria: "Cartão",
+			valor: pagamento.valor,
+			referenciaId: pagamento.venda_id || pagamento.id,
+			formaPagamento: "Cartão",
 		})),
 		...entradasRecebimentos.map((lancamento) => ({
 			data: lancamento.dia,
@@ -445,7 +546,7 @@ async function getFluxoCaixaProjetado(dataInicio, dataFim) {
 
 	const entradasAbertas = await allAsync(
 		`SELECT id, descricao, valor, DATE(data_vencimento) AS dia, categoria,
-            origem, referencia_id, forma_pagamento
+            origem, referencia_id, forma_pagamento, venda_id
      FROM LancamentosFinanceiros
      WHERE tipo = 'receber' AND status = 'aberto'
        AND data_vencimento IS NOT NULL
@@ -455,7 +556,8 @@ async function getFluxoCaixaProjetado(dataInicio, dataFim) {
 	);
 	const saidasAbertas = await allAsync(
 		`SELECT id, descricao, valor, DATE(data_vencimento) AS dia, categoria,
-            origem, referencia_id, forma_pagamento
+            origem, referencia_id, forma_pagamento, venda_id, grupo_id,
+            parcela_num, parcela_total
      FROM LancamentosFinanceiros
      WHERE tipo = 'pagar' AND status = 'aberto'
        AND data_vencimento IS NOT NULL
@@ -463,6 +565,34 @@ async function getFluxoCaixaProjetado(dataInicio, dataFim) {
      ORDER BY dia, id`,
 		[periodo.inicio, periodo.fim],
 	);
+	// Cartão só aparece no projetado quando há uma data de recebimento registrada.
+	// Sem contrato do adquirente, não se inventa vencimento nem quantidade de parcelas.
+	const pagamentosCartaoPendentes = await allAsync(
+		`SELECT p.id, p.venda_id, p.valor_recebido AS valor,
+            DATE(p.data_recebimento) AS dia, p.numero_identificador, p.parcela_num,
+            p.parcela_total
+     FROM Pagamentos p
+     WHERE LOWER(TRIM(p.metodo)) IN ('cartao', 'cartão')
+       AND p.status = 'pendente'
+       AND p.data_recebimento IS NOT NULL
+       AND DATE(p.data_recebimento) BETWEEN ? AND ?
+     ORDER BY dia, p.id`,
+		[periodo.inicio, periodo.fim],
+	);
+	// Uma venda/instalação de cartão pode ter sido lançada duas vezes por uma
+	// baixa manual. Cada parcela é uma saída, mas a mesma referência/parcela só
+	// entra uma vez; lançamentos sem referência continuam independentes.
+	const referenciasCartao = new Set();
+	const saidasProjetadas = saidasAbertas.filter((lancamento) => {
+		const identificacaoCartao = `${lancamento.forma_pagamento || ""} ${lancamento.categoria || ""}`.toLowerCase();
+		if (!identificacaoCartao.includes("cart")) return true;
+		const referencia = lancamento.venda_id || lancamento.referencia_id;
+		if (!referencia) return true;
+		const chave = `${referencia}:${lancamento.grupo_id || ""}:${lancamento.parcela_num || 1}:${lancamento.parcela_total || 1}`;
+		if (referenciasCartao.has(chave)) return false;
+		referenciasCartao.add(chave);
+		return true;
+	});
 	const eventos = [
 		...entradasAbertas.map((lancamento) => ({
 			data: lancamento.dia,
@@ -474,7 +604,29 @@ async function getFluxoCaixaProjetado(dataInicio, dataFim) {
 			referenciaId: lancamento.referencia_id || lancamento.id,
 			formaPagamento: lancamento.forma_pagamento || null,
 		})),
-		...saidasAbertas.map((lancamento) => ({
+		...pagamentosCartaoPendentes
+			.filter((pagamento, indice, lista) => {
+				// Se uma integração/lançamento financeiro já representa a mesma venda,
+				// o detalhe em Pagamentos não pode gerar uma segunda entrada.
+				if (pagamento.venda_id && entradasAbertas.some((item) => item.venda_id === pagamento.venda_id || item.referencia_id === pagamento.venda_id)) return false;
+				if (!pagamento.venda_id || !pagamento.numero_identificador) return true;
+				return lista.findIndex((item) =>
+					item.venda_id === pagamento.venda_id &&
+					item.numero_identificador === pagamento.numero_identificador &&
+					(item.parcela_num || 1) === (pagamento.parcela_num || 1)
+				) === indice;
+			})
+			.map((pagamento) => ({
+				data: pagamento.dia,
+				tipo: "entrada",
+				origem: "cartao_pendente",
+				descricao: `Cartão a receber${pagamento.venda_id ? ` da venda #${pagamento.venda_id}` : ""}`,
+				categoria: "Cartão",
+				valor: pagamento.valor,
+				referenciaId: pagamento.venda_id || pagamento.id,
+				formaPagamento: "Cartão",
+			})),
+		...saidasProjetadas.map((lancamento) => ({
 			data: lancamento.dia,
 			tipo: "saida",
 			origem: lancamento.origem || "manual",
@@ -622,6 +774,8 @@ async function criarLancamentoRecorrente(dados) {
 	const valor = Number(dados && dados.valor);
 	const diaMes = parseInt(dados && dados.dia_mes, 10);
 	const categoria = validarCategoria(dados && dados.categoria);
+	const subtipo = validarSubtipo(dados && dados.subtipo, tipo);
+	const competenciaMes = validarCompetenciaMes(dados && dados.competencia_mes);
 	if (tipo !== "pagar" && tipo !== "receber")
 		throw new Error("Tipo de lançamento inválido.");
 	if (!descricao) throw new Error("Informe a descrição do lançamento.");
@@ -630,8 +784,17 @@ async function criarLancamentoRecorrente(dados) {
 		throw new Error("Dia do mês inválido (use 1 a 31).");
 
 	const result = await runAsync(
-		"INSERT INTO LancamentosRecorrentes (tipo, descricao, valor, dia_mes, categoria, ativo, criado_em) VALUES (?, ?, ?, ?, ?, 1, ?)",
-		[tipo, descricao, valor, diaMes, categoria, new Date().toISOString()],
+		"INSERT INTO LancamentosRecorrentes (tipo, descricao, valor, dia_mes, categoria, subtipo, competencia_mes, ativo, criado_em) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)",
+		[
+			tipo,
+			descricao,
+			valor,
+			diaMes,
+			categoria,
+			subtipo,
+			competenciaMes,
+			new Date().toISOString(),
+		],
 	);
 	return { success: true, id: result.lastID };
 }
@@ -687,7 +850,7 @@ async function gerarLancamentosRecorrentesDoMes() {
 		const dataVencimento = anoMes + "-" + String(diaEfetivo).padStart(2, "0");
 
 		await runAsync(
-			"INSERT INTO LancamentosFinanceiros (tipo, descricao, valor, data_vencimento, data_pagamento, status, origem, referencia_id, forma_pagamento, data_criacao, categoria) VALUES (?, ?, ?, ?, NULL, 'aberto', 'recorrente', ?, NULL, ?, ?)",
+			"INSERT INTO LancamentosFinanceiros (tipo, descricao, valor, data_vencimento, data_pagamento, status, origem, referencia_id, forma_pagamento, data_criacao, categoria, subtipo, competencia_mes) VALUES (?, ?, ?, ?, NULL, 'aberto', 'recorrente', ?, NULL, ?, ?, ?, ?)",
 			[
 				t.tipo,
 				t.descricao,
@@ -696,6 +859,8 @@ async function gerarLancamentosRecorrentesDoMes() {
 				t.id,
 				new Date().toISOString(),
 				t.categoria,
+				t.subtipo,
+				anoMes,
 			],
 		);
 		gerados++;
@@ -705,6 +870,7 @@ async function gerarLancamentosRecorrentesDoMes() {
 
 module.exports = {
 	CATEGORIAS_FINANCEIRAS,
+	SUBTIPOS_FINANCEIROS,
 	criarLancamentoInterno,
 	getLancamentos,
 	criarLancamento,

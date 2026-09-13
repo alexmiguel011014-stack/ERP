@@ -149,6 +149,8 @@ export type Lancamento = {
 	cliente_id: number | null;
 	cliente_nome: string | null;
 	venda_id: number | null;
+	subtipo: SubtipoFinanceiro | null;
+	competencia_mes: string | null;
 };
 
 export type NovoLancamento = {
@@ -158,6 +160,8 @@ export type NovoLancamento = {
 	data_vencimento: string | null;
 	parcelas: number;
 	categoria: string | null;
+	subtipo: SubtipoFinanceiro | null;
+	competencia_mes: string | null;
 };
 
 export type FiltroLancamentos = {
@@ -180,6 +184,17 @@ export const CATEGORIAS_FINANCEIRAS = [
 	"Investimento",
 	"Outros",
 ] as const;
+
+export const SUBTIPOS_FINANCEIROS = [
+	{ valor: "salario", rotulo: "Salário" },
+	{ valor: "pro_labore", rotulo: "Pró-labore" },
+	{ valor: "encargos", rotulo: "Encargos" },
+	{ valor: "comissao", rotulo: "Comissão" },
+	{ valor: "custo_fixo", rotulo: "Custo fixo" },
+	{ valor: "variavel", rotulo: "Despesa variável" },
+	{ valor: "investimento", rotulo: "Investimento" },
+] as const;
+export type SubtipoFinanceiro = (typeof SUBTIPOS_FINANCEIROS)[number]["valor"];
 
 export type DiaFluxo = {
 	dia: string;
@@ -228,6 +243,12 @@ export type FluxoCaixaProjetado = FluxoCaixa & {
 export type RelatorioFluxoCaixaResultado = {
 	realizado: FluxoCaixa;
 	projetado: FluxoCaixaProjetado;
+	dre: DreResultado;
+	saldoInicial: number;
+	saldoFinalRealizado: number;
+	saldoFinalEstimado: number;
+	despesasCartaoAbertas: number;
+	lucroLiquidoEstimado: number;
 	politica: string[];
 };
 
@@ -238,6 +259,8 @@ export type LancamentoRecorrente = {
 	valor: number;
 	dia_mes: number;
 	categoria: string | null;
+	subtipo: SubtipoFinanceiro | null;
+	competencia_mes: string | null;
 	ativo: number;
 	criado_em: string;
 };
@@ -248,6 +271,8 @@ export type NovoLancamentoRecorrente = {
 	valor: number;
 	dia_mes: number;
 	categoria: string | null;
+	subtipo: SubtipoFinanceiro | null;
+	competencia_mes: string | null;
 };
 
 export type ProvisaoDAS = {
@@ -271,11 +296,14 @@ export type FechamentoCaixa = {
 
 export type Pagamento = {
 	id: number;
-	data_recebimento: string;
+	data_recebimento: string | null;
+	data_liquidacao: string | null;
 	valor_recebido: number;
 	metodo: string;
-	numero_identificador: string;
-	status: "pendente" | "recebido";
+	numero_identificador: string | null;
+	parcela_num: number | null;
+	parcela_total: number | null;
+	status: "pendente" | "recebido" | "cancelado";
 	observacao: string | null;
 	numero_venda: number | null;
 	data_venda: string | null;
@@ -284,11 +312,11 @@ export type Pagamento = {
 };
 
 export type NovoPagamento = {
-	venda_id: number;
+	venda_id: number | null;
 	cliente_id: number | null;
 	metodo: string;
 	numero_identificador: string;
-	data_recebimento: string;
+	data_recebimento: string | null;
 	valor_recebido: number;
 	status: string;
 	observacao: string;
@@ -427,6 +455,11 @@ export type ItemCarrinho = {
 	preco_unitario: number;
 };
 
+export type PagamentoVendaInput = {
+	forma_pagamento: "PIX" | "Cartão" | "Dinheiro" | "Fiado";
+	valor: number;
+};
+
 export type NovaVendaDados = {
 	itens: ItemCarrinho[];
 	status?: "orcamento" | "finalizada";
@@ -434,6 +467,8 @@ export type NovaVendaDados = {
 	total: number;
 	cliente_id?: number | null;
 	forma_pagamento?: string | null;
+	pagamentos?: PagamentoVendaInput[];
+	valor_recebido?: number | null;
 	condicao_parcelamento_id?: number | null;
 	data_primeiro_vencimento?: string | null;
 	request_id?: string | null;
@@ -457,6 +492,7 @@ export type ResultadoVenda = {
 	vendaId: number;
 	total?: number;
 	parcelas?: ParcelaVenda[];
+	pagamentos?: PagamentoVendaInput[];
 	idempotente?: boolean;
 };
 
@@ -717,11 +753,29 @@ export type DreResultado = {
 	vendas: number;
 	receitaBruta: number;
 	descontos: number;
+	devolucoes: number;
 	receitaLiquida: number;
+	receitaHistoricaSemCMV: number;
+	receitaSemCMV: number;
+	quantidadeCustoDesconhecido: number;
+	custoDesconhecido: boolean;
 	cmv: number;
 	lucroBruto: number;
 	margemBrutaPercentual: number;
 	despesas: number;
+	despesasOperacionais: number;
+	investimentosPagos: number;
+	despesasFixasPagas: number;
+	salariosPagos: number;
+	proLaborePago: number;
+	encargosPagos: number;
+	salariosAbertos: number;
+	proLaboreAberto: number;
+	encargosAbertos: number;
+	custoFixoMensal: number;
+	mesesProvisionados: number;
+	provisaoDeclarada: number;
+	custoFixoProvisionado: number;
 	lucroLiquido: number;
 	margemLiquidaPercentual: number;
 };
@@ -731,6 +785,9 @@ export type RelatorioVendasResultado = {
 		vendas: number;
 		faturamento: number;
 		descontos: number;
+		devolucoes: number;
+		faturamentoLiquido: number;
+		faturamentoHistoricoSemCMV: number;
 		ticketMedio: number;
 		vendasVariacao: number | null;
 		faturamentoVariacao: number | null;
@@ -741,11 +798,15 @@ export type RelatorioVendasResultado = {
 		vendas: number;
 		faturamento: number;
 		descontos: number;
+		devolucoes: number;
+		faturamentoLiquido: number;
 	}[];
 	porPagamento: {
 		forma_pagamento: string;
 		vendas: number;
 		faturamento: number;
+		devolucoes: number;
+		faturamentoLiquido: number;
 	}[];
 };
 
@@ -1454,6 +1515,8 @@ export const erpApi = {
 		registrar: (dados: NovoPagamento) =>
 			invocar<number>("registrarPagamento", dados),
 		pagar: (id: number) => invocar<unknown>("pagarPagamento", id),
+		atualizarDataPrevista: (id: number, data: string) =>
+			invocar<unknown>("atualizarDataPrevistaPagamento", id, data),
 		gerarQrCodePix: (dados: {
 			valor: number;
 			txid?: string;

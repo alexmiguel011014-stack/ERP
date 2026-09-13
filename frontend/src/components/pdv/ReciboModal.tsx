@@ -5,6 +5,11 @@ import { formatarMoeda } from "./formatos";
 import type { ItemCarrinho } from "@/hooks/useCarrinho";
 import type { ParcelaVenda } from "@/lib/erpApi";
 
+export type PagamentoRecibo = {
+	forma_pagamento: string;
+	valor: number;
+};
+
 export type DadosRecibo = {
 	vendaId: number;
 	itens: ItemCarrinho[];
@@ -16,6 +21,7 @@ export type DadosRecibo = {
 	parcelas: ParcelaVenda[];
 	clienteNome: string | null;
 	valorRecebido: number | null;
+	pagamentos?: PagamentoRecibo[];
 	data: string;
 };
 
@@ -27,8 +33,14 @@ export default function ReciboModal({
 	onClose: () => void;
 }) {
 	if (!dados) return null;
+	const totalDinheiro =
+		dados.pagamentos && dados.pagamentos.length > 0
+			? dados.pagamentos
+					.filter((pagamento) => pagamento.forma_pagamento === "Dinheiro")
+					.reduce((soma, pagamento) => soma + pagamento.valor, 0)
+			: dados.total;
 	const troco =
-		dados.valorRecebido !== null ? dados.valorRecebido - dados.total : null;
+		dados.valorRecebido !== null ? dados.valorRecebido - totalDinheiro : null;
 
 	return (
 		<Modal isOpen={!!dados} onClose={onClose} className="max-w-sm p-6">
@@ -43,6 +55,15 @@ export default function ReciboModal({
 				</p>
 				<p>{new Date(dados.data).toLocaleString("pt-BR")}</p>
 				<p>Pagamento: {dados.formaPagamento || "---"}</p>
+				{dados.pagamentos && dados.pagamentos.length > 1 && (
+					<div>
+						{dados.pagamentos.map((pagamento, indice) => (
+							<p key={`${pagamento.forma_pagamento}-${indice}`}>
+								{pagamento.forma_pagamento}: {formatarMoeda(pagamento.valor)}
+							</p>
+						))}
+					</div>
+				)}
 				{dados.condicaoNome && <p>Condição: {dados.condicaoNome}</p>}
 				{dados.clienteNome && <p>Cliente: {dados.clienteNome}</p>}
 				<div className="mt-2 border-t border-dashed border-gray-400 pt-2">

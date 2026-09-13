@@ -402,6 +402,9 @@
 			pagar: function (id) {
 				return invocar("pagarPagamento", id);
 			},
+			atualizarDataPrevista: function (id, data) {
+				return invocar("atualizarDataPrevistaPagamento", id, data);
+			},
 			listarPendentes: function () {
 				return invocar("listarPagamentosPendentes");
 			},

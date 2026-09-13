@@ -77,6 +77,19 @@
             <label for="lancParcelas">Parcelas</label>
             <input type="number" id="lancParcelas" min="1" step="1" value="1" />
           </div>
+          <div class="form-group">
+            <label for="lancSubtipo">Classificação de pessoal</label>
+            <select id="lancSubtipo">
+              <option value="">Não se aplica</option>
+              <option value="salario">Salário</option>
+              <option value="pro_labore">Pró-labore</option>
+              <option value="encargos">Encargos</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="lancCompetencia">Competência</label>
+            <input type="month" id="lancCompetencia" />
+          </div>
         </div>
         <div class="form-actions">
           <button type="button" id="btnNovoLancamento" class="btn btn-primary">Adicionar</button>

@@ -6,8 +6,10 @@ import Button from "@/components/ui/button/Button";
 import {
 	erpApi,
 	CATEGORIAS_FINANCEIRAS,
+	SUBTIPOS_FINANCEIROS,
 	type LancamentoRecorrente,
 	type NovoLancamentoRecorrente,
+	type SubtipoFinanceiro,
 } from "@/lib/erpApi";
 import { formatarMoeda } from "@/components/dashboard/formatos";
 
@@ -22,6 +24,8 @@ export default function LancamentosRecorrentesTab() {
 	const [valor, setValor] = useState("");
 	const [diaMes, setDiaMes] = useState("5");
 	const [categoria, setCategoria] = useState("");
+	const [subtipo, setSubtipo] = useState<"" | SubtipoFinanceiro>("");
+	const [competenciaMes, setCompetenciaMes] = useState("");
 	const [salvando, setSalvando] = useState(false);
 
 	function carregar() {
@@ -49,6 +53,8 @@ export default function LancamentosRecorrentesTab() {
 			valor: Number(valor),
 			dia_mes: parseInt(diaMes, 10),
 			categoria: categoria || null,
+			subtipo: tipo === "pagar" && subtipo ? subtipo : null,
+			competencia_mes: competenciaMes || null,
 		};
 		if (!dados.descricao) {
 			setErro("Informe a descrição.");
@@ -66,6 +72,8 @@ export default function LancamentosRecorrentesTab() {
 			setDescricao("");
 			setValor("");
 			setCategoria("");
+			setSubtipo("");
+			setCompetenciaMes("");
 			carregar();
 		} catch (e) {
 			setErro(e instanceof Error ? e.message : String(e));
@@ -163,8 +171,37 @@ export default function LancamentosRecorrentesTab() {
 									{c}
 								</option>
 							))}
-						</select>
+					</select>
 					</div>
+					{tipo === "pagar" && (
+						<div>
+							<Label>Classificação de pessoal</Label>
+							<select
+								value={subtipo}
+								onChange={(e) =>
+									setSubtipo(e.target.value as typeof subtipo)
+								}
+								className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+							>
+								<option value="">Não se aplica</option>
+								{SUBTIPOS_FINANCEIROS.map((item) => (
+									<option key={item.valor} value={item.valor}>
+										{item.rotulo}
+									</option>
+								))}
+							</select>
+						</div>
+					)}
+					{tipo === "pagar" && (
+						<div>
+							<Label>Competência (opcional)</Label>
+							<Input
+								type="month"
+								value={competenciaMes}
+								onChange={(e) => setCompetenciaMes(e.target.value)}
+							/>
+						</div>
+					)}
 				</div>
 				<div className="mt-4 flex justify-end">
 					<Button onClick={criar} disabled={salvando}>
@@ -232,6 +269,11 @@ export default function LancamentosRecorrentesTab() {
 											{item.categoria && (
 												<span className="ml-2 text-xs text-gray-400">
 													({item.categoria})
+												</span>
+											)}
+											{item.subtipo && (
+												<span className="ml-2 text-xs text-gray-400">
+													({SUBTIPOS_FINANCEIROS.find((s) => s.valor === item.subtipo)?.rotulo || item.subtipo})
 												</span>
 											)}
 										</td>

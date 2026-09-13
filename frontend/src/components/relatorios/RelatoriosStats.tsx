@@ -94,7 +94,7 @@ export default function RelatoriosStats({
 			/>
 			<CardStat
 				icone={<DollarLineIcon className="size-4" />}
-				label="Faturamento"
+				label="Faturamento bruto"
 				valor={formatarMoeda(resumo.faturamento)}
 				corIcone="success"
 				variacao={resumo.faturamentoVariacao}

@@ -2,6 +2,7 @@ const {
 	registrarPagamento,
 	listarPagamentos,
 	pagarPagamento,
+	atualizarDataPrevistaPagamento,
 	listarPagamentosPendentes,
 } = require("../db/pagamentos");
 
@@ -30,6 +31,15 @@ function registrar(ipcMain, deps) {
 		try {
 			exigirSessao("admin");
 			return await pagarPagamento(id);
+		} catch (erro) {
+			throw erro.message;
+		}
+	});
+
+	ipcMain.handle("atualizar-data-prevista-pagamento", async (event, id, data) => {
+		try {
+			exigirSessao("admin");
+			return await atualizarDataPrevistaPagamento(id, data);
 		} catch (erro) {
 			throw erro.message;
 		}

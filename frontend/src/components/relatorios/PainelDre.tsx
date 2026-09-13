@@ -63,6 +63,11 @@ export default function PainelDre({ dre }: { dre: DreResultado }) {
 					sinal="negativo"
 				/>
 				<LinhaDre
+					label="Devoluções"
+					valor={"-" + formatarMoeda(dre.devolucoes)}
+					sinal="negativo"
+				/>
+				<LinhaDre
 					label="Receita Líquida"
 					valor={formatarMoeda(dre.receitaLiquida)}
 				/>
@@ -80,12 +85,34 @@ export default function PainelDre({ dre }: { dre: DreResultado }) {
 					valor={"-" + formatarMoeda(dre.despesas)}
 					sinal="negativo"
 				/>
+				{(dre.salariosPagos > 0 || dre.proLaborePago > 0 || dre.encargosPagos > 0) && (
+					<div className="mt-1 border-l-2 border-gray-200 pl-3 dark:border-gray-700">
+						<LinhaDre label="Inclui salários" valor={formatarMoeda(dre.salariosPagos)} />
+						<LinhaDre label="Inclui pró-labore" valor={formatarMoeda(dre.proLaborePago)} />
+						<LinhaDre label="Inclui encargos" valor={formatarMoeda(dre.encargosPagos)} />
+					</div>
+				)}
 				<LinhaDre
 					label={`Lucro Líquido (${formatarPercentual(dre.margemLiquidaPercentual)})`}
 					valor={formatarMoeda(dre.lucroLiquido)}
 					destaque
 					sinal={dre.lucroLiquido >= 0 ? "positivo" : "negativo"}
 				/>
+				{dre.custoDesconhecido && (
+					<p className="mt-2 text-xs text-warning-600 dark:text-warning-400">
+						CMV parcial: {formatarMoeda(dre.receitaSemCMV)} em vendas sem custo histórico informado.
+					</p>
+				)}
+				{dre.investimentosPagos > 0 && (
+					<p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+						Investimentos pagos ({formatarMoeda(dre.investimentosPagos)}) ficam no fluxo de caixa, mas não reduzem o lucro operacional.
+					</p>
+				)}
+				{dre.salariosAbertos + dre.proLaboreAberto + dre.encargosAbertos > 0 && (
+					<p className="mt-2 text-xs text-warning-600 dark:text-warning-400">
+						Pessoal em aberto no período: {formatarMoeda(dre.salariosAbertos + dre.proLaboreAberto + dre.encargosAbertos)}.
+					</p>
+				)}
 			</div>
 		</div>
 	);

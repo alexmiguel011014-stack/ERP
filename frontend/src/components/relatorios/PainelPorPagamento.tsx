@@ -35,6 +35,8 @@ export default function PainelPorPagamento({
 									<th className="px-3 py-2 text-right text-xs font-medium uppercase text-gray-400">
 										Faturamento
 									</th>
+									<th className="px-3 py-2 text-right text-xs font-medium uppercase text-gray-400">Devoluções</th>
+									<th className="px-3 py-2 text-right text-xs font-medium uppercase text-gray-400">Líquido</th>
 								</tr>
 							</thead>
 							<tbody>
@@ -48,6 +50,8 @@ export default function PainelPorPagamento({
 										<td className="px-3 py-2 text-right font-semibold text-success-600 dark:text-success-400">
 											{formatarMoeda(p.faturamento)}
 										</td>
+										<td className="px-3 py-2 text-right text-error-600">{formatarMoeda(p.devolucoes)}</td>
+										<td className="px-3 py-2 text-right font-semibold">{formatarMoeda(p.faturamentoLiquido)}</td>
 									</tr>
 								))}
 							</tbody>

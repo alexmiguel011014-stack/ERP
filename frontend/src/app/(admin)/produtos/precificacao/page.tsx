@@ -12,17 +12,6 @@ import PrecificacaoTable, {
 } from "@/components/produtos/PrecificacaoTable";
 import CondicoesParcelamentoPanel from "@/components/produtos/CondicoesParcelamentoPanel";
 
-function fmtMoeda(v: number) {
-	return Number(v || 0).toLocaleString("pt-BR", {
-		minimumFractionDigits: 2,
-		maximumFractionDigits: 2,
-	});
-}
-
-function fmtPct(v: number) {
-	return Number(v || 0).toFixed(1);
-}
-
 export default function PrecificacaoPage() {
 	usePageHeader("Precificação", "Gerencie margens e preços de venda");
 	const {
@@ -390,15 +379,11 @@ export default function PrecificacaoPage() {
 						</Button>
 					</div>
 					<p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-						Aluguel, salários e outras despesas fixas, diluídas como % do
-						faturamento. Marque &quot;Custo Fixo&quot; por produto.
+						Aluguel, salários e outras despesas fixas. O valor é descontado
+						passivamente uma vez no lucro líquido estimado do período e não altera preços.
 					</p>
 					<p className="mt-1.5 text-xs text-gray-600 dark:text-gray-300">
-						{custoFixoConfig.mesesConsiderados === 0
-							? "Ainda não há histórico de vendas suficiente para calcular automaticamente. Cadastre vendas ou importe um histórico."
-							: custoFixoConfig.percentual > 0
-								? `Faturamento médio dos últimos ${custoFixoConfig.mesesConsiderados} mês(es): R$ ${fmtMoeda(custoFixoConfig.faturamentoMedioHistorico)} — ${fmtPct(custoFixoConfig.percentual)}% do faturamento será diluído nos produtos marcados.`
-								: "Informe o custo fixo mensal para calcular a porcentagem."}
+						Valor usado como provisão analítica no Fluxo de Caixa e no lucro líquido estimado.
 					</p>
 				</div>
 				<div>
@@ -608,7 +593,6 @@ export default function PrecificacaoPage() {
 							linhas={linhasFiltradas}
 							setLinhas={setDados}
 							margemGlobal={margemGlobal}
-							custoFixoPercentual={custoFixoConfig.percentual}
 							selecionados={selecionados}
 							onToggleSelecionado={toggleSelecionado}
 							onAlterar={registrarAlteracao}

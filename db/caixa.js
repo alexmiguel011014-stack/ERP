@@ -2,21 +2,37 @@ const { runAsync, allAsync, getAsync } = require("./conexao");
 
 /* ============ Fechamento de caixa ============ */
 
-// Soma o que deveria estar em dinheiro no caixa: vendas finalizadas em
-// "Dinheiro" dentro da janela aberta, menos devoluções em dinheiro no mesmo
-// período (Devolucoes não guarda forma de pagamento — como o troco de uma
-// devolução normalmente sai do caixa físico, todo estorno é descontado).
+// Soma o que deveria estar em dinheiro no caixa: apenas as alocações em
+// "Dinheiro" de vendas finalizadas dentro da janela aberta, menos devoluções
+// em dinheiro no mesmo período. Assim, uma venda dividida não soma PIX/cartão
+// ao caixa físico.
 async function calcularValorEsperadoCaixa(dataAbertura, dataFechamento) {
 	const fim = dataFechamento || new Date().toISOString();
 	const vendas = await getAsync(
-		`SELECT COALESCE(SUM(total), 0) AS soma FROM Vendas
-     WHERE status = 'finalizada' AND forma_pagamento = 'Dinheiro'
-       AND data_venda >= ? AND data_venda <= ?`,
+		`SELECT COALESCE(SUM(vp.valor), 0) AS soma
+     FROM VendaPagamentos vp
+     JOIN Vendas v ON v.id = vp.venda_id
+     WHERE v.status = 'finalizada' AND vp.forma_pagamento = 'Dinheiro'
+       AND v.data_venda >= ? AND v.data_venda <= ?`,
 		[dataAbertura, fim],
 	);
 	const devolucoes = await getAsync(
-		`SELECT COALESCE(SUM(valor_total), 0) AS soma FROM Devolucoes
-     WHERE data >= ? AND data <= ?`,
+		`SELECT COALESCE(SUM(
+       CASE
+         WHEN v.forma_pagamento = 'Dinheiro' THEN d.valor_total
+         WHEN v.forma_pagamento = 'Misto' THEN d.valor_total * COALESCE((
+           SELECT SUM(vp.valor) FROM VendaPagamentos vp
+           WHERE vp.venda_id = v.id AND vp.forma_pagamento = 'Dinheiro'
+         ) / NULLIF((
+           SELECT SUM(vp2.valor) FROM VendaPagamentos vp2
+           WHERE vp2.venda_id = v.id
+         ), 0), 0)
+         ELSE 0
+       END
+     ), 0) AS soma
+     FROM Devolucoes d
+     JOIN Vendas v ON v.id = d.venda_id
+     WHERE d.data >= ? AND d.data <= ?`,
 		[dataAbertura, fim],
 	);
 	return (

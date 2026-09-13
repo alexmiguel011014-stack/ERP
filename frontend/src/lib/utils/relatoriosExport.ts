@@ -239,7 +239,7 @@ export async function exportarRelatorioPdf(dados: {
 				},
 				[
 					{
-						name: "Faturamento",
+						name: "Faturamento bruto",
 						data: dados.resumo!.porDia.map((d) => d.faturamento),
 					},
 				],
@@ -567,19 +567,27 @@ export async function exportarRelatorioPdf(dados: {
 		linhaTexto(
 			`Descontos dados: ${formatarMoeda(dados.resumo.resumo.descontos)}`,
 		);
+		linhaTexto(
+			`Devoluções: -${formatarMoeda(dados.resumo.resumo.devolucoes)}`,
+		);
+		linhaTexto(
+			`Faturamento líquido: ${formatarMoeda(dados.resumo.resumo.faturamentoLiquido)}`,
+		);
 		y += 8;
 
 		if (dados.resumo.porDia.length > 0) {
-			imagemGrafico(imgPorDia, 900, 360, "Faturamento por dia");
+			imagemGrafico(imgPorDia, 900, 360, "Faturamento bruto por dia");
 			tabela(
-				["Data", "Vendas", "Faturamento", "Descontos"],
+				["Data", "Vendas", "Faturamento", "Descontos", "Devoluções", "Líquido"],
 				dados.resumo.porDia.map((d) => [
 					formatarData(d.dia),
 					d.vendas,
 					formatarMoeda(d.faturamento),
 					formatarMoeda(d.descontos),
+					formatarMoeda(d.devolucoes),
+					formatarMoeda(d.faturamentoLiquido),
 				]),
-				[100, 80, 120, 120],
+				[80, 50, 100, 90, 90, 100],
 			);
 		}
 
@@ -588,16 +596,18 @@ export async function exportarRelatorioPdf(dados: {
 				imgPorPagamento,
 				900,
 				420,
-				"Faturamento por forma de pagamento",
+				"Faturamento bruto por forma de pagamento",
 			);
 			tabela(
-				["Forma de pagamento", "Vendas", "Faturamento"],
+				["Forma de pagamento", "Vendas", "Faturamento", "Devoluções", "Líquido"],
 				dados.resumo.porPagamento.map((p) => [
 					p.forma_pagamento,
 					p.vendas,
 					formatarMoeda(p.faturamento),
+					formatarMoeda(p.devolucoes),
+					formatarMoeda(p.faturamentoLiquido),
 				]),
-				[200, 80, 120],
+				[160, 60, 100, 100, 100],
 			);
 		}
 	}
@@ -607,12 +617,16 @@ export async function exportarRelatorioPdf(dados: {
 		imagemGrafico(imgDre, 900, 320);
 		linhaTexto(`Receita Bruta: ${formatarMoeda(dados.dre.receitaBruta)}`);
 		linhaTexto(`Descontos: -${formatarMoeda(dados.dre.descontos)}`);
+		linhaTexto(`Devoluções: -${formatarMoeda(dados.dre.devolucoes)}`);
 		linhaTexto(`Receita Líquida: ${formatarMoeda(dados.dre.receitaLiquida)}`);
 		linhaTexto(`CMV: -${formatarMoeda(dados.dre.cmv)}`);
 		linhaTexto(
 			`Lucro Bruto (${dados.dre.margemBrutaPercentual.toFixed(1)}%): ${formatarMoeda(dados.dre.lucroBruto)}`,
 		);
 		linhaTexto(`Despesas: -${formatarMoeda(dados.dre.despesas)}`);
+		if (dados.dre.custoDesconhecido) {
+			linhaTexto(`Vendas sem CMV conhecido: ${formatarMoeda(dados.dre.receitaSemCMV)}`);
+		}
 		linhaTexto(
 			`Lucro Líquido (${dados.dre.margemLiquidaPercentual.toFixed(1)}%): ${formatarMoeda(dados.dre.lucroLiquido)}`,
 		);

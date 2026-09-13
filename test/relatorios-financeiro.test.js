@@ -52,6 +52,7 @@ async function criarCenarioVenda(estoqueInicial) {
 			],
 			total: 200,
 			forma_pagamento: "Dinheiro",
+			valor_recebido: 200,
 		},
 		usuario.lastID,
 	);

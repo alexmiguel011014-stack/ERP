@@ -62,12 +62,10 @@ async function saveGlobalMargin(valor) {
 
 // Recalcula e grava (Precificacao.preco_venda + Variacoes.preco) o preço de
 // venda de todo produto "pendente" (sem override manual de margem/preço),
-// usando a margem global e o custo fixo atuais. Chamado tanto ao carregar a
-// tela de Precificação quanto ao salvar uma nova margem global/custo fixo,
-// para que o preço real nunca fique defasado do que a tela exibe.
+// usando somente margem, custo e impostos. Custo fixo é uma provisão analítica
+// do período e nunca pode alterar o preço unitário persistido.
 async function sincronizarPrecosPendentesInterno() {
 	const margemGlobalAtual = await getGlobalMargin();
-	const custoFixoAtual = await getCustoFixoConfig();
 	const pendentes = await allAsync(
 		`SELECT pr.produto_id, pr.preco_custo, pr.impostos_extras, pr.preco_venda, pr.aplicar_custo_fixo
      FROM Precificacao pr
@@ -76,12 +74,9 @@ async function sincronizarPrecosPendentesInterno() {
 	const atualizacoes = [];
 	for (const p of pendentes) {
 		const base = Number(p.preco_custo || 0) + Number(p.impostos_extras || 0);
-		const custoFixoPercentual = p.aplicar_custo_fixo
-			? custoFixoAtual.percentual
-			: 0;
 		const precoCalculado =
 			base > 0
-				? base * (1 + margemGlobalAtual / 100) * (1 + custoFixoPercentual / 100)
+				? base * (1 + margemGlobalAtual / 100)
 				: 0;
 		if (
 			precoCalculado > 0 &&
@@ -192,12 +187,8 @@ function getPricingData() {
 	return enfileirarOperacao(getPricingDataInterno);
 }
 
-// Custo fixo mensal (aluguel, salários, etc.) diluído como uma PORCENTAGEM do
-// faturamento, não um R$ fixo por unidade — ratear em R$ fixo penalizava
-// desproporcionalmente produtos baratos (um acessório de R$20 absorvia o
-// mesmo custo fixo em R$ que um quimono de R$1000). A % é sempre recalculada
-// a partir do faturamento médio histórico real (ver getFaturamentoMedioHistorico),
-// nunca de um "volume estimado" digitado à mão.
+// Custo fixo mensal (aluguel, salários, etc.) é uma provisão analítica do
+// período e não participa do preço unitário.
 async function getFaturamentoMedioHistorico(meses) {
 	const qtdMeses = Number(meses) > 0 ? Number(meses) : 3;
 	const linhas = await allAsync(
@@ -223,13 +214,11 @@ async function getCustoFixoConfig() {
 		mapa[l.chave] = l.valor;
 	});
 	const mensal = parseFloat(mapa.custo_fixo_mensal) || 0;
-	const { media, mesesConsiderados } = await getFaturamentoMedioHistorico(3);
-	const percentual = mensal > 0 && media > 0 ? (mensal / media) * 100 : 0;
 	return {
 		mensal,
-		faturamentoMedioHistorico: media,
-		mesesConsiderados,
-		percentual,
+		faturamentoMedioHistorico: 0,
+		mesesConsiderados: 0,
+		percentual: 0,
 	};
 }
 
@@ -242,9 +231,6 @@ async function saveCustoFixoConfig(mensal) {
 			"INSERT OR REPLACE INTO Configuracao (chave, valor) VALUES ('custo_fixo_mensal', ?)",
 			[String(mensalVal)],
 		);
-		// Reflete imediatamente no preço dos produtos sem override manual — mesmo
-		// motivo de saveGlobalMargin chamar sincronizarPrecosPendentes().
-		await sincronizarPrecosPendentesInterno();
 		return { success: true };
 	});
 }
