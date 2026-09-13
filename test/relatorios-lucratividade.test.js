@@ -43,15 +43,15 @@ test("DRE calcula lucro bruto e desconta custo fixo passivamente", async () => {
 	assert.equal(dre.lucroLiquido, 20);
 });
 
-test("custo fixo mensal é provisionado por mês do período", async () => {
+test("custo fixo mensal é provisionado uma vez por relatório", async () => {
 	await db.saveCustoFixoConfig(10);
 
 	const dre = await db.getDRE("2026-08-01", "2026-09-12");
-	assert.equal(dre.custoFixoProvisionado, 20);
-	assert.equal(dre.mesesProvisionados, 2);
-	assert.equal(dre.provisaoDeclarada, 20);
-	assert.deepEqual(dre.pagamentosFixosPorMes, { "2026-08": 0, "2026-09": 0 });
-	assert.equal(dre.lucroLiquido, dre.lucroBruto - dre.despesas - 20);
+	assert.equal(dre.custoFixoProvisionado, 10);
+	assert.equal(dre.mesesProvisionados, 1);
+	assert.equal(dre.provisaoDeclarada, 10);
+	assert.deepEqual(dre.pagamentosFixosPorMes, { "2026-09": 0 });
+	assert.equal(dre.lucroLiquido, dre.lucroBruto - dre.despesas - 10);
 });
 
 test("custo fixo não altera preço persistido e cartão duplicado entra uma vez na projeção", async () => {
@@ -342,4 +342,55 @@ test("retorno com desconto em período posterior mantém Curva ABC e margem no v
 	const margem = await db.getMargemContribuicao("2033-02-01", "2033-02-28");
 	assert.equal(curva[0].receita, -140);
 	assert.equal(margem.porProduto[0].receita, -140);
+});
+
+test("período todo provisiona apenas o mês final, não todo o histórico", async () => {
+	await db.saveCustoFixoConfig(123);
+	const dre = await db.getDRE("1900-01-01", "2040-01-31");
+	assert.equal(dre.mesesProvisionados, 1);
+	assert.equal(dre.provisaoDeclarada, 123);
+	assert.equal(dre.custoFixoProvisionado, 123);
+	assert.deepEqual(dre.pagamentosFixosPorMes, { "2040-01": 0 });
+});
+
+test("taxa Pix ausente é zero e taxa do cartão usa específica ou média", async () => {
+	await db.saveTaxaAdquirente(4);
+	await db.saveTaxaAdquirentePorMetodo("cartao", 3);
+	await runAsync("DELETE FROM Configuracao WHERE chave = 'taxa_adquirente_pix'");
+
+	const produto = await runAsync("INSERT INTO Produtos (nome) VALUES (?)", [
+		"Produto taxas por forma",
+	]);
+	const variacao = await runAsync(
+		"INSERT INTO Variacoes (produto_id, sku, preco, preco_custo, quantidade_estoque, atributos) VALUES (?, ?, ?, ?, ?, ?)",
+		[produto.lastID, "TAXA-FORMA-E2E", 100, 0, 3, "[]"],
+	);
+	for (const forma of ["PIX", "Cartão", "Dinheiro"]) {
+		const venda = await runAsync(
+			"INSERT INTO Vendas (total, forma_pagamento, data_venda, status, desconto) VALUES (100, ?, '2041-01-15T12:00:00Z', 'finalizada', 0)",
+			[forma],
+		);
+		await runAsync(
+			"INSERT INTO ItensVenda (venda_id, variacao_id, quantidade, preco_unitario, custo_unitario) VALUES (?, ?, 1, 100, 0)",
+			[venda.lastID, variacao.lastID],
+		);
+	}
+	const vendaMista = await runAsync(
+		"INSERT INTO Vendas (total, forma_pagamento, data_venda, status, desconto) VALUES (100, 'Misto', '2041-01-15T12:00:00Z', 'finalizada', 0)",
+	);
+	await runAsync(
+		"INSERT INTO ItensVenda (venda_id, variacao_id, quantidade, preco_unitario, custo_unitario) VALUES (?, ?, 1, 100, 0)",
+		[vendaMista.lastID, variacao.lastID],
+	);
+	await runAsync(
+		"INSERT INTO VendaPagamentos (venda_id, forma_pagamento, valor, criado_em) VALUES (?, 'PIX', 60, '2041-01-15T12:00:00Z'), (?, 'Cartão', 40, '2041-01-15T12:00:00Z')",
+		[vendaMista.lastID, vendaMista.lastID],
+	);
+
+	const margem = await db.getMargemContribuicao(
+		"2041-01-01",
+		"2041-01-31",
+	);
+	assert.equal(margem.taxaAdquirenteUsada, 4);
+	assert.equal(margem.margemContribuicaoTotal, 395.8);
 });

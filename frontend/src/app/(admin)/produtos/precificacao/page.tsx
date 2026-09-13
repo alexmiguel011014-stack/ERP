@@ -167,7 +167,12 @@ export default function PrecificacaoPage() {
 		setValorAtual: (v: number | null) => void,
 		setSalvando: (v: boolean) => void,
 	) {
-		const taxa = parseFloat(valorInput || String(valorAtual ?? 0)) || 0;
+		// Pix sem valor informado significa explicitamente 0%: não reutilize uma
+		// taxa antiga, pois o padrão do Pix é sem taxa quando não há tarifa real.
+		const taxa =
+			metodo === "pix" && !valorInput.trim()
+				? 0
+				: parseFloat(valorInput || String(valorAtual ?? 0)) || 0;
 		if (taxa < 0) {
 			mostrarMensagem("Informe um valor válido.", false);
 			return;
@@ -387,7 +392,7 @@ export default function PrecificacaoPage() {
 					</p>
 				</div>
 				<div>
-					<Label>Taxa Média de Adquirente (%)</Label>
+					<Label>Taxa Média de Adquirente do Cartão (%)</Label>
 					<div className="flex gap-2">
 						<Input
 							type="number"
@@ -405,8 +410,8 @@ export default function PrecificacaoPage() {
 						</Button>
 					</div>
 					<p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-						Taxa média de cartão/Pix, usada na Margem de Contribuição
-						(Relatórios).
+						Usada como fallback nas vendas via Cartão quando não houver uma taxa
+						específica cadastrada.
 					</p>
 				</div>
 			</div>
@@ -444,8 +449,8 @@ export default function PrecificacaoPage() {
 						</Button>
 					</div>
 					<p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-						Sobrepõe a taxa média acima só pras vendas via Pix. Deixe em branco
-						pra continuar usando a média.
+						Opcional. Deixe em branco para considerar 0% de taxa no Pix. Informe
+						um valor somente se seu banco ou provedor cobrar tarifa.
 					</p>
 				</div>
 				<div>
@@ -482,8 +487,8 @@ export default function PrecificacaoPage() {
 						</Button>
 					</div>
 					<p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-						Sobrepõe a taxa média acima só pras vendas via Cartão. Deixe em
-						branco pra continuar usando a média.
+						Opcional. Sobrepõe a taxa média acima somente nas vendas via Cartão.
+						Deixe em branco para usar a média.
 					</p>
 				</div>
 			</div>

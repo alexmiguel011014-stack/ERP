@@ -20,23 +20,11 @@ function somarDias(dataStr, dias) {
 	return d.toISOString().slice(0, 10);
 }
 
-function mesesNoPeriodo(inicio, fim) {
-	if (!inicio || !fim || inicio > fim) return [];
-	const inicioData = new Date(`${inicio}T00:00:00Z`);
+function mesFinalDoPeriodo(inicio, fim) {
+	if (!inicio || !fim || inicio > fim) return null;
 	const fimData = new Date(`${fim}T00:00:00Z`);
-	if (Number.isNaN(inicioData.getTime()) || Number.isNaN(fimData.getTime())) {
-		return [];
-	}
-	const cursor = new Date(
-		Date.UTC(inicioData.getUTCFullYear(), inicioData.getUTCMonth(), 1),
-	);
-	const ultimoMes = Date.UTC(fimData.getUTCFullYear(), fimData.getUTCMonth(), 1);
-	const meses = [];
-	while (cursor.getTime() <= ultimoMes) {
-		meses.push(cursor.toISOString().slice(0, 7));
-		cursor.setUTCMonth(cursor.getUTCMonth() + 1);
-	}
-	return meses;
+	if (Number.isNaN(fimData.getTime())) return null;
+	return `${fimData.getUTCFullYear()}-${String(fimData.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 // Taxas/contas de cartão em aberto representam um custo futuro da venda.
@@ -250,7 +238,11 @@ async function getDRE(dataInicio, dataFim) {
 	const encargosAbertos = Number(pessoalAbertoLinha.encargos) || 0;
 	const investimentosPagos = Number(investimentosPagosLinha.valor) || 0;
 	const custoFixoConfig = await getCustoFixoConfig();
-	const mesesProvisionadosLista = mesesNoPeriodo(inicio, fim);
+	// O custo fixo é uma provisão passiva mensal, não um acumulador histórico.
+	// Mesmo no atalho "Período todo" (que usa 1900-01-01 como sentinela),
+	// considera-se somente o mês final informado no relatório.
+	const mesProvisionado = mesFinalDoPeriodo(inicio, fim);
+	const mesesProvisionadosLista = mesProvisionado ? [mesProvisionado] : [];
 	const pagamentosFixosPorMes = Object.fromEntries(
 		mesesProvisionadosLista.map((mes) => [mes, 0]),
 	);
@@ -633,9 +625,9 @@ async function getMargemContribuicao(dataInicio, dataFim) {
 	const fim = dataFim || hoje;
 
 	// taxaPix/taxaCartao ficam null quando o dono nunca configurou a taxa por
-	// forma de pagamento — cai pra taxaAdquirente (a média antiga) nesse caso,
-	// então quem nunca mexer nessa config nova tem o cálculo idêntico a antes
-	// dela existir. Achado real ao implementar (2026-09-02): PDV só aceita
+	// forma de pagamento. Pix sem taxa específica é considerado 0%; Cartão sem
+	// taxa específica cai na média antiga. Achado real ao implementar
+	// (2026-09-02): PDV só aceita
 	// "PIX"/"Cartão"/"Dinheiro"/"Fiado" — não existe distinção crédito/débito
 	// neste app, diferente do que o plano original supôs.
 	const [taxaAdquirente, taxaPix, taxaCartao] = await Promise.all([
@@ -645,9 +637,11 @@ async function getMargemContribuicao(dataInicio, dataFim) {
 	]);
 	function taxaParaForma(forma) {
 		const chave = String(forma || "").toLowerCase();
-		if (chave === "pix" && taxaPix !== null) return taxaPix;
-		if (chave === "cartão" && taxaCartao !== null) return taxaCartao;
-		return taxaAdquirente;
+		if (chave === "pix") return taxaPix !== null ? taxaPix : 0;
+		if (chave === "cartão" || chave === "cartao") {
+			return taxaCartao !== null ? taxaCartao : taxaAdquirente;
+		}
+		return 0;
 	}
 
 	// Agrupado por (produto, forma de pagamento) — não só por produto — porque
@@ -655,6 +649,46 @@ async function getMargemContribuicao(dataInicio, dataFim) {
 	// no mesmo período. Reagregado por produto logo abaixo pra manter a mesma
 	// forma de retorno (porProduto) de antes desta mudança.
 	const linhasBrutas = await obterLinhasVendaPeriodo(inicio, fim);
+	// Uma venda mista guarda a forma agregada "Misto" em Vendas, mas as
+	// alocações reais ficam em VendaPagamentos. Use a taxa média ponderada dessas
+	// alocações para não perder a taxa do cartão no cálculo da contribuição.
+	const pagamentosPorVenda = new Map();
+	const vendaIds = [
+		...new Set(linhasBrutas.map((linha) => Number(linha.venda_id)).filter(Boolean)),
+	];
+	if (vendaIds.length > 0) {
+		const placeholders = vendaIds.map(() => "?").join(",");
+		const pagamentos = await allAsync(
+			`SELECT venda_id, forma_pagamento, COALESCE(SUM(valor), 0) AS valor
+       FROM VendaPagamentos
+       WHERE venda_id IN (${placeholders})
+       GROUP BY venda_id, forma_pagamento`,
+			vendaIds,
+		);
+		for (const pagamento of pagamentos) {
+			const id = Number(pagamento.venda_id);
+			const lista = pagamentosPorVenda.get(id) || [];
+			lista.push(pagamento);
+			pagamentosPorVenda.set(id, lista);
+		}
+	}
+	function taxaMediaDaVenda(linha) {
+		const pagamentos = pagamentosPorVenda.get(Number(linha.venda_id));
+		if (!pagamentos?.length) return taxaParaForma(linha.forma_pagamento);
+		const total = pagamentos.reduce(
+			(soma, pagamento) => soma + (Number(pagamento.valor) || 0),
+			0,
+		);
+		if (total <= 0) return taxaParaForma(linha.forma_pagamento);
+		const taxaPonderada = pagamentos.reduce(
+			(soma, pagamento) =>
+				soma +
+					(Number(pagamento.valor) || 0) *
+						taxaParaForma(pagamento.forma_pagamento),
+			0,
+		);
+		return taxaPonderada / total;
+	}
 	const linhas = linhasBrutas.map((linha) => ({
 		...linha,
 		receita: linha.receitaLiquida,
@@ -682,7 +716,7 @@ async function getMargemContribuicao(dataInicio, dataFim) {
 			Number(l.quantidade_custo_desconhecido) || 0;
 		const comissaoValor =
 			(receita * (Number(l.comissao_percentual) || 0)) / 100;
-		const taxaValor = (receita * taxaParaForma(l.forma_pagamento)) / 100;
+		const taxaValor = (receita * taxaMediaDaVenda(l)) / 100;
 		const impostos = (Number(l.impostos_extras) || 0) * quantidade;
 		const margemContribuicao =
 			receita - cmv - comissaoValor - taxaValor - impostos;

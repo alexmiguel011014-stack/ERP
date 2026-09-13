@@ -24,7 +24,7 @@ after(async () => {
 });
 
 // Produto com custo=50, vendido a 100 x2 unidades, vendedor com 5% de
-// comissão, taxa de adquirente 3%, impostos_extras 2/unidade:
+// comissão, taxa média do cartão 3%, impostos_extras 2/unidade:
 // receita=200, cmv=100, comissão=10, taxa=6, impostos=4 -> margem=80.
 async function criarCenarioVenda(estoqueInicial) {
 	const usuario = await runAsync(
@@ -51,8 +51,7 @@ async function criarCenarioVenda(estoqueInicial) {
 				{ variacao_id: variacao.lastID, quantidade: 2, preco_unitario: 100 },
 			],
 			total: 200,
-			forma_pagamento: "Dinheiro",
-			valor_recebido: 200,
+			forma_pagamento: "Cartão",
 		},
 		usuario.lastID,
 	);

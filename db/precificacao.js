@@ -235,9 +235,9 @@ async function saveCustoFixoConfig(mensal) {
 	});
 }
 
-// Taxa média de adquirente (cartão/Pix), % owner-informado — nenhuma taxa por
-// transação é rastreada hoje (nem Pix nem cartão têm um gateway com fee real
-// integrado), então isso é uma média manual, mesmo padrão de custo_fixo_mensal.
+// Taxa média de adquirente do cartão, % informada pelo dono — nenhuma taxa por
+// transação é rastreada hoje, então isso é uma média manual. O Pix sem taxa
+// específica é tratado como 0% nos relatórios; esta média é fallback do cartão.
 async function getTaxaAdquirente() {
 	const row = await getAsync(
 		"SELECT valor FROM Configuracao WHERE chave = 'taxa_adquirente_media'",
@@ -258,10 +258,8 @@ async function saveTaxaAdquirente(valor) {
 }
 
 // Taxa por forma de pagamento (Pix ≠ Cartão de verdade — taxas bem
-// diferentes), opcional: null quando não configurada, e getMargemContribuicao
-// cai de volta pra taxa_adquirente_media acima nesse caso (comportamento de
-// quem nunca configurar isso continua idêntico ao de antes desta feature
-// existir — não é substituição, é refinamento por cima).
+// diferentes), opcional: null quando não configurada. Nos relatórios, Pix sem
+// taxa específica vale 0%; Cartão sem taxa específica usa a média acima.
 const METODOS_TAXA_ADQUIRENTE = ["pix", "cartao"];
 
 function chaveTaxaMetodo(metodo) {
