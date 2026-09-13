@@ -143,12 +143,14 @@ test.describe("parcelamento no Electron", () => {
 		const forma = window
 			.getByText("Forma de pagamento", { exact: true })
 			.and(visible())
-			.locator("xpath=following-sibling::select");
+			.locator("xpath=following-sibling::*//select")
+			.first();
 		await forma.selectOption("Fiado");
 		const condicao = window
 			.getByText("Condição de parcelamento", { exact: true })
 			.and(visible())
-			.locator("xpath=following-sibling::select");
+			.locator("xpath=following-sibling::select")
+			.first();
 		await condicao.selectOption({ label: "Fiado E2E 2x — 10.00%" });
 		await window
 			.getByText("Primeiro vencimento", { exact: true })

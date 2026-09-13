@@ -11,7 +11,10 @@ import {
 	type ProdutoVariacao,
 } from "@/lib/erpApi";
 import { formatarMoeda } from "@/components/dashboard/formatos";
-import { formatarAtributos } from "@/lib/utils/formatos";
+import {
+	formatarAtributos,
+	lerDecimalInformado,
+} from "@/lib/utils/formatos";
 
 type ItemCarrinho = {
 	variacao_id: number;
@@ -125,12 +128,12 @@ export default function NovoPedidoForm({
 			return;
 		}
 		const qtdNum = parseInt(qtd, 10);
-		const custoNum = Number(custo);
+		const custoNum = lerDecimalInformado(custo);
 		if (!Number.isInteger(qtdNum) || qtdNum <= 0) {
 			onMensagem("Quantidade inválida.", false);
 			return;
 		}
-		if (!Number.isFinite(custoNum) || custoNum < 0) {
+		if (custoNum === null || !Number.isFinite(custoNum) || custoNum < 0) {
 			onMensagem("Custo inválido.", false);
 			return;
 		}
@@ -261,7 +264,8 @@ export default function NovoPedidoForm({
 				<div>
 					<Label>Custo unitário (R$)</Label>
 					<Input
-						type="number"
+						type="text"
+						inputMode="decimal"
 						value={custo}
 						onChange={(e) => setCusto(e.target.value)}
 						min="0"

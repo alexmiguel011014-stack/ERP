@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useLancamentos } from "@/hooks/useLancamentos";
 import {
 	CATEGORIAS_FINANCEIRAS,
+	SUBTIPOS_FINANCEIROS,
 	erpApi,
 	type Lancamento,
 } from "@/lib/erpApi";
@@ -229,6 +230,7 @@ export default function LancamentosUnificados({
 									"Descrição",
 									"Vencimento",
 									"Categoria",
+									"Classificação",
 									"Valor",
 									"Status",
 									"Origem",
@@ -283,8 +285,18 @@ export default function LancamentosUnificados({
 										<td className="whitespace-nowrap px-3 py-2 text-gray-600 dark:text-gray-300">
 											{formatarData(lancamento.data_vencimento)}
 										</td>
-										<td className="px-3 py-2 text-gray-500 dark:text-gray-400">
+						<td className="px-3 py-2 text-gray-500 dark:text-gray-400">
 											{lancamento.categoria || "Sem categoria"}
+										</td>
+										<td className="whitespace-nowrap px-3 py-2 text-gray-500 dark:text-gray-400">
+											{lancamento.subtipo
+												? SUBTIPOS_FINANCEIROS.find(
+														(item) => item.valor === lancamento.subtipo,
+													)?.rotulo || lancamento.subtipo
+												: "---"}
+											{lancamento.competencia_mes
+												? ` · ${lancamento.competencia_mes}`
+												: ""}
 										</td>
 										<td className="whitespace-nowrap px-3 py-2 text-right font-semibold text-gray-800 dark:text-white/90">
 											{formatarMoeda(lancamento.valor)}

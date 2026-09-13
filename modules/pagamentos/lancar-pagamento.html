@@ -60,7 +60,7 @@
 
         <div class="campo">
           <label>Valor Recebido</label>
-          <input type="number" id="valorRecebido" step="0.01" min="0.01" required />
+          <input type="text" inputmode="decimal" id="valorRecebido" step="0.01" min="0.01" required />
         </div>
 
         <div class="campo">
@@ -120,8 +120,8 @@
       });
 
       btnGerarQrPix.addEventListener("click", async () => {
-        const valor = parseFloat(valorRecebido.value);
-        if (!valor || valor <= 0) {
+        const valor = lerDecimalInformado(valorRecebido.value);
+        if (valor === null || valor <= 0) {
           alert("Informe o valor antes de gerar o QR Code.");
           return;
         }
@@ -204,7 +204,7 @@
           metodo: metodoSelect.value,
           numero_identificador: numeroIdentificador.value.trim(),
           data_recebimento: dataRecebimento.value,
-          valor_recebido: parseFloat(valorRecebido.value),
+          valor_recebido: lerDecimalInformado(valorRecebido.value),
           status: "pendente",
           observacao: observacao.value.trim(),
         };
@@ -217,7 +217,7 @@
           alert("Informe o identificador (TXID Pix ou número do boleto).");
           return;
         }
-        if (!dados.valor_recebido || dados.valor_recebido <= 0) {
+        if (dados.valor_recebido === null || dados.valor_recebido <= 0) {
           alert("Informe um valor válido maior que zero.");
           return;
         }

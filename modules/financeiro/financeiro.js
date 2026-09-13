@@ -25,6 +25,8 @@
 	var lancValor = document.getElementById("lancValor");
 	var lancVencimento = document.getElementById("lancVencimento");
 	var lancParcelas = document.getElementById("lancParcelas");
+	var lancSubtipo = document.getElementById("lancSubtipo");
+	var lancCompetencia = document.getElementById("lancCompetencia");
 	var btnNovoLancamento = document.getElementById("btnNovoLancamento");
 
 	var fluxoInicio = document.getElementById("fluxoInicio");
@@ -225,7 +227,9 @@
 						origemTxt +
 						(l.parcela_total > 1
 							? " | Parcela " + l.parcela_num + "/" + l.parcela_total
-							: "");
+							: "") +
+						(l.subtipo ? " | Classificação: " + l.subtipo : "") +
+						(l.competencia_mes ? " | Competência: " + l.competencia_mes : "");
 
 					var acoes = div.querySelector(".acoes");
 
@@ -293,9 +297,16 @@
 		var dados = {
 			tipo: lancTipo.value,
 			descricao: lancDescricao.value.trim(),
-			valor: Number(lancValor.value),
+			valor: lerDecimalInformado(lancValor.value) ?? 0,
 			data_vencimento: lancVencimento.value || null,
 			parcelas: parcelas,
+			subtipo:
+				lancTipo.value === "pagar" && lancSubtipo
+					? lancSubtipo.value || null
+					: null,
+			competencia_mes: lancTipo.value === "pagar" && lancCompetencia
+				? lancCompetencia.value || null
+				: null,
 		};
 		if (!dados.descricao) {
 			mostrarMensagem("Informe a descrição.", "erro");
@@ -434,8 +445,8 @@
 	}
 
 	btnSaveAliquotaDAS.addEventListener("click", () => {
-		var aliquota = parseFloat(aliquotaDASInput.value) || 0;
-		if (aliquota < 0) {
+		var aliquota = lerDecimalInformado(aliquotaDASInput.value);
+		if (aliquota === null || !Number.isFinite(aliquota) || aliquota < 0 || aliquota > 100) {
 			mostrarMensagem("Informe um valor válido.", "error");
 			return;
 		}

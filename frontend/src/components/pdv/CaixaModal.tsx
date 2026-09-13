@@ -4,7 +4,10 @@ import { Modal } from "@/components/ui/modal";
 import Button from "@/components/ui/button/Button";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
-import { formatarMoeda } from "./formatos";
+import {
+	formatarMoeda,
+	lerDecimalInformado,
+} from "./formatos";
 import type { CaixaAberto, ResumoCaixa } from "@/lib/erpApi";
 
 export default function CaixaModal({
@@ -44,8 +47,8 @@ export default function CaixaModal({
 	}, [isOpen, caixa]);
 
 	async function confirmarAbrir() {
-		const valor = Number(valorAbertura);
-		if (!Number.isFinite(valor) || valor < 0) {
+		const valor = lerDecimalInformado(valorAbertura);
+		if (valor === null || !Number.isFinite(valor) || valor < 0) {
 			setErro("Valor de abertura inválido.");
 			return;
 		}
@@ -62,8 +65,10 @@ export default function CaixaModal({
 	}
 
 	async function confirmarFechar() {
-		const valor = Number(valorContado);
-		if (!Number.isFinite(valor) || valor < 0) {
+		const valor = valorContado.trim()
+			? lerDecimalInformado(valorContado)
+			: 0;
+		if (valor === null || !Number.isFinite(valor) || valor < 0) {
 			setErro("Valor contado inválido.");
 			return;
 		}
@@ -97,7 +102,8 @@ export default function CaixaModal({
 					<div>
 						<Label>Valor de abertura (R$)</Label>
 						<Input
-							type="number"
+							type="text"
+							inputMode="decimal"
 							value={valorAbertura}
 							onChange={(e) => setValorAbertura(e.target.value)}
 							min="0"
@@ -105,6 +111,7 @@ export default function CaixaModal({
 						/>
 					</div>
 					<Button
+						type="button"
 						onClick={confirmarAbrir}
 						disabled={processando}
 						className="w-full"
@@ -142,7 +149,8 @@ export default function CaixaModal({
 					<div>
 						<Label>Valor contado (R$)</Label>
 						<Input
-							type="number"
+							type="text"
+							inputMode="decimal"
 							value={valorContado}
 							onChange={(e) => setValorContado(e.target.value)}
 							min="0"
@@ -158,6 +166,7 @@ export default function CaixaModal({
 						/>
 					</div>
 					<Button
+						type="button"
 						onClick={confirmarFechar}
 						disabled={processando}
 						className="w-full"

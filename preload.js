@@ -242,6 +242,8 @@ contextBridge.exposeInMainWorld("api", {
 	registrarPagamento: (dados) =>
 		ipcRenderer.invoke("registrar-pagamento", dados),
 	pagarPagamento: (id) => ipcRenderer.invoke("pagar-pagamento", id),
+	atualizarDataPrevistaPagamento: (id, data) =>
+		ipcRenderer.invoke("atualizar-data-prevista-pagamento", id, data),
 	listarPagamentosPendentes: () =>
 		ipcRenderer.invoke("listar-pagamentos-pendentes"),
 	gerarQrCodePix: (dados) => ipcRenderer.invoke("gerar-qrcode-pix", dados),

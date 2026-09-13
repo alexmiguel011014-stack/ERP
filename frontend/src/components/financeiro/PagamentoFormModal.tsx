@@ -6,6 +6,7 @@ import Input from "@/components/form/input/InputField";
 import Button from "@/components/ui/button/Button";
 import { erpApi, type NovoPagamento, type Venda } from "@/lib/erpApi";
 import { formatarMoeda } from "@/components/dashboard/formatos";
+import { lerDecimalInformado } from "@/lib/utils/formatos";
 
 const METODOS = [
 	{ value: "pix", label: "Pix" },
@@ -60,8 +61,8 @@ export default function PagamentoFormModal({
 	}, [isOpen]);
 
 	async function gerarQrPix() {
-		const valor = parseFloat(valorRecebido);
-		if (!valor || valor <= 0) {
+		const valor = lerDecimalInformado(valorRecebido);
+		if (valor === null || !Number.isFinite(valor) || valor <= 0) {
 			setErro("Informe o valor antes de gerar o QR Code.");
 			return;
 		}
@@ -103,13 +104,14 @@ export default function PagamentoFormModal({
 
 	async function handleSubmit(e: React.FormEvent) {
 		e.preventDefault();
+		const valorInformado = lerDecimalInformado(valorRecebido);
 		const dados: NovoPagamento = {
 			venda_id: Number(vendaId),
 			cliente_id: null,
 			metodo,
 			numero_identificador: identificador.trim(),
 			data_recebimento: dataRecebimento,
-			valor_recebido: parseFloat(valorRecebido),
+			valor_recebido: valorInformado ?? 0,
 			status: "pendente",
 			observacao: observacao.trim(),
 		};
@@ -241,7 +243,8 @@ export default function PagamentoFormModal({
 					<div>
 						<Label>Valor Recebido</Label>
 						<Input
-							type="number"
+							type="text"
+							inputMode="decimal"
 							value={valorRecebido}
 							onChange={(e) => setValorRecebido(e.target.value)}
 							min="0.01"

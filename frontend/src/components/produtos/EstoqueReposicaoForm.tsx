@@ -6,7 +6,10 @@ import Button from "@/components/ui/button/Button";
 import { usePersistedState } from "@/hooks/usePersistedState";
 import { erpApi, type ProdutoVariacao } from "@/lib/erpApi";
 import { formatarMoeda } from "@/components/dashboard/formatos";
-import { formatarAtributos } from "@/lib/utils/formatos";
+import {
+	formatarAtributos,
+	lerDecimalInformado,
+} from "@/lib/utils/formatos";
 
 type ItemReposicao = {
 	variacao_id: number;
@@ -83,8 +86,11 @@ export default function EstoqueReposicaoForm({
 			onMensagem("Quantidade inválida.", false);
 			return;
 		}
-		const custoNum = custo !== "" ? Number(custo) : null;
-		if (custoNum !== null && (!Number.isFinite(custoNum) || custoNum < 0)) {
+		const custoNum = custo.trim() ? lerDecimalInformado(custo) : null;
+		if (
+			custo.trim() &&
+			(custoNum === null || !Number.isFinite(custoNum) || custoNum < 0)
+		) {
 			onMensagem("Custo inválido.", false);
 			return;
 		}
@@ -217,7 +223,8 @@ export default function EstoqueReposicaoForm({
 				<div>
 					<Label>Custo unitário (R$)</Label>
 					<Input
-						type="number"
+						type="text"
+						inputMode="decimal"
 						value={custo}
 						onChange={(e) => setCusto(e.target.value)}
 						min="0"

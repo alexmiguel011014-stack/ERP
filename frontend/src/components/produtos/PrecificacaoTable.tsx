@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { PrecificacaoLinha } from "@/lib/erpApi";
+import { lerDecimalInformado } from "@/lib/utils/formatos";
 
 export type AlteracaoPrecificacao = {
 	preco_custo?: number;
@@ -14,14 +15,12 @@ function calcPrecoVenda(
 	custo: number,
 	impostos: number,
 	margem: number,
-	custoFixoPct: number,
 ) {
 	const base = Number(custo || 0) + Number(impostos || 0);
 	if (base <= 0) return 0;
 	return (
 		base *
-		(1 + Number(margem || 0) / 100) *
-		(1 + Number(custoFixoPct || 0) / 100)
+		(1 + Number(margem || 0) / 100)
 	);
 }
 
@@ -29,24 +28,19 @@ function calcMargem(
 	custo: number,
 	impostos: number,
 	precoVenda: number,
-	custoFixoPct: number,
 ) {
 	const base = Number(custo || 0) + Number(impostos || 0);
 	if (base <= 0) return 0;
-	const baseComCustoFixo = base * (1 + Number(custoFixoPct || 0) / 100);
-	if (baseComCustoFixo <= 0) return 0;
-	return (Number(precoVenda || 0) / baseComCustoFixo - 1) * 100;
+	return (Number(precoVenda || 0) / base - 1) * 100;
 }
 
 function calcLucro(
 	custo: number,
 	impostos: number,
 	precoVenda: number,
-	custoFixoPct: number,
 ) {
 	const base = Number(custo || 0) + Number(impostos || 0);
-	const baseComCustoFixo = base * (1 + Number(custoFixoPct || 0) / 100);
-	return Number(precoVenda || 0) - baseComCustoFixo;
+	return Number(precoVenda || 0) - base;
 }
 
 function fmtMoeda(v: number) {
@@ -60,6 +54,20 @@ function fmtPct(v: number) {
 	return Number(v || 0).toFixed(1);
 }
 
+function formatarNumeroInput(
+	numero: number,
+	casasDecimais: number,
+	monetario: boolean,
+) {
+	return monetario
+		? new Intl.NumberFormat("pt-BR", {
+				useGrouping: false,
+				minimumFractionDigits: casasDecimais,
+				maximumFractionDigits: casasDecimais,
+			}).format(numero)
+		: numero.toFixed(casasDecimais);
+}
+
 function EditableNumber({
 	valor,
 	onCommit,
@@ -67,6 +75,7 @@ function EditableNumber({
 	max,
 	step = 0.01,
 	casasDecimais = 2,
+	monetario = false,
 	placeholder,
 }: {
 	valor: number;
@@ -75,33 +84,39 @@ function EditableNumber({
 	max?: number;
 	step?: number;
 	casasDecimais?: number;
+	monetario?: boolean;
 	placeholder?: string;
 }) {
-	const [texto, setTexto] = useState(() => valor.toFixed(casasDecimais));
+	const [texto, setTexto] = useState(() =>
+		formatarNumeroInput(valor, casasDecimais, monetario),
+	);
 
 	// Resincroniza quando o valor muda por fora (recarga da página, aplicar
 	// margem em lote) — sem isso a célula ficaria mostrando um número velho
 	// depois de uma ação em outra linha/painel que também mexe nesse produto.
 	useEffect(() => {
-		setTexto(valor.toFixed(casasDecimais));
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [valor]);
+		setTexto(formatarNumeroInput(valor, casasDecimais, monetario));
+	}, [valor, monetario, casasDecimais]);
 
 	return (
 		<input
-			type="number"
+			type="text"
 			min={min}
 			max={max}
 			step={step}
+			inputMode="decimal"
 			value={texto}
 			placeholder={placeholder}
 			onChange={(e) => setTexto(e.target.value)}
 			onBlur={() => {
-				let v = parseFloat(texto);
-				if (isNaN(v)) v = 0;
+				let v = lerDecimalInformado(texto);
+				if (v === null || !Number.isFinite(v)) {
+					setTexto(formatarNumeroInput(valor, casasDecimais, monetario));
+					return;
+				}
 				if (min !== undefined && v < min) v = min;
 				if (max !== undefined && v > max) v = max;
-				setTexto(v.toFixed(casasDecimais));
+				setTexto(formatarNumeroInput(v, casasDecimais, monetario));
 				onCommit(v);
 			}}
 			className="h-9 w-24 rounded-lg border border-gray-300 bg-transparent px-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
@@ -113,7 +128,6 @@ export default function PrecificacaoTable({
 	linhas,
 	setLinhas,
 	margemGlobal,
-	custoFixoPercentual,
 	selecionados,
 	onToggleSelecionado,
 	onAlterar,
@@ -121,7 +135,6 @@ export default function PrecificacaoTable({
 	linhas: PrecificacaoLinha[];
 	setLinhas: React.Dispatch<React.SetStateAction<PrecificacaoLinha[]>>;
 	margemGlobal: number;
-	custoFixoPercentual: number;
 	selecionados: number[];
 	onToggleSelecionado: (produtoId: number) => void;
 	onAlterar: (produtoId: number, patch: AlteracaoPrecificacao) => void;
@@ -140,10 +153,6 @@ export default function PrecificacaoTable({
 		return p.margem_percentual !== null
 			? Number(p.margem_percentual)
 			: margemGlobal;
-	}
-
-	function custoFixoDe(p: PrecificacaoLinha) {
-		return p.aplicar_custo_fixo ? custoFixoPercentual : 0;
 	}
 
 	function salvarCusto(produtoId: number, valor: number) {
@@ -206,7 +215,6 @@ export default function PrecificacaoTable({
 			<tbody>
 				{linhas.map((p) => {
 					const margemReal = margemEfetiva(p);
-					const custoFixoAplicado = custoFixoDe(p);
 					const precoCalculado =
 						Number(p.preco_venda || 0) > 0
 							? Number(p.preco_venda)
@@ -214,13 +222,11 @@ export default function PrecificacaoTable({
 									p.preco_custo,
 									p.impostos_extras,
 									margemReal,
-									custoFixoAplicado,
 								);
 					const lucro = calcLucro(
 						p.preco_custo,
 						p.impostos_extras,
 						precoCalculado,
-						custoFixoAplicado,
 					);
 					const usaCustom = p.margem_percentual !== null;
 					const cats = (p.categorias || "")
@@ -234,7 +240,7 @@ export default function PrecificacaoTable({
 							className="border-b border-gray-50 last:border-0 dark:border-gray-800/60"
 						>
 							<td className="px-3 py-2">
-								<input
+										<input
 									type="checkbox"
 									checked={selecionados.includes(p.produto_id)}
 									onChange={() => onToggleSelecionado(p.produto_id)}
@@ -265,12 +271,14 @@ export default function PrecificacaoTable({
 							<td className="px-3 py-2">
 								<EditableNumber
 									valor={p.preco_custo}
+									monetario
 									onCommit={(v) => salvarCusto(p.produto_id, v)}
 								/>
 							</td>
 							<td className="px-3 py-2">
 								<EditableNumber
 									valor={p.impostos_extras}
+									monetario
 									onCommit={(v) => salvarImpostos(p.produto_id, v)}
 								/>
 							</td>
@@ -279,13 +287,11 @@ export default function PrecificacaoTable({
 									<input
 										type="checkbox"
 										checked={!!p.aplicar_custo_fixo}
-										title="Diluir o custo fixo mensal neste produto"
+										title="Campo legado; custo fixo é aplicado no relatório do período"
 										onChange={(e) => toggleCustoFixo(p, e.target.checked)}
 									/>
-									<span className="text-xs text-gray-500 dark:text-gray-400">
-										{p.aplicar_custo_fixo
-											? fmtPct(custoFixoPercentual) + "%"
-											: "—"}
+										<span className="text-xs text-gray-500 dark:text-gray-400">
+											legado
 									</span>
 								</label>
 							</td>
@@ -301,7 +307,6 @@ export default function PrecificacaoTable({
 											p.preco_custo,
 											p.impostos_extras,
 											v,
-											custoFixoAplicado,
 										);
 										salvarMargemEPreco(p.produto_id, v, novoPreco);
 									}}
@@ -310,12 +315,12 @@ export default function PrecificacaoTable({
 							<td className="px-3 py-2">
 								<EditableNumber
 									valor={precoCalculado}
+									monetario
 									onCommit={(v) => {
 										const novaMargem = calcMargem(
 											p.preco_custo,
 											p.impostos_extras,
 											v,
-											custoFixoAplicado,
 										);
 										salvarMargemEPreco(p.produto_id, novaMargem, v);
 									}}

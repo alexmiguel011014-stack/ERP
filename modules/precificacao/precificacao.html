@@ -19,7 +19,7 @@
         <div class="config-item">
           <label for="globalMargin">Margem de Lucro Padrão (%)</label>
           <div class="config-input-row">
-            <input type="number" id="globalMargin" min="0" max="999" step="0.1" value="40" />
+            <input type="text" inputmode="decimal" id="globalMargin" min="0" max="999" step="0.1" value="40" />
             <button type="button" id="btnSaveGlobal" class="btn btn-primary btn-sm">Salvar Margem Global</button>
           </div>
           <span class="config-hint">Aplicada automaticamente a novos produtos e aos que usam margem global.</span>
@@ -27,19 +27,19 @@
         <div class="config-item">
           <label for="custoFixoMensal">Custos Fixos do Mês (R$)</label>
           <div class="config-input-row">
-            <input type="number" id="custoFixoMensal" min="0" step="0.01" placeholder="Ex: 5000" />
+            <input type="text" id="custoFixoMensal" inputmode="decimal" placeholder="Ex: 5.000,00" />
             <button type="button" id="btnSaveCustoFixo" class="btn btn-primary btn-sm">Salvar</button>
           </div>
-          <span class="config-hint">Aluguel, salários e outras despesas fixas, diluídas como % do faturamento (calculada automaticamente pelo histórico de vendas, não por um volume estimado). Marque "Custo Fixo" por produto — deixe destravado nas revendas de margem apertada.</span>
+          <span class="config-hint">Aluguel, salários e outras despesas fixas. Este valor é usado passivamente no lucro líquido estimado do período e não altera preços de produtos.</span>
           <div id="custoFixoResultado" class="custo-fixo-resultado"></div>
         </div>
         <div class="config-item">
-          <label for="taxaAdquirente">Taxa Média de Adquirente (%)</label>
+          <label for="taxaAdquirente">Taxa Média de Adquirente do Cartão (%)</label>
           <div class="config-input-row">
-            <input type="number" id="taxaAdquirente" min="0" max="100" step="0.01" placeholder="Ex: 3" />
+          <input type="text" inputmode="decimal" id="taxaAdquirente" min="0" max="100" step="0.01" placeholder="Ex: 3,0" />
             <button type="button" id="btnSaveTaxaAdquirente" class="btn btn-primary btn-sm">Salvar</button>
           </div>
-          <span class="config-hint">Taxa média de cartão/Pix cobrada pela maquininha ou gateway, usada no cálculo de Margem de Contribuição (tela de Relatórios). Sem valor cadastrado, entra como 0%.</span>
+          <span class="config-hint">Usada como fallback nas vendas via Cartão sem taxa específica. Pix sem taxa específica é considerado 0%.</span>
         </div>
       </div>
 
@@ -55,7 +55,7 @@
       <div class="mass-bar" id="massBar" style="display:none;">
         <span id="massCount">0 itens selecionados</span>
         <div class="mass-input-row">
-          <input type="number" id="massMargin" min="0" max="999" step="0.1" placeholder="Margem %" />
+          <input type="text" inputmode="decimal" id="massMargin" min="0" max="999" step="0.1" placeholder="Margem %" />
           <button type="button" id="btnMassApply" class="btn btn-primary btn-sm">Aplicar aos selecionados</button>
         </div>
       </div>
@@ -88,6 +88,7 @@
 
     <script src="../core/banco.js"></script>
     <script src="../core/navbar.js"></script>
+    <script src="../core/formatos.js"></script>
     <script src="../core/store.js"></script>
     <script src="../core/loading.js"></script>
     <script src="./precificacao.js"></script>

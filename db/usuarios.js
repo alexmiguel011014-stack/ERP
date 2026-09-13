@@ -407,7 +407,24 @@ async function salvarUsuario(dados, ator) {
 	const perfil = ["admin", "dono", "vendedor"].includes(dados.perfil)
 		? dados.perfil
 		: "vendedor";
-	const comissao = Math.max(0, Number(dados.comissao_percentual) || 0);
+	const comissaoBruta = dados.comissao_percentual;
+	const comissaoInformada = Number(comissaoBruta);
+	if (
+		comissaoBruta !== undefined &&
+		comissaoBruta !== null &&
+		comissaoBruta !== "" &&
+		!Number.isFinite(comissaoInformada)
+	)
+		throw new Error("A comissão informada é inválida.");
+	if (
+		Number.isFinite(comissaoInformada) &&
+		(comissaoInformada < 0 || comissaoInformada > 100)
+	) {
+		throw new Error("A comissão deve estar entre 0 e 100%.");
+	}
+	const comissao = Number.isFinite(comissaoInformada)
+		? comissaoInformada
+		: 0;
 	const permissoes = JSON.stringify(
 		dados.permissoes && typeof dados.permissoes === "object"
 			? dados.permissoes

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePageHeader } from "@/context/PageHeaderContext";
 import { useCarrinho } from "@/hooks/useCarrinho";
 import { useCaixa } from "@/hooks/useCaixa";
@@ -8,24 +8,45 @@ import {
 	erpApi,
 	type Cliente,
 	type CondicaoParcelamento,
+	type PagamentoVendaInput,
 	type PreviaVendaParcelada,
 	type ProdutoBusca,
 } from "@/lib/erpApi";
 import BuscaProduto from "@/components/pdv/BuscaProduto";
 import Carrinho from "@/components/pdv/Carrinho";
 import ClienteSelector from "@/components/pdv/ClienteSelector";
-import PagamentoPainel from "@/components/pdv/PagamentoPainel";
+import PagamentoPainel, {
+	type PagamentoCheckout,
+} from "@/components/pdv/PagamentoPainel";
 import CaixaBadge from "@/components/pdv/CaixaBadge";
 import CaixaModal from "@/components/pdv/CaixaModal";
-import ReciboModal, { type DadosRecibo } from "@/components/pdv/ReciboModal";
+import ReciboModal, {
+	type DadosRecibo,
+	type PagamentoRecibo,
+} from "@/components/pdv/ReciboModal";
 import DevolucaoModal from "@/components/pdv/DevolucaoModal";
-import { formatarMoeda } from "@/components/pdv/formatos";
+import {
+	formatarMoeda,
+	lerDecimalInformado,
+	lerValorMonetario,
+} from "@/components/pdv/formatos";
 
 function formasPagamentoLabel(forma: string): string {
 	return forma || "---";
 }
 
 const CHAVE_FORMULARIO = "pdv_formulario";
+const FORMAS_PAGAMENTO_VALIDAS = ["PIX", "Cartão", "Dinheiro", "Fiado"] as const;
+
+function normalizarFormaPagamento(
+	valor: string | null | undefined,
+): PagamentoVendaInput["forma_pagamento"] | "" {
+	return FORMAS_PAGAMENTO_VALIDAS.includes(
+		valor as PagamentoVendaInput["forma_pagamento"],
+	)
+		? (valor as PagamentoVendaInput["forma_pagamento"])
+		: "";
+}
 
 type FormularioSalvo = {
 	desconto: string;
@@ -36,13 +57,52 @@ type FormularioSalvo = {
 	condicaoParcelamentoId: number | null;
 	dataPrimeiroVencimento: string;
 	requestId: string | null;
+	pagamentos?: PagamentoCheckout[];
 };
 
 function carregarFormularioSalvo(): FormularioSalvo | null {
 	if (typeof window === "undefined") return null;
 	try {
 		const bruto = window.localStorage.getItem(CHAVE_FORMULARIO);
-		return bruto ? JSON.parse(bruto) : null;
+		if (!bruto) return null;
+		const salvo = JSON.parse(bruto) as Partial<FormularioSalvo> | null;
+		if (!salvo || typeof salvo !== "object") return null;
+		const formaPagamento = normalizarFormaPagamento(salvo.formaPagamento);
+		const pagamentos = Array.isArray(salvo.pagamentos)
+			? salvo.pagamentos
+					.filter((pagamento) => pagamento && typeof pagamento === "object")
+					.map((pagamento) => ({
+						forma_pagamento: normalizarFormaPagamento(pagamento.forma_pagamento),
+						valor:
+							typeof pagamento.valor === "string"
+								? pagamento.valor
+								: Number.isFinite(Number(pagamento.valor))
+									? String(pagamento.valor)
+									: "",
+					}))
+			: undefined;
+		return {
+			desconto: typeof salvo.desconto === "string" ? salvo.desconto : "0",
+			formaPagamento,
+			valorRecebido:
+				typeof salvo.valorRecebido === "string" ? salvo.valorRecebido : "",
+			observacao: typeof salvo.observacao === "string" ? salvo.observacao : "",
+			clienteId:
+				typeof salvo.clienteId === "number" && Number.isInteger(salvo.clienteId)
+					? salvo.clienteId
+					: null,
+			condicaoParcelamentoId:
+				typeof salvo.condicaoParcelamentoId === "number" &&
+				Number.isInteger(salvo.condicaoParcelamentoId)
+				? salvo.condicaoParcelamentoId
+				: null,
+			dataPrimeiroVencimento:
+				typeof salvo.dataPrimeiroVencimento === "string"
+					? salvo.dataPrimeiroVencimento
+					: "",
+			requestId: typeof salvo.requestId === "string" ? salvo.requestId : null,
+			pagamentos,
+		};
 	} catch {
 		return null;
 	}
@@ -60,6 +120,9 @@ export default function PdvPage() {
 	);
 	const [desconto, setDesconto] = useState("0");
 	const [formaPagamento, setFormaPagamento] = useState("");
+	const [pagamentos, setPagamentos] = useState<PagamentoCheckout[]>([
+		{ forma_pagamento: "", valor: "" },
+	]);
 	const [valorRecebido, setValorRecebido] = useState("");
 	const [observacao, setObservacao] = useState("");
 	const [condicoesParcelamento, setCondicoesParcelamento] = useState<
@@ -87,14 +150,27 @@ export default function PdvPage() {
 		null,
 	);
 	const [formularioCarregado, setFormularioCarregado] = useState(false);
+	const limpezaFormularioPendente = useRef(false);
+	const temCartaoNoPagamento = pagamentos.some(
+		(pagamento) => pagamento.forma_pagamento === "Cartão",
+	);
 
 	// Igual o carrinho: sobrevive a uma navegação/reload acidental antes de
 	// finalizar a venda, em vez de perder o que já foi preenchido.
 	useEffect(() => {
 		const salvo = carregarFormularioSalvo();
 		if (salvo) {
+			const formaSalva = normalizarFormaPagamento(salvo.formaPagamento);
+			const pagamentosSalvos = salvo.pagamentos?.length
+				? salvo.pagamentos.map((pagamento, indice) =>
+						indice === 0 && !pagamento.forma_pagamento
+							? { ...pagamento, forma_pagamento: formaSalva }
+							: pagamento,
+					)
+				: [{ forma_pagamento: formaSalva, valor: "" }];
 			setDesconto(salvo.desconto);
 			setFormaPagamento(salvo.formaPagamento);
+			setPagamentos(pagamentosSalvos);
 			setValorRecebido(salvo.valorRecebido);
 			setObservacao(salvo.observacao);
 			setClienteIdPendente(salvo.clienteId);
@@ -118,6 +194,11 @@ export default function PdvPage() {
 	useEffect(() => {
 		if (!formularioCarregado) return;
 		try {
+			if (limpezaFormularioPendente.current) {
+				limpezaFormularioPendente.current = false;
+				window.localStorage.removeItem(CHAVE_FORMULARIO);
+				return;
+			}
 			const dados: FormularioSalvo = {
 				desconto,
 				formaPagamento,
@@ -127,6 +208,7 @@ export default function PdvPage() {
 				condicaoParcelamentoId,
 				dataPrimeiroVencimento,
 				requestId,
+				pagamentos,
 			};
 			window.localStorage.setItem(CHAVE_FORMULARIO, JSON.stringify(dados));
 		} catch {
@@ -142,11 +224,18 @@ export default function PdvPage() {
 		condicaoParcelamentoId,
 		dataPrimeiroVencimento,
 		requestId,
+		pagamentos,
 		formularioCarregado,
 	]);
 
 	useEffect(() => {
-		if (formaPagamento !== "Fiado" && formaPagamento !== "Cartão") {
+		const formaParcelavel =
+			formaPagamento === "Fiado"
+				? "Fiado"
+				: formaPagamento === "Cartão" || temCartaoNoPagamento
+					? "Cartão"
+					: null;
+		if (!formaParcelavel) {
 			setCondicoesParcelamento([]);
 			setCondicaoParcelamentoId(null);
 			setPreviaParcelamento(null);
@@ -155,7 +244,7 @@ export default function PdvPage() {
 		}
 		let ativo = true;
 		erpApi.precificacao
-			.condicoesParcelamento(formaPagamento)
+			.condicoesParcelamento(formaParcelavel)
 			.then((condicoes) => {
 				if (!ativo) return;
 				setCondicoesParcelamento(condicoes);
@@ -177,7 +266,7 @@ export default function PdvPage() {
 		return () => {
 			ativo = false;
 		};
-	}, [formaPagamento]);
+	}, [formaPagamento, temCartaoNoPagamento]);
 
 	useEffect(() => {
 		if (
@@ -199,8 +288,8 @@ export default function PdvPage() {
 					quantidade: item.quantidade,
 					preco_unitario: item.preco_unitario,
 				})),
-				total: Math.max(0, carrinho.subtotal - (Number(desconto) || 0)),
-				desconto: Math.max(0, Number(desconto) || 0),
+				total: Math.max(0, carrinho.subtotal - lerValorMonetario(desconto)),
+				desconto: Math.max(0, lerValorMonetario(desconto)),
 				cliente_id: clienteSelecionado?.id ?? null,
 				forma_pagamento: formaPagamento,
 				condicao_parcelamento_id: condicaoParcelamentoId,
@@ -232,6 +321,7 @@ export default function PdvPage() {
 		dataPrimeiroVencimento,
 		desconto,
 		formaPagamento,
+		pagamentos,
 	]);
 
 	useEffect(() => {
@@ -243,6 +333,7 @@ export default function PdvPage() {
 		dataPrimeiroVencimento,
 		desconto,
 		formaPagamento,
+		pagamentos,
 	]);
 
 	function mostrarMensagem(texto: string, sucesso: boolean) {
@@ -264,7 +355,24 @@ export default function PdvPage() {
 	}
 
 	function alterarFormaPagamento(forma: string) {
+		if (forma === "Misto") {
+			setFormaPagamento("Misto");
+			setCondicaoParcelamentoId(null);
+			setPreviaParcelamento(null);
+			setErroPreviaParcelamento(null);
+			setDataPrimeiroVencimento("");
+			return;
+		}
 		setFormaPagamento(forma);
+		setPagamentos((atual) => {
+			const linhas: PagamentoCheckout[] = atual.length
+				? atual
+				: [{ forma_pagamento: "", valor: "" }];
+			const formaNormalizada = normalizarFormaPagamento(forma);
+			return linhas.map((linha, indice) =>
+				indice === 0 ? { ...linha, forma_pagamento: formaNormalizada } : linha,
+			);
+		});
 		setCondicaoParcelamentoId(null);
 		setPreviaParcelamento(null);
 		setErroPreviaParcelamento(null);
@@ -275,10 +383,17 @@ export default function PdvPage() {
 	}
 
 	function resetarFormularioPosVenda() {
+		limpezaFormularioPendente.current = true;
+		try {
+			window.localStorage.removeItem(CHAVE_FORMULARIO);
+		} catch {
+			/* localStorage indisponível — o estado ainda será limpo. */
+		}
 		carrinho.limpar();
 		setClienteSelecionado(null);
 		setDesconto("0");
 		setFormaPagamento("");
+		setPagamentos([{ forma_pagamento: "", valor: "" }]);
 		setValorRecebido("");
 		setObservacao("");
 		setCondicaoParcelamentoId(null);
@@ -289,13 +404,32 @@ export default function PdvPage() {
 	}
 
 	async function finalizar() {
-		const descontoNum = Math.max(0, Number(desconto) || 0);
+		const descontoNumInformado = lerDecimalInformado(desconto);
+		if (desconto.trim() !== "" && descontoNumInformado === null) {
+			mostrarMensagem("Informe um desconto válido.", false);
+			return;
+		}
+		const descontoNum = Math.max(0, descontoNumInformado ?? 0);
 		const total =
 			previaParcelamento?.total ??
 			Math.max(0, carrinho.subtotal - descontoNum);
 		const condicao = condicoesParcelamento.find(
 			(item) => item.id === condicaoParcelamentoId,
 		);
+		const formaPagamentoFinal =
+			pagamentos.length > 1 ? "Misto" : formaPagamento;
+		const pagamentosParaEnviar: PagamentoVendaInput[] =
+			pagamentos.length > 1
+				? pagamentos.map((pagamento) => ({
+						forma_pagamento: pagamento.forma_pagamento as PagamentoVendaInput["forma_pagamento"],
+						valor: lerValorMonetario(pagamento.valor),
+					}))
+				: formaPagamento
+					? [{
+							forma_pagamento: normalizarFormaPagamento(formaPagamento) as PagamentoVendaInput["forma_pagamento"],
+							valor: total,
+						}]
+					: [];
 		const idDaVenda =
 			requestId ||
 			(typeof crypto !== "undefined" && crypto.randomUUID
@@ -303,10 +437,10 @@ export default function PdvPage() {
 				: `pdv-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 		setRequestId(idDaVenda);
 		const resumo =
-			`Confirmar venda de ${formatarMoeda(total)} via ${formasPagamentoLabel(formaPagamento)}?` +
-			(formaPagamento === "Fiado"
+			`Confirmar venda de ${formatarMoeda(total)} via ${formasPagamentoLabel(formaPagamentoFinal)}?` +
+			(formaPagamentoFinal === "Fiado"
 				? `\n\n${previaParcelamento?.parcelas.length || 0} parcela(s) serão criadas para este cliente.`
-				: formaPagamento === "Cartão"
+				: formaPagamentoFinal === "Cartão"
 					? `\n\n${condicao?.nome || "Condição"} será registrada na venda; nenhuma conta a receber será criada.`
 				: "");
 		if (!confirm(resumo)) {
@@ -326,10 +460,17 @@ export default function PdvPage() {
 				desconto: descontoNum,
 				total,
 				cliente_id: clienteSelecionado?.id ?? null,
-				forma_pagamento: formaPagamento || null,
+				forma_pagamento: formaPagamentoFinal || null,
+				pagamentos: pagamentosParaEnviar,
+				valor_recebido:
+					pagamentosParaEnviar.some(
+						(pagamento) => pagamento.forma_pagamento === "Dinheiro",
+					)
+						? lerValorMonetario(valorRecebido)
+						: null,
 				condicao_parcelamento_id: condicaoParcelamentoId,
 				data_primeiro_vencimento:
-					formaPagamento === "Fiado" ? dataPrimeiroVencimento : null,
+					formaPagamentoFinal === "Fiado" ? dataPrimeiroVencimento : null,
 				request_id: idDaVenda,
 				observacao: observacao.trim() || null,
 			});
@@ -339,12 +480,22 @@ export default function PdvPage() {
 				subtotal: carrinho.subtotal,
 				desconto: descontoNum,
 				total: resultado.total ?? total,
-				formaPagamento,
+				formaPagamento: formaPagamentoFinal,
+				pagamentos: pagamentosParaEnviar.map(
+					(pagamento): PagamentoRecibo => ({
+						forma_pagamento: pagamento.forma_pagamento,
+						valor: pagamento.valor,
+					}),
+				),
 				condicaoNome: condicao?.nome || null,
 				parcelas: resultado.parcelas || previaParcelamento?.parcelas || [],
 				clienteNome: clienteSelecionado?.nome ?? null,
 				valorRecebido:
-					formaPagamento === "Dinheiro" ? Number(valorRecebido) || 0 : null,
+					pagamentosParaEnviar.some(
+						(pagamento) => pagamento.forma_pagamento === "Dinheiro",
+					)
+						? lerValorMonetario(valorRecebido) || 0
+						: null,
 				data: new Date().toISOString(),
 			});
 			resetarFormularioPosVenda();
@@ -361,6 +512,13 @@ export default function PdvPage() {
 	}
 
 	async function criarOrcamento() {
+		if (pagamentos.length > 1) {
+			mostrarMensagem(
+				"Pagamento dividido só pode ser usado ao finalizar a venda. Remova a divisão para criar um orçamento.",
+				false,
+			);
+			return;
+		}
 		if (
 			!confirm(
 				"Criar orçamento com os itens do carrinho? O estoque NÃO será baixado agora — converta em venda depois, na tela de Vendas.",
@@ -370,7 +528,12 @@ export default function PdvPage() {
 
 		setProcessando(true);
 		try {
-			const descontoNum = Math.max(0, Number(desconto) || 0);
+			const descontoNumInformado = lerDecimalInformado(desconto);
+			if (desconto.trim() !== "" && descontoNumInformado === null) {
+				mostrarMensagem("Informe um desconto válido.", false);
+				return;
+			}
+			const descontoNum = Math.max(0, descontoNumInformado ?? 0);
 			const total =
 				previaParcelamento?.total ??
 				Math.max(0, carrinho.subtotal - descontoNum);
@@ -466,8 +629,10 @@ export default function PdvPage() {
 						subtotal={carrinho.subtotal}
 						desconto={desconto}
 						setDesconto={setDesconto}
-						formaPagamento={formaPagamento}
+				formaPagamento={formaPagamento}
 						setFormaPagamento={alterarFormaPagamento}
+						pagamentos={pagamentos}
+						setPagamentos={setPagamentos}
 						condicoes={condicoesParcelamento}
 						condicaoId={condicaoParcelamentoId}
 						setCondicaoId={setCondicaoParcelamentoId}

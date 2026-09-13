@@ -6,7 +6,10 @@ import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import { usePageHeader } from "@/context/PageHeaderContext";
 import { erpApi, type Consignacao, type StatusConsignacao } from "@/lib/erpApi";
-import { formatarAtributos } from "@/lib/utils/formatos";
+import {
+	formatarAtributos,
+	lerDecimalInformado,
+} from "@/lib/utils/formatos";
 import ConsignacaoFormModal from "@/components/produtos/ConsignacaoFormModal";
 
 function formatarMoeda(valor: number | null | undefined): string {
@@ -67,8 +70,8 @@ function VenderConsignacaoModal({
 
 	async function confirmar() {
 		if (!consignacao) return;
-		const preco = Number(precoUnitario);
-		if (!Number.isFinite(preco) || preco < 0) {
+		const preco = lerDecimalInformado(precoUnitario);
+		if (preco === null || !Number.isFinite(preco) || preco < 0) {
 			setErro("Preço unitário inválido.");
 			return;
 		}
@@ -110,7 +113,8 @@ function VenderConsignacaoModal({
 					<div>
 						<Label>Preço unitário</Label>
 						<Input
-							type="number"
+							type="text"
+							inputMode="decimal"
 							step={0.01}
 							value={precoUnitario}
 							onChange={(e) => setPrecoUnitario(e.target.value)}

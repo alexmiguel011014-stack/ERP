@@ -30,17 +30,21 @@ async function buscarVendaIdempotente(requestId) {
 		"SELECT parcela_num AS numero, valor, data_vencimento AS vencimento FROM LancamentosFinanceiros WHERE venda_id = ? ORDER BY parcela_num, id",
 		[venda.id],
 	);
+	const pagamentos = await allAsync(
+		"SELECT forma_pagamento, valor FROM VendaPagamentos WHERE venda_id = ? ORDER BY id",
+		[venda.id],
+	);
 	return {
 		success: true,
 		vendaId: venda.id,
 		total: venda.total,
 		parcelas,
+		pagamentos,
 		status: venda.status,
 		idempotente: true,
 	};
 }
 
-// eslint-disable-next-line no-unused-vars
 async function finalizarVendaPDV02(dados) {
 	const conn = getConexao();
 	const run = (sql, params = []) =>
@@ -110,7 +114,7 @@ async function finalizarVendaPDV02(dados) {
 		let subtotal = 0;
 		for (const [variacaoId, quantidade] of mapa) {
 			const item = await get(
-				`SELECT v.id, v.sku, v.preco, v.quantidade_estoque, p.nome
+				`SELECT v.id, v.sku, v.preco, v.preco_custo, v.quantidade_estoque, p.nome
          FROM Variacoes v JOIN Produtos p ON p.id = v.produto_id WHERE v.id = ?`,
 				[variacaoId],
 			);
@@ -150,8 +154,14 @@ async function finalizarVendaPDV02(dados) {
 
 		for (const item of itens) {
 			await run(
-				"INSERT INTO ItensVenda (venda_id, variacao_id, quantidade, preco_unitario) VALUES (?, ?, ?, ?)",
-				[vendaId, item.id, item.quantidade, item.preco],
+				"INSERT INTO ItensVenda (venda_id, variacao_id, quantidade, preco_unitario, custo_unitario) VALUES (?, ?, ?, ?, ?)",
+				[
+					vendaId,
+					item.id,
+					item.quantidade,
+					item.preco,
+					tipo === "finalizada" ? Number(item.preco_custo) || 0 : null,
+				],
 			);
 			if (tipo === "finalizada") {
 				const baixa = await run(
@@ -167,7 +177,7 @@ async function finalizarVendaPDV02(dados) {
 					[
 						item.id,
 						-item.quantidade,
-						item.preco,
+						Number(item.preco_custo) || 0,
 						vendaId,
 						"PDV02",
 						new Date().toISOString(),
@@ -239,7 +249,14 @@ async function finalizarVenda(dados, usuarioId) {
 	}
 
 	const clienteId = dados.cliente_id ? Number(dados.cliente_id) : null;
-	const formaPagamento = dados.forma_pagamento || null;
+	const formasPagamento =
+		status === "finalizada" ? formasPagamentoCheckout(dados) : [];
+	const formaPagamento =
+		status === "finalizada"
+			? formasPagamento.length > 1
+				? "Misto"
+				: formasPagamento[0] || null
+			: dados.forma_pagamento || null;
 	const observacao = dados.observacao || null;
 	// origem='orcamento' fica gravado mesmo depois de converterOrcamento() virar
 	// 'finalizada' (esse UPDATE nunca toca em origem) — é o único jeito de saber,
@@ -263,6 +280,25 @@ async function finalizarVenda(dados, usuarioId) {
 		});
 		const desconto = calculo.desconto;
 		const total = calculo.total;
+		const alocacoes =
+			status === "finalizada"
+				? alocacoesPagamentoCheckout(dados, formasPagamento, total)
+				: [];
+		const valorRecebidoInformado =
+			dados.valor_recebido ?? dados.valorRecebido;
+		const valorDinheiro = alocacoes
+			.filter((linha) => linha.forma_pagamento === "Dinheiro")
+			.reduce((soma, linha) => soma + linha.valor, 0);
+		if (valorDinheiro > 0 && valorRecebidoInformado == null) {
+			throw new Error("Informe o valor recebido em dinheiro.");
+		}
+		if (valorDinheiro > 0) {
+			const recebidoCentavos = Math.round(Number(valorRecebidoInformado) * 100);
+			const dinheiroCentavos = Math.round(valorDinheiro * 100);
+			if (!Number.isFinite(recebidoCentavos) || recebidoCentavos < dinheiroCentavos) {
+				throw new Error("Valor recebido é menor que o total da venda.");
+			}
+		}
 		const result = await run(
 			"INSERT INTO Vendas (cliente_id, total, forma_pagamento, data_venda, desconto, observacao, status, usuario_id, origem, condicao_parcelamento_id, condicao_parcelamento_nome, parcelas, acrescimo_percentual, acrescimo_parcelamento, valor_a_vista, valor_base_parcelamento, total_parcelado, data_primeiro_vencimento, request_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 			[
@@ -290,9 +326,22 @@ async function finalizarVenda(dados, usuarioId) {
 		const vendaId = result.lastID;
 
 		for (const item of calculo.itens) {
+			const variacao = await get(
+				"SELECT preco_custo FROM Variacoes WHERE id = ?",
+				[item.variacao_id],
+			);
+			if (!variacao) throw new Error("Produto da venda não encontrado.");
+			const custoUnitario =
+				status === "finalizada" ? Number(variacao.preco_custo) || 0 : null;
 			await run(
-				"INSERT INTO ItensVenda (venda_id, variacao_id, quantidade, preco_unitario) VALUES (?, ?, ?, ?)",
-				[vendaId, item.variacao_id, item.quantidade, item.preco_unitario],
+				"INSERT INTO ItensVenda (venda_id, variacao_id, quantidade, preco_unitario, custo_unitario) VALUES (?, ?, ?, ?, ?)",
+				[
+					vendaId,
+					item.variacao_id,
+					item.quantidade,
+					item.preco_unitario,
+					custoUnitario,
+				],
 			);
 
 			// Orçamento não baixa estoque, mas reserva a quantidade para que não
@@ -347,10 +396,48 @@ async function finalizarVenda(dados, usuarioId) {
 				);
 			}
 		}
+		for (const [indicePagamento, pagamento] of alocacoes.entries()) {
+			await run(
+				"INSERT INTO VendaPagamentos (venda_id, forma_pagamento, valor, criado_em) VALUES (?, ?, ?, ?)",
+				[vendaId, pagamento.forma_pagamento, pagamento.valor, new Date().toISOString()],
+			);
 
-		// Só Fiado gera recebíveis do cliente. Cartão parcelado descreve a
-		// condição comercial da venda, mas foi confirmado na maquininha no
-		// checkout e não pode criar uma agenda fictícia de recebimento.
+			// O cartão não é caixa realizado na venda: cada parcela fica pendente
+			// para receber uma data de liquidação real depois. Sem contrato do
+			// adquirente, data_recebimento permanece NULL (não fabricar previsão).
+			if (pagamento.forma_pagamento === "Cartão") {
+				const totalCentavos = Math.round(total * 100);
+				const valorCartaoCentavos = Math.round(pagamento.valor * 100);
+				let acumuladoCentavos = 0;
+				for (const [indiceParcela, parcela] of calculo.parcelas.entries()) {
+					const ultima = indiceParcela === calculo.parcelas.length - 1;
+					const valorParcelaCentavos = ultima
+						? valorCartaoCentavos - acumuladoCentavos
+						: Math.round((valorCartaoCentavos * parcela.valorCentavos) / totalCentavos);
+					acumuladoCentavos += valorParcelaCentavos;
+					await run(
+						`INSERT INTO Pagamentos
+             (venda_id, cliente_id, metodo, numero_identificador, data_recebimento,
+              valor_recebido, status, observacao, data_liquidacao, parcela_num,
+              parcela_total, criado_em)
+             VALUES (?, ?, 'Cartão', ?, NULL, ?, 'pendente', ?, NULL, ?, ?, ?)`,
+						[
+							vendaId,
+							clienteId,
+							`venda-${vendaId}-cartao-${indicePagamento + 1}-parcela-${parcela.numero}`,
+							valorParcelaCentavos / 100,
+							"Aguardando liquidação do cartão.",
+							parcela.numero,
+							calculo.parcelas.length,
+							new Date().toISOString(),
+						],
+					);
+				}
+			}
+		}
+
+		// Só Fiado gera recebíveis do cliente. Cartão usa Pagamentos pendentes,
+		// sem agenda fictícia e sem entrada imediata no caixa.
 		if (status === "finalizada" && formaPagamento === "Fiado") {
 			const grupoId = "venda-" + vendaId;
 			for (const parcela of calculo.parcelas) {
@@ -434,6 +521,17 @@ async function converterOrcamento(vendaId) {
 		]);
 
 		for (const item of itens) {
+			if (item.custo_unitario == null) {
+				const variacao = await get(
+					"SELECT preco_custo FROM Variacoes WHERE id = ?",
+					[item.variacao_id],
+				);
+				if (!variacao) throw new Error("Produto do orçamento não encontrado.");
+				await run(
+					"UPDATE ItensVenda SET custo_unitario = ? WHERE id = ?",
+					[Number(variacao.preco_custo) || 0, item.id],
+				);
+			}
 			// A quantidade já estava reservada desde a criação do orçamento:
 			// libera a reserva e baixa o estoque real na mesma operação.
 			const baixa = await run(
@@ -463,6 +561,46 @@ async function converterOrcamento(vendaId) {
 			"UPDATE Vendas SET status = 'finalizada', data_venda = ? WHERE id = ?",
 			[new Date().toISOString(), vendaId],
 		);
+		// Orçamentos antigos não tinham alocações de pagamento. Recria uma linha
+		// única ao converter para venda para que o caixa físico e os relatórios
+		// continuem enxergando o método escolhido no orçamento.
+		if (["PIX", "Cartão", "Dinheiro", "Fiado"].includes(venda.forma_pagamento)) {
+			const alocacaoExistente = await get(
+				"SELECT id FROM VendaPagamentos WHERE venda_id = ? LIMIT 1",
+				[vendaId],
+			);
+			if (!alocacaoExistente) {
+				await run(
+					"INSERT INTO VendaPagamentos (venda_id, forma_pagamento, valor, criado_em) VALUES (?, ?, ?, ?)",
+					[vendaId, venda.forma_pagamento, venda.total, new Date().toISOString()],
+				);
+			}
+		}
+		if (venda.forma_pagamento === "Cartão") {
+			const parcelasCartao = calcularParcelamento({
+				valorBase: venda.total,
+				numeroParcelas: Number(venda.parcelas) || 1,
+			}).parcelas;
+			for (const parcela of parcelasCartao) {
+				await run(
+					`INSERT INTO Pagamentos
+           (venda_id, cliente_id, metodo, numero_identificador, data_recebimento,
+            valor_recebido, status, observacao, data_liquidacao, parcela_num,
+            parcela_total, criado_em)
+           VALUES (?, ?, 'Cartão', ?, NULL, ?, 'pendente', ?, NULL, ?, ?, ?)`,
+					[
+						vendaId,
+						venda.cliente_id || null,
+						`venda-${vendaId}-cartao-1-parcela-${parcela.numero}`,
+						parcela.valor,
+						"Aguardando liquidação do cartão.",
+						parcela.numero,
+						parcelasCartao.length,
+						new Date().toISOString(),
+					],
+				);
+			}
+		}
 
 		if (venda.forma_pagamento === "Fiado") {
 			if (!venda.cliente_id) {
@@ -664,6 +802,12 @@ async function registrarDevolucao(dados, usuarioId) {
 		);
 		const devolucaoId = result.lastID;
 		let valorTotal = 0;
+		const brutoVenda = await get(
+			"SELECT COALESCE(SUM(quantidade * preco_unitario), 0) AS valor FROM ItensVenda WHERE venda_id = ?",
+			[vendaId],
+		);
+		const totalBrutoVenda = Number(brutoVenda && brutoVenda.valor) || 0;
+		const descontoVenda = Number(venda.desconto) || 0;
 
 		for (const item of itens) {
 			const itemVendaId = Number(item.item_venda_id);
@@ -692,6 +836,12 @@ async function registrarDevolucao(dados, usuarioId) {
 						").",
 				);
 
+			const valorBrutoItem = quantidade * (Number(itemVenda.preco_unitario) || 0);
+			const descontoItem =
+				totalBrutoVenda > 0 ? (valorBrutoItem / totalBrutoVenda) * descontoVenda : 0;
+			const valorLiquidoItem =
+				quantidade > 0 ? (valorBrutoItem - descontoItem) / quantidade : 0;
+
 			await run(
 				"INSERT INTO ItensDevolucao (devolucao_id, item_venda_id, variacao_id, quantidade, preco_unitario) VALUES (?, ?, ?, ?, ?)",
 				[
@@ -699,7 +849,7 @@ async function registrarDevolucao(dados, usuarioId) {
 					itemVendaId,
 					itemVenda.variacao_id,
 					quantidade,
-					itemVenda.preco_unitario,
+					Math.round(valorLiquidoItem * 100) / 100,
 				],
 			);
 
@@ -719,7 +869,7 @@ async function registrarDevolucao(dados, usuarioId) {
 				],
 			);
 
-			valorTotal += quantidade * itemVenda.preco_unitario;
+			valorTotal += valorBrutoItem - descontoItem;
 		}
 
 		await run("UPDATE Devolucoes SET valor_total = ? WHERE id = ?", [
@@ -879,6 +1029,67 @@ async function getVendas(filtro) {
 // de faturamento (getFaturamentoMedioHistorico) sem esperar um mês real de uso.
 // Diferente de finalizarVenda: NÃO mexe em Variacoes.quantidade_estoque, pois é
 // histórico de um período passado — o estoque atual não deve ser afetado.
+function lerCustoHistorico(linha) {
+	const nomes = ["custoUnitario", "custo_unitario", "precoCusto", "preco_custo"];
+		const nome = nomes.find((chave) => linha && linha[chave] != null && linha[chave] !== "");
+	if (!nome) return null;
+	const custo = Number(linha[nome]);
+	if (!Number.isFinite(custo) || custo < 0) return undefined;
+	return custo;
+}
+
+const FORMAS_PAGAMENTO_CHECKOUT = new Set([
+	"PIX",
+	"Cartão",
+	"Dinheiro",
+	"Fiado",
+]);
+
+function formasPagamentoCheckout(dados) {
+	const linhas = Array.isArray(dados?.pagamentos) ? dados.pagamentos : null;
+	if (!linhas && !String(dados?.forma_pagamento || "").trim()) return [];
+	const formas = linhas
+		? linhas.map((linha) =>
+				String(
+					linha?.forma_pagamento ?? linha?.formaPagamento ?? linha?.forma ?? "",
+				).trim(),
+			)
+		: [String(dados?.forma_pagamento || "").trim()];
+	if (!formas.length || formas.some((forma) => !FORMAS_PAGAMENTO_CHECKOUT.has(forma))) {
+		throw new Error("Forma de pagamento inválida.");
+	}
+	if (formas.length > 1 && formas.includes("Fiado")) {
+		throw new Error("Fiado não pode ser combinado com outra forma de pagamento.");
+	}
+	return formas;
+}
+
+function alocacoesPagamentoCheckout(dados, formas, total) {
+	if (!formas.length) return [];
+	const linhas = Array.isArray(dados?.pagamentos) ? dados.pagamentos : null;
+	const origem = linhas && linhas.length
+		? linhas
+		: [{ forma_pagamento: formas[0], valor: total }];
+	const alocacoes = origem.map((linha, indice) => {
+		const valor = Number(linha?.valor ?? linha?.valor_alocado);
+		if (!Number.isFinite(valor) || valor <= 0) {
+			throw new Error("Informe um valor positivo para cada pagamento.");
+		}
+		return {
+			forma_pagamento: formas[indice],
+			valor: Math.round(valor * 100) / 100,
+		};
+	});
+	const somaCentavos = alocacoes.reduce(
+		(soma, linha) => soma + Math.round(linha.valor * 100),
+		0,
+	);
+	if (somaCentavos !== Math.round(total * 100)) {
+		throw new Error("A soma dos pagamentos deve ser igual ao total da venda.");
+	}
+	return alocacoes;
+}
+
 async function importarVendasHistoricas(linhas) {
 	if (!Array.isArray(linhas) || linhas.length === 0) {
 		throw new Error("Nenhuma linha para importar.");
@@ -903,6 +1114,7 @@ async function importarVendasHistoricas(linhas) {
 				.toUpperCase();
 			const quantidade = Number(linha.quantidade);
 			const valorUnitario = Number(linha.valorUnitario);
+			const custoUnitario = lerCustoHistorico(linha);
 			const data = linha.data ? String(linha.data) : null;
 			if (
 				!sku ||
@@ -910,7 +1122,12 @@ async function importarVendasHistoricas(linhas) {
 				quantidade <= 0 ||
 				!Number.isFinite(valorUnitario) ||
 				valorUnitario < 0 ||
-				!data
+				!data ||
+				(linha &&
+					["custoUnitario", "custo_unitario", "precoCusto", "preco_custo"].some(
+						(chave) => linha[chave] != null && linha[chave] !== "",
+					) &&
+					custoUnitario === undefined)
 			) {
 				puladas++;
 				continue;
@@ -931,8 +1148,8 @@ async function importarVendasHistoricas(linhas) {
 			);
 			await runOn(
 				conn,
-				"INSERT INTO ItensVenda (venda_id, variacao_id, quantidade, preco_unitario) VALUES (?, ?, ?, ?)",
-				[vendaResult.lastID, variacao.id, quantidade, valorUnitario],
+				"INSERT INTO ItensVenda (venda_id, variacao_id, quantidade, preco_unitario, custo_unitario) VALUES (?, ?, ?, ?, ?)",
+				[vendaResult.lastID, variacao.id, quantidade, valorUnitario, custoUnitario],
 			);
 			importadas++;
 		}
@@ -996,6 +1213,16 @@ async function registrarVendaFiadoHistorica(dados, db) {
 	if (!Number.isFinite(valorUnitario) || valorUnitario < 0) {
 		throw new Error("Valor unitário inválido.");
 	}
+	const custoUnitario = lerCustoHistorico(dados);
+	if (
+		dados &&
+		["custoUnitario", "custo_unitario", "precoCusto", "preco_custo"].some(
+			(chave) => dados[chave] != null && dados[chave] !== "",
+		) &&
+		custoUnitario === undefined
+	) {
+		throw new Error("Custo unitário histórico inválido.");
+	}
 	const data = dados && dados.data ? String(dados.data) : null;
 	if (!data) throw new Error("Data é obrigatória.");
 	const statusRecebivel = dados && dados.statusRecebivel;
@@ -1021,8 +1248,8 @@ async function registrarVendaFiadoHistorica(dados, db) {
 		const vendaId = vendaResult.lastID;
 
 		await run(
-			"INSERT INTO ItensVenda (venda_id, variacao_id, quantidade, preco_unitario) VALUES (?, ?, ?, ?)",
-			[vendaId, variacao.id, quantidade, valorUnitario],
+			"INSERT INTO ItensVenda (venda_id, variacao_id, quantidade, preco_unitario, custo_unitario) VALUES (?, ?, ?, ?, ?)",
+			[vendaId, variacao.id, quantidade, valorUnitario, custoUnitario],
 		);
 
 		const rotuloProduto = variacao.nome
@@ -1070,7 +1297,7 @@ async function getItensVenda(vendaId) {
 	const conn = getConexao();
 	return new Promise((resolver, rejeitar) => {
 		const sql =
-			"SELECT iv.id, iv.variacao_id, p.nome AS produto_nome, v.tamanho, v.cor, v.atributos, v.sku, iv.quantidade, iv.preco_unitario, (iv.quantidade * iv.preco_unitario) AS subtotal, " +
+			"SELECT iv.id, iv.variacao_id, p.nome AS produto_nome, v.tamanho, v.cor, v.atributos, v.sku, iv.quantidade, iv.preco_unitario, iv.custo_unitario, (iv.quantidade * iv.preco_unitario) AS subtotal, " +
 			"p.ncm, p.cfop_padrao, p.csosn, p.unidade_fiscal, p.origem_mercadoria, " +
 			"(SELECT COALESCE(SUM(idv.quantidade), 0) FROM ItensDevolucao idv WHERE idv.item_venda_id = iv.id) AS quantidade_devolvida " +
 			"FROM ItensVenda iv JOIN Variacoes v ON v.id = iv.variacao_id JOIN Produtos p ON p.id = v.produto_id WHERE iv.venda_id = ? ORDER BY iv.id";
@@ -1112,6 +1339,7 @@ async function atualizarNotaFiscal(vendaId, dados) {
 }
 
 module.exports = {
+	finalizarVendaPDV02,
 	finalizarVenda,
 	converterOrcamento,
 	cancelarOrcamento,
@@ -1127,6 +1355,6 @@ module.exports = {
 	getItensDevolucao,
 	atualizarNotaFiscal,
 };
-// finalizarVendaPDV02 é código morto herdado do database.js original (nunca
-// era chamado nem exportado ali). Mantido sem exportar, mesmo critério usado
-// para buscarProdutosPDV02/buscarClientesPDV02.
+// finalizarVendaPDV02 é código legado herdado do database.js original. Ele
+// permanece fora da fachada principal, mas fica exportado neste módulo para
+// preservar e testar a semântica de instalações que ainda o utilizem.

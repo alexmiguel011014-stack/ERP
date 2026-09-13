@@ -34,9 +34,57 @@
 
 	window.parseAtributos = parseAtributos;
 
-	// Formata valor monetário: "R$ 0.00".
+	// Formata valor monetário sempre no padrão brasileiro, com agrupamento de
+	// milhares e vírgula decimal.
 	window.formatarMoeda = function (v) {
-		return "R$ " + (Number(v) || 0).toFixed(2);
+		var numero = Number(v);
+		return new Intl.NumberFormat("pt-BR", {
+			style: "currency",
+			currency: "BRL",
+		}).format(Number.isFinite(numero) ? numero : 0);
+	};
+
+	// Converte valores digitados no padrão brasileiro (ex.: "1.234,56") para
+	// número. A função é compartilhada pelas telas legadas que recebem valores
+	// monetários como texto.
+	window.lerValorMonetario = function (valorTexto) {
+		if (typeof valorTexto === "number") {
+			return Number.isFinite(valorTexto) ? valorTexto : 0;
+		}
+		var texto = String(valorTexto == null ? "" : valorTexto)
+			.trim()
+			.replace(/\s/g, "")
+			.replace(/^R\$/i, "");
+		if (!texto) return 0;
+		var sinal = texto.charAt(0) === "-" ? "-" : "";
+		var semSinal = sinal ? texto.slice(1) : texto;
+		var normalizado = semSinal.indexOf(",") >= 0
+			? semSinal.replace(/\./g, "").replace(",", ".")
+			: /^\d{1,3}(\.\d{3})+$/.test(semSinal)
+				? semSinal.replace(/\./g, "")
+				: semSinal;
+		var numero = Number(sinal + normalizado);
+		return Number.isFinite(numero) ? numero : 0;
+	};
+
+	// Lê um decimal digitado e diferencia texto inválido de zero legítimo.
+	window.lerDecimalInformado = function (valorTexto) {
+		if (typeof valorTexto === "number") {
+			return Number.isFinite(valorTexto) ? valorTexto : null;
+		}
+		var texto = String(valorTexto == null ? "" : valorTexto)
+			.trim()
+			.replace(/\s/g, "")
+			.replace(/^R\$/i, "");
+		if (
+			!texto ||
+			(!/^-?(?:\d+|\d{1,3}(?:\.\d{3})+)(?:,\d+)?$/.test(texto) &&
+				!/^-?\d+\.\d+$/.test(texto))
+		) {
+			return null;
+		}
+		var numero = window.lerValorMonetario(texto);
+		return Number.isFinite(numero) ? numero : null;
 	};
 
 	// Formata data ISO (ou "YYYY-MM-DD") para "dd/mm/aaaa".

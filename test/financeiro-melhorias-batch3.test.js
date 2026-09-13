@@ -119,7 +119,7 @@ test("gerarLancamentosRecorrentesDoMes ignora templates pausados (ativo=0)", asy
 	assert.strictEqual(linha.n, 0);
 });
 
-test("taxa de adquirente por método sobrepõe a média só quando configurada, senão cai pro fallback", async () => {
+test("taxa de adquirente por método sobrepõe a média e Pix sem taxa fica zerado", async () => {
 	const usuario = await runAsync(
 		"INSERT INTO Usuarios (login, nome, comissao_percentual) VALUES (?, ?, 0)",
 		["vendedor-taxa-" + Math.random().toString(36).slice(2, 8), "Vendedor"],
@@ -170,12 +170,12 @@ test("taxa de adquirente por método sobrepõe a média só quando configurada, 
 		usuario.lastID,
 	);
 
-	// Sem taxa por método configurada: ambos usam a média de 3% -> margem = 100-50-3 = 47.
+	// Sem taxa por método configurada: Pix fica em 0% e Cartão usa a média de 3%.
 	let resultado = await db.getMargemContribuicao();
 	let linhaPix = resultado.porProduto.find(
 		(p) => p.produto_id === produto.lastID,
 	);
-	assert.strictEqual(linhaPix.margemContribuicao, 94); // 47 (pix) + 47 (cartão)
+	assert.strictEqual(linhaPix.margemContribuicao, 97); // 50 (pix) + 47 (cartão)
 
 	// Configura taxa específica pro Pix (0.5%) — só a venda Pix muda.
 	await db.saveTaxaAdquirentePorMetodo("pix", 0.5);

@@ -7,8 +7,11 @@ import { usePersistedState } from "@/hooks/usePersistedState";
 import {
 	erpApi,
 	CATEGORIAS_FINANCEIRAS,
+	SUBTIPOS_FINANCEIROS,
 	type NovoLancamento,
+	type SubtipoFinanceiro,
 } from "@/lib/erpApi";
+import { lerDecimalInformado } from "@/lib/utils/formatos";
 
 export default function NovoLancamentoForm({
 	onSalvo,
@@ -41,17 +44,26 @@ export default function NovoLancamentoForm({
 		"financeiro_lancamento_categoria",
 		"",
 	);
+	const [subtipo, setSubtipo, limparSubtipo] = usePersistedState<"" | SubtipoFinanceiro>(
+		"financeiro_lancamento_subtipo",
+		"",
+	);
+	const [competenciaMes, setCompetenciaMes, limparCompetenciaMes] =
+		usePersistedState("financeiro_lancamento_competencia", "");
 	const [salvando, setSalvando] = useState(false);
 
 	async function adicionar() {
 		const parcelasNum = Math.max(1, parseInt(parcelas, 10) || 1);
+		const valorInformado = lerDecimalInformado(valor);
 		const dados: NovoLancamento = {
 			tipo,
 			descricao: descricao.trim(),
-			valor: Number(valor),
+			valor: valorInformado ?? 0,
 			data_vencimento: vencimento || null,
 			parcelas: parcelasNum,
 			categoria: categoria || null,
+			subtipo: tipo === "pagar" && subtipo ? subtipo : null,
+			competencia_mes: competenciaMes || null,
 		};
 		if (!dados.descricao) {
 			onErro("Informe a descrição.");
@@ -75,6 +87,8 @@ export default function NovoLancamentoForm({
 			limparVencimento();
 			limparParcelas();
 			limparCategoria();
+			limparSubtipo();
+			limparCompetenciaMes();
 		} catch (e) {
 			onErro(e instanceof Error ? e.message : String(e));
 		} finally {
@@ -112,7 +126,8 @@ export default function NovoLancamentoForm({
 				<div>
 					<Label>Valor (R$)</Label>
 					<Input
-						type="number"
+						type="text"
+						inputMode="decimal"
 						value={valor}
 						onChange={(e) => setValor(e.target.value)}
 						min="0.01"
@@ -152,6 +167,35 @@ export default function NovoLancamentoForm({
 						))}
 					</select>
 				</div>
+				{tipo === "pagar" && (
+					<div>
+						<Label>Classificação de pessoal</Label>
+						<select
+							value={subtipo}
+							onChange={(e) =>
+								setSubtipo(e.target.value as typeof subtipo)
+							}
+							className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+						>
+							<option value="">Não se aplica</option>
+							{SUBTIPOS_FINANCEIROS.map((item) => (
+								<option key={item.valor} value={item.valor}>
+									{item.rotulo}
+								</option>
+							))}
+						</select>
+					</div>
+				)}
+				{tipo === "pagar" && (
+					<div>
+						<Label>Competência (opcional)</Label>
+						<Input
+							type="month"
+							value={competenciaMes}
+							onChange={(e) => setCompetenciaMes(e.target.value)}
+						/>
+					</div>
+				)}
 			</div>
 			<div className="mt-4 flex justify-end">
 				<Button onClick={adicionar} disabled={salvando}>

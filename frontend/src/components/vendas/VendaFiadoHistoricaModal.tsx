@@ -9,6 +9,7 @@ import ClienteSelector from "@/components/pdv/ClienteSelector";
 import BuscaProduto from "@/components/pdv/BuscaProduto";
 import { useClientes } from "@/hooks/useClientes";
 import { erpApi, type Cliente, type ProdutoBusca } from "@/lib/erpApi";
+import { lerDecimalInformado } from "@/lib/utils/formatos";
 
 // Crediário histórico com vínculo real (GOALS.md "4. Crediário histórico") —
 // lançamento manual, um de cada vez: o dono informa cliente+SKU+data (dados
@@ -65,12 +66,12 @@ export default function VendaFiadoHistoricaModal({
 			return;
 		}
 		const qtd = Number(quantidade);
-		if (!Number.isFinite(qtd) || qtd <= 0) {
+		if (!Number.isInteger(qtd) || qtd <= 0) {
 			setErro("Quantidade inválida.");
 			return;
 		}
-		const valor = Number(valorUnitario);
-		if (!Number.isFinite(valor) || valor < 0) {
+		const valor = lerDecimalInformado(valorUnitario);
+		if (valor === null || !Number.isFinite(valor) || valor < 0) {
 			setErro("Valor unitário inválido.");
 			return;
 		}
@@ -173,7 +174,8 @@ export default function VendaFiadoHistoricaModal({
 							Valor unitário (R$) <span className="text-error-500">*</span>
 						</Label>
 						<Input
-							type="number"
+							type="text"
+							inputMode="decimal"
 							min="0"
 							step={0.01}
 							value={valorUnitario}
