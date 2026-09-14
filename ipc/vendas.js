@@ -1,6 +1,7 @@
 const {
 	finalizarVenda,
 	calcularVendaParcelada,
+	calcularVendaMista,
 	getVendas,
 	getVendasHoje,
 	importarVendasHistoricas,
@@ -38,7 +39,9 @@ function registrar(ipcMain, deps) {
 	ipcMain.handle("calcular-venda-parcelada", async (event, dados) => {
 		try {
 			exigirSessao();
-			return await calcularVendaParcelada(dados);
+			return Array.isArray(dados?.pagamentos) && dados.pagamentos.length > 1
+				? await calcularVendaMista(dados)
+				: await calcularVendaParcelada(dados);
 		} catch (erro) {
 			throw erro.message;
 		}

@@ -436,8 +436,16 @@ export type NovaVendaDados = {
 	forma_pagamento?: string | null;
 	condicao_parcelamento_id?: number | null;
 	data_primeiro_vencimento?: string | null;
+	pagamentos?: PagamentoVenda[];
+	valor_recebido?: number | null;
 	request_id?: string | null;
 	observacao?: string | null;
+};
+
+export type PagamentoVenda = {
+	forma_pagamento: "PIX" | "Cartão" | "Dinheiro" | "Fiado";
+	valor: number;
+	condicao_parcelamento_id?: number | null;
 };
 
 export type ParcelaVenda = {
@@ -457,7 +465,17 @@ export type ResultadoVenda = {
 	vendaId: number;
 	total?: number;
 	parcelas?: ParcelaVenda[];
+	pagamentos?: PagamentoVendaResultado[];
 	idempotente?: boolean;
+};
+
+export type PagamentoVendaResultado = PagamentoVenda & {
+	valorBase: number;
+	valorFinal: number;
+	acrescimo: number;
+	acrescimoPercentual: number;
+	condicao_parcelamento_nome?: string | null;
+	parcelas: ParcelaVenda[];
 };
 
 export type CondicaoParcelamento = {
@@ -479,6 +497,7 @@ export type PreviaVendaParcelada = {
 	desconto: number;
 	total: number;
 	parcelas: ParcelaVenda[];
+	pagamentos?: PagamentoVendaResultado[];
 };
 
 // Crediário histórico (GOALS.md "4. Crediário histórico") — lançamento

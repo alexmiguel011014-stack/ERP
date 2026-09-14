@@ -6250,3 +6250,187 @@ inventions. No later month is enabled by this goal.
 **Ordering rule:** GOALS18-01..04 settle the data contract; GOALS18-05..09 implement the one-file
 boundary; GOALS18-10..12 verify it; GOALS18-13 documents the stop condition. GOALS17's open
 manual gate remains independently required before any real January import.
+
+## GOALS22 — Correct mixed-payment surcharge, budget lifecycle, update visibility, and release notes
+
+```mermaid
+flowchart TD
+    A[Reproduce the exact v1.4.1 artifact] --> B[Freeze mixed-payment contract]
+    B --> C[Fix server calculation and persistence]
+    C --> D[Verify budgets and conversion invariants]
+    A --> E[Reproduce admin versus dono update behavior]
+    E --> F[Fix session, artifact, or release diagnostics]
+    B --> G[Add versioned update notes section]
+    D --> H[Automated and packaged acceptance]
+    F --> H
+    G --> H
+```
+
+Suggested: gpt-6-astra · xhigh — the highest-risk work crosses cent-accurate financial totals, payment persistence, session authorization, and the packaged Electron update artifact.
+
+### Problem statement and boundaries
+
+- [x] **GOALS22-01 — Reconcile source, installed artifact, and reported behavior before editing.**
+  Record the exact application version, commit/build provenance, and paths for the source
+  checkout, `app.asar`, and external `frontend/out` used in the reproduction. The attached
+  screenshot is evidence of the reported behavior, not an implementation instruction. Preserve
+  the current checkout's unrelated uncommitted work and do not use production data for tests.
+  The installed v1.4.1 already contains a mixed-payment UI that sends `forma_pagamento: "Misto"`
+  plus a `pagamentos` array, while the current source checkout still exposes one payment form;
+  the plan must first determine which source revision produced that artifact.
+  **Done when:** the same artifact and source revision are identified, or the mismatch is
+  explicitly documented, before any payment code is changed.
+  **Evidence (2026-09-14):** installed artifact `C:\Users\beatl\AppData\Local\Programs\ALLU ERP\resources\app.asar` with external `resources\frontend\out` reports version `1.4.1`; source branch `codex/loja-house-janeiro-vendas-historicas`, HEAD `2103b16`, reports version `1.3.0` and still had the single-form PDV. The mismatch was recorded before implementation.
+
+- [x] **GOALS22-02 — Freeze the mixed-payment business contract.** Use the following default
+  unless the owner changes it before execution: the amounts typed in each payment row are the
+  post-discount base allocations and must add up to the discounted sale base; the card
+  condition's surcharge applies only to that row; the final sale total is the sum of final row
+  amounts; Fiado cannot be mixed with another form. The backend remains authoritative for all
+  validation, rounding, surcharge, and installment calculations.
+  For a discounted base of R$213.75 split as PIX R$100.00 and Card R$113.75, with a 4% card
+  surcharge, the expected card amount is R$118.30 and the expected final total is R$218.30.
+  With the existing last-installment-residue policy, four exact card installments are
+  R$29.57, R$29.57, R$29.57, and R$29.59; an approximate display must not replace the persisted
+  cent values.
+  **Done when:** the contract, the rounding rule, and the expected example are written into
+  implementation tests and UI copy with no ambiguous meaning for a row amount.
+  **Evidence:** `test/pagamento-misto-orcamento.test.js` asserts R$100.00 PIX + R$113.75 Card + 4% = R$218.30 and exact cents `[2957, 2957, 2957, 2959]`; the panel labels row values as post-discount base allocations.
+
+### Payment calculation, storage, and cash-flow behavior
+
+- [x] **GOALS22-03 — Make mixed checkout calculate the fee on the correct row.** Update the
+  PDV payload and payment panel so each Card row owns its parcel condition, while the server
+  receives enough information to calculate each row independently. Preserve the single-form
+  path for PIX, Dinheiro, Cartão, and Fiado. Do not let a global `Misto` value cause
+  `calcularVendaParcelada` to silently fall back to 1x/0% or ignore the selected Card condition.
+  Reject negative/zero allocations where inappropriate, unsupported forms, multiple Fiado
+  rows, and sums that do not reconcile after cent rounding. Show base amount, surcharge,
+  installment count, exact total, and any rounding residue before finalization.
+  **Done when:** the screenshot scenario produces R$218.30 from the stated inputs, the Card
+  snapshot records 4x with its surcharge, and invalid mixed requests fail without mutating
+  stock, sales, or financial records.
+  **Evidence:** backend `calcularVendaMista` is authoritative and the focused suite covers the screenshot, invalid sums, Fiado mixing, and insufficient cash without side effects.
+
+- [x] **GOALS22-04 — Align database, IPC, preload, and frontend contracts.** Compare the
+  current source against the v1.4.1 artifact before porting behavior. If `VendaPagamentos` or
+  another payment-allocation structure is absent in the source, add it through an idempotent
+  schema migration and expose only typed, narrow IPC fields. Persist per-allocation form,
+  base/final value, Card condition snapshot, and exact installment values; keep `Vendas.total`
+  equal to the final allocation sum. Existing single-form records must remain readable and
+  must not be charged a second surcharge during migration or later conversion.
+  **Done when:** a saved sale can be reconstructed from its payment allocations and the
+  schema works on both a new database and a pre-feature database without destructive migration.
+  **Evidence:** idempotent `VendaPagamentos` schema/index, typed `erpApi` fields, IPC routing, and snapshot assertions pass on disposable databases.
+
+- [x] **GOALS22-05 — Preserve the established financial recognition policy.** PIX and Dinheiro
+  allocations are immediate; Card allocations create pending settlement entries and enter
+  realized cash only when settled; Fiado creates receivables and is never a mixed allocation.
+  Audit `db/financeiro.js` and all report/flow queries for duplicate recognition through both
+  the sale allocation and the settlement entry. Keep the receipt/customer receivable rules
+  distinct from commercial Card installments.
+  **Done when:** one finalized mixed sale has exactly one commercial total, no artificial
+  Card cash receipt, no Fiado receivable, and no duplicated amount in Cash Flow or reports.
+  **Evidence:** Card rows create pending settlement entries only; no Fiado receivable is created for mixed checkout, and the existing parcelamento/financeiro regression tests remain green.
+
+### Budget invariants and conversion
+
+- [x] **GOALS22-06 — Make the budget policy explicit and lossless.** Use the conservative
+  policy already surfaced by the v1.4.1 UI unless the owner explicitly requests mixed-payment
+  budgets: a budget may use one payment form/condition; split payment is rejected with a clear
+  message rather than silently dropping a row or its fee. A single-form Card budget must
+  snapshot its condition and final total. If mixed budgets are required later, extend the
+  budget schema with the same per-row allocation snapshot before enabling the UI; never reuse
+  a single global condition for a mixed quote.
+  **Done when:** the UI and backend enforce the same policy, and every accepted budget retains
+  enough data to reproduce its displayed total.
+  **Evidence:** both PDV and `db/vendas.js` reject split-payment budgets with the same message; single-form budgets retain the payment snapshot and final total.
+
+- [x] **GOALS22-07 — Verify creation, reservation, conversion, and retry behavior.** Creating
+  a budget must not create a sale receipt, Card settlement, or Fiado receivable; it may reserve
+  stock according to the existing reservation policy. Conversion must atomically validate the
+  stored snapshot, check the open-cash requirement, release the reservation/debit stock once,
+  create the correct payment/receivable records once, and never apply the Card surcharge a
+  second time. A second conversion, insufficient stock, or a failed financial write must leave
+  the database in a consistent state.
+  **Done when:** a Card budget of base R$100.00 with a 4% condition remains R$104.00 after
+  conversion, creates one correct 4x commercial/settlement snapshot, and every failure path
+  rolls back without duplicate stock or financial entries.
+  **Evidence:** focused test proves R$104.00 survives conversion, creates one pending Card entry, debits stock once, and rejects a second conversion; open-cash gating is enforced before conversion.
+
+### Owner access to updates and release notes
+
+- [ ] **GOALS22-08 — Reproduce the Dono update failure with the same packaged binary.** Test
+  admin and dono sessions against the exact artifact that reported the issue, using disposable
+  credentials/data. Verify the `/atualizacao` route, module manifest, session profile returned
+  by IPC, `check-for-updates`, `download-update`, and `quit-and-install` independently. The
+  current source indicates that the module is `sempre` visible, the frontend treats `admin`
+  and `dono` as elevated, and the main-process `exigirSessao("admin")` accepts both; therefore
+  an owner-only failure should be isolated to stale/malformed session data, an artifact/source
+  mismatch, updater/release metadata, or a swallowed error—not assumed to be a normal
+  permission rule.
+  **Done when:** the failing step is identified with its exact profile, artifact version, and
+  updater state, without logging passwords, tokens, customer data, or financial data.
+  **Execution status:** source analysis found the installed v1.4.1/source mismatch and the intended `sempre`/admin+dono gates; the exact installed v1.4.1 interactive failure was not reproduced because manual use of the installed binary and the owner's real session were not available in this execution.
+
+- [x] **GOALS22-09 — Add a role regression and safe diagnostics.** Add automated coverage for
+  both `admin` and `dono` through the same update IPC path, including page visibility and the
+  available/not-available/downloaded states. Surface a concise, non-secret diagnostic when a
+  check fails (app version, normalized profile, updater state, and actionable error category),
+  while keeping credentials and release tokens out of logs. Validate the exact packaged
+  artifact separately from source/e2e tests, including the presence of the exported frontend
+  route and the release version metadata.
+  **Done when:** a future role or packaging regression fails a test, and a real owner failure
+  can be distinguished from a GitHub release/draft/network problem without reproducing it by
+  guesswork.
+  **Evidence:** `e2e/atualizacao-perfis.spec.ts` validates admin and dono through the same page/IPC mock flow; failures expose only category, app version, normalized profile, and updater state. The packaged candidate contains the route and notes chunk.
+
+- [x] **GOALS22-10 — Add versioned notes to the Atualizações screen.** Create a typed,
+  version-keyed notes source and render a section titled `Notas da atualização x.x.x` on the
+  update page. Show the installed version's verified changes and, when an update is available,
+  the available version's notes; provide an explicit fallback when notes for a version are not
+  registered. Populate the 1.4.1 entry only from the verified release/source diff, not from
+  assumptions based on the screenshot. Keep the notes available offline and synchronize the
+  release checklist with the published release body so the UI does not claim changes that were
+  not shipped.
+  **Done when:** the page renders the correct version heading and readable change list for a
+  known version, handles an unknown version without a blank/error state, and keeps the update
+  controls usable for both admin and dono.
+  **Evidence:** `frontend/src/lib/atualizacaoNotas.ts` provides the typed version map and fallback; the role e2e asserts the notes heading and update controls.
+
+### Regression and acceptance
+
+- [x] **GOALS22-11 — Add focused financial tests.** Cover single-form compatibility, the mixed
+  screenshot example, Card-only surcharge, exact cent allocation, last-installment residue,
+  invalid sums, Fiado mixing rejection, persistence/reload, budget no-double-charge, stock
+  reservation, conversion retry, and Cash Flow/report recognition. Use synthetic disposable
+  databases only; tests must fail against the current artifact/source mismatch where the Card
+  condition is ignored under `Misto`.
+  **Done when:** the test suite proves both amount correctness and absence of duplicate stock,
+  receivable, settlement, and report entries.
+  **Evidence:** focused mixed-payment suite has 6 cases after the final additions; the full root suite passes 215 tests, including legacy single-form, parcelamento, stock, finance, and report regressions.
+
+- [ ] **GOALS22-12 — Run the full verification ladder.** Run the repository's lint, typecheck,
+  unit/integration tests, frontend export, and existing Electron e2e checks after implementation.
+  Then build the same packaged candidate used for manual acceptance and inspect its actual
+  `app.asar`/`resources/frontend/out`, not only the build configuration. No publish, release
+  edit, installer distribution, or production database migration is part of this goal.
+  **Done when:** source checks pass, the packaged candidate contains the notes and update route,
+  and the binary tested manually is proven to be the binary whose behavior was accepted.
+  **Evidence:** automated checks passed: `npm test` (215/215), frontend typecheck, frontend lint (3 pre-existing warnings, 0 errors), source lint with only `dist`/`.claude/worktrees` excluded (0 errors), frontend export, all Electron e2e (26/26), and `npx electron-builder --dir --win`. The candidate has `resources/frontend/out/index.html`, the notes chunk, and the expected main/preload/update files in `app.asar`; no publish was performed. The final packaged-binary manual behavior proof remains open with GOALS22-13.
+
+- [ ] **GOALS22-13 — Perform manual acceptance with two roles and a disposable dataset.** In a
+  clean/disposable user-data directory, log in as admin and dono using the same packaged
+  candidate; verify update visibility, update-state actions, version notes, mixed checkout,
+  Card surcharge/installments, single-form budget, conversion, and resulting Cash Flow. Capture
+  the displayed totals and compare them with the cent-level expected values above. Do not use
+  the store's real database, real credentials, or release secrets.
+  **Done when:** both roles see and can use the intended update page, the screenshot case totals
+  R$218.30 under the stated 4% contract, budgets convert once without double charging, and the
+  notes section identifies what changed in the tested version.
+  **Execution status:** disposable automated coverage is in place, but the requested hands-on acceptance in the packaged candidate remains open; this execution did not use the store database or real credentials.
+
+**Done when:** mixed payment calculates and persists the Card surcharge correctly, budgets are
+lossless and idempotent across conversion, the Dono/admin update difference has an evidenced
+root cause and regression guard, and the Atualizações screen explains each verified x.x.x
+release without changing release or production state.

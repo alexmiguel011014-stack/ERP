@@ -6,7 +6,7 @@ const { migrarImagensLegadas } = require("./imagens");
 // precisa de tabela própria). Incremente manualmente sempre que uma migração
 // nova for adicionada acima, para que código futuro possa checar "este banco
 // é anterior à feature X" sem depender só de IF NOT EXISTS/colunas presentes.
-const VERSAO_SCHEMA = 3;
+const VERSAO_SCHEMA = 4;
 
 function obterVersaoSchema(conn) {
 	return new Promise((resolver) => {
@@ -481,6 +481,10 @@ async function iniciarBanco() {
 		status: "status TEXT NOT NULL DEFAULT 'finalizada'",
 		usuario_id: "usuario_id INTEGER REFERENCES Usuarios(id) ON DELETE SET NULL",
 		origem: "origem TEXT NOT NULL DEFAULT 'pdv'",
+		// A planilha histórica pode registrar uma venda como saída de caixa.
+		// Só a importação histórica preenche este fato de origem; vendas normais
+		// continuam com null e entram normalmente no fluxo de caixa.
+		direcao_fluxo_historica: "direcao_fluxo_historica TEXT",
 		// Rastreamento fiscal. nota_status: 'nao_emitida' | 'emitida_externa'
 		// (emitida por fora do ERP, ex.: sistema do contador — funciona hoje,
 		// sem nenhuma integração) | 'emitida_erp' (via integracoes/fiscal/) |
@@ -585,6 +589,38 @@ async function iniciarBanco() {
 	await runOn(
 		conexao,
 		"CREATE UNIQUE INDEX IF NOT EXISTS idx_condicoes_parcelamento_forma_parcelas ON CondicoesParcelamento(forma_pagamento, numero_parcelas)",
+	);
+	// Snapshot por alocação do checkout: uma venda pode combinar formas de
+	// pagamento, mas cada linha precisa preservar sua própria condição, taxa e
+	// parcelas exatas. Vendas antigas continuam usando os campos legados de
+	// Vendas quando não houver linhas aqui.
+	await runOn(
+		conexao,
+		`
+    CREATE TABLE IF NOT EXISTS VendaPagamentos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      venda_id INTEGER NOT NULL,
+      forma_pagamento TEXT NOT NULL,
+      valor_base REAL NOT NULL,
+      valor_final REAL NOT NULL,
+      acrescimo_percentual REAL NOT NULL DEFAULT 0,
+      acrescimo REAL NOT NULL DEFAULT 0,
+      condicao_parcelamento_id INTEGER,
+      condicao_parcelamento_nome TEXT,
+      parcelas INTEGER NOT NULL DEFAULT 1,
+      detalhes_parcelas TEXT,
+      criado_em TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (venda_id) REFERENCES Vendas(id) ON DELETE CASCADE,
+      CHECK (valor_base >= 0),
+      CHECK (valor_final >= 0),
+      CHECK (acrescimo_percentual >= 0),
+      CHECK (parcelas >= 1)
+    )
+  `,
+	);
+	await runOn(
+		conexao,
+		"CREATE INDEX IF NOT EXISTS idx_venda_pagamentos_venda ON VendaPagamentos(venda_id, id)",
 	);
 	const agoraParcelamento = new Date().toISOString();
 	await runOn(

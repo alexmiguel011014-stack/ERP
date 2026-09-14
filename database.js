@@ -59,6 +59,7 @@ module.exports = {
 	finalizarVenda: vendas.finalizarVenda,
 	calcularParcelamento: parcelamento.calcularParcelamento,
 	calcularVendaParcelada: parcelamento.calcularVendaParcelada,
+	calcularVendaMista: parcelamento.calcularVendaMista,
 	listarCondicoesParcelamento: parcelamento.listarCondicoesParcelamento,
 	obterCondicaoParcelamento: parcelamento.obterCondicaoParcelamento,
 	salvarCondicaoParcelamento: parcelamento.salvarCondicaoParcelamento,

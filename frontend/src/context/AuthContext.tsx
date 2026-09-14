@@ -53,7 +53,8 @@ export const useAuth = () => {
 // perfis que main.js#ehNivelAdmin aceita pro gate real no IPC. Isso aqui é só
 // o espelho cosmético (enforcement de verdade continua 100% no IPC).
 function ehNivelAdmin(sessao: Sessao) {
-	return sessao.perfil === "admin" || sessao.perfil === "dono";
+	const perfil = String(sessao.perfil || "").trim().toLowerCase();
+	return perfil === "admin" || perfil === "dono";
 }
 
 function calcularPodeModulo(sessao: Sessao) {

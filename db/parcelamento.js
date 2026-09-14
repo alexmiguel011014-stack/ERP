@@ -1,6 +1,7 @@
 const { allAsync, getAsync, runAsync } = require("./conexao");
 
 const FORMAS_PARCELAVEIS = new Set(["Fiado", "Cartão"]);
+const FORMAS_PAGAMENTO_CHECKOUT = new Set(["PIX", "Cartão", "Dinheiro", "Fiado"]);
 
 function valorParaCentavos(valor) {
 	const numero = Number(valor);
@@ -101,25 +102,7 @@ function calcularParcelamento({
 	};
 }
 
-async function calcularVendaParcelada(dados) {
-	const formaPagamento = String(dados?.forma_pagamento || "").trim();
-	const parcelavel = FORMAS_PARCELAVEIS.has(formaPagamento);
-	const clienteId = dados?.cliente_id ? Number(dados.cliente_id) : null;
-	if (formaPagamento === "Fiado" && (!Number.isInteger(clienteId) || clienteId < 1)) {
-		throw new Error("Selecione um cliente para a venda fiado.");
-	}
-	const condicao = parcelavel
-		? dados?.condicao_parcelamento_id
-			? await obterCondicaoParcelamento(dados.condicao_parcelamento_id)
-			: await obterCondicaoPadrao(formaPagamento)
-		: null;
-	if (condicao && condicao.forma_pagamento !== formaPagamento) {
-		throw new Error("A condição selecionada não pertence a esta forma de pagamento.");
-	}
-	if (formaPagamento === "Fiado" && !dados?.data_primeiro_vencimento) {
-		throw new Error("Informe o primeiro vencimento da venda fiado.");
-	}
-	const itensRecebidos = Array.isArray(dados?.itens) ? dados.itens : [];
+async function carregarItensVenda(itensRecebidos, clienteId) {
 	if (itensRecebidos.length === 0) {
 		throw new Error("A venda precisa de pelo menos um item.");
 	}
@@ -129,7 +112,12 @@ async function calcularVendaParcelada(dados) {
 	for (const item of itensRecebidos) {
 		const variacaoId = Number(item?.variacao_id);
 		const quantidade = Number(item?.quantidade);
-		if (!Number.isInteger(variacaoId) || variacaoId < 1 || !Number.isInteger(quantidade) || quantidade < 1) {
+		if (
+			!Number.isInteger(variacaoId) ||
+			variacaoId < 1 ||
+			!Number.isInteger(quantidade) ||
+			quantidade < 1
+		) {
 			throw new Error("Item de venda inválido.");
 		}
 		const variacao = await getAsync(
@@ -154,6 +142,32 @@ async function calcularVendaParcelada(dados) {
 			subtotal_centavos: subtotalCentavos,
 		});
 	}
+	return { itens, valorBaseCentavos };
+}
+
+async function calcularVendaParcelada(dados) {
+	const formaPagamento = String(dados?.forma_pagamento || "").trim();
+	const parcelavel = FORMAS_PARCELAVEIS.has(formaPagamento);
+	const clienteId = dados?.cliente_id ? Number(dados.cliente_id) : null;
+	if (formaPagamento === "Fiado" && (!Number.isInteger(clienteId) || clienteId < 1)) {
+		throw new Error("Selecione um cliente para a venda fiado.");
+	}
+	const condicao = parcelavel
+		? dados?.condicao_parcelamento_id
+			? await obterCondicaoParcelamento(dados.condicao_parcelamento_id)
+			: await obterCondicaoPadrao(formaPagamento)
+		: null;
+	if (condicao && condicao.forma_pagamento !== formaPagamento) {
+		throw new Error("A condição selecionada não pertence a esta forma de pagamento.");
+	}
+	if (formaPagamento === "Fiado" && !dados?.data_primeiro_vencimento) {
+		throw new Error("Informe o primeiro vencimento da venda fiado.");
+	}
+	const itensRecebidos = Array.isArray(dados?.itens) ? dados.itens : [];
+	const { itens, valorBaseCentavos } = await carregarItensVenda(
+		itensRecebidos,
+		clienteId,
+	);
 
 	const calculo = calcularParcelamento({
 		valorBase: valorBaseCentavos / 100,
@@ -164,6 +178,103 @@ async function calcularVendaParcelada(dados) {
 			formaPagamento === "Fiado" ? dados?.data_primeiro_vencimento : null,
 	});
 	return { condicao, formaPagamento, clienteId, itens, ...calculo };
+}
+
+async function calcularVendaMista(dados) {
+	const clienteId = dados?.cliente_id ? Number(dados.cliente_id) : null;
+	const itensRecebidos = Array.isArray(dados?.itens) ? dados.itens : [];
+	const { itens, valorBaseCentavos } = await carregarItensVenda(
+		itensRecebidos,
+		clienteId,
+	);
+	const descontoCentavos = valorParaCentavos(dados?.desconto || 0);
+	if (descontoCentavos > valorBaseCentavos) {
+		throw new Error("Desconto não pode ser maior que o total da venda.");
+	}
+	const baseLiquidaCentavos = valorBaseCentavos - descontoCentavos;
+	const entradas = Array.isArray(dados?.pagamentos) ? dados.pagamentos : [];
+	if (entradas.length < 2) {
+		throw new Error("Pagamento misto precisa de pelo menos duas formas.");
+	}
+
+	const pagamentos = [];
+	let somaBaseCentavos = 0;
+	for (const entrada of entradas) {
+		const formaPagamento = String(entrada?.forma_pagamento || "").trim();
+		if (!FORMAS_PAGAMENTO_CHECKOUT.has(formaPagamento)) {
+			throw new Error("Forma de pagamento inválida.");
+		}
+		if (formaPagamento === "Fiado") {
+			throw new Error("Fiado não pode ser misturado com outra forma de pagamento.");
+		}
+		const valorBaseRowCentavos = valorParaCentavos(entrada?.valor);
+		if (valorBaseRowCentavos <= 0) {
+			throw new Error("Cada pagamento misto precisa ter um valor maior que zero.");
+		}
+		somaBaseCentavos += valorBaseRowCentavos;
+
+		let condicao = null;
+		if (formaPagamento === "Cartão") {
+			condicao = entrada?.condicao_parcelamento_id
+				? await obterCondicaoParcelamento(entrada.condicao_parcelamento_id)
+				: await obterCondicaoPadrao("Cartão");
+			if (condicao.forma_pagamento !== formaPagamento) {
+				throw new Error(
+					"A condição selecionada não pertence a esta forma de pagamento.",
+				);
+			}
+		} else if (entrada?.condicao_parcelamento_id) {
+			throw new Error("Condição de parcelamento só pode ser usada no cartão.");
+		}
+		const percentual = condicao ? Number(condicao.acrescimo_percentual) : 0;
+		const acrescimoCentavos = Math.round(
+			(valorBaseRowCentavos * percentual) / 100,
+		);
+		const valorFinalCentavos = valorBaseRowCentavos + acrescimoCentavos;
+		pagamentos.push({
+			forma_pagamento: formaPagamento,
+			valorBase: valorBaseRowCentavos / 100,
+			valorBaseCentavos: valorBaseRowCentavos,
+			valorFinal: valorFinalCentavos / 100,
+			valorFinalCentavos,
+			acrescimoPercentual: percentual,
+			acrescimo: acrescimoCentavos / 100,
+			acrescimoCentavos,
+			condicao,
+			parcelas: dividirEmParcelas(
+				valorFinalCentavos,
+				condicao ? condicao.numero_parcelas : 1,
+				null,
+			),
+		});
+	}
+	if (somaBaseCentavos !== baseLiquidaCentavos) {
+		throw new Error(
+			"Os pagamentos devem somar exatamente o total após o desconto.",
+		);
+	}
+
+	const totalCentavos = pagamentos.reduce(
+		(total, pagamento) => total + pagamento.valorFinalCentavos,
+		0,
+	);
+	return {
+		condicao: null,
+		formaPagamento: "Misto",
+		clienteId,
+		itens,
+		valorBase: valorBaseCentavos / 100,
+		valorBaseCentavos,
+		acrescimoPercentual: 0,
+		acrescimo: (totalCentavos - baseLiquidaCentavos) / 100,
+		acrescimoCentavos: totalCentavos - baseLiquidaCentavos,
+		desconto: descontoCentavos / 100,
+		descontoCentavos,
+		total: totalCentavos / 100,
+		totalCentavos,
+		parcelas: [],
+		pagamentos,
+	};
 }
 
 async function listarCondicoesParcelamento(formaPagamento, incluirInativas = false) {
@@ -243,8 +354,10 @@ async function salvarCondicaoParcelamento(dados) {
 
 module.exports = {
 	FORMAS_PARCELAVEIS,
+	FORMAS_PAGAMENTO_CHECKOUT,
 	calcularParcelamento,
 	calcularVendaParcelada,
+	calcularVendaMista,
 	listarCondicoesParcelamento,
 	obterCondicaoParcelamento,
 	obterCondicaoPadrao,
