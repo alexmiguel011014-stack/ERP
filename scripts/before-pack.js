@@ -17,6 +17,7 @@
 const { execSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
+const { validarVersaoNotas } = require("./verificar-versao-notas");
 
 module.exports = async function beforePack() {
 	// __dirname é scripts/ — o pai é a raiz do projeto. Não depende de
@@ -24,6 +25,7 @@ module.exports = async function beforePack() {
 	// interna que pode mudar entre versões) — resolve sozinho, sempre certo.
 	const raizProjeto = path.join(__dirname, "..");
 	const dirFrontend = path.join(raizProjeto, "frontend");
+	validarVersaoNotas({ raizProjeto });
 
 	console.log("[beforePack] buildando frontend/ antes de empacotar...");
 	execSync("npm run build", { cwd: dirFrontend, stdio: "inherit" });

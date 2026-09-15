@@ -158,6 +158,11 @@ export function exportarRelatorioPdf(dados: {
 	if (dados.dre) {
 		titulo("DRE (Demonstrativo de Resultado)");
 		linhaTexto(`Receita Bruta: ${formatarMoeda(dados.dre.receitaBruta)}`);
+		if (dados.dre.receitaHistoricaSemCMV > 0) {
+			linhaTexto(
+				`Vendas históricas sem CMV: ${dados.dre.vendasHistoricasSemCMV} (${formatarMoeda(dados.dre.receitaHistoricaSemCMV)})`,
+			);
+		}
 		linhaTexto(`Descontos: -${formatarMoeda(dados.dre.descontos)}`);
 		linhaTexto(`Receita Líquida: ${formatarMoeda(dados.dre.receitaLiquida)}`);
 		linhaTexto(`CMV: -${formatarMoeda(dados.dre.cmv)}`);

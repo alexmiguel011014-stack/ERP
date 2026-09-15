@@ -79,6 +79,7 @@ module.exports = {
 	getVendas: vendas.getVendas,
 	getVendasHoje: vendas.getVendasHoje,
 	importarVendasHistoricas: vendas.importarVendasHistoricas,
+	registrarVendaHistorica: vendas.registrarVendaHistorica,
 	registrarVendaFiadoHistorica: vendas.registrarVendaFiadoHistorica,
 	getFaturamentoMedioHistorico: precificacao.getFaturamentoMedioHistorico,
 	getItensVenda: vendas.getItensVenda,

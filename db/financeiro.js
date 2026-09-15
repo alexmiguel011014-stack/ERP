@@ -384,15 +384,20 @@ async function getFluxoCaixa(dataInicio, dataFim) {
 					? "saida"
 					: "entrada",
 			origem:
-				venda.origem === "importacao_financeiro_historico"
-					? "importacao_financeiro_historico"
-					: "venda",
+				venda.origem === "venda_historica_manual"
+					? "venda_historica_manual"
+					: venda.origem === "importacao_financeiro_historico"
+						? "importacao_financeiro_historico"
+						: "venda",
 			descricao:
 				venda.origem === "importacao_financeiro_historico"
 					? venda.observacao || "Venda histórica importada"
+				: venda.origem === "venda_historica_manual"
+					? venda.observacao || `Venda histórica #${venda.id}`
 					: `Venda #${venda.id}`,
 			categoria:
-				venda.origem === "importacao_financeiro_historico"
+				venda.origem === "importacao_financeiro_historico" ||
+				venda.origem === "venda_historica_manual"
 					? "Vendas históricas"
 					: null,
 			valor: venda.total,

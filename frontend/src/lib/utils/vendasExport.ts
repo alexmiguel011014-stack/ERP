@@ -13,7 +13,7 @@ export function exportarVendasCsv(vendas: Venda[]) {
 		return;
 	}
 	const cabecalho =
-		"Venda,Cliente,Status,Data,Pagamento,Desconto,Total,NotaStatus,NotaNumero";
+		"Venda,Cliente,Status,Data,Pagamento,Desconto,Total,Origem,Descricao,NotaStatus,NotaNumero";
 	const corpo = vendas
 		.map((v) =>
 			[
@@ -24,6 +24,8 @@ export function exportarVendasCsv(vendas: Venda[]) {
 				csvCampo(v.forma_pagamento),
 				v.desconto.toFixed(2),
 				v.total.toFixed(2),
+				csvCampo(v.origem),
+				csvCampo(v.observacao),
 				csvCampo(v.nota_status),
 				csvCampo(v.nota_numero),
 			].join(","),

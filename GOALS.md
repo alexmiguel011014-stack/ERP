@@ -6873,3 +6873,262 @@ Suggested: gpt-6-astra · xhigh — the highest-risk work crosses cent-accurate 
 lossless and idempotent across conversion, the Dono/admin update difference has an evidenced
 root cause and regression guard, and the Atualizações screen explains each verified x.x.x
 release without changing release or production state.
+
+---
+
+## GOALS 23 — Manual historical sales entry in Financeiro with report integration (implementation complete; manual acceptance pending)
+
+**Execution status (2026-09-15):** the backend, IPC/preload bridge, Financeiro card,
+report/flow classification, exports, and focused regression coverage are implemented on
+`codex/manual-vendas-historicas-financeiro`. The complete backend suite passes (222 tests),
+and the frontend typecheck/lint pass. Real Electron acceptance remains intentionally open in
+GOALS23-01/19; no production database or release was touched. The release-notes guard also
+now blocks packaging when `package.json` and `atualizacaoNotas.ts` are not aligned.
+
+**Owner request (2026-09-14):** the current `Relatórios > Vendas` view is correctly read-only,
+but it has no action for creating a historical sale. Add the entry point to the first
+`Financeiro` section, with `nome/descrição`, `valor total` and `data da venda` required;
+`cliente` and `método de pagamento` optional; when the method is omitted, persist the explicit
+`Genérico` method. The resulting sale must appear in the general reports and in the sales
+report.
+
+**Current code evidence:** the Financeiro first section renders `NovoLancamentoForm` for
+obligations (`LancamentosFinanceiros`), while the existing historical Fiado function
+(`db/vendas.js:registrarVendaFiadoHistorica`) requires a client and SKU and is therefore not a
+generic historical-sale entry. The existing Excel financial-history importer already creates
+summary rows in `Vendas` with `observacao`, `origem` and no `ItensVenda`; the sales report reads
+`Vendas`, while the DRE and product reports have different rules for rows without item/CMV
+support. The `Relatórios > Vendas` view should remain a report, not become the creation screen.
+
+```mermaid
+flowchart TD
+    A[Confirm source frontend and current report contracts] --> B[Freeze historical-sale and settlement semantics]
+    B --> C[Create one idempotent summary sale transaction]
+    C --> D[Expose narrow IPC and Financeiro form]
+    C --> E[Make sales, cash-flow and DRE classification explicit]
+    E --> F[Update sales history display and report filters/exports]
+    D --> G[Automated regression tests]
+    F --> G
+    G --> H[Manual Electron acceptance with disposable data]
+    H --> I[Documentation and final ownership gate]
+```
+
+Suggested: gpt-5.6-sol · high — the feature is small in UI size but crosses retroactive money entry, idempotency, Fiado settlement, cash-flow recognition, DRE/CMV limitations and two report surfaces.
+
+### Design rationale and boundaries
+
+- [ ] **GOALS23-01 — [manual] Reconfirm the actual runtime before editing.** In the dedicated
+      worktree, record branch, commit, package version and whether the owner is exercising the
+      default Next export or `ERP_LEGACY_FRONTEND=1`. GOALS22 already recorded a source/artifact
+      version mismatch, so the screenshots are evidence of the desired workflow, not proof that
+      the installed binary is the current source. Do not use the production database or real
+      customer data for this check.
+      **Done when:** the exact Financeiro route and source files in scope are identified and the
+      existing `Relatórios > Vendas` tab is confirmed to remain read-only.
+
+- [ ] **GOALS23-02 — Freeze the record model before implementation.** Create one finalized
+      summary row in `Vendas` for the historical fact, using existing columns rather than a new
+      table: `observacao` stores the required sale name/description, `total` stores the rounded
+      total value, `data_venda` stores the historical date, nullable `cliente_id` stores the
+      optional existing customer, `forma_pagamento` stores the selected method or `Genérico`,
+      and `origem='venda_historica_manual'` distinguishes this path from PDV and workbook
+      imports. Do not create `ItensVenda`, SKU/product links, stock movements, or a second
+      generic financial row for a non-Fiado sale.
+      **Done when:** the contract is written in the focused tests and it is clear which fields
+      are facts supplied by the operator versus fields deliberately left unknown.
+
+- [ ] **GOALS23-03 — Use business wording that cannot confuse price and total.** Label the
+      required fields `Nome/descrição da venda`, `Valor total (R$)` and `Data da venda`; do not
+      call the amount `preço unitário` because this flow has no product or quantity. The form
+      must accept only a valid existing customer when one is selected, trim the name, validate
+      a positive cent-accurate amount, reject invalid dates and reject dates after today.
+      **Done when:** the UI labels match the summary-sale semantics and the backend repeats the
+      same validation instead of trusting the renderer.
+
+- [ ] **GOALS23-04 — Define the missing payment-method and settlement rule.** The default
+      `Genérico` value means: the sale happened and is treated as received on `data_venda`, but
+      the channel is unknown. It must be visible as a real payment bucket, not represented by
+      `NULL`, `---` or a guessed PIX/Card/Dinheiro value. Offer the existing methods plus
+      `Genérico` in the selector.
+      **Done when:** an omitted method is deterministic in storage, sales reports and cash-flow
+      details, and the UI explains that `Genérico` is an unknown method rather than a new
+      processor integration.
+
+- [ ] **GOALS23-05 — Close the Fiado gap without making the global customer field mandatory.**
+      If the operator chooses `Fiado`, require an existing customer and show conditional
+      settlement fields: `Recebido` or `Em aberto`; for `Em aberto`, require the first due date.
+      A received Fiado sale creates one paid receivable dated on the historical sale date; an
+      open Fiado sale creates one linked open receivable and does not enter realized cash until
+      it is paid. For PIX, Cartão, Dinheiro and `Genérico`, no receivable is created. This keeps
+      `cliente` optional for the normal historical-sale path while preventing an untraceable
+      Fiado entry.
+      **Done when:** every accepted payment state has one unambiguous cash/receivable outcome,
+      and `Fiado` without a customer or due date is rejected before any write.
+
+- [ ] **GOALS23-06 — Preserve the existing module boundary.** Put a separate
+      `Registrar venda histórica` card in the first Financeiro section, next to but not inside
+      `NovoLancamentoForm`; the latter remains for A Receber/A Pagar obligations. Do not add a
+      new sidebar item and do not turn the `Relatórios > Vendas` tab into a mutation surface.
+      Keep the specialized SKU-linked historical-Fiado backend compatible until its callers and
+      existing data are audited; do not leave two visible forms that appear to solve the same
+      generic problem.
+      **Done when:** a user can discover the action from Financeiro, while the report tab remains
+      a read-only place to inspect the result.
+
+- [ ] **GOALS23-07 — Define the no-double-count policy.** For a non-Fiado historical sale,
+      `Vendas` is the only persisted event and `getFluxoCaixa` contributes one incoming event on
+      the sale date. For a paid Fiado historical sale, the sale row is excluded from realized
+      cash by the existing Fiado rule and the linked paid receivable contributes exactly one
+      incoming event. For an open Fiado sale, only the projected flow contains the receivable.
+      Never insert a manual `LancamentosFinanceiros` row for a non-Fiado historical sale merely
+      to make it visible in Financeiro; that would duplicate the sale in cash flow.
+      **Done when:** the policy has one expected event, date and source for each payment state.
+
+- [ ] **GOALS23-08 — Define report semantics before changing SQL.** Historical summary sales
+      must be included in `getRelatorioVendas` totals, daily totals, payment breakdown and the
+      `Relatórios > Vendas` table/export. They must be visibly identifiable by their description
+      and historical origin. `Genérico` must appear as its own payment group.
+      In the general reports, cash flow includes the recognized event under a labelled
+      historical-sale origin. DRE must expose historical revenue without CMV as a separate,
+      clearly labelled value and must not treat missing CMV as zero cost when calculating a
+      supported product margin. Curva ABC, margem de contribuição and giro de estoque must not
+      fabricate product-level results from a summary row with no `ItensVenda`; client
+      segmentation may use the sale only when an existing client was supplied; commission
+      reports must not attribute the manual historical fact to the administrator who entered it.
+      **Done when:** the report matrix distinguishes sales/faturamento, cash movement, customer
+      history and CMV-backed profit instead of using one total for every purpose.
+
+**Explicitly out of scope:** stock reconstruction or deduction; product/SKU/item matching;
+automatic customer creation; payment processor, card-fee or installment simulation; editing or
+deleting historical facts from this first version; changing the sidebar; changing the existing
+Excel import classification; real-database cleanup or migration; publishing a release.
+
+### Implementation
+
+- [ ] **GOALS23-09 — Add one transactional, idempotent backend command.** Implement a narrow
+      `registrarVendaHistorica` operation in the sales domain, reusing the existing Vendas
+      transaction conventions and `request_id` unique index. The renderer generates one stable
+      request ID per submit; a retry returns the already-created sale instead of inserting a
+      second sale or receivable. Validate all fields server-side, set `status='finalizada'`,
+      leave `usuario_id` null for commission purposes, and record the actor through the existing
+      IPC audit log. Do not require an open cash register and do not call the normal PDV
+      finalization path, whose open-cash and stock guards are correct for current sales but not
+      for a retroactive summary fact.
+      **Done when:** success, duplicate retry, validation failure and transaction failure leave
+      a consistent database with at most one sale and its optional linked receivable.
+
+- [ ] **GOALS23-10 — Reuse existing schema fields and preserve old data.** Avoid a migration if
+      `observacao`, `origem`, `forma_pagamento`, `cliente_id`, `venda_id`, `data_pagamento` and
+      `data_vencimento` are sufficient, as they are in the current schema. If a dedicated field
+      is proven necessary for display, document why `observacao` cannot carry the name before
+      adding any column. Existing `NULL` payment methods and `importacao_financeiro_historico`
+      origins must remain readable and must not be silently rewritten to `Genérico`.
+      **Done when:** a new and a pre-feature disposable database both support the operation and
+      old imported/PDV rows retain their current meaning.
+
+- [ ] **GOALS23-11 — Wire the narrow contract through Electron.** Update `database.js`, the
+      appropriate existing `ipc/vendas.js` handler and `preload.js`, plus the typed
+      `frontend/src/lib/erpApi.ts` surface. Gate the mutation to `admin`/`dono` even if a
+      vendedor has ordinary Financeiro read/write permission, because retroactive financial
+      facts are a higher-risk operation. Keep report reads behind their existing `relatorios`
+      permission and preserve the current Financeiro permission for ordinary obligations.
+      **Done when:** the handler, preload method, typed method and UI payload use the same names,
+      shapes and permission behavior.
+
+- [ ] **GOALS23-12 — Build the Financeiro entry card and refresh path.** Add a focused component
+      to the first Financeiro section, reusing `ClienteSelector`, existing form controls,
+      persisted formatting and the shared button/modal styles. Show validation and success
+      feedback with the created sale number; refresh the visible cash-flow/summary data after a
+      successful write without a full app restart. Keep the existing obligation form's fields,
+      parceling and category behavior unchanged.
+      **Done when:** an admin can enter the three required fields alone, save a `Genérico`
+      historical sale, and see an unambiguous success/result state in Financeiro.
+
+- [ ] **GOALS23-13 — Make the sales-history presentation honest.** Extend the returned `Venda`
+      shape with the historical origin needed by the UI, add `Genérico` to payment filters and
+      show the required description in the sales row/detail/export. When a summary historical
+      sale has no items, replace the misleading empty-item interpretation with copy stating
+      that it is a historical summary and did not alter current stock. Preserve the current
+      `Venda #<id>` presentation for ordinary PDV sales and keep internal IDs available for
+      audit.
+      **Done when:** the new record is recognizable in the `Relatórios > Vendas` tab without
+      looking like a product-linked sale.
+
+- [ ] **GOALS23-14 — Update report calculation and labels from shared origin semantics.**
+      Extend the report queries and typed results only where required: sales totals/payment
+      grouping; cash-flow origin/description mapping; DRE's historical-without-CMV disclosure;
+      and CSV/PDF exports that include affected sales totals/labels. Reuse the current
+      `ItensVenda` joins as the natural exclusion for product reports, but add explicit tests
+      and UI copy so that exclusion is intentional rather than an accidental empty result.
+      Avoid adding a second SQL path that independently sums the same sale.
+      **Done when:** Financeiro flow, general Relatórios and Relatórios > Vendas agree on the
+      same sale/date/method while DRE and product analytics state their evidence limits.
+
+### Tests
+
+- [ ] **GOALS23-15 — Add backend validation and transaction coverage.** In a disposable encrypted
+      database, cover required name/value/date, trimming, positive cent values, invalid/future
+      dates, optional customer, method default, allowed methods, Fiado conditional requirements,
+      no open-cash requirement, no item/stock mutation, actor-not-commissioned behavior and
+      rollback on a forced write failure.
+      **Done when:** each invalid request fails before partial data exists and each valid request
+      produces the exact intended rows.
+
+- [ ] **GOALS23-16 — Add idempotency and financial-event tests.** Prove repeated `request_id`
+      submission creates one sale and at most one linked receivable. Assert one realized incoming
+      event for PIX, Cartão, Dinheiro and `Genérico`; one paid-receivable event for paid Fiado;
+      no realized event and one projected receivable for open Fiado; and no duplicate entry from
+      the combination of `Vendas` and `LancamentosFinanceiros`.
+      **Done when:** the focused suite fails if a retry duplicates money or if an open Fiado sale
+      is counted as received on its sale date.
+
+- [ ] **GOALS23-17 — Add sales/report regression coverage.** Verify the historical row appears
+      in `getVendas` and `getRelatorioVendas` totals, by-day results, `Genérico` payment group,
+      CSV/PDF-relevant data and the sales tab's description/origin shape. Verify the DRE exposes
+      the historical-without-CMV amount without fabricating product margin; ABC, contribution
+      margin and stock-turnover remain product-only; an optional client affects client
+      segmentation only when linked; and manual entry does not create commission attribution.
+      **Done when:** the report matrix is enforced by tests rather than relying on incidental SQL
+      joins.
+
+- [ ] **GOALS23-18 — Add API/permission and frontend checks.** Cover admin and dono success,
+      vendedor denial even with Financeiro permission, exact IPC/preload/typed-API names,
+      default form values, conditional Fiado fields, `Genérico` display, refresh after save and
+      the historical-summary empty-item message. Keep the legacy bridge out of scope unless the
+      runtime check in GOALS23-01 proves that legacy use is still supported for this feature.
+      **Done when:** a wrong gate or bridge name fails clearly, and no UI test can accidentally
+      route the operation through the generic obligation form.
+
+- [ ] **GOALS23-19 — [manual] Verify the real Electron workflow.** In an isolated
+      `ERP_TEST_USERDATA_DIR`, rebuild the static frontend, log in as admin/dono, create one
+      historical sale with only name/value/date, confirm `Genérico`, optionally repeat with a
+      client and each relevant payment state, then inspect Financeiro flow, Relatórios >
+      Análises, Relatórios > Vendas and the sales export. Confirm no stock changed and no cash
+      register was required. This is app-scoped acceptance using disposable data; do not use the
+      production database, real credentials or release secrets.
+      **Done when:** the displayed counts, totals, date, method and historical description match
+      the inserted facts, and the owner can distinguish cash movement from CMV-backed profit.
+
+### Registration and final acceptance
+
+- [ ] **GOALS23-20 — Update project documentation after behavior is verified.** Record the
+      Financeiro entry point, required/optional fields, `Genérico` default, Fiado conditional
+      rule, no-stock/no-duplicate policy, report inclusion/exclusion matrix and the manual
+      validation status in `AGENTS.md` and this goal. Do not add a new Vendas sidebar entry;
+      document that the read-only sales report remains under Relatórios.
+      **Done when:** a future session can find the action and understand why the same historical
+      fact appears differently in sales, cash-flow, DRE and product reports.
+
+- [ ] **GOALS23-21 — Final ownership and publication gate.** Verify the final diff contains only
+      the requested Financeiro/historical-sales/report work, preserve unrelated parallel WIP,
+      stage only owned files if the owner later requests it, and do not commit, push, publish,
+      migrate real data or remove old historical paths without a separate explicit confirmation.
+      **Done when:** automated proof, manual app proof and any remaining artifact/release gaps
+      are reported separately to the owner.
+
+**Done when:** an admin/dono can create a historical sale from Financeiro using only
+name/total/date, the omitted method is stored and reported as `Genérico`, optional customer and
+Fiado settlement behave safely, one historical fact appears in the intended general and sales
+reports without duplicate cash recognition, current stock/product margin is not fabricated, and
+the workflow is verified in the real Electron app with disposable data.
+

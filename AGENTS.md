@@ -50,6 +50,12 @@ funciona pra qualquer campo de config, incluindo `extraMetadata` — não é uma
 `${env.X}` dentro de um `extraMetadata` estático em `package.json`, que não é garantida pra
 esse campo especificamente).
 
+**Trava de notas da versão:** `npm run check:version-notes` exige que a versão de
+`package.json` tenha uma entrada com pelo menos um item em
+`frontend/src/lib/atualizacaoNotas.ts`. O mesmo check roda no CI e antes de qualquer
+empacotamento via `beforePack`; portanto, mudar a versão sem cadastrar suas notas interrompe
+o build antes de gerar ou publicar o instalador.
+
 **Achado real (2026-08-29): `ERP_SUPORTE_LOGIN=adm` colide com o login que a própria loja
 tipicamente escolhe no primeiro acesso.** `garantirContaSuporte()` (`db/usuarios.js`) é
 deliberadamente segura contra colisão — nunca embrulha um login que já pertence a uma conta
@@ -366,6 +372,14 @@ reaproveita `quantidade_reservada`, mesmo mecanismo já usado por orçamento) ·
 categoria **Investimento** (capex, distinta de despesa operacional recorrente) · Vendas — botão
 "Lançar Venda Histórica" (`registrarVendaFiadoHistorica`, cria venda+recebível vinculado a
 cliente com data passada, sem exigir caixa aberto nem baixar estoque atual).
+
+**Adicionado 2026-09-15** (ver `GOALS.md`, seção "Manual historical sales entry in Financeiro"):
+Financeiro — formulário **"Registrar venda histórica"** para venda resumida com nome/descrição,
+valor total e data obrigatórios; cliente e método opcionais, com método ausente salvo como
+`Genérico`. A linha é gravada em `Vendas` com `origem='venda_historica_manual'`, sem
+`ItensVenda` ou estoque; Fiado cria um único `LancamentosFinanceiros` vinculado. A venda
+aparece nos relatórios de vendas e fluxo de caixa, enquanto DRE explicita receita sem CMV e
+relatórios de produto não fabricam item/margem.
 
 **Adicionado 2026-09-10** (ver `GOALS.md`, seção "Avatar do Usuário Logado — Cor Aleatória e Foto
 de Perfil"): autoatendimento no `UserDropdown` do header — botão **"Meu Perfil"** abre um modal

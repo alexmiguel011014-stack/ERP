@@ -5,6 +5,7 @@ const {
 	getVendas,
 	getVendasHoje,
 	importarVendasHistoricas,
+	registrarVendaHistorica,
 	registrarVendaFiadoHistorica,
 	getItensVenda,
 	getParcelasVenda,
@@ -87,6 +88,22 @@ function registrar(ipcMain, deps) {
 				"Vendas",
 				resultado.vendaId,
 				"Crediário histórico - cliente #" + dados.cliente_id,
+			);
+			return resultado;
+		} catch (erro) {
+			throw erro.message;
+		}
+	});
+
+	ipcMain.handle("registrar-venda-historica", async (event, dados) => {
+		try {
+			exigirSessao("admin");
+			const resultado = await registrarVendaHistorica(dados);
+			log(
+				"registrar-venda-historica",
+				"Vendas",
+				resultado.vendaId,
+				"Venda histórica: " + String(dados && dados.nome ? dados.nome : ""),
 			);
 			return resultado;
 		} catch (erro) {
