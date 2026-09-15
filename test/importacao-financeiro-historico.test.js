@@ -94,16 +94,18 @@ test("parser de janeiro classifica só fatos comprovados e reconcilia o saldo", 
 	const arquivo = criarPlanilha("janeiro-ok.xlsx");
 	const dados = parseFinanceiroHistoricoMensal(arquivo, "JANEIRO");
 
-	assert.equal(dados.vendasHistoricas.length, 17);
-	assert.equal(dados.pagamentosHistoricos.length, 3);
+	assert.equal(dados.vendasHistoricas.length, 19);
+	assert.equal(dados.pagamentosHistoricos.length, 1);
 	assert.equal(dados.pendenciasHistoricas.length, 0);
 	assert.deepEqual(
 		dados.pagamentosHistoricos.map((item) => [item.descricao, item.categoria]),
-		[
-			["Cartão", "Pagamento de cartão"],
-			["Kimonos Adultos", "Compra para estoque histórica"],
-			["Conjunto NoGi", "Compra para estoque histórica"],
-		],
+		[["Cartão", "Pagamento de cartão"]],
+	);
+	assert.deepEqual(
+		dados.vendasHistoricas
+			.filter((item) => item.direcao === "saida")
+			.map((item) => item.descricao),
+		["Kimonos Adultos", "Conjunto NoGi"],
 	);
 	assert.deepEqual(dados.reconciliacao, {
 		saldoAbertura: 0,
@@ -126,8 +128,8 @@ test("modelo JSON de janeiro usa centavos, trava fatos e rejeita campos de catá
 	assert.equal(validacao.modelo.competencia, "2026-01");
 	assert.equal(validacao.modelo.movimentos.length, 20);
 	assert.equal(validacao.modelo.auditoria.saldo_fechamento_calculado_centavos, 53383);
-	assert.equal(validacao.dados.vendasHistoricas.length, 17);
-	assert.equal(validacao.dados.pagamentosHistoricos.length, 3);
+	assert.equal(validacao.dados.vendasHistoricas.length, 19);
+	assert.equal(validacao.dados.pagamentosHistoricos.length, 1);
 	assert.match(validacao.checksum, /^[a-f0-9]{64}$/);
 	assert.match(serializarModeloFinanceiroMensal(modelo), /"valor_centavos"/);
 
@@ -201,8 +203,8 @@ test("commit é idempotente, não altera estoque e aparece uma vez no fluxo", as
 	const previa = await executarImportacaoFinanceiroMensal(dados, null, {
 		dryRun: true,
 	});
-	assert.equal(previa.preview.vendasHistoricas, 17);
-	assert.equal(previa.preview.pagamentosHistoricos, 3);
+	assert.equal(previa.preview.vendasHistoricas, 19);
+	assert.equal(previa.preview.pagamentosHistoricos, 1);
 	assert.equal(previa.conflitos.duplicadasJaImportadas, 0);
 
 	const dadosInvalidos = structuredClone(dados);
@@ -225,8 +227,8 @@ test("commit é idempotente, não altera estoque e aparece uma vez no fluxo", as
 	});
 	assert.deepEqual(primeiro.erros, []);
 	assert.deepEqual(primeiro.importadas, {
-		vendasHistoricas: 17,
-		pagamentosHistoricos: 3,
+		vendasHistoricas: 19,
+		pagamentosHistoricos: 1,
 	});
 	const lote = await getAsync(
 		"SELECT origem, checksum FROM ImportacaoBatch WHERE id = ?",
@@ -243,7 +245,7 @@ test("commit é idempotente, não altera estoque e aparece uma vez no fluxo", as
 				[primeiro.batchId],
 			)
 		).n,
-		17,
+		19,
 	);
 	assert.equal(
 		(
@@ -251,7 +253,7 @@ test("commit é idempotente, não altera estoque e aparece uma vez no fluxo", as
 				"SELECT COUNT(*) AS n FROM Vendas WHERE origem = 'importacao_financeiro_historico'",
 			)
 		).n,
-		17,
+		19,
 	);
 	assert.equal((await getAsync("SELECT COUNT(*) AS n FROM ItensVenda")).n, 0);
 	assert.equal(
@@ -273,11 +275,7 @@ test("commit é idempotente, não altera estoque e aparece uma vez no fluxo", as
 				(erro, linhas) => (erro ? reject(erro) : resolve(linhas)),
 			);
 		}),
-		[
-			{ categoria: "Pagamento de cartão", valor: 1509 },
-			{ categoria: "Compra para estoque histórica", valor: 1570 },
-			{ categoria: "Compra para estoque histórica", valor: 900 },
-		],
+		[{ categoria: "Pagamento de cartão", valor: 1509 }],
 	);
 
 	const fluxo = await db.getFluxoCaixa("2026-01-01", "2026-01-31");
@@ -301,11 +299,11 @@ test("commit é idempotente, não altera estoque e aparece uma vez no fluxo", as
 	);
 	assert.equal((await db.getCurvaABC("2026-01-01", "2026-01-31")).length, 0);
 	const vendas = await db.getRelatorioVendas("2026-01-01", "2026-01-31");
-	assert.equal(vendas.resumo.vendas, 17);
-	assert.equal(vendas.resumo.faturamento, 4512.83);
+	assert.equal(vendas.resumo.vendas, 19);
+	assert.equal(vendas.resumo.faturamento, 6982.83);
 	const dre = await db.getDRE("2026-01-01", "2026-01-31");
 	assert.equal(dre.receitaBruta, 0);
-	assert.equal(dre.receitaHistoricaSemCMV, 4512.83);
+	assert.equal(dre.receitaHistoricaSemCMV, 6982.83);
 	assert.equal(dre.despesas, 0);
 
 	const segundo = await executarImportacaoFinanceiroMensal(dados, null, {
@@ -316,7 +314,7 @@ test("commit é idempotente, não altera estoque e aparece uma vez no fluxo", as
 		pagamentosHistoricos: 0,
 	});
 	assert.equal(segundo.ignoradas, 20);
-	assert.equal((await getAsync("SELECT COUNT(*) AS n FROM Vendas")).n, 17);
+	assert.equal((await getAsync("SELECT COUNT(*) AS n FROM Vendas")).n, 19);
 
 	const dadosAlterados = structuredClone(dados);
 	dadosAlterados.modeloChecksum = "f".repeat(64);
@@ -354,7 +352,7 @@ test("IPC expõe o modo mensal e o modo Excel geral não grava o financeiro lega
 		caminhoModelo,
 	);
 	assert.equal(validacao.formato, "json_financeiro_mes");
-	assert.equal(validacao.preview.vendasHistoricas.length, 17);
+	assert.equal(validacao.preview.vendasHistoricas.length, 19);
 	assert.equal(fs.existsSync(caminhoModelo), true);
 	const selecionado = await handlers["importacoes:validar-modelo-financeiro-janeiro"](
 		{},
@@ -362,13 +360,45 @@ test("IPC expõe o modo mensal e o modo Excel geral não grava o financeiro lega
 	);
 	assert.equal(selecionado.checksum, validacao.checksum);
 
+	const pastaModelo = path.join(TMP, "pasta-financeiro-janeiro");
+	fs.mkdirSync(pastaModelo);
+	for (const nome of [
+		"01_categorias.json",
+		"02_produtos_variacoes.json",
+		"03_estoque_inicial.json",
+		"04_clientes.json",
+		"06_contas_abertas.json",
+		"07_vendas_historicas.json",
+		"99_pendencias.json",
+	]) {
+		fs.writeFileSync(path.join(pastaModelo, nome), "[]\n");
+	}
+	fs.copyFileSync(
+		caminhoModelo,
+		path.join(pastaModelo, "05_financeiro_historico.json"),
+	);
+	const validacaoPasta = await handlers["importacoes:validar-pasta-loja-house"](
+		{},
+		pastaModelo,
+	);
+	assert.equal(validacaoPasta.formato, "loja_house");
+	assert.equal(validacaoPasta.arquivos.length, 8);
+	assert.equal(validacaoPasta.preview.lancamentos, 20);
+	const previaPasta = await handlers["importacoes:executar"](
+		{},
+		pastaModelo,
+		{ dryRun: true },
+	);
+	assert.equal(previaPasta.preview.vendasHistoricas, 19);
+	assert.equal(previaPasta.preview.lancamentosHistoricos, 1);
+
 	const mensal = await handlers["importacoes:executar"](
 		{},
 		{ tipo: "json_financeiro_mes", caminho: caminhoModelo, checksum: selecionado.checksum },
 		{ dryRun: true },
 	);
-	assert.equal(mensal.preview.vendasHistoricas, 17);
-	assert.equal(mensal.preview.pagamentosHistoricos, 3);
+	assert.equal(mensal.preview.vendasHistoricas, 19);
+	assert.equal(mensal.preview.pagamentosHistoricos, 1);
 	const alterado = await handlers["importacoes:executar"](
 		{},
 		{ tipo: "json_financeiro_mes", caminho: caminhoModelo, checksum: "0".repeat(64) },

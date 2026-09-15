@@ -114,6 +114,14 @@ export default function VendaDetalheModal({
 							{venda.cliente_nome || "Não informado"}
 						</span>
 					</p>
+					{venda.origem === "venda_historica_manual" && (
+						<p className="col-span-2 text-gray-500 dark:text-gray-400">
+							Origem: {" "}
+							<span className="text-gray-800 dark:text-white/90">
+								Venda histórica manual
+							</span>
+						</p>
+					)}
 					{venda.condicao_parcelamento_nome && (
 						<p className="col-span-2 text-gray-500 dark:text-gray-400">
 							Parcelamento: {" "}
@@ -201,7 +209,9 @@ export default function VendaDetalheModal({
 										colSpan={4}
 										className="px-2 py-6 text-center text-sm text-gray-400"
 									>
-										Nenhum item encontrado.
+										{venda.origem === "venda_historica_manual"
+											? "Venda histórica resumida; não houve item ou movimentação de estoque."
+											: "Nenhum item encontrado."}
 									</td>
 								</tr>
 							) : (

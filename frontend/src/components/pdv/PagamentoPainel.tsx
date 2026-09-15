@@ -7,6 +7,13 @@ import type {
 	PreviaVendaParcelada,
 } from "@/lib/erpApi";
 
+export type PagamentoLinha = {
+	id: string;
+	formaPagamento: string;
+	valor: string;
+	condicaoId: number | null;
+};
+
 const FORMAS_PAGAMENTO = [
 	{ value: "", label: "Selecione..." },
 	{ value: "PIX", label: "PIX" },
@@ -21,6 +28,10 @@ export default function PagamentoPainel({
 	setDesconto,
 	formaPagamento,
 	setFormaPagamento,
+	pagamentos,
+	onAlterarPagamento,
+	onAdicionarPagamento,
+	onRemoverPagamento,
 	condicoes,
 	condicaoId,
 	setCondicaoId,
@@ -44,6 +55,10 @@ export default function PagamentoPainel({
 	setDesconto: (v: string) => void;
 	formaPagamento: string;
 	setFormaPagamento: (v: string) => void;
+	pagamentos: PagamentoLinha[];
+	onAlterarPagamento: (id: string, dados: Partial<PagamentoLinha>) => void;
+	onAdicionarPagamento: () => void;
+	onRemoverPagamento: (id: string) => void;
 	condicoes: CondicaoParcelamento[];
 	condicaoId: number | null;
 	setCondicaoId: (v: number | null) => void;
@@ -72,15 +87,32 @@ export default function PagamentoPainel({
 	const totalLocal = Math.max(0, valorBase + acrescimoLocal - descontoNum);
 	const total = previaParcelamento?.total ?? totalLocal;
 	const acrescimo = previaParcelamento?.acrescimo ?? acrescimoLocal;
+	const misto = pagamentos.length > 1;
+	const valorDinheiro = misto
+		? pagamentos
+				.filter((item) => item.formaPagamento === "Dinheiro")
+				.reduce((soma, item) => soma + (Number(item.valor) || 0), 0)
+		: total;
+	const linhasMistasValidas = !misto || pagamentos.every(
+		(item) => !!item.formaPagamento && Number(item.valor) > 0,
+	);
+	const temFiadoMisto = misto && pagamentos.some((item) => item.formaPagamento === "Fiado");
 	const parcelamentoAtivo = formaPagamento === "Fiado" || formaPagamento === "Cartão";
 	const recebidoNum = Number(valorRecebido) || 0;
-	const troco = formaPagamento === "Dinheiro" ? recebidoNum - total : 0;
+	const troco =
+		(formaPagamento === "Dinheiro" || pagamentos.some((item) => item.formaPagamento === "Dinheiro"))
+			? recebidoNum - valorDinheiro
+			: 0;
 
 	const podeFinalizar =
 		!carrinhoVazio &&
 		!!formaPagamento &&
 		!processando &&
-		(formaPagamento !== "Dinheiro" || recebidoNum >= total) &&
+		linhasMistasValidas &&
+		!temFiadoMisto &&
+		((formaPagamento !== "Dinheiro" &&
+			!pagamentos.some((item) => item.formaPagamento === "Dinheiro")) ||
+			recebidoNum >= valorDinheiro) &&
 		(!parcelamentoAtivo ||
 			(!!condicao &&
 				!!previaParcelamento &&
@@ -102,20 +134,66 @@ export default function PagamentoPainel({
 
 			<div>
 				<Label>Forma de pagamento</Label>
-				<select
-					value={formaPagamento}
-					onChange={(e) => setFormaPagamento(e.target.value)}
-					className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-				>
-					{FORMAS_PAGAMENTO.map((f) => (
-						<option key={f.value} value={f.value}>
-							{f.label}
-						</option>
-					))}
-				</select>
+				{pagamentos.length <= 1 ? (
+					<select
+						value={formaPagamento}
+						onChange={(e) => setFormaPagamento(e.target.value)}
+						className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+					>
+						{FORMAS_PAGAMENTO.map((f) => (
+							<option key={f.value} value={f.value}>
+								{f.label}
+							</option>
+						))}
+					</select>
+				) : (
+					<div className="space-y-2">
+						{pagamentos.map((pagamento, indice) => (
+							<div key={pagamento.id} className="space-y-2 rounded-lg border border-gray-200 p-2 dark:border-gray-700">
+								<div className="flex gap-2">
+									<select
+										value={pagamento.formaPagamento}
+										onChange={(e) => onAlterarPagamento(pagamento.id, { formaPagamento: e.target.value, condicaoId: null })}
+										className="h-10 min-w-0 flex-1 rounded-lg border border-gray-300 bg-transparent px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+									>
+										{FORMAS_PAGAMENTO.filter((f) => f.value).map((f) => (
+											<option key={f.value} value={f.value}>{f.label}</option>
+										))}
+									</select>
+									<Input
+										type="number"
+										value={pagamento.valor}
+										onChange={(e) => onAlterarPagamento(pagamento.id, { valor: e.target.value })}
+										placeholder="Valor base"
+										min="0"
+										step={0.01}
+										className="w-32"
+									/>
+									<button type="button" onClick={() => onRemoverPagamento(pagamento.id)} className="px-1 text-error-600" aria-label={`Remover pagamento ${indice + 1}`}>×</button>
+								</div>
+								{pagamento.formaPagamento === "Cartão" && (
+									<select
+										value={pagamento.condicaoId ?? condicaoId ?? ""}
+										onChange={(e) => onAlterarPagamento(pagamento.id, { condicaoId: e.target.value ? Number(e.target.value) : null })}
+										className="h-10 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+									>
+										<option value="">Condição do cartão...</option>
+										{condicoes.map((item) => <option key={item.id} value={item.id}>{item.nome} — {Number(item.acrescimo_percentual).toFixed(2)}%</option>)}
+									</select>
+								)}
+							</div>
+						))}
+						<button type="button" onClick={onAdicionarPagamento} className="text-sm font-medium text-brand-600 dark:text-brand-400">+ Adicionar pagamento</button>
+						<p className="text-xs text-gray-500 dark:text-gray-400">Os valores são a divisão do total após o desconto. A taxa do cartão é somada somente à linha do cartão.</p>
+						{temFiadoMisto && <p className="text-xs text-error-600 dark:text-error-400">Fiado não pode ser misturado com outra forma de pagamento.</p>}
+					</div>
+				)}
+				{pagamentos.length === 1 && formaPagamento && formaPagamento !== "Fiado" && (
+					<button type="button" onClick={onAdicionarPagamento} className="mt-2 text-sm font-medium text-brand-600 dark:text-brand-400">+ Adicionar pagamento</button>
+				)}
 			</div>
 
-			{formaPagamento === "Dinheiro" && (
+			{(formaPagamento === "Dinheiro" || pagamentos.some((item) => item.formaPagamento === "Dinheiro")) && (
 				<div>
 					<Label>Valor recebido (R$)</Label>
 					<Input
@@ -179,16 +257,26 @@ export default function PagamentoPainel({
 							)}
 						</>
 					)}
-					{formaPagamento === "Cartão" && (
+			{formaPagamento === "Cartão" && (
 						<p className="text-xs text-gray-500 dark:text-gray-400">
 							O parcelamento fica registrado na venda; não cria contas a receber do cliente.
 						</p>
 					)}
-					{erroPreviaParcelamento && (
+			{erroPreviaParcelamento && (
 						<p className="text-xs text-error-600 dark:text-error-400">
 							{erroPreviaParcelamento}
 						</p>
 					)}
+				</div>
+			)}
+			{misto && previaParcelamento?.pagamentos && (
+				<div className="space-y-1 text-xs text-gray-500 dark:text-gray-400">
+					{previaParcelamento.pagamentos.map((pagamento, indice) => (
+						<div key={`${pagamento.forma_pagamento}-${indice}`}>
+							<p>{pagamento.forma_pagamento}: {formatarMoeda(pagamento.valorBase)}{pagamento.acrescimo > 0 ? ` + ${formatarMoeda(pagamento.acrescimo)} = ${formatarMoeda(pagamento.valorFinal)}` : ""}</p>
+							{pagamento.forma_pagamento === "Cartão" && pagamento.parcelas.length > 1 && <p>{pagamento.parcelas.length}x: {pagamento.parcelas.map((parcela) => formatarMoeda(parcela.valor)).join(" · ")}</p>}
+						</div>
+					))}
 				</div>
 			)}
 
@@ -244,7 +332,7 @@ export default function PagamentoPainel({
 				<button
 					type="button"
 					onClick={onOrcamento}
-					disabled={carrinhoVazio || processando}
+					disabled={carrinhoVazio || processando || misto}
 					className="flex-1 rounded-lg bg-warning-500 px-4 py-3.5 text-sm font-medium text-white transition hover:bg-warning-600 disabled:cursor-not-allowed disabled:opacity-50"
 				>
 					Criar Orçamento

@@ -25,6 +25,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate version notes
+        run: npm run check:version-notes
+
       - name: Lint
         run: npm run lint
 

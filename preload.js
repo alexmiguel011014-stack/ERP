@@ -71,6 +71,8 @@ contextBridge.exposeInMainWorld("api", {
 		ipcRenderer.invoke("importar-vendas-historicas", linhas),
 	registrarVendaFiadoHistorica: (dados) =>
 		ipcRenderer.invoke("registrar-venda-fiado-historica", dados),
+	registrarVendaHistorica: (dados) =>
+		ipcRenderer.invoke("registrar-venda-historica", dados),
 	getItensVenda: (vendaId) => ipcRenderer.invoke("get-itens-venda", vendaId),
 	getParcelasVenda: (vendaId) =>
 		ipcRenderer.invoke("get-parcelas-venda", vendaId),

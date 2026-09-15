@@ -6,6 +6,7 @@ import {
 	type ParcelaVenda,
 	type Venda,
 } from "@/lib/erpApi";
+import type { PeriodoRelatorio } from "@/components/relatorios/PeriodoRelatorioControles";
 
 export function useVendas() {
 	const [dataInicio, setDataInicio] = useState("");
@@ -25,14 +26,16 @@ export function useVendas() {
 		Record<number, boolean>
 	>({});
 
-	const carregar = useCallback(async () => {
+	const carregar = useCallback(async (periodo?: PeriodoRelatorio) => {
+		const inicio = periodo ? periodo.inicio : dataInicio;
+		const fim = periodo ? periodo.fim : dataFim;
 		setCarregando(true);
 		setErro(null);
 		try {
 			setVendas(
 				await erpApi.vendas.listar({
-					dataInicio: dataInicio || null,
-					dataFim: dataFim || null,
+					dataInicio: inicio || null,
+					dataFim: fim || null,
 				}),
 			);
 		} catch (e) {

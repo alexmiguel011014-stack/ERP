@@ -130,6 +130,32 @@ export type LinhaImportacaoVenda = {
 	data: string;
 };
 
+export type FormaPagamentoHistorica =
+	| "PIX"
+	| "Cartão"
+	| "Dinheiro"
+	| "Fiado"
+	| "Genérico";
+
+export type VendaHistoricaDados = {
+	nome: string;
+	total: number;
+	data_venda: string;
+	cliente_id: number | null;
+	forma_pagamento: FormaPagamentoHistorica;
+	status_recebivel?: "aberto" | "pago";
+	data_primeiro_vencimento?: string | null;
+	request_id?: string | null;
+};
+
+export type ResultadoVendaHistorica = {
+	success: boolean;
+	vendaId: number;
+	total: number;
+	formaPagamento: FormaPagamentoHistorica;
+	idempotente?: boolean;
+};
+
 export type Lancamento = {
 	id: number;
 	tipo: "receber" | "pagar";
@@ -138,7 +164,7 @@ export type Lancamento = {
 	data_vencimento: string;
 	data_pagamento: string | null;
 	status: "aberto" | "pago" | "cancelado";
-	origem: "manual" | "venda" | "compra";
+	origem: string | null;
 	referencia_id: number | null;
 	forma_pagamento: string | null;
 	data_criacao: string;
@@ -316,6 +342,7 @@ export type Venda = {
 	parcelas: number | null;
 	acrescimo_parcelamento: number | null;
 	data_primeiro_vencimento: string | null;
+	origem: string;
 };
 
 export type FiltroVendas = {
@@ -436,8 +463,16 @@ export type NovaVendaDados = {
 	forma_pagamento?: string | null;
 	condicao_parcelamento_id?: number | null;
 	data_primeiro_vencimento?: string | null;
+	pagamentos?: PagamentoVenda[];
+	valor_recebido?: number | null;
 	request_id?: string | null;
 	observacao?: string | null;
+};
+
+export type PagamentoVenda = {
+	forma_pagamento: "PIX" | "Cartão" | "Dinheiro" | "Fiado";
+	valor: number;
+	condicao_parcelamento_id?: number | null;
 };
 
 export type ParcelaVenda = {
@@ -457,7 +492,17 @@ export type ResultadoVenda = {
 	vendaId: number;
 	total?: number;
 	parcelas?: ParcelaVenda[];
+	pagamentos?: PagamentoVendaResultado[];
 	idempotente?: boolean;
+};
+
+export type PagamentoVendaResultado = PagamentoVenda & {
+	valorBase: number;
+	valorFinal: number;
+	acrescimo: number;
+	acrescimoPercentual: number;
+	condicao_parcelamento_nome?: string | null;
+	parcelas: ParcelaVenda[];
 };
 
 export type CondicaoParcelamento = {
@@ -479,6 +524,7 @@ export type PreviaVendaParcelada = {
 	desconto: number;
 	total: number;
 	parcelas: ParcelaVenda[];
+	pagamentos?: PagamentoVendaResultado[];
 };
 
 // Crediário histórico (GOALS.md "4. Crediário histórico") — lançamento
@@ -715,6 +761,8 @@ export type ResultadoImportacaoVendas = {
 export type DreResultado = {
 	periodo: { inicio: string; fim: string };
 	vendas: number;
+	vendasHistoricasSemCMV: number;
+	receitaHistoricaSemCMV: number;
 	receitaBruta: number;
 	descontos: number;
 	receitaLiquida: number;
@@ -1019,6 +1067,7 @@ export type ItensImportadosLote = {
 	estoque: number;
 	clientes: number;
 	lancamentos: number;
+	vendasHistoricas: number;
 };
 
 export type ErroImportacaoItem = {
@@ -1386,6 +1435,8 @@ export const erpApi = {
 				"registrarVendaFiadoHistorica",
 				dados,
 			),
+		registrarHistorica: (dados: VendaHistoricaDados) =>
+			invocar<ResultadoVendaHistorica>("registrarVendaHistorica", dados),
 	},
 	financeiro: {
 		lancamentos: (filtro: FiltroLancamentos = {}) =>

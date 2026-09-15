@@ -30,6 +30,68 @@ function lerModeloFinanceiroMensal(caminho) {
 	return validarModeloFinanceiroMensal(modelo);
 }
 
+// A pasta genérica de migração também pode conter o piloto financeiro mensal.
+// Esse modelo não é uma lista de lançamentos do formato legado: ele conserva
+// a origem de cada fato e distingue venda histórica de pagamento. Detectamos
+// apenas o contrato canônico para não reinterpretar exportações antigas.
+function lerModeloFinanceiroMensalDaPasta(pasta) {
+	const caminho = path.join(pasta, "05_financeiro_historico.json");
+	if (!fs.existsSync(caminho)) return null;
+
+	let modelo;
+	try {
+		modelo = JSON.parse(fs.readFileSync(caminho, "utf8"));
+	} catch (erro) {
+		throw new Error(`Arquivo 05_financeiro_historico.json inválido: ${erro.message}`);
+	}
+
+	if (
+		!modelo ||
+		Array.isArray(modelo) ||
+		typeof modelo !== "object" ||
+		!("formato" in modelo) ||
+		!("movimentos" in modelo)
+	) {
+		return null;
+	}
+
+	return { caminho, ...validarModeloFinanceiroMensal(modelo) };
+}
+
+function adaptarResultadoFinanceiroMensalParaPasta(resultado) {
+	if (resultado.dryRun) {
+		return {
+			dryRun: true,
+			preview: {
+				categorias: 0,
+				produtos: 0,
+				variacoes: 0,
+				estoque: 0,
+				clientes: 0,
+				lancamentosHistoricos: resultado.preview.pagamentosHistoricos,
+				contasAbertas: 0,
+				vendasHistoricas: resultado.preview.vendasHistoricas,
+				pendenciasOrigem: resultado.preview.pendenciasHistoricas,
+			},
+			conflitos: resultado.conflitos,
+			checksum: resultado.checksum,
+		};
+	}
+
+	return {
+		...resultado,
+		importadas: {
+			categorias: 0,
+			produtos: 0,
+			variacoes: 0,
+			estoque: 0,
+			clientes: 0,
+			lancamentos: resultado.importadas.pagamentosHistoricos,
+			vendasHistoricas: resultado.importadas.vendasHistoricas,
+		},
+	};
+}
+
 // parseExcelLojaHouse já devolve exatamente o shape de 8 arrays que
 // executarImportacaoLojHouse espera de um `arquivos["0X_....json"]` — então
 // em vez de ensinar o motor de importação (db/importacoes.js) a entender
@@ -105,6 +167,52 @@ function registrar(ipcMain, deps) {
 					lancamentos: 0,
 					pendencias: 0,
 				};
+				const modeloFinanceiroMensal = lerModeloFinanceiroMensalDaPasta(pasta);
+
+				if (modeloFinanceiroMensal) {
+					for (const nome of nomesProcurados) {
+						const caminho = path.join(pasta, nome);
+						if (!fs.existsSync(caminho)) continue;
+
+						if (nome === "05_financeiro_historico.json") {
+							arquivosEncontrados.push(nome);
+							continue;
+						}
+
+						let dados;
+						try {
+							dados = normalizarConteudoArquivoImportacao(
+								JSON.parse(fs.readFileSync(caminho, "utf8")),
+							);
+						} catch (erro) {
+							throw new Error(`Arquivo ${nome} inválido: ${erro.message}`);
+						}
+						if (!Array.isArray(dados)) {
+							throw new Error(
+								`Arquivo ${nome} precisa ser uma lista quando usado com o financeiro mensal.`,
+							);
+						}
+						if (dados.length > 0) {
+							throw new Error(
+								"O financeiro mensal não pode ser combinado com dados de catálogo, estoque ou clientes na mesma pasta.",
+							);
+						}
+						arquivosEncontrados.push(nome);
+					}
+
+					preview.lancamentos =
+						modeloFinanceiroMensal.dados.vendasHistoricas.length +
+						modeloFinanceiroMensal.dados.pagamentosHistoricos.length;
+					preview.pendencias =
+						modeloFinanceiroMensal.dados.pendenciasHistoricas.length;
+
+					return {
+						formato: "loja_house",
+						pasta,
+						arquivos: arquivosEncontrados,
+						preview,
+					};
+				}
 
 				for (const nome of nomesProcurados) {
 					const caminho = path.join(pasta, nome);
@@ -319,27 +427,41 @@ function registrar(ipcMain, deps) {
 					"A planilha só gera o rascunho. Revise e selecione o JSON financeiro antes de importar.",
 				);
 			}
-			const ehFinanceiroMensal =
+			const ehFinanceiroMensalDireto =
 				pasta &&
 				typeof pasta === "object" &&
 				pasta.tipo === "json_financeiro_mes";
-			const modeloFinanceiro = ehFinanceiroMensal
+			const modeloFinanceiroDireto = ehFinanceiroMensalDireto
 				? lerModeloFinanceiroMensal(pasta.caminho)
 				: null;
+			const modeloFinanceiroDaPasta =
+				typeof pasta === "string"
+					? lerModeloFinanceiroMensalDaPasta(pasta)
+					: null;
+			const ehFinanceiroMensal = Boolean(
+				modeloFinanceiroDireto || modeloFinanceiroDaPasta,
+			);
+			const modeloFinanceiro =
+				modeloFinanceiroDireto || modeloFinanceiroDaPasta;
 			if (
-				modeloFinanceiro &&
+				modeloFinanceiroDireto &&
 				(!pasta.checksum || pasta.checksum !== modeloFinanceiro.checksum)
 			) {
 				throw new Error(
 					"O JSON mudou desde a prévia. Selecione-o novamente e execute uma nova simulação.",
 				);
 			}
-			const resultado = ehFinanceiroMensal
+			const resultadoFinanceiroMensal = ehFinanceiroMensal
 				? await executarImportacaoFinanceiroMensal(
 						modeloFinanceiro.dados,
 						getSessao()?.id ?? null,
 						{ dryRun: opcoes.dryRun !== false },
 					)
+				: null;
+			const resultado = ehFinanceiroMensal
+				? ehFinanceiroMensalDireto
+					? resultadoFinanceiroMensal
+					: adaptarResultadoFinanceiroMensalParaPasta(resultadoFinanceiroMensal)
 				: await executarImportacaoLojHouse(
 						pasta && typeof pasta === "object" && pasta.tipo === "excel"
 							? converterExcelParaArquivos(pasta.caminho)
@@ -360,7 +482,7 @@ function registrar(ipcMain, deps) {
 					"ImportacaoBatch",
 					resultado.batchId,
 					ehFinanceiroMensal
-						? `${resultado.importadas.vendasHistoricas} vendas históricas, ${resultado.importadas.pagamentosHistoricos} pagamentos históricos`
+						? `${resultadoFinanceiroMensal.importadas.vendasHistoricas} vendas históricas, ${resultadoFinanceiroMensal.importadas.pagamentosHistoricos} pagamentos históricos`
 						: `${resultado.importadas.categorias} categorias, ${resultado.importadas.produtos} produtos`,
 				);
 			}

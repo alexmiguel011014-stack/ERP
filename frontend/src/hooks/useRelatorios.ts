@@ -51,9 +51,11 @@ export function useRelatorios() {
 
 	// Cada seção falha independente das outras — a vanilla também não deixa
 	// um relatório com erro travar os demais.
-	const gerar = useCallback(async () => {
-		const inicio = dataInicio || null;
-		const fim = dataFim || null;
+	const gerar = useCallback(async (periodo?: { inicio: string; fim: string }) => {
+		const inicioSelecionado = periodo ? periodo.inicio : dataInicio;
+		const fimSelecionado = periodo ? periodo.fim : dataFim;
+		const inicio = inicioSelecionado || "1900-01-01";
+		const fim = fimSelecionado || new Date().toISOString().slice(0, 10);
 		setCarregando(true);
 		const novosErros: Record<string, string> = {};
 

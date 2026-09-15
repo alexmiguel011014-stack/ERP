@@ -5958,7 +5958,8 @@ generic cash-flow row. The existing Fluxo de Caixa remains a derived report, not
 rollout, no cleanup of previously imported wrong rows, and no stock reconstruction.
 
 **Workbook evidence:** after excluding `Saldo Anterior` and trailing `TOTAL`-only rows, January
-has 20 transaction rows: 17 positive sale candidates and 3 payment candidates. The source totals
+has 20 transaction rows: 17 entry sale candidates, one card payment, and two owner-confirmed
+sales recorded on the source exit side. The source totals
 are `ENTRADA = R$4,512.83`, `SAÍDA = R$3,979.00`, and final `TOTAL = R$533.83`. These values are
 reconciliation evidence, not additional movements to import.
 
@@ -5981,18 +5982,18 @@ sale-versus-payment mapping still needs careful accounting validation.
 ### Design and scope
 
 - [x] **GOALS17-01 — Fix the semantic mapping.** Classify each source row from its direction and
-  description. For January, route the 17 product-like `ENTRADA` rows to reporting-only historical
-  sales in `Vendas`; route `Cartão` to a paid `LancamentosFinanceiros` row categorised as
-  `Pagamento de cartão`; and route `Kimonos Adultos` and `Conjunto NoGi` to paid rows categorised
-  as `Compra para estoque histórica`. Never create a matching `tipo='receber'` row for a sale,
-  because `getFluxoCaixa` already derives it from `Vendas`.
+  description. For January, route the 17 product-like `ENTRADA` rows plus the confirmed
+  `SAÍDA` descriptions `Kimonos Adultos` and `Conjunto NoGi` to reporting-only historical sales
+  in `Vendas`; route `Cartão` to a paid `LancamentosFinanceiros` row categorised as `Pagamento
+  de cartão`. The two confirmed sales retain their source `SAÍDA` direction in cash flow, so the
+  source reconciliation remains intact. Never create a matching `tipo='receber'` row for a sale.
 
 - [x] **GOALS17-02 — Preserve facts and avoid speculation.** Keep source date, original
   description, and amount. Do not match an old description to a current product, SKU, variation,
   customer, supplier, payment method, or stock quantity. Do not infer that `Cartão` funded
   inventory. Classify only the financial nature supported by the source: `Pagamento de cartão`,
-  `Compra para estoque histórica`, `Consumo interno`, `Empréstimo/adiantamento`, or
-  `Pendente de conferência`.
+  `Consumo interno`, `Empréstimo/adiantamento`, or `Pendente de conferência`. The two named
+  January sales are an explicit owner-confirmed exception to direction-only classification.
 
 - [x] **GOALS17-03 — Ignore opening stock and opening cash for this pilot.** Do not create an
   opening balance, cash-opening event, `MovimentacoesEstoque`, or quantity adjustment. Historical
@@ -6004,8 +6005,8 @@ sale-versus-payment mapping still needs careful accounting validation.
   contribute to historical revenue and cash-flow totals, but never to a current-product ranking,
   stock count, or margin calculation.
 
-- [x] **GOALS17-05 — Keep the pilot small and reviewable.** Preview the 17 January historical-sale
-  rows and 3 payment rows with their source description and category before commit. Any ambiguous
+- [x] **GOALS17-05 — Keep the pilot small and reviewable.** Preview the 19 January historical-sale
+  rows and 1 payment row with their source description and category before commit. Any ambiguous
   row must be explicitly confirmed or left pending; it must not be silently classified from the
   word `ENTRADA` alone. The preview must not suggest a current product match.
 
@@ -6042,14 +6043,15 @@ sale-versus-payment mapping still needs careful accounting validation.
 
 ### Verification and acceptance
 
-- [x] **GOALS17-11 — Parser fixture.** Cover January's 17 positive rows, 3 negative rows,
+- [x] **GOALS17-11 — Parser fixture.** Cover January's 17 positive rows, the two owner-confirmed
+  sale rows recorded as source `SAÍDA`, and the card payment,
   `Saldo Anterior`, trailing `TOTAL`-only rows, a `café/almoço` payment, and a row with an
   invalid/out-of-period date. Assert the exact January split and source reconciliation:
-  R$4,512.83 in historical sales, R$3,979.00 in payments, and R$533.83 as the computed ending
-  balance. Assert the consumption keyword is classified without a product match.
+  R$4,512.83 in source entries, R$3,979.00 in source exits, and R$533.83 as the computed ending
+  balance. Assert 19 historical sales and one card payment without a product match.
 
-- [x] **GOALS17-12 — Disposable database test.** After commit, assert 17 finalized historical
-  summary sales in `Vendas`, 3 paid `tipo='pagar'` financial rows with the expected categories,
+- [x] **GOALS17-12 — Disposable database test.** After commit, assert 19 finalized historical
+  summary sales in `Vendas`, one paid `tipo='pagar'` card row,
   zero imported sale receivables, zero stock movement, zero product/variation link, and zero
   fabricated sale items. Assert `getFluxoCaixa` and historical sales totals include each source
   event once, the product ranking excludes these summaries, and a second identical run adds
@@ -6078,7 +6080,7 @@ sale-versus-payment mapping still needs careful accounting validation.
   silently remapped to 2026.
 
 **Done when:** January can be previewed and committed in an isolated app run with the exact
-17-historical-sale/3-payment split, source-derived payment categories, no product matching, stock,
+19-historical-sale/1-payment split, source-derived payment categories, no product matching, stock,
 or opening-cash mutation, no duplicate cash-flow event, safe retry behavior, and evidence from
 both automated tests and the manual Electron gate.
 
@@ -6096,7 +6098,7 @@ file for preview/import. Do not create, check in, or copy a real financial JSON 
 repository. February–September are explicitly out of scope: they must each be separately
 reviewed and supplied as their own canonical JSON after January is accepted.
 
-**Existing January facts to preserve:** 17 historical sales and 3 categorized paid outflows,
+**Existing January facts to preserve:** 19 historical sales and 1 categorized paid outflow,
 `R$4,512.83` in entries, `R$3,979.00` in exits, and a closing balance of `R$533.83`. These are
 audit values, not four additional financial movements. January starts with no imported cash or
 stock event. Future-month envelopes may record a non-zero opening balance only for reconciliation;
@@ -6143,7 +6145,8 @@ multi-month migration.
   financial source JSON.
 
 - [x] **GOALS18-03 — Keep classifications conservative and source-derived.** `entrada` may use
-  only `venda_historica` after January's accepted sale rule; `saida` may use only
+  `venda_historica`; the two owner-confirmed January `saida` descriptions may also use
+  `venda_historica` while retaining their source direction; every other `saida` may use only
   `pagamento_historico` with a closed category (`Pagamento de cartão`,
   `Compra para estoque histórica`, `Consumo interno`, or `Empréstimo/adiantamento`). A doubtful
   line is `pendente` with its original description and a reason; it blocks commit. Reject any
@@ -6170,7 +6173,7 @@ multi-month migration.
   than reparsing an `.xlsx` at commit time. The old general Excel importer remains barred from
   importing financial-history sheets.
   **Done when:** an envelope generated from a synthetic January workbook round-trips through the
-  normalizer to the current 17-sale/3-payment internal shape, and no execution API needs the
+  normalizer to the current 19-sale/1-payment internal shape, and no execution API needs the
   workbook path.
 
 - [x] **GOALS18-06 — Add narrow JSON IPC and typed API contracts.** In
@@ -6211,7 +6214,7 @@ multi-month migration.
 ### Verification and rollout boundary
 
 - [x] **GOALS18-10 — Add synthetic envelope tests.** Cover serialization and parsing of January's
-  17/3/zero-pending split, all cent totals, invalid schema/version/competence, unknown fields,
+  19/1/zero-pending split, all cent totals, invalid schema/version/competence, unknown fields,
   duplicate keys, an invalid destination/category, a stale preview checksum, source-row changes
   and a reconciliation mismatch. Use temporary synthetic workbooks/JSON only; do not make tests
   read, copy or commit the user's workbook or financial JSON.
@@ -6220,7 +6223,7 @@ multi-month migration.
 
 - [x] **GOALS18-11 — Prove database safety in a disposable database.** Verify dry-run has no
   side effects, commit is atomic, failure rolls back, an exact JSON retry is idempotent, and a
-  changed source is rejected. Assert exactly 17 finalized summary sales and 3 categorized paid
+  changed source is rejected. Assert exactly 19 finalized summary sales and one categorized paid
   outflows; zero sale items, stock changes, receivables, product/variation/customer links and
   opening-cash rows; flow includes each historical fact once; product ranking and margin stay
   unaffected.
@@ -6250,3 +6253,882 @@ inventions. No later month is enabled by this goal.
 **Ordering rule:** GOALS18-01..04 settle the data contract; GOALS18-05..09 implement the one-file
 boundary; GOALS18-10..12 verify it; GOALS18-13 documents the stop condition. GOALS17's open
 manual gate remains independently required before any real January import.
+
+---
+
+## GOALS 19 — Static period controls across Reports views (feature, not started)
+
+**Owner request (2026-09-10):** replace the expandable `Período` control recently added to
+Relatórios with one static, compact period area. The design must not contain both an outer filter
+section and a nested card: keep the existing filter section, remove the toggle and inner card,
+and place its title, explanatory copy, date inputs and actions directly in that section. Apply
+the same period interaction to **Análises**, **Vendas**, and **Fluxo de Caixa**. In each view,
+the controls follow one horizontal sequence: start date, end date, apply, `Este mês`, and
+`Período todo`. Análises' CSV/PDF exports and Vendas' CSV export remain non-period actions and
+simply follow that sequence.
+
+**Out of scope:** no Financeiro-page redesign, no new report type, no change to historical-sale
+or payment accounting semantics, no backend/API contract rewrite, and no new UI dependency or
+popover/modal component.
+
+```mermaid
+flowchart TD
+  A[Define one period selection contract] --> B[Static controls in Fluxo de Caixa]
+  A --> C[Static controls in Análises]
+  A --> D[Static controls in Vendas]
+  B --> E[Automated UI and data-range checks]
+  C --> E
+  D --> E
+  E --> F[Manual Electron verification]
+```
+
+Suggested: gpt-5.6-terra · medium — the visual change is compact, but the shared period state
+must preserve the all-history default and avoid stale date values across three report views.
+
+### Design rationale and interaction contract
+
+- [x] **GOALS19-01 — Flatten the filter surface without removing its meaning.** In
+  `PainelFluxoCaixa.tsx`, remove the `Período` trigger, conditional expansion state and nested
+  bordered card. Keep exactly one visible filter section. Its heading and one-line explanation
+  sit above the controls; its calendar inputs and actions are visible immediately. Do not add a
+  second heading/card around it.
+  **Done when:** Fluxo de Caixa opens with no hidden period controls, no `Período` toggle, and
+  no visually nested card.
+
+- [x] **GOALS19-02 — Use the owner-approved action order.** At usable desktop widths, render
+  `De`, `Até`, `Aplicar período`, `Este mês`, then `Período todo` on the same control row. The
+  two quick actions must appear after the date/apply controls rather than in the heading's upper
+  right. On smaller widths they may wrap in that source order with usable touch targets and clear
+  labels.
+  **Done when:** the report matches the annotated reference: the heading is not crowded by
+  buttons, and both quick actions visibly follow the date range action.
+
+- [x] **GOALS19-03 — Make period semantics explicit and identical.** `Este mês` sets the first
+  day of the local current month through today and reloads immediately. `Período todo` clears the
+  visible calendar values and explicitly requests the supported full historical range, rather
+  than allowing a previous range or the backend's current-month fallback to leak through. A
+  custom range applies only when both dates exist and start is not after end; show the existing
+  loading/disabled state while a request runs.
+  **Done when:** choosing `Período todo` after a January selection returns the entire available
+  history, not January or the current month, and the same action does not create or mutate a
+  financial movement.
+
+### Implementation plan
+
+- [x] **GOALS19-04 — Reuse one small period-control implementation.** Introduce or refine one
+  focused frontend control for the common title, date inputs, validation and quick-action
+  behavior, then compose it in the three existing report surfaces. Keep each view responsible
+  for its own loading callback and trailing non-period actions; do not create a generic report
+  framework or duplicate date-selection rules in three files.
+  **Done when:** the shared period behavior has one source of truth while Fluxo, Análises and
+  Vendas retain their current data/loading ownership.
+
+- [x] **GOALS19-05 — Wire Análises without changing its exports.** Update
+  `RelatoriosFiltros.tsx` and the existing `useRelatorios` call path so its static control row
+  follows the common period contract. Keep `Exportar ABC (CSV)` and `Exportar PDF` as trailing,
+  independent actions in the same sequence; their existing export payloads and permission
+  behavior remain untouched.
+  **Done when:** Análises applies custom/current/all-history periods correctly and both exports
+  remain reachable after the period actions.
+
+- [x] **GOALS19-06 — Wire Vendas with the same contract.** Update
+  `VendasFiltros.tsx` and `useVendas.ts` so quick actions pass their selected dates directly to
+  the fetch operation, avoiding React state timing from reusing an earlier range. Keep
+  `Exportar CSV` as the trailing independent action and preserve table/detail behavior.
+  **Done when:** Vendas can move from a filtered range to `Período todo` in one action and shows
+  the full historical sales list without a stale query.
+
+- [x] **GOALS19-07 — Keep Fluxo de Caixa as the same report, only easier to operate.** Replace
+  the temporary expandable UI in `PainelFluxoCaixa.tsx` with the shared static composition while
+  retaining its explanatory legend, realized/projected separation, daily table and grouping
+  panels. Do not classify a card payment as DRE expense merely because it appears in cash flow.
+  **Done when:** selecting January still shows the imported card payment in cash outflows, while
+  its reporting semantics remain unchanged.
+
+### Verification and manual acceptance
+
+- [x] **GOALS19-08 — Add focused behavior coverage.** Extend the existing Electron/Playwright
+  suite or a focused frontend test to verify that all three tabs expose the two date calendars,
+  `Este mês` and `Período todo` without an expandable trigger; verify source-order layout at the
+  tested viewport and that the export buttons remain available in Análises/Vendas. Cover a
+  custom range followed by `Período todo` to prove no stale dates are sent.
+  **Done when:** the test is deterministic, uses an isolated database, and fails if any view
+  restores the hidden toggle or queries the prior range after selecting all history.
+
+- [ ] **GOALS19-09 — Validate build and desktop interaction [manual].** Run frontend lint,
+  typecheck and build, then launch the local Electron app with isolated user data. Inspect the
+  three Relatórios tabs at desktop and narrow widths; apply January, `Este mês`, `Período todo`
+  and a custom range. Confirm exports still work from their existing buttons and no production
+  database, workbook or historical JSON is changed.
+  **Done when:** the owner can use all three static filter rows in the real Electron interface
+  and sees the requested layout without a stale-report or layout-overflow error.
+
+**Done when:** Relatórios has one consistent, immediately visible period interaction in Análises,
+Vendas and Fluxo de Caixa; non-period exports remain in sequence; all-history behavior is
+explicit; and automated plus isolated-app evidence confirms the UI and report data stay correct.
+
+**Ordering rule:** settle the interaction contract first, implement the shared control before its
+three consumers, then verify behavior before manual desktop acceptance.
+
+---
+
+## GOALS 20 — Loja House: accept January, then review February–September one month at a time (feature, not started)
+
+**Owner request (2026-09-10):** finish structuring the January financial history so it can be
+validated as the accepted pilot, then use the same reviewed-JSON workflow for every remaining
+financial sheet in `Loja House.xlsx`. This is a staged migration, not a bulk import: each month
+gets one external JSON file, one source reconciliation, one description review, one dry-run and
+one explicit import decision before the next month is enabled.
+
+**Workbook evidence observed read-only on 2026-09-10:** January has 20 dated movements, 19
+owner-confirmed historical sales, one `Cartão` payment, R$4,512.83 in source entries,
+R$3,979.00 in source exits, and R$533.83 closing. Every financial sheet reconciles internally,
+but cross-sheet opening balances differ by R$0.05 from April to May and R$0.01 from July to
+August. `Financeiro LojaABRIL` contains May 1–2 rows; `Financeiro LojaJULHO` contains
+`2023-07-23` and `2026-08-01` rows. These are source facts requiring an explicit review, never
+a date rewrite.
+
+**Out of scope:** product/SKU/customer/stock matching, reconstructing opening cash or stock,
+changing a reviewed historical batch, auto-importing production data, and using a source
+description to invent supplier, payment method, margin or inventory facts.
+
+```mermaid
+flowchart TD
+  A[Finish January reviewed JSON] --> B[Manual isolated-app acceptance]
+  B --> C[Unlock one next source month]
+  C --> D[Generate external JSON draft]
+  D --> E[Review descriptions and source anomalies]
+  E --> F{No pending line and reconciliation passes?}
+  F -->|No| G[Keep JSON pending; do not commit]
+  F -->|Yes| H[Dry-run then explicit import]
+  H --> I[Verify Financeiro, Vendas, Fluxo and reports]
+  I --> C
+```
+
+Suggested: gpt-5.6-sol · high — it extends a financial-import boundary across nine source
+periods, where an apparently small classification or date error can corrupt historical reports.
+
+### Design rationale and data contract
+
+- [ ] **GOALS20-01 — Accept January before expanding the scope.** Preserve the current
+  January-only JSON envelope format and source facts: 19 `venda_historica` records, one
+  `pagamento_historico` record (`Pagamento de cartão`), zero pending records, zero opening-cash
+  event, and 53,383 closing cents. Generate the real JSON only through the existing save dialog
+  to an operator-selected external folder. Do not create it under the repository or import it
+  into the production database.
+  **Done when:** the selected January JSON validates with its own checksum and shows exactly the
+  reviewed split before any database-write option is offered.
+
+- [ ] **GOALS20-02 — Generalize the envelope without creating a second format.** Keep
+  `loja_house.financeiro_historico` version 1 and its integer-cent audit fields. Replace only
+  January-specific sheet/competence guards with a strict month descriptor mapping each allowed
+  `2026-MM` competence to its exact `Financeiro Loja<MÊS>` tab. Keep a JSON as the sole commit
+  input; Excel may generate a draft but must never be committed directly.
+  **Done when:** one validator accepts a correct selected competence/sheet pair and rejects an
+  unknown month, an altered source sheet, mismatched movement date, duplicate row key or a
+  malformed/changed JSON.
+
+- [ ] **GOALS20-03 — Preserve source direction while separating semantic destination.** A
+  historical sale may retain source `entrada` or an explicitly owner-confirmed source `saida` in
+  cash flow; its destination must never reverse the source cash direction. A paid outflow may
+  only use `Pagamento de cartão`, `Compra para estoque histórica`, `Consumo interno`, or
+  `Empréstimo/adiantamento`. `caixinha`, `cofre`, `troco`, `cashback`, `diferença`, unrecognised
+  entries, and any other uncertain description stay `pendente` with the original text and a
+  reason. A pending line blocks that month's commit.
+  **Done when:** no month can silently turn an uncertain item into a sale, stock purchase,
+  expense, receivable, or cash-balance event.
+
+- [ ] **GOALS20-04 — Make month boundaries reviewable rather than "corrected".** Reconcile
+  each sheet independently using its stated opening, entries, exits and reported closing in
+  cents. Display cross-month opening/previous-closing differences as source-review warnings,
+  without posting them. Keep April's May 1–2 rows and July's 2023-07-23/2026-08-01 rows pending
+  until the owner chooses whether they belong to the sheet competence or a different JSON.
+  **Done when:** the JSON audit shows every source amount once and no date is silently moved to
+  make a month look clean.
+
+### Implementation plan
+
+- [ ] **GOALS20-05 — Close the January pilot in the isolated app.** Build the local frontend,
+  start Electron with isolated user data, generate/reselect January's external JSON, preview it,
+  cancel once, run dry-run, commit once and retry the identical file. Inspect the resulting
+  historical sales, the paid card record, Fluxo de Caixa, DRE/Análises, Vendas and stock.
+  Confirm no product correlation, stock mutation, receivable, duplicate event or production
+  database access occurs. This satisfies the still-open manual gates GOALS17-14 and GOALS18-12;
+  GOALS17-16 may close only after this evidence exists.
+  **Done when:** January's cash-flow source reconciliation remains R$533.83 and the identical
+  retry adds no row.
+
+- [ ] **GOALS20-06 — Expose one selected month in the existing reviewed-file flow.** Replace
+  January-only copy, IPC/API types and parser arguments with a controlled month selector that
+  exposes only the next approved month after January's acceptance. The interface must show the
+  selected competence, source sheet, source checksum, JSON checksum, audit totals, source rows,
+  categories, pending reasons and cross-month warning before dry-run/commit.
+  **Done when:** the operator cannot accidentally generate or execute a different month than the
+  one visibly selected, and no new generic bulk-import screen is introduced.
+
+- [ ] **GOALS20-07 — Seed only conservative draft classifications.** Reuse normalized
+  descriptions for obvious card, internal-consumption, loan and stock-purchase candidates, but
+  do not use current ERP catalog matching. Treat product-like source entries as candidate
+  historical sales only when they do not match an uncertainty term; preserve exceptional source
+  exits as pending unless specifically confirmed for that exact source row. Make the JSON
+  reviewer responsible for resolving every pending row before it can be imported.
+  **Done when:** February's card, café/almoço, protector-bucal and loan examples receive their
+  safe candidate categories, while its product-like source exit and all unusual terms require
+  explicit review.
+
+- [ ] **GOALS20-08 — Keep imported reporting facts separate from accounting interpretation.**
+  Reuse the existing historical sale adapter and paid-financial adapter per approved month. Sales
+  remain summary-only and excluded from product ranking, stock and margin. Card and internal
+  consumption remain cash outflows; a card payment must not become DRE operating expense merely
+  because it is visible in Fluxo de Caixa. Keep each source direction in cash flow so the sheet
+  audit can be reproduced.
+  **Done when:** every accepted JSON event appears once in the intended historical report and
+  source reconciliation, with no fabricated catalog or inventory fact.
+
+### Month-by-month review sequence
+
+- [ ] **GOALS20-09 — Review February (`2026-02`) after January acceptance.** Create one external
+  JSON and explicitly decide the product-like `Kimono A1 Brazil Combat` source exit. Verify its
+  own reconciliation: opening R$533.83, entries R$3,852.04, exits R$2,450.47 and closing
+  R$1,935.40.
+  **Done when:** every February description is classified or remains pending; no import occurs
+  while a pending item remains.
+
+- [ ] **GOALS20-10 — Review March (`2026-03`) after February acceptance.** Create one external
+  JSON and review `kimonos` as a source exit separately from the clearly described card and
+  café entries. Verify opening R$1,935.40, entries R$4,211.09, exits R$4,033.90 and closing
+  R$2,112.59.
+  **Done when:** March is accepted only after its JSON and dry-run have no pending row.
+
+- [ ] **GOALS20-11 — Review April (`2026-04`) and its two out-of-competence rows.** Keep the
+  May 1 and May 2 source rows visible as exceptions; do not attach them to April or silently
+  relocate them. Verify the sheet's stated closing R$2,466.53 before deciding their destination.
+  **Done when:** the owner has made a recorded decision for both rows and the accepted April JSON
+  contains only the movements belonging to its selected competence.
+
+- [ ] **GOALS20-12 — Review May (`2026-05`) and its opening discrepancy.** Flag the R$0.05
+  difference between April closing and May opening as reconciliation context, not a posting.
+  Require review of `cofre`, `caixinha`, loans and every product-like source exit. Verify May's
+  own R$1,497.85 closing before import.
+  **Done when:** the monthly JSON documents the source warning and no balancing adjustment has
+  been fabricated.
+
+- [ ] **GOALS20-13 — Review June (`2026-06`) with cash-like terms pending.** Require explicit
+  decisions for `caixinha`, `resgate caixinha`, `sobrando ?`, `tráfego camisa`, repair and
+  inventory-like descriptions. Verify June's R$97.78 closing.
+  **Done when:** every imported June row has an evidenced destination and all uncertain rows
+  remain outside the commit.
+
+- [ ] **GOALS20-14 — Review July (`2026-07`) with date and cash anomalies.** Keep the
+  `2023-07-23 anúncio inst` and `2026-08-01 Padaria` rows pending until assigned by the owner.
+  Review `troco`, `entrada`, `teste`, card variants, store fixtures and advertising separately;
+  do not treat the word `entrada` as proof of a sale. Verify July's own R$2,107.29 closing.
+  **Done when:** no July JSON imports an out-of-competence row or changes its date.
+
+- [ ] **GOALS20-15 — Review August (`2026-08`) and September (`2026-09`) in order.** Flag the
+  R$0.01 July/August opening difference without posting it. Review loans, cashback, crediário,
+  medicines, differences and personal/meal terms conservatively. Verify August R$2,524.51 and
+  September R$2,730.51 closings; September contains only two source entries.
+  **Done when:** each month has a separate reviewed JSON, dry-run and explicit owner decision;
+  September is never absorbed into August merely because it is small.
+
+### Verification, audit and rollout
+
+- [ ] **GOALS20-16 — Add synthetic multi-month contract coverage.** Extend the existing focused
+  parser/envelope/import tests with synthetic files for every month descriptor, cross-month
+  warning, out-of-competence date, one-cent opening mismatch, pending classifier, source-exit
+  sale confirmation, JSON mutation and identical retry. Tests must not read, copy or commit the
+  real workbook or external financial JSON files.
+  **Done when:** tests prove that a bad month cannot be accepted just because its arithmetic
+  closes, and that an accepted JSON is idempotent.
+
+- [ ] **GOALS20-17 — Prove each accepted month in a disposable database before real use.** For
+  every approved monthly JSON, assert the exact number of summary sales, paid historical
+  payments and pending lines; no `ItensVenda`, stock movement, product/customer link,
+  receivable, opening event or duplicate flow row may be created. Check Financeiro, Fluxo,
+  Vendas and report queries against the JSON audit cents.
+  **Done when:** isolated tests reproduce each accepted source reconciliation and no report
+  creates a second representation of the same fact.
+
+- [ ] **GOALS20-18 — Require an owner-controlled production gate and update documentation.**
+  Do not import a real month until its external JSON was reviewed, dry-run, and explicitly
+  approved by the owner. Record the exact monthly checklist, pending policy, source anomalies and
+  replacement prohibition in `IMPORT_LOJA_HOUSE.md`. Preserve real JSON files outside Git.
+  **Done when:** an operator can safely repeat the process for one month without relying on a
+  developer's memory, while Git status remains free of financial source data.
+
+**Done when:** January has passed the real isolated-app acceptance gate, and February through
+September can each be processed through the same one-JSON, one-review, one-dry-run, one-explicit-
+commit sequence with source direction, cents reconciliation and uncertainty preserved. A month
+with unresolved rows is deliberately left pending rather than forced into the ERP.
+
+**Ordering rule:** accept January first; generalize the contract before exposing a next-month
+selector; review and validate months in calendar order; never begin a later import while an
+earlier month still lacks its owner decision or a source anomaly remains unexplained.
+
+---
+
+## GOALS 21 — Loja House January: source-direction correction and historical-sales clarity
+
+**Type:** Fix — the imported January records are presented as anonymous sales and historical
+source exits can be included in revenue totals. This plan corrects the interpretation without
+inventing products, stock, profit, or a replacement transaction.
+
+**Evidence:** In `Financeiro LojaJANEIRO`, `Kimonos Adultos` (R$1,570.00) and `Conjunto NoGi`
+(R$900.00) are source `SAÍDA` rows; `Cartão` (R$1,509.00) is the third January source exit.
+In a clean imported sequence, the screenshot's IDs `#14` and `#17` correspond to those two
+rows, respectively. IDs are diagnostic only, not a permanent mapping contract. The current
+sales table always displays `#<id>`, while the imported original description already exists in
+the persisted observation. The current sales report unconditionally sums every finalised
+`Vendas.total`, which produces R$6,982.83 for January and therefore includes source exits.
+
+**Scope boundaries:** Do not alter a real database, silently re-import or replace a reviewed
+batch, infer a product/stock relationship, or treat a card settlement as an operating DRE
+expense. Gross revenue, profit and cash movement remain distinct concepts.
+
+```mermaid
+flowchart LR
+  A[Reproduce source rows and current output] --> B[Owner resolves source-exit semantics]
+  B --> C[Preserve source direction in the import model]
+  C --> D[Show original historical description]
+  C --> E[Separate revenue from source exits]
+  D --> F[Regression tests and isolated manual check]
+  E --> F
+```
+
+Suggested: gpt-5.6-sol · high — a small UI change intersects with financial direction,
+historical reports and import idempotency.
+
+### Reproduction and root cause
+
+- [ ] **GOALS21-01 — Capture an isolated January fixture and mapping.** Reproduce all twenty
+  source movements from the workbook, including the three exits: `Cartão` R$1,509.00,
+  `Kimonos Adultos` R$1,570.00 and `Conjunto NoGi` R$900.00. Assert R$4,512.83 entries,
+  R$3,979.00 exits and R$533.83 closing cash. Record the clean-database row mapping only as
+  diagnostic evidence; never use sequential database IDs as business identity.
+  **Done when:** the fixture proves exactly which raw source row is behind each UI example.
+
+- [ ] **GOALS21-02 — Document the current report contracts before changing them.** Prove that
+  `getRelatorioVendas` aggregates all finalised `Vendas.total`, that Cash Flow preserves an
+  imported row's source `entrada`/`saida`, and that DRE deliberately excludes imported history
+  from ordinary revenue and expenses while its historical side value is not rendered in the
+  current panel.
+  **Done when:** each January number is labelled as gross revenue, cash movement or unavailable
+  profit, never as an interchangeable "faturamento".
+
+- [ ] **GOALS21-03 — Identify the display data path.** Verify that `VendasTable` renders the
+  internal ID because `getVendas` exposes an observation but not the historical-origin/direction
+  metadata needed for a safe label. Confirm that ordinary PDV sales keep their current label and
+  that historical summary rows legitimately have no product items.
+  **Done when:** the implementation path can show a historical original description without
+  pretending it is a registered ERP product.
+
+- [ ] **GOALS21-04 — Obtain the owner decision for every source exit.** Reconcile the earlier
+  instruction that Kimono/NoGi are sales with the newer instruction to respect `entrada` and
+  `saida`. Until confirmed, no source `saida` may be displayed or aggregated as incoming
+  historical revenue: preserve the raw fact as a pending/outgoing historical event instead.
+  Keep `Cartão` as a payment settlement unless the owner supplies evidence otherwise.
+  **Done when:** the final treatment of all three rows is written down, with no ambiguous exit
+  silently converted into a sale.
+
+### Fix
+
+- [ ] **GOALS21-05 — Preserve direction and original wording in the January import contract.**
+  After the owner decision, retain source direction, original description and source-row
+  provenance as first-class historical metadata. A changed classification must create a reviewed
+  replacement artifact and follow an explicit owner-controlled migration action; it must never
+  mutate or duplicate an existing imported batch automatically.
+  **Done when:** a historical row can be independently audited back to its workbook fact and
+  an old batch remains safe from an implicit rewrite.
+
+- [ ] **GOALS21-06 — Replace anonymous historical sale labels with the original description.**
+  Render a label such as `Histórico: Camisa Equipe` for imported historical rows and keep the
+  internal ID secondary for support/audit. Preserve the ordinary PDV `Venda #` presentation.
+  In the expanded historical row, state that it is a source summary with no registered ERP item,
+  rather than reporting a misleading missing-item condition. Surface origin and source direction
+  where relevant.
+  **Done when:** the screenshot's `#14`/`#17` examples show their real source description and
+  cannot be mistaken for a product matched to inventory.
+
+- [ ] **GOALS21-07 — Make report aggregation direction-aware.** Include normal PDV sales and
+  only the owner-approved incoming historical revenue in sales-report faturamento. Keep any
+  historical source exit visible in Cash Flow and, if it remains semantically a historical sale,
+  show it in a separately named outgoing historical-events view rather than adding it to
+  incoming revenue. Keep exports consistent with the screen.
+  **Done when:** R$1,570.00 and R$900.00 cannot inflate sales revenue merely because they were
+  stored in `Vendas`, while no raw cash event disappears or is double-counted.
+
+- [ ] **GOALS21-08 — Make the DRE limitation explicit.** Keep historical entries without CMV
+  out of calculated profit and disclose their separately tracked historical amount, if shown.
+  Do not subtract `Cartão` from gross revenue or force it into operating expenses solely from
+  its text; Cash Flow remains the place to reconcile the R$533.83 January balance.
+  **Done when:** the UI clearly distinguishes revenue, cash outflow and profit rather than
+  presenting a mathematically precise but semantically unsupported margin.
+
+### Regression tests and acceptance
+
+- [ ] **GOALS21-09 — Add focused source-direction and report tests.** Use synthetic January
+  fixtures to cover historical descriptions, source `entrada`/`saida`, the three exits, normal
+  non-historical sales, sales-report totals, Cash Flow totals and DRE exclusions. The tests must
+  fail under the current unconditional revenue sum and must not read or copy the real workbook.
+  **Done when:** automated tests prevent a source exit from reappearing as incoming revenue.
+
+- [ ] **GOALS21-10 — Cover the typed IPC and sales-table presentation.** Test the returned
+  historical metadata, label fallback, normal PDV label, expansion copy, sorting/filtering and
+  any report/export column affected by the new distinction.
+  **Done when:** a UI regression cannot revert historical rows to anonymous `#id` labels or
+  erase their source direction.
+
+- [ ] **GOALS21-11 — Perform an isolated manual acceptance check.** Import the approved January
+  JSON into a disposable database, inspect Vendas, Financeiro, Cash Flow and Relatórios, and
+  compare every displayed amount with the approved source-direction decision. Do not use the
+  production user-data directory or import the real workbook as part of this check.
+  **Done when:** the owner can see the original names, the source exits stay exits, January cash
+  closes at R$533.83, and no report claims unsupported historical profit.
+
+**Done when:** imported history is identifiable by source description, source direction remains
+auditable, revenue excludes inappropriate source exits, and the cash/DRE limitations are visible
+instead of silently changing financial meaning.
+
+## GOALS22 — Correct mixed-payment surcharge, budget lifecycle, update visibility, and release notes
+
+```mermaid
+flowchart TD
+    A[Reproduce the exact v1.4.1 artifact] --> B[Freeze mixed-payment contract]
+    B --> C[Fix server calculation and persistence]
+    C --> D[Verify budgets and conversion invariants]
+    A --> E[Reproduce admin versus dono update behavior]
+    E --> F[Fix session, artifact, or release diagnostics]
+    B --> G[Add versioned update notes section]
+    D --> H[Automated and packaged acceptance]
+    F --> H
+    G --> H
+```
+
+Suggested: gpt-6-astra · xhigh — the highest-risk work crosses cent-accurate financial totals, payment persistence, session authorization, and the packaged Electron update artifact.
+
+### Problem statement and boundaries
+
+- [x] **GOALS22-01 — Reconcile source, installed artifact, and reported behavior before editing.**
+  Record the exact application version, commit/build provenance, and paths for the source
+  checkout, `app.asar`, and external `frontend/out` used in the reproduction. The attached
+  screenshot is evidence of the reported behavior, not an implementation instruction. Preserve
+  the current checkout's unrelated uncommitted work and do not use production data for tests.
+  The installed v1.4.1 already contains a mixed-payment UI that sends `forma_pagamento: "Misto"`
+  plus a `pagamentos` array, while the current source checkout still exposes one payment form;
+  the plan must first determine which source revision produced that artifact.
+  **Done when:** the same artifact and source revision are identified, or the mismatch is
+  explicitly documented, before any payment code is changed.
+  **Evidence (2026-09-14):** installed artifact `C:\Users\beatl\AppData\Local\Programs\ALLU ERP\resources\app.asar` with external `resources\frontend\out` reports version `1.4.1`; source branch `codex/loja-house-janeiro-vendas-historicas`, HEAD `2103b16`, reports version `1.3.0` and still had the single-form PDV. The mismatch was recorded before implementation.
+
+- [x] **GOALS22-02 — Freeze the mixed-payment business contract.** Use the following default
+  unless the owner changes it before execution: the amounts typed in each payment row are the
+  post-discount base allocations and must add up to the discounted sale base; the card
+  condition's surcharge applies only to that row; the final sale total is the sum of final row
+  amounts; Fiado cannot be mixed with another form. The backend remains authoritative for all
+  validation, rounding, surcharge, and installment calculations.
+  For a discounted base of R$213.75 split as PIX R$100.00 and Card R$113.75, with a 4% card
+  surcharge, the expected card amount is R$118.30 and the expected final total is R$218.30.
+  With the existing last-installment-residue policy, four exact card installments are
+  R$29.57, R$29.57, R$29.57, and R$29.59; an approximate display must not replace the persisted
+  cent values.
+  **Done when:** the contract, the rounding rule, and the expected example are written into
+  implementation tests and UI copy with no ambiguous meaning for a row amount.
+  **Evidence:** `test/pagamento-misto-orcamento.test.js` asserts R$100.00 PIX + R$113.75 Card + 4% = R$218.30 and exact cents `[2957, 2957, 2957, 2959]`; the panel labels row values as post-discount base allocations.
+
+### Payment calculation, storage, and cash-flow behavior
+
+- [x] **GOALS22-03 — Make mixed checkout calculate the fee on the correct row.** Update the
+  PDV payload and payment panel so each Card row owns its parcel condition, while the server
+  receives enough information to calculate each row independently. Preserve the single-form
+  path for PIX, Dinheiro, Cartão, and Fiado. Do not let a global `Misto` value cause
+  `calcularVendaParcelada` to silently fall back to 1x/0% or ignore the selected Card condition.
+  Reject negative/zero allocations where inappropriate, unsupported forms, multiple Fiado
+  rows, and sums that do not reconcile after cent rounding. Show base amount, surcharge,
+  installment count, exact total, and any rounding residue before finalization.
+  **Done when:** the screenshot scenario produces R$218.30 from the stated inputs, the Card
+  snapshot records 4x with its surcharge, and invalid mixed requests fail without mutating
+  stock, sales, or financial records.
+  **Evidence:** backend `calcularVendaMista` is authoritative and the focused suite covers the screenshot, invalid sums, Fiado mixing, and insufficient cash without side effects.
+
+- [x] **GOALS22-04 — Align database, IPC, preload, and frontend contracts.** Compare the
+  current source against the v1.4.1 artifact before porting behavior. If `VendaPagamentos` or
+  another payment-allocation structure is absent in the source, add it through an idempotent
+  schema migration and expose only typed, narrow IPC fields. Persist per-allocation form,
+  base/final value, Card condition snapshot, and exact installment values; keep `Vendas.total`
+  equal to the final allocation sum. Existing single-form records must remain readable and
+  must not be charged a second surcharge during migration or later conversion.
+  **Done when:** a saved sale can be reconstructed from its payment allocations and the
+  schema works on both a new database and a pre-feature database without destructive migration.
+  **Evidence:** idempotent `VendaPagamentos` schema/index, typed `erpApi` fields, IPC routing, and snapshot assertions pass on disposable databases.
+
+- [x] **GOALS22-05 — Preserve the established financial recognition policy.** PIX and Dinheiro
+  allocations are immediate; Card allocations create pending settlement entries and enter
+  realized cash only when settled; Fiado creates receivables and is never a mixed allocation.
+  Audit `db/financeiro.js` and all report/flow queries for duplicate recognition through both
+  the sale allocation and the settlement entry. Keep the receipt/customer receivable rules
+  distinct from commercial Card installments.
+  **Done when:** one finalized mixed sale has exactly one commercial total, no artificial
+  Card cash receipt, no Fiado receivable, and no duplicated amount in Cash Flow or reports.
+  **Evidence:** Card rows create pending settlement entries only; no Fiado receivable is created for mixed checkout, and the existing parcelamento/financeiro regression tests remain green.
+
+### Budget invariants and conversion
+
+- [x] **GOALS22-06 — Make the budget policy explicit and lossless.** Use the conservative
+  policy already surfaced by the v1.4.1 UI unless the owner explicitly requests mixed-payment
+  budgets: a budget may use one payment form/condition; split payment is rejected with a clear
+  message rather than silently dropping a row or its fee. A single-form Card budget must
+  snapshot its condition and final total. If mixed budgets are required later, extend the
+  budget schema with the same per-row allocation snapshot before enabling the UI; never reuse
+  a single global condition for a mixed quote.
+  **Done when:** the UI and backend enforce the same policy, and every accepted budget retains
+  enough data to reproduce its displayed total.
+  **Evidence:** both PDV and `db/vendas.js` reject split-payment budgets with the same message; single-form budgets retain the payment snapshot and final total.
+
+- [x] **GOALS22-07 — Verify creation, reservation, conversion, and retry behavior.** Creating
+  a budget must not create a sale receipt, Card settlement, or Fiado receivable; it may reserve
+  stock according to the existing reservation policy. Conversion must atomically validate the
+  stored snapshot, check the open-cash requirement, release the reservation/debit stock once,
+  create the correct payment/receivable records once, and never apply the Card surcharge a
+  second time. A second conversion, insufficient stock, or a failed financial write must leave
+  the database in a consistent state.
+  **Done when:** a Card budget of base R$100.00 with a 4% condition remains R$104.00 after
+  conversion, creates one correct 4x commercial/settlement snapshot, and every failure path
+  rolls back without duplicate stock or financial entries.
+  **Evidence:** focused test proves R$104.00 survives conversion, creates one pending Card entry, debits stock once, and rejects a second conversion; open-cash gating is enforced before conversion.
+
+### Owner access to updates and release notes
+
+- [ ] **GOALS22-08 — Reproduce the Dono update failure with the same packaged binary.** Test
+  admin and dono sessions against the exact artifact that reported the issue, using disposable
+  credentials/data. Verify the `/atualizacao` route, module manifest, session profile returned
+  by IPC, `check-for-updates`, `download-update`, and `quit-and-install` independently. The
+  current source indicates that the module is `sempre` visible, the frontend treats `admin`
+  and `dono` as elevated, and the main-process `exigirSessao("admin")` accepts both; therefore
+  an owner-only failure should be isolated to stale/malformed session data, an artifact/source
+  mismatch, updater/release metadata, or a swallowed error—not assumed to be a normal
+  permission rule.
+  **Done when:** the failing step is identified with its exact profile, artifact version, and
+  updater state, without logging passwords, tokens, customer data, or financial data.
+  **Execution status:** source analysis found the installed v1.4.1/source mismatch and the intended `sempre`/admin+dono gates; the exact installed v1.4.1 interactive failure was not reproduced because manual use of the installed binary and the owner's real session were not available in this execution.
+
+- [x] **GOALS22-09 — Add a role regression and safe diagnostics.** Add automated coverage for
+  both `admin` and `dono` through the same update IPC path, including page visibility and the
+  available/not-available/downloaded states. Surface a concise, non-secret diagnostic when a
+  check fails (app version, normalized profile, updater state, and actionable error category),
+  while keeping credentials and release tokens out of logs. Validate the exact packaged
+  artifact separately from source/e2e tests, including the presence of the exported frontend
+  route and the release version metadata.
+  **Done when:** a future role or packaging regression fails a test, and a real owner failure
+  can be distinguished from a GitHub release/draft/network problem without reproducing it by
+  guesswork.
+  **Evidence:** `e2e/atualizacao-perfis.spec.ts` validates admin and dono through the same page/IPC mock flow; failures expose only category, app version, normalized profile, and updater state. The packaged candidate contains the route and notes chunk.
+
+- [x] **GOALS22-10 — Add versioned notes to the Atualizações screen.** Create a typed,
+  version-keyed notes source and render a section titled `Notas da atualização x.x.x` on the
+  update page. Show the installed version's verified changes and, when an update is available,
+  the available version's notes; provide an explicit fallback when notes for a version are not
+  registered. Populate the 1.4.1 entry only from the verified release/source diff, not from
+  assumptions based on the screenshot. Keep the notes available offline and synchronize the
+  release checklist with the published release body so the UI does not claim changes that were
+  not shipped.
+  **Done when:** the page renders the correct version heading and readable change list for a
+  known version, handles an unknown version without a blank/error state, and keeps the update
+  controls usable for both admin and dono.
+  **Evidence:** `frontend/src/lib/atualizacaoNotas.ts` provides the typed version map and fallback; the role e2e asserts the notes heading and update controls.
+
+### Regression and acceptance
+
+- [x] **GOALS22-11 — Add focused financial tests.** Cover single-form compatibility, the mixed
+  screenshot example, Card-only surcharge, exact cent allocation, last-installment residue,
+  invalid sums, Fiado mixing rejection, persistence/reload, budget no-double-charge, stock
+  reservation, conversion retry, and Cash Flow/report recognition. Use synthetic disposable
+  databases only; tests must fail against the current artifact/source mismatch where the Card
+  condition is ignored under `Misto`.
+  **Done when:** the test suite proves both amount correctness and absence of duplicate stock,
+  receivable, settlement, and report entries.
+  **Evidence:** focused mixed-payment suite has 6 cases after the final additions; the full root suite passes 215 tests, including legacy single-form, parcelamento, stock, finance, and report regressions.
+
+- [ ] **GOALS22-12 — Run the full verification ladder.** Run the repository's lint, typecheck,
+  unit/integration tests, frontend export, and existing Electron e2e checks after implementation.
+  Then build the same packaged candidate used for manual acceptance and inspect its actual
+  `app.asar`/`resources/frontend/out`, not only the build configuration. No publish, release
+  edit, installer distribution, or production database migration is part of this goal.
+  **Done when:** source checks pass, the packaged candidate contains the notes and update route,
+  and the binary tested manually is proven to be the binary whose behavior was accepted.
+  **Evidence:** automated checks passed: `npm test` (215/215), frontend typecheck, frontend lint (3 pre-existing warnings, 0 errors), source lint with only `dist`/`.claude/worktrees` excluded (0 errors), frontend export, all Electron e2e (26/26), and `npx electron-builder --dir --win`. The candidate has `resources/frontend/out/index.html`, the notes chunk, and the expected main/preload/update files in `app.asar`; no publish was performed. The final packaged-binary manual behavior proof remains open with GOALS22-13.
+
+- [ ] **GOALS22-13 — Perform manual acceptance with two roles and a disposable dataset.** In a
+  clean/disposable user-data directory, log in as admin and dono using the same packaged
+  candidate; verify update visibility, update-state actions, version notes, mixed checkout,
+  Card surcharge/installments, single-form budget, conversion, and resulting Cash Flow. Capture
+  the displayed totals and compare them with the cent-level expected values above. Do not use
+  the store's real database, real credentials, or release secrets.
+  **Done when:** both roles see and can use the intended update page, the screenshot case totals
+  R$218.30 under the stated 4% contract, budgets convert once without double charging, and the
+  notes section identifies what changed in the tested version.
+  **Execution status:** disposable automated coverage is in place, but the requested hands-on acceptance in the packaged candidate remains open; this execution did not use the store database or real credentials.
+
+**Done when:** mixed payment calculates and persists the Card surcharge correctly, budgets are
+lossless and idempotent across conversion, the Dono/admin update difference has an evidenced
+root cause and regression guard, and the Atualizações screen explains each verified x.x.x
+release without changing release or production state.
+
+---
+
+## GOALS 23 — Manual historical sales entry in Financeiro with report integration (implementation complete; manual acceptance pending)
+
+**Execution status (2026-09-15):** the backend, IPC/preload bridge, Financeiro card,
+report/flow classification, exports, and focused regression coverage are implemented on
+`codex/manual-vendas-historicas-financeiro`. The complete backend suite passes (222 tests),
+and the frontend typecheck/lint pass. Real Electron acceptance remains intentionally open in
+GOALS23-01/19; no production database or release was touched. The release-notes guard also
+now blocks packaging when `package.json` and `atualizacaoNotas.ts` are not aligned.
+
+**Owner request (2026-09-14):** the current `Relatórios > Vendas` view is correctly read-only,
+but it has no action for creating a historical sale. Add the entry point to the first
+`Financeiro` section, with `nome/descrição`, `valor total` and `data da venda` required;
+`cliente` and `método de pagamento` optional; when the method is omitted, persist the explicit
+`Genérico` method. The resulting sale must appear in the general reports and in the sales
+report.
+
+**Current code evidence:** the Financeiro first section renders `NovoLancamentoForm` for
+obligations (`LancamentosFinanceiros`), while the existing historical Fiado function
+(`db/vendas.js:registrarVendaFiadoHistorica`) requires a client and SKU and is therefore not a
+generic historical-sale entry. The existing Excel financial-history importer already creates
+summary rows in `Vendas` with `observacao`, `origem` and no `ItensVenda`; the sales report reads
+`Vendas`, while the DRE and product reports have different rules for rows without item/CMV
+support. The `Relatórios > Vendas` view should remain a report, not become the creation screen.
+
+```mermaid
+flowchart TD
+    A[Confirm source frontend and current report contracts] --> B[Freeze historical-sale and settlement semantics]
+    B --> C[Create one idempotent summary sale transaction]
+    C --> D[Expose narrow IPC and Financeiro form]
+    C --> E[Make sales, cash-flow and DRE classification explicit]
+    E --> F[Update sales history display and report filters/exports]
+    D --> G[Automated regression tests]
+    F --> G
+    G --> H[Manual Electron acceptance with disposable data]
+    H --> I[Documentation and final ownership gate]
+```
+
+Suggested: gpt-5.6-sol · high — the feature is small in UI size but crosses retroactive money entry, idempotency, Fiado settlement, cash-flow recognition, DRE/CMV limitations and two report surfaces.
+
+### Design rationale and boundaries
+
+- [ ] **GOALS23-01 — [manual] Reconfirm the actual runtime before editing.** In the dedicated
+      worktree, record branch, commit, package version and whether the owner is exercising the
+      default Next export or `ERP_LEGACY_FRONTEND=1`. GOALS22 already recorded a source/artifact
+      version mismatch, so the screenshots are evidence of the desired workflow, not proof that
+      the installed binary is the current source. Do not use the production database or real
+      customer data for this check.
+      **Done when:** the exact Financeiro route and source files in scope are identified and the
+      existing `Relatórios > Vendas` tab is confirmed to remain read-only.
+
+- [ ] **GOALS23-02 — Freeze the record model before implementation.** Create one finalized
+      summary row in `Vendas` for the historical fact, using existing columns rather than a new
+      table: `observacao` stores the required sale name/description, `total` stores the rounded
+      total value, `data_venda` stores the historical date, nullable `cliente_id` stores the
+      optional existing customer, `forma_pagamento` stores the selected method or `Genérico`,
+      and `origem='venda_historica_manual'` distinguishes this path from PDV and workbook
+      imports. Do not create `ItensVenda`, SKU/product links, stock movements, or a second
+      generic financial row for a non-Fiado sale.
+      **Done when:** the contract is written in the focused tests and it is clear which fields
+      are facts supplied by the operator versus fields deliberately left unknown.
+
+- [ ] **GOALS23-03 — Use business wording that cannot confuse price and total.** Label the
+      required fields `Nome/descrição da venda`, `Valor total (R$)` and `Data da venda`; do not
+      call the amount `preço unitário` because this flow has no product or quantity. The form
+      must accept only a valid existing customer when one is selected, trim the name, validate
+      a positive cent-accurate amount, reject invalid dates and reject dates after today.
+      **Done when:** the UI labels match the summary-sale semantics and the backend repeats the
+      same validation instead of trusting the renderer.
+
+- [ ] **GOALS23-04 — Define the missing payment-method and settlement rule.** The default
+      `Genérico` value means: the sale happened and is treated as received on `data_venda`, but
+      the channel is unknown. It must be visible as a real payment bucket, not represented by
+      `NULL`, `---` or a guessed PIX/Card/Dinheiro value. Offer the existing methods plus
+      `Genérico` in the selector.
+      **Done when:** an omitted method is deterministic in storage, sales reports and cash-flow
+      details, and the UI explains that `Genérico` is an unknown method rather than a new
+      processor integration.
+
+- [ ] **GOALS23-05 — Close the Fiado gap without making the global customer field mandatory.**
+      If the operator chooses `Fiado`, require an existing customer and show conditional
+      settlement fields: `Recebido` or `Em aberto`; for `Em aberto`, require the first due date.
+      A received Fiado sale creates one paid receivable dated on the historical sale date; an
+      open Fiado sale creates one linked open receivable and does not enter realized cash until
+      it is paid. For PIX, Cartão, Dinheiro and `Genérico`, no receivable is created. This keeps
+      `cliente` optional for the normal historical-sale path while preventing an untraceable
+      Fiado entry.
+      **Done when:** every accepted payment state has one unambiguous cash/receivable outcome,
+      and `Fiado` without a customer or due date is rejected before any write.
+
+- [ ] **GOALS23-06 — Preserve the existing module boundary.** Put a separate
+      `Registrar venda histórica` card in the first Financeiro section, next to but not inside
+      `NovoLancamentoForm`; the latter remains for A Receber/A Pagar obligations. Do not add a
+      new sidebar item and do not turn the `Relatórios > Vendas` tab into a mutation surface.
+      Keep the specialized SKU-linked historical-Fiado backend compatible until its callers and
+      existing data are audited; do not leave two visible forms that appear to solve the same
+      generic problem.
+      **Done when:** a user can discover the action from Financeiro, while the report tab remains
+      a read-only place to inspect the result.
+
+- [ ] **GOALS23-07 — Define the no-double-count policy.** For a non-Fiado historical sale,
+      `Vendas` is the only persisted event and `getFluxoCaixa` contributes one incoming event on
+      the sale date. For a paid Fiado historical sale, the sale row is excluded from realized
+      cash by the existing Fiado rule and the linked paid receivable contributes exactly one
+      incoming event. For an open Fiado sale, only the projected flow contains the receivable.
+      Never insert a manual `LancamentosFinanceiros` row for a non-Fiado historical sale merely
+      to make it visible in Financeiro; that would duplicate the sale in cash flow.
+      **Done when:** the policy has one expected event, date and source for each payment state.
+
+- [ ] **GOALS23-08 — Define report semantics before changing SQL.** Historical summary sales
+      must be included in `getRelatorioVendas` totals, daily totals, payment breakdown and the
+      `Relatórios > Vendas` table/export. They must be visibly identifiable by their description
+      and historical origin. `Genérico` must appear as its own payment group.
+      In the general reports, cash flow includes the recognized event under a labelled
+      historical-sale origin. DRE must expose historical revenue without CMV as a separate,
+      clearly labelled value and must not treat missing CMV as zero cost when calculating a
+      supported product margin. Curva ABC, margem de contribuição and giro de estoque must not
+      fabricate product-level results from a summary row with no `ItensVenda`; client
+      segmentation may use the sale only when an existing client was supplied; commission
+      reports must not attribute the manual historical fact to the administrator who entered it.
+      **Done when:** the report matrix distinguishes sales/faturamento, cash movement, customer
+      history and CMV-backed profit instead of using one total for every purpose.
+
+**Explicitly out of scope:** stock reconstruction or deduction; product/SKU/item matching;
+automatic customer creation; payment processor, card-fee or installment simulation; editing or
+deleting historical facts from this first version; changing the sidebar; changing the existing
+Excel import classification; real-database cleanup or migration; publishing a release.
+
+### Implementation
+
+- [ ] **GOALS23-09 — Add one transactional, idempotent backend command.** Implement a narrow
+      `registrarVendaHistorica` operation in the sales domain, reusing the existing Vendas
+      transaction conventions and `request_id` unique index. The renderer generates one stable
+      request ID per submit; a retry returns the already-created sale instead of inserting a
+      second sale or receivable. Validate all fields server-side, set `status='finalizada'`,
+      leave `usuario_id` null for commission purposes, and record the actor through the existing
+      IPC audit log. Do not require an open cash register and do not call the normal PDV
+      finalization path, whose open-cash and stock guards are correct for current sales but not
+      for a retroactive summary fact.
+      **Done when:** success, duplicate retry, validation failure and transaction failure leave
+      a consistent database with at most one sale and its optional linked receivable.
+
+- [ ] **GOALS23-10 — Reuse existing schema fields and preserve old data.** Avoid a migration if
+      `observacao`, `origem`, `forma_pagamento`, `cliente_id`, `venda_id`, `data_pagamento` and
+      `data_vencimento` are sufficient, as they are in the current schema. If a dedicated field
+      is proven necessary for display, document why `observacao` cannot carry the name before
+      adding any column. Existing `NULL` payment methods and `importacao_financeiro_historico`
+      origins must remain readable and must not be silently rewritten to `Genérico`.
+      **Done when:** a new and a pre-feature disposable database both support the operation and
+      old imported/PDV rows retain their current meaning.
+
+- [ ] **GOALS23-11 — Wire the narrow contract through Electron.** Update `database.js`, the
+      appropriate existing `ipc/vendas.js` handler and `preload.js`, plus the typed
+      `frontend/src/lib/erpApi.ts` surface. Gate the mutation to `admin`/`dono` even if a
+      vendedor has ordinary Financeiro read/write permission, because retroactive financial
+      facts are a higher-risk operation. Keep report reads behind their existing `relatorios`
+      permission and preserve the current Financeiro permission for ordinary obligations.
+      **Done when:** the handler, preload method, typed method and UI payload use the same names,
+      shapes and permission behavior.
+
+- [ ] **GOALS23-12 — Build the Financeiro entry card and refresh path.** Add a focused component
+      to the first Financeiro section, reusing `ClienteSelector`, existing form controls,
+      persisted formatting and the shared button/modal styles. Show validation and success
+      feedback with the created sale number; refresh the visible cash-flow/summary data after a
+      successful write without a full app restart. Keep the existing obligation form's fields,
+      parceling and category behavior unchanged.
+      **Done when:** an admin can enter the three required fields alone, save a `Genérico`
+      historical sale, and see an unambiguous success/result state in Financeiro.
+
+- [ ] **GOALS23-13 — Make the sales-history presentation honest.** Extend the returned `Venda`
+      shape with the historical origin needed by the UI, add `Genérico` to payment filters and
+      show the required description in the sales row/detail/export. When a summary historical
+      sale has no items, replace the misleading empty-item interpretation with copy stating
+      that it is a historical summary and did not alter current stock. Preserve the current
+      `Venda #<id>` presentation for ordinary PDV sales and keep internal IDs available for
+      audit.
+      **Done when:** the new record is recognizable in the `Relatórios > Vendas` tab without
+      looking like a product-linked sale.
+
+- [ ] **GOALS23-14 — Update report calculation and labels from shared origin semantics.**
+      Extend the report queries and typed results only where required: sales totals/payment
+      grouping; cash-flow origin/description mapping; DRE's historical-without-CMV disclosure;
+      and CSV/PDF exports that include affected sales totals/labels. Reuse the current
+      `ItensVenda` joins as the natural exclusion for product reports, but add explicit tests
+      and UI copy so that exclusion is intentional rather than an accidental empty result.
+      Avoid adding a second SQL path that independently sums the same sale.
+      **Done when:** Financeiro flow, general Relatórios and Relatórios > Vendas agree on the
+      same sale/date/method while DRE and product analytics state their evidence limits.
+
+### Tests
+
+- [ ] **GOALS23-15 — Add backend validation and transaction coverage.** In a disposable encrypted
+      database, cover required name/value/date, trimming, positive cent values, invalid/future
+      dates, optional customer, method default, allowed methods, Fiado conditional requirements,
+      no open-cash requirement, no item/stock mutation, actor-not-commissioned behavior and
+      rollback on a forced write failure.
+      **Done when:** each invalid request fails before partial data exists and each valid request
+      produces the exact intended rows.
+
+- [ ] **GOALS23-16 — Add idempotency and financial-event tests.** Prove repeated `request_id`
+      submission creates one sale and at most one linked receivable. Assert one realized incoming
+      event for PIX, Cartão, Dinheiro and `Genérico`; one paid-receivable event for paid Fiado;
+      no realized event and one projected receivable for open Fiado; and no duplicate entry from
+      the combination of `Vendas` and `LancamentosFinanceiros`.
+      **Done when:** the focused suite fails if a retry duplicates money or if an open Fiado sale
+      is counted as received on its sale date.
+
+- [ ] **GOALS23-17 — Add sales/report regression coverage.** Verify the historical row appears
+      in `getVendas` and `getRelatorioVendas` totals, by-day results, `Genérico` payment group,
+      CSV/PDF-relevant data and the sales tab's description/origin shape. Verify the DRE exposes
+      the historical-without-CMV amount without fabricating product margin; ABC, contribution
+      margin and stock-turnover remain product-only; an optional client affects client
+      segmentation only when linked; and manual entry does not create commission attribution.
+      **Done when:** the report matrix is enforced by tests rather than relying on incidental SQL
+      joins.
+
+- [ ] **GOALS23-18 — Add API/permission and frontend checks.** Cover admin and dono success,
+      vendedor denial even with Financeiro permission, exact IPC/preload/typed-API names,
+      default form values, conditional Fiado fields, `Genérico` display, refresh after save and
+      the historical-summary empty-item message. Keep the legacy bridge out of scope unless the
+      runtime check in GOALS23-01 proves that legacy use is still supported for this feature.
+      **Done when:** a wrong gate or bridge name fails clearly, and no UI test can accidentally
+      route the operation through the generic obligation form.
+
+- [ ] **GOALS23-19 — [manual] Verify the real Electron workflow.** In an isolated
+      `ERP_TEST_USERDATA_DIR`, rebuild the static frontend, log in as admin/dono, create one
+      historical sale with only name/value/date, confirm `Genérico`, optionally repeat with a
+      client and each relevant payment state, then inspect Financeiro flow, Relatórios >
+      Análises, Relatórios > Vendas and the sales export. Confirm no stock changed and no cash
+      register was required. This is app-scoped acceptance using disposable data; do not use the
+      production database, real credentials or release secrets.
+      **Done when:** the displayed counts, totals, date, method and historical description match
+      the inserted facts, and the owner can distinguish cash movement from CMV-backed profit.
+
+### Registration and final acceptance
+
+- [ ] **GOALS23-20 — Update project documentation after behavior is verified.** Record the
+      Financeiro entry point, required/optional fields, `Genérico` default, Fiado conditional
+      rule, no-stock/no-duplicate policy, report inclusion/exclusion matrix and the manual
+      validation status in `AGENTS.md` and this goal. Do not add a new Vendas sidebar entry;
+      document that the read-only sales report remains under Relatórios.
+      **Done when:** a future session can find the action and understand why the same historical
+      fact appears differently in sales, cash-flow, DRE and product reports.
+
+- [ ] **GOALS23-21 — Final ownership and publication gate.** Verify the final diff contains only
+      the requested Financeiro/historical-sales/report work, preserve unrelated parallel WIP,
+      stage only owned files if the owner later requests it, and do not commit, push, publish,
+      migrate real data or remove old historical paths without a separate explicit confirmation.
+      **Done when:** automated proof, manual app proof and any remaining artifact/release gaps
+      are reported separately to the owner.
+
+**Done when:** an admin/dono can create a historical sale from Financeiro using only
+name/total/date, the omitted method is stored and reported as `Genérico`, optional customer and
+Fiado settlement behave safely, one historical fact appears in the intended general and sales
+reports without duplicate cash recognition, current stock/product margin is not fabricated, and
+the workflow is verified in the real Electron app with disposable data.
+

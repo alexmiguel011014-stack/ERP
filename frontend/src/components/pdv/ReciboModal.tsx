@@ -3,7 +3,7 @@ import { Modal } from "@/components/ui/modal";
 import Button from "@/components/ui/button/Button";
 import { formatarMoeda } from "./formatos";
 import type { ItemCarrinho } from "@/hooks/useCarrinho";
-import type { ParcelaVenda } from "@/lib/erpApi";
+import type { PagamentoVendaResultado, ParcelaVenda } from "@/lib/erpApi";
 
 export type DadosRecibo = {
 	vendaId: number;
@@ -14,6 +14,7 @@ export type DadosRecibo = {
 	formaPagamento: string;
 	condicaoNome: string | null;
 	parcelas: ParcelaVenda[];
+	pagamentos?: PagamentoVendaResultado[];
 	clienteNome: string | null;
 	valorRecebido: number | null;
 	data: string;
@@ -44,6 +45,15 @@ export default function ReciboModal({
 				<p>{new Date(dados.data).toLocaleString("pt-BR")}</p>
 				<p>Pagamento: {dados.formaPagamento || "---"}</p>
 				{dados.condicaoNome && <p>Condição: {dados.condicaoNome}</p>}
+				{dados.pagamentos && dados.pagamentos.length > 1 && (
+					<div className="mt-1">
+						{dados.pagamentos.map((pagamento, indice) => (
+							<p key={`${pagamento.forma_pagamento}-${indice}`}>
+								{pagamento.forma_pagamento}: {formatarMoeda(pagamento.valorFinal)}
+							</p>
+						))}
+					</div>
+				)}
 				{dados.clienteNome && <p>Cliente: {dados.clienteNome}</p>}
 				<div className="mt-2 border-t border-dashed border-gray-400 pt-2">
 					{dados.itens.map((item) => (

@@ -1,19 +1,24 @@
 "use client";
 import { useState } from "react";
+import { useAuth } from "@/context/AuthContext";
 import { usePageHeader } from "@/context/PageHeaderContext";
 import NovoLancamentoForm from "@/components/financeiro/NovoLancamentoForm";
+import VendaHistoricaForm from "@/components/financeiro/VendaHistoricaForm";
 import AlertaVencimentoHoje from "@/components/financeiro/AlertaVencimentoHoje";
 import LancamentosUnificados from "@/components/financeiro/LancamentosUnificados";
 import FluxoCaixaTab from "@/components/financeiro/FluxoCaixaTab";
 import FechamentosTab from "@/components/financeiro/FechamentosTab";
 import PagamentosTab from "@/components/financeiro/PagamentosTab";
 import LancamentosRecorrentesTab from "@/components/financeiro/LancamentosRecorrentesTab";
+import { useClientes } from "@/hooks/useClientes";
 
 export default function FinanceiroPage() {
 	usePageHeader(
 		"Financeiro",
 		"Recebimentos, pagamentos e visão do caixa em um único espaço operacional.",
 	);
+	const { isAdmin } = useAuth();
+	const { clientes } = useClientes();
 	const [refreshKey, setRefreshKey] = useState(0);
 	const [mensagem, setMensagem] = useState<{
 		texto: string;
@@ -50,6 +55,13 @@ export default function FinanceiroPage() {
 					onSalvo={(_tipo, texto) => marcarAtualizado(texto)}
 					onErro={(texto) => mostrarMensagem(texto, false)}
 				/>
+				{isAdmin && (
+					<VendaHistoricaForm
+						clientes={clientes}
+						onSalvo={marcarAtualizado}
+						onErro={(texto) => mostrarMensagem(texto, false)}
+					/>
+				)}
 				{mensagem && (
 					<div
 						className={
