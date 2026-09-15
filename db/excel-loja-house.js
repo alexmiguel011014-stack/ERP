@@ -1298,6 +1298,10 @@ const CATEGORIAS_PAGAMENTO_HISTORICO = new Set([
 	"Consumo interno",
 	"Empréstimo/adiantamento",
 ]);
+const DESCRICOES_SAIDA_VENDA_HISTORICA = new Set([
+	"KIMONOS ADULTOS",
+	"CONJUNTO NOGI",
+]);
 
 function paraCentavos(valor, campo) {
 	const numero = Number(valor);
@@ -1399,6 +1403,9 @@ function classificarMovimentoFinanceiroHistorico(movimento) {
 				"Entrada sem evidência suficiente de venda histórica; requer conferência manual",
 			);
 		}
+		return { destino: "venda" };
+	}
+	if (DESCRICOES_SAIDA_VENDA_HISTORICA.has(descricaoNormalizada)) {
 		return { destino: "venda" };
 	}
 
@@ -1774,7 +1781,11 @@ function validarModeloFinanceiroMensal(modelo) {
 		const dentroDaCompetencia = movimento.data.startsWith(`${modelo.competencia}-`);
 		if (movimento.destino === "venda_historica") {
 			if (
-				movimento.direcao !== "entrada" ||
+				(movimento.direcao !== "entrada" &&
+					!(movimento.direcao === "saida" &&
+						DESCRICOES_SAIDA_VENDA_HISTORICA.has(
+							normalizarTexto(movimento.descricao_original),
+						))) ||
 				!dentroDaCompetencia ||
 				movimento.categoria !== null ||
 				movimento.motivo_pendencia !== null

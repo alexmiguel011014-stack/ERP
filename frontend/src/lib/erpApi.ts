@@ -1038,6 +1038,7 @@ export type ItensImportadosLote = {
 	estoque: number;
 	clientes: number;
 	lancamentos: number;
+	vendasHistoricas: number;
 };
 
 export type ErroImportacaoItem = {

@@ -5958,7 +5958,8 @@ generic cash-flow row. The existing Fluxo de Caixa remains a derived report, not
 rollout, no cleanup of previously imported wrong rows, and no stock reconstruction.
 
 **Workbook evidence:** after excluding `Saldo Anterior` and trailing `TOTAL`-only rows, January
-has 20 transaction rows: 17 positive sale candidates and 3 payment candidates. The source totals
+has 20 transaction rows: 17 entry sale candidates, one card payment, and two owner-confirmed
+sales recorded on the source exit side. The source totals
 are `ENTRADA = R$4,512.83`, `SAÍDA = R$3,979.00`, and final `TOTAL = R$533.83`. These values are
 reconciliation evidence, not additional movements to import.
 
@@ -5981,18 +5982,18 @@ sale-versus-payment mapping still needs careful accounting validation.
 ### Design and scope
 
 - [x] **GOALS17-01 — Fix the semantic mapping.** Classify each source row from its direction and
-  description. For January, route the 17 product-like `ENTRADA` rows to reporting-only historical
-  sales in `Vendas`; route `Cartão` to a paid `LancamentosFinanceiros` row categorised as
-  `Pagamento de cartão`; and route `Kimonos Adultos` and `Conjunto NoGi` to paid rows categorised
-  as `Compra para estoque histórica`. Never create a matching `tipo='receber'` row for a sale,
-  because `getFluxoCaixa` already derives it from `Vendas`.
+  description. For January, route the 17 product-like `ENTRADA` rows plus the confirmed
+  `SAÍDA` descriptions `Kimonos Adultos` and `Conjunto NoGi` to reporting-only historical sales
+  in `Vendas`; route `Cartão` to a paid `LancamentosFinanceiros` row categorised as `Pagamento
+  de cartão`. The two confirmed sales retain their source `SAÍDA` direction in cash flow, so the
+  source reconciliation remains intact. Never create a matching `tipo='receber'` row for a sale.
 
 - [x] **GOALS17-02 — Preserve facts and avoid speculation.** Keep source date, original
   description, and amount. Do not match an old description to a current product, SKU, variation,
   customer, supplier, payment method, or stock quantity. Do not infer that `Cartão` funded
   inventory. Classify only the financial nature supported by the source: `Pagamento de cartão`,
-  `Compra para estoque histórica`, `Consumo interno`, `Empréstimo/adiantamento`, or
-  `Pendente de conferência`.
+  `Consumo interno`, `Empréstimo/adiantamento`, or `Pendente de conferência`. The two named
+  January sales are an explicit owner-confirmed exception to direction-only classification.
 
 - [x] **GOALS17-03 — Ignore opening stock and opening cash for this pilot.** Do not create an
   opening balance, cash-opening event, `MovimentacoesEstoque`, or quantity adjustment. Historical
@@ -6004,8 +6005,8 @@ sale-versus-payment mapping still needs careful accounting validation.
   contribute to historical revenue and cash-flow totals, but never to a current-product ranking,
   stock count, or margin calculation.
 
-- [x] **GOALS17-05 — Keep the pilot small and reviewable.** Preview the 17 January historical-sale
-  rows and 3 payment rows with their source description and category before commit. Any ambiguous
+- [x] **GOALS17-05 — Keep the pilot small and reviewable.** Preview the 19 January historical-sale
+  rows and 1 payment row with their source description and category before commit. Any ambiguous
   row must be explicitly confirmed or left pending; it must not be silently classified from the
   word `ENTRADA` alone. The preview must not suggest a current product match.
 
@@ -6042,14 +6043,15 @@ sale-versus-payment mapping still needs careful accounting validation.
 
 ### Verification and acceptance
 
-- [x] **GOALS17-11 — Parser fixture.** Cover January's 17 positive rows, 3 negative rows,
+- [x] **GOALS17-11 — Parser fixture.** Cover January's 17 positive rows, the two owner-confirmed
+  sale rows recorded as source `SAÍDA`, and the card payment,
   `Saldo Anterior`, trailing `TOTAL`-only rows, a `café/almoço` payment, and a row with an
   invalid/out-of-period date. Assert the exact January split and source reconciliation:
-  R$4,512.83 in historical sales, R$3,979.00 in payments, and R$533.83 as the computed ending
-  balance. Assert the consumption keyword is classified without a product match.
+  R$4,512.83 in source entries, R$3,979.00 in source exits, and R$533.83 as the computed ending
+  balance. Assert 19 historical sales and one card payment without a product match.
 
-- [x] **GOALS17-12 — Disposable database test.** After commit, assert 17 finalized historical
-  summary sales in `Vendas`, 3 paid `tipo='pagar'` financial rows with the expected categories,
+- [x] **GOALS17-12 — Disposable database test.** After commit, assert 19 finalized historical
+  summary sales in `Vendas`, one paid `tipo='pagar'` card row,
   zero imported sale receivables, zero stock movement, zero product/variation link, and zero
   fabricated sale items. Assert `getFluxoCaixa` and historical sales totals include each source
   event once, the product ranking excludes these summaries, and a second identical run adds
@@ -6078,7 +6080,7 @@ sale-versus-payment mapping still needs careful accounting validation.
   silently remapped to 2026.
 
 **Done when:** January can be previewed and committed in an isolated app run with the exact
-17-historical-sale/3-payment split, source-derived payment categories, no product matching, stock,
+19-historical-sale/1-payment split, source-derived payment categories, no product matching, stock,
 or opening-cash mutation, no duplicate cash-flow event, safe retry behavior, and evidence from
 both automated tests and the manual Electron gate.
 
@@ -6096,7 +6098,7 @@ file for preview/import. Do not create, check in, or copy a real financial JSON 
 repository. February–September are explicitly out of scope: they must each be separately
 reviewed and supplied as their own canonical JSON after January is accepted.
 
-**Existing January facts to preserve:** 17 historical sales and 3 categorized paid outflows,
+**Existing January facts to preserve:** 19 historical sales and 1 categorized paid outflow,
 `R$4,512.83` in entries, `R$3,979.00` in exits, and a closing balance of `R$533.83`. These are
 audit values, not four additional financial movements. January starts with no imported cash or
 stock event. Future-month envelopes may record a non-zero opening balance only for reconciliation;
@@ -6143,7 +6145,8 @@ multi-month migration.
   financial source JSON.
 
 - [x] **GOALS18-03 — Keep classifications conservative and source-derived.** `entrada` may use
-  only `venda_historica` after January's accepted sale rule; `saida` may use only
+  `venda_historica`; the two owner-confirmed January `saida` descriptions may also use
+  `venda_historica` while retaining their source direction; every other `saida` may use only
   `pagamento_historico` with a closed category (`Pagamento de cartão`,
   `Compra para estoque histórica`, `Consumo interno`, or `Empréstimo/adiantamento`). A doubtful
   line is `pendente` with its original description and a reason; it blocks commit. Reject any
@@ -6170,7 +6173,7 @@ multi-month migration.
   than reparsing an `.xlsx` at commit time. The old general Excel importer remains barred from
   importing financial-history sheets.
   **Done when:** an envelope generated from a synthetic January workbook round-trips through the
-  normalizer to the current 17-sale/3-payment internal shape, and no execution API needs the
+  normalizer to the current 19-sale/1-payment internal shape, and no execution API needs the
   workbook path.
 
 - [x] **GOALS18-06 — Add narrow JSON IPC and typed API contracts.** In
@@ -6211,7 +6214,7 @@ multi-month migration.
 ### Verification and rollout boundary
 
 - [x] **GOALS18-10 — Add synthetic envelope tests.** Cover serialization and parsing of January's
-  17/3/zero-pending split, all cent totals, invalid schema/version/competence, unknown fields,
+  19/1/zero-pending split, all cent totals, invalid schema/version/competence, unknown fields,
   duplicate keys, an invalid destination/category, a stale preview checksum, source-row changes
   and a reconciliation mismatch. Use temporary synthetic workbooks/JSON only; do not make tests
   read, copy or commit the user's workbook or financial JSON.
@@ -6220,7 +6223,7 @@ multi-month migration.
 
 - [x] **GOALS18-11 — Prove database safety in a disposable database.** Verify dry-run has no
   side effects, commit is atomic, failure rolls back, an exact JSON retry is idempotent, and a
-  changed source is rejected. Assert exactly 17 finalized summary sales and 3 categorized paid
+  changed source is rejected. Assert exactly 19 finalized summary sales and one categorized paid
   outflows; zero sale items, stock changes, receivables, product/variation/customer links and
   opening-cash rows; flow includes each historical fact once; product ranking and margin stay
   unaffected.
@@ -6250,6 +6253,442 @@ inventions. No later month is enabled by this goal.
 **Ordering rule:** GOALS18-01..04 settle the data contract; GOALS18-05..09 implement the one-file
 boundary; GOALS18-10..12 verify it; GOALS18-13 documents the stop condition. GOALS17's open
 manual gate remains independently required before any real January import.
+
+---
+
+## GOALS 19 — Static period controls across Reports views (feature, not started)
+
+**Owner request (2026-09-10):** replace the expandable `Período` control recently added to
+Relatórios with one static, compact period area. The design must not contain both an outer filter
+section and a nested card: keep the existing filter section, remove the toggle and inner card,
+and place its title, explanatory copy, date inputs and actions directly in that section. Apply
+the same period interaction to **Análises**, **Vendas**, and **Fluxo de Caixa**. In each view,
+the controls follow one horizontal sequence: start date, end date, apply, `Este mês`, and
+`Período todo`. Análises' CSV/PDF exports and Vendas' CSV export remain non-period actions and
+simply follow that sequence.
+
+**Out of scope:** no Financeiro-page redesign, no new report type, no change to historical-sale
+or payment accounting semantics, no backend/API contract rewrite, and no new UI dependency or
+popover/modal component.
+
+```mermaid
+flowchart TD
+  A[Define one period selection contract] --> B[Static controls in Fluxo de Caixa]
+  A --> C[Static controls in Análises]
+  A --> D[Static controls in Vendas]
+  B --> E[Automated UI and data-range checks]
+  C --> E
+  D --> E
+  E --> F[Manual Electron verification]
+```
+
+Suggested: gpt-5.6-terra · medium — the visual change is compact, but the shared period state
+must preserve the all-history default and avoid stale date values across three report views.
+
+### Design rationale and interaction contract
+
+- [x] **GOALS19-01 — Flatten the filter surface without removing its meaning.** In
+  `PainelFluxoCaixa.tsx`, remove the `Período` trigger, conditional expansion state and nested
+  bordered card. Keep exactly one visible filter section. Its heading and one-line explanation
+  sit above the controls; its calendar inputs and actions are visible immediately. Do not add a
+  second heading/card around it.
+  **Done when:** Fluxo de Caixa opens with no hidden period controls, no `Período` toggle, and
+  no visually nested card.
+
+- [x] **GOALS19-02 — Use the owner-approved action order.** At usable desktop widths, render
+  `De`, `Até`, `Aplicar período`, `Este mês`, then `Período todo` on the same control row. The
+  two quick actions must appear after the date/apply controls rather than in the heading's upper
+  right. On smaller widths they may wrap in that source order with usable touch targets and clear
+  labels.
+  **Done when:** the report matches the annotated reference: the heading is not crowded by
+  buttons, and both quick actions visibly follow the date range action.
+
+- [x] **GOALS19-03 — Make period semantics explicit and identical.** `Este mês` sets the first
+  day of the local current month through today and reloads immediately. `Período todo` clears the
+  visible calendar values and explicitly requests the supported full historical range, rather
+  than allowing a previous range or the backend's current-month fallback to leak through. A
+  custom range applies only when both dates exist and start is not after end; show the existing
+  loading/disabled state while a request runs.
+  **Done when:** choosing `Período todo` after a January selection returns the entire available
+  history, not January or the current month, and the same action does not create or mutate a
+  financial movement.
+
+### Implementation plan
+
+- [x] **GOALS19-04 — Reuse one small period-control implementation.** Introduce or refine one
+  focused frontend control for the common title, date inputs, validation and quick-action
+  behavior, then compose it in the three existing report surfaces. Keep each view responsible
+  for its own loading callback and trailing non-period actions; do not create a generic report
+  framework or duplicate date-selection rules in three files.
+  **Done when:** the shared period behavior has one source of truth while Fluxo, Análises and
+  Vendas retain their current data/loading ownership.
+
+- [x] **GOALS19-05 — Wire Análises without changing its exports.** Update
+  `RelatoriosFiltros.tsx` and the existing `useRelatorios` call path so its static control row
+  follows the common period contract. Keep `Exportar ABC (CSV)` and `Exportar PDF` as trailing,
+  independent actions in the same sequence; their existing export payloads and permission
+  behavior remain untouched.
+  **Done when:** Análises applies custom/current/all-history periods correctly and both exports
+  remain reachable after the period actions.
+
+- [x] **GOALS19-06 — Wire Vendas with the same contract.** Update
+  `VendasFiltros.tsx` and `useVendas.ts` so quick actions pass their selected dates directly to
+  the fetch operation, avoiding React state timing from reusing an earlier range. Keep
+  `Exportar CSV` as the trailing independent action and preserve table/detail behavior.
+  **Done when:** Vendas can move from a filtered range to `Período todo` in one action and shows
+  the full historical sales list without a stale query.
+
+- [x] **GOALS19-07 — Keep Fluxo de Caixa as the same report, only easier to operate.** Replace
+  the temporary expandable UI in `PainelFluxoCaixa.tsx` with the shared static composition while
+  retaining its explanatory legend, realized/projected separation, daily table and grouping
+  panels. Do not classify a card payment as DRE expense merely because it appears in cash flow.
+  **Done when:** selecting January still shows the imported card payment in cash outflows, while
+  its reporting semantics remain unchanged.
+
+### Verification and manual acceptance
+
+- [x] **GOALS19-08 — Add focused behavior coverage.** Extend the existing Electron/Playwright
+  suite or a focused frontend test to verify that all three tabs expose the two date calendars,
+  `Este mês` and `Período todo` without an expandable trigger; verify source-order layout at the
+  tested viewport and that the export buttons remain available in Análises/Vendas. Cover a
+  custom range followed by `Período todo` to prove no stale dates are sent.
+  **Done when:** the test is deterministic, uses an isolated database, and fails if any view
+  restores the hidden toggle or queries the prior range after selecting all history.
+
+- [ ] **GOALS19-09 — Validate build and desktop interaction [manual].** Run frontend lint,
+  typecheck and build, then launch the local Electron app with isolated user data. Inspect the
+  three Relatórios tabs at desktop and narrow widths; apply January, `Este mês`, `Período todo`
+  and a custom range. Confirm exports still work from their existing buttons and no production
+  database, workbook or historical JSON is changed.
+  **Done when:** the owner can use all three static filter rows in the real Electron interface
+  and sees the requested layout without a stale-report or layout-overflow error.
+
+**Done when:** Relatórios has one consistent, immediately visible period interaction in Análises,
+Vendas and Fluxo de Caixa; non-period exports remain in sequence; all-history behavior is
+explicit; and automated plus isolated-app evidence confirms the UI and report data stay correct.
+
+**Ordering rule:** settle the interaction contract first, implement the shared control before its
+three consumers, then verify behavior before manual desktop acceptance.
+
+---
+
+## GOALS 20 — Loja House: accept January, then review February–September one month at a time (feature, not started)
+
+**Owner request (2026-09-10):** finish structuring the January financial history so it can be
+validated as the accepted pilot, then use the same reviewed-JSON workflow for every remaining
+financial sheet in `Loja House.xlsx`. This is a staged migration, not a bulk import: each month
+gets one external JSON file, one source reconciliation, one description review, one dry-run and
+one explicit import decision before the next month is enabled.
+
+**Workbook evidence observed read-only on 2026-09-10:** January has 20 dated movements, 19
+owner-confirmed historical sales, one `Cartão` payment, R$4,512.83 in source entries,
+R$3,979.00 in source exits, and R$533.83 closing. Every financial sheet reconciles internally,
+but cross-sheet opening balances differ by R$0.05 from April to May and R$0.01 from July to
+August. `Financeiro LojaABRIL` contains May 1–2 rows; `Financeiro LojaJULHO` contains
+`2023-07-23` and `2026-08-01` rows. These are source facts requiring an explicit review, never
+a date rewrite.
+
+**Out of scope:** product/SKU/customer/stock matching, reconstructing opening cash or stock,
+changing a reviewed historical batch, auto-importing production data, and using a source
+description to invent supplier, payment method, margin or inventory facts.
+
+```mermaid
+flowchart TD
+  A[Finish January reviewed JSON] --> B[Manual isolated-app acceptance]
+  B --> C[Unlock one next source month]
+  C --> D[Generate external JSON draft]
+  D --> E[Review descriptions and source anomalies]
+  E --> F{No pending line and reconciliation passes?}
+  F -->|No| G[Keep JSON pending; do not commit]
+  F -->|Yes| H[Dry-run then explicit import]
+  H --> I[Verify Financeiro, Vendas, Fluxo and reports]
+  I --> C
+```
+
+Suggested: gpt-5.6-sol · high — it extends a financial-import boundary across nine source
+periods, where an apparently small classification or date error can corrupt historical reports.
+
+### Design rationale and data contract
+
+- [ ] **GOALS20-01 — Accept January before expanding the scope.** Preserve the current
+  January-only JSON envelope format and source facts: 19 `venda_historica` records, one
+  `pagamento_historico` record (`Pagamento de cartão`), zero pending records, zero opening-cash
+  event, and 53,383 closing cents. Generate the real JSON only through the existing save dialog
+  to an operator-selected external folder. Do not create it under the repository or import it
+  into the production database.
+  **Done when:** the selected January JSON validates with its own checksum and shows exactly the
+  reviewed split before any database-write option is offered.
+
+- [ ] **GOALS20-02 — Generalize the envelope without creating a second format.** Keep
+  `loja_house.financeiro_historico` version 1 and its integer-cent audit fields. Replace only
+  January-specific sheet/competence guards with a strict month descriptor mapping each allowed
+  `2026-MM` competence to its exact `Financeiro Loja<MÊS>` tab. Keep a JSON as the sole commit
+  input; Excel may generate a draft but must never be committed directly.
+  **Done when:** one validator accepts a correct selected competence/sheet pair and rejects an
+  unknown month, an altered source sheet, mismatched movement date, duplicate row key or a
+  malformed/changed JSON.
+
+- [ ] **GOALS20-03 — Preserve source direction while separating semantic destination.** A
+  historical sale may retain source `entrada` or an explicitly owner-confirmed source `saida` in
+  cash flow; its destination must never reverse the source cash direction. A paid outflow may
+  only use `Pagamento de cartão`, `Compra para estoque histórica`, `Consumo interno`, or
+  `Empréstimo/adiantamento`. `caixinha`, `cofre`, `troco`, `cashback`, `diferença`, unrecognised
+  entries, and any other uncertain description stay `pendente` with the original text and a
+  reason. A pending line blocks that month's commit.
+  **Done when:** no month can silently turn an uncertain item into a sale, stock purchase,
+  expense, receivable, or cash-balance event.
+
+- [ ] **GOALS20-04 — Make month boundaries reviewable rather than "corrected".** Reconcile
+  each sheet independently using its stated opening, entries, exits and reported closing in
+  cents. Display cross-month opening/previous-closing differences as source-review warnings,
+  without posting them. Keep April's May 1–2 rows and July's 2023-07-23/2026-08-01 rows pending
+  until the owner chooses whether they belong to the sheet competence or a different JSON.
+  **Done when:** the JSON audit shows every source amount once and no date is silently moved to
+  make a month look clean.
+
+### Implementation plan
+
+- [ ] **GOALS20-05 — Close the January pilot in the isolated app.** Build the local frontend,
+  start Electron with isolated user data, generate/reselect January's external JSON, preview it,
+  cancel once, run dry-run, commit once and retry the identical file. Inspect the resulting
+  historical sales, the paid card record, Fluxo de Caixa, DRE/Análises, Vendas and stock.
+  Confirm no product correlation, stock mutation, receivable, duplicate event or production
+  database access occurs. This satisfies the still-open manual gates GOALS17-14 and GOALS18-12;
+  GOALS17-16 may close only after this evidence exists.
+  **Done when:** January's cash-flow source reconciliation remains R$533.83 and the identical
+  retry adds no row.
+
+- [ ] **GOALS20-06 — Expose one selected month in the existing reviewed-file flow.** Replace
+  January-only copy, IPC/API types and parser arguments with a controlled month selector that
+  exposes only the next approved month after January's acceptance. The interface must show the
+  selected competence, source sheet, source checksum, JSON checksum, audit totals, source rows,
+  categories, pending reasons and cross-month warning before dry-run/commit.
+  **Done when:** the operator cannot accidentally generate or execute a different month than the
+  one visibly selected, and no new generic bulk-import screen is introduced.
+
+- [ ] **GOALS20-07 — Seed only conservative draft classifications.** Reuse normalized
+  descriptions for obvious card, internal-consumption, loan and stock-purchase candidates, but
+  do not use current ERP catalog matching. Treat product-like source entries as candidate
+  historical sales only when they do not match an uncertainty term; preserve exceptional source
+  exits as pending unless specifically confirmed for that exact source row. Make the JSON
+  reviewer responsible for resolving every pending row before it can be imported.
+  **Done when:** February's card, café/almoço, protector-bucal and loan examples receive their
+  safe candidate categories, while its product-like source exit and all unusual terms require
+  explicit review.
+
+- [ ] **GOALS20-08 — Keep imported reporting facts separate from accounting interpretation.**
+  Reuse the existing historical sale adapter and paid-financial adapter per approved month. Sales
+  remain summary-only and excluded from product ranking, stock and margin. Card and internal
+  consumption remain cash outflows; a card payment must not become DRE operating expense merely
+  because it is visible in Fluxo de Caixa. Keep each source direction in cash flow so the sheet
+  audit can be reproduced.
+  **Done when:** every accepted JSON event appears once in the intended historical report and
+  source reconciliation, with no fabricated catalog or inventory fact.
+
+### Month-by-month review sequence
+
+- [ ] **GOALS20-09 — Review February (`2026-02`) after January acceptance.** Create one external
+  JSON and explicitly decide the product-like `Kimono A1 Brazil Combat` source exit. Verify its
+  own reconciliation: opening R$533.83, entries R$3,852.04, exits R$2,450.47 and closing
+  R$1,935.40.
+  **Done when:** every February description is classified or remains pending; no import occurs
+  while a pending item remains.
+
+- [ ] **GOALS20-10 — Review March (`2026-03`) after February acceptance.** Create one external
+  JSON and review `kimonos` as a source exit separately from the clearly described card and
+  café entries. Verify opening R$1,935.40, entries R$4,211.09, exits R$4,033.90 and closing
+  R$2,112.59.
+  **Done when:** March is accepted only after its JSON and dry-run have no pending row.
+
+- [ ] **GOALS20-11 — Review April (`2026-04`) and its two out-of-competence rows.** Keep the
+  May 1 and May 2 source rows visible as exceptions; do not attach them to April or silently
+  relocate them. Verify the sheet's stated closing R$2,466.53 before deciding their destination.
+  **Done when:** the owner has made a recorded decision for both rows and the accepted April JSON
+  contains only the movements belonging to its selected competence.
+
+- [ ] **GOALS20-12 — Review May (`2026-05`) and its opening discrepancy.** Flag the R$0.05
+  difference between April closing and May opening as reconciliation context, not a posting.
+  Require review of `cofre`, `caixinha`, loans and every product-like source exit. Verify May's
+  own R$1,497.85 closing before import.
+  **Done when:** the monthly JSON documents the source warning and no balancing adjustment has
+  been fabricated.
+
+- [ ] **GOALS20-13 — Review June (`2026-06`) with cash-like terms pending.** Require explicit
+  decisions for `caixinha`, `resgate caixinha`, `sobrando ?`, `tráfego camisa`, repair and
+  inventory-like descriptions. Verify June's R$97.78 closing.
+  **Done when:** every imported June row has an evidenced destination and all uncertain rows
+  remain outside the commit.
+
+- [ ] **GOALS20-14 — Review July (`2026-07`) with date and cash anomalies.** Keep the
+  `2023-07-23 anúncio inst` and `2026-08-01 Padaria` rows pending until assigned by the owner.
+  Review `troco`, `entrada`, `teste`, card variants, store fixtures and advertising separately;
+  do not treat the word `entrada` as proof of a sale. Verify July's own R$2,107.29 closing.
+  **Done when:** no July JSON imports an out-of-competence row or changes its date.
+
+- [ ] **GOALS20-15 — Review August (`2026-08`) and September (`2026-09`) in order.** Flag the
+  R$0.01 July/August opening difference without posting it. Review loans, cashback, crediário,
+  medicines, differences and personal/meal terms conservatively. Verify August R$2,524.51 and
+  September R$2,730.51 closings; September contains only two source entries.
+  **Done when:** each month has a separate reviewed JSON, dry-run and explicit owner decision;
+  September is never absorbed into August merely because it is small.
+
+### Verification, audit and rollout
+
+- [ ] **GOALS20-16 — Add synthetic multi-month contract coverage.** Extend the existing focused
+  parser/envelope/import tests with synthetic files for every month descriptor, cross-month
+  warning, out-of-competence date, one-cent opening mismatch, pending classifier, source-exit
+  sale confirmation, JSON mutation and identical retry. Tests must not read, copy or commit the
+  real workbook or external financial JSON files.
+  **Done when:** tests prove that a bad month cannot be accepted just because its arithmetic
+  closes, and that an accepted JSON is idempotent.
+
+- [ ] **GOALS20-17 — Prove each accepted month in a disposable database before real use.** For
+  every approved monthly JSON, assert the exact number of summary sales, paid historical
+  payments and pending lines; no `ItensVenda`, stock movement, product/customer link,
+  receivable, opening event or duplicate flow row may be created. Check Financeiro, Fluxo,
+  Vendas and report queries against the JSON audit cents.
+  **Done when:** isolated tests reproduce each accepted source reconciliation and no report
+  creates a second representation of the same fact.
+
+- [ ] **GOALS20-18 — Require an owner-controlled production gate and update documentation.**
+  Do not import a real month until its external JSON was reviewed, dry-run, and explicitly
+  approved by the owner. Record the exact monthly checklist, pending policy, source anomalies and
+  replacement prohibition in `IMPORT_LOJA_HOUSE.md`. Preserve real JSON files outside Git.
+  **Done when:** an operator can safely repeat the process for one month without relying on a
+  developer's memory, while Git status remains free of financial source data.
+
+**Done when:** January has passed the real isolated-app acceptance gate, and February through
+September can each be processed through the same one-JSON, one-review, one-dry-run, one-explicit-
+commit sequence with source direction, cents reconciliation and uncertainty preserved. A month
+with unresolved rows is deliberately left pending rather than forced into the ERP.
+
+**Ordering rule:** accept January first; generalize the contract before exposing a next-month
+selector; review and validate months in calendar order; never begin a later import while an
+earlier month still lacks its owner decision or a source anomaly remains unexplained.
+
+---
+
+## GOALS 21 — Loja House January: source-direction correction and historical-sales clarity
+
+**Type:** Fix — the imported January records are presented as anonymous sales and historical
+source exits can be included in revenue totals. This plan corrects the interpretation without
+inventing products, stock, profit, or a replacement transaction.
+
+**Evidence:** In `Financeiro LojaJANEIRO`, `Kimonos Adultos` (R$1,570.00) and `Conjunto NoGi`
+(R$900.00) are source `SAÍDA` rows; `Cartão` (R$1,509.00) is the third January source exit.
+In a clean imported sequence, the screenshot's IDs `#14` and `#17` correspond to those two
+rows, respectively. IDs are diagnostic only, not a permanent mapping contract. The current
+sales table always displays `#<id>`, while the imported original description already exists in
+the persisted observation. The current sales report unconditionally sums every finalised
+`Vendas.total`, which produces R$6,982.83 for January and therefore includes source exits.
+
+**Scope boundaries:** Do not alter a real database, silently re-import or replace a reviewed
+batch, infer a product/stock relationship, or treat a card settlement as an operating DRE
+expense. Gross revenue, profit and cash movement remain distinct concepts.
+
+```mermaid
+flowchart LR
+  A[Reproduce source rows and current output] --> B[Owner resolves source-exit semantics]
+  B --> C[Preserve source direction in the import model]
+  C --> D[Show original historical description]
+  C --> E[Separate revenue from source exits]
+  D --> F[Regression tests and isolated manual check]
+  E --> F
+```
+
+Suggested: gpt-5.6-sol · high — a small UI change intersects with financial direction,
+historical reports and import idempotency.
+
+### Reproduction and root cause
+
+- [ ] **GOALS21-01 — Capture an isolated January fixture and mapping.** Reproduce all twenty
+  source movements from the workbook, including the three exits: `Cartão` R$1,509.00,
+  `Kimonos Adultos` R$1,570.00 and `Conjunto NoGi` R$900.00. Assert R$4,512.83 entries,
+  R$3,979.00 exits and R$533.83 closing cash. Record the clean-database row mapping only as
+  diagnostic evidence; never use sequential database IDs as business identity.
+  **Done when:** the fixture proves exactly which raw source row is behind each UI example.
+
+- [ ] **GOALS21-02 — Document the current report contracts before changing them.** Prove that
+  `getRelatorioVendas` aggregates all finalised `Vendas.total`, that Cash Flow preserves an
+  imported row's source `entrada`/`saida`, and that DRE deliberately excludes imported history
+  from ordinary revenue and expenses while its historical side value is not rendered in the
+  current panel.
+  **Done when:** each January number is labelled as gross revenue, cash movement or unavailable
+  profit, never as an interchangeable "faturamento".
+
+- [ ] **GOALS21-03 — Identify the display data path.** Verify that `VendasTable` renders the
+  internal ID because `getVendas` exposes an observation but not the historical-origin/direction
+  metadata needed for a safe label. Confirm that ordinary PDV sales keep their current label and
+  that historical summary rows legitimately have no product items.
+  **Done when:** the implementation path can show a historical original description without
+  pretending it is a registered ERP product.
+
+- [ ] **GOALS21-04 — Obtain the owner decision for every source exit.** Reconcile the earlier
+  instruction that Kimono/NoGi are sales with the newer instruction to respect `entrada` and
+  `saida`. Until confirmed, no source `saida` may be displayed or aggregated as incoming
+  historical revenue: preserve the raw fact as a pending/outgoing historical event instead.
+  Keep `Cartão` as a payment settlement unless the owner supplies evidence otherwise.
+  **Done when:** the final treatment of all three rows is written down, with no ambiguous exit
+  silently converted into a sale.
+
+### Fix
+
+- [ ] **GOALS21-05 — Preserve direction and original wording in the January import contract.**
+  After the owner decision, retain source direction, original description and source-row
+  provenance as first-class historical metadata. A changed classification must create a reviewed
+  replacement artifact and follow an explicit owner-controlled migration action; it must never
+  mutate or duplicate an existing imported batch automatically.
+  **Done when:** a historical row can be independently audited back to its workbook fact and
+  an old batch remains safe from an implicit rewrite.
+
+- [ ] **GOALS21-06 — Replace anonymous historical sale labels with the original description.**
+  Render a label such as `Histórico: Camisa Equipe` for imported historical rows and keep the
+  internal ID secondary for support/audit. Preserve the ordinary PDV `Venda #` presentation.
+  In the expanded historical row, state that it is a source summary with no registered ERP item,
+  rather than reporting a misleading missing-item condition. Surface origin and source direction
+  where relevant.
+  **Done when:** the screenshot's `#14`/`#17` examples show their real source description and
+  cannot be mistaken for a product matched to inventory.
+
+- [ ] **GOALS21-07 — Make report aggregation direction-aware.** Include normal PDV sales and
+  only the owner-approved incoming historical revenue in sales-report faturamento. Keep any
+  historical source exit visible in Cash Flow and, if it remains semantically a historical sale,
+  show it in a separately named outgoing historical-events view rather than adding it to
+  incoming revenue. Keep exports consistent with the screen.
+  **Done when:** R$1,570.00 and R$900.00 cannot inflate sales revenue merely because they were
+  stored in `Vendas`, while no raw cash event disappears or is double-counted.
+
+- [ ] **GOALS21-08 — Make the DRE limitation explicit.** Keep historical entries without CMV
+  out of calculated profit and disclose their separately tracked historical amount, if shown.
+  Do not subtract `Cartão` from gross revenue or force it into operating expenses solely from
+  its text; Cash Flow remains the place to reconcile the R$533.83 January balance.
+  **Done when:** the UI clearly distinguishes revenue, cash outflow and profit rather than
+  presenting a mathematically precise but semantically unsupported margin.
+
+### Regression tests and acceptance
+
+- [ ] **GOALS21-09 — Add focused source-direction and report tests.** Use synthetic January
+  fixtures to cover historical descriptions, source `entrada`/`saida`, the three exits, normal
+  non-historical sales, sales-report totals, Cash Flow totals and DRE exclusions. The tests must
+  fail under the current unconditional revenue sum and must not read or copy the real workbook.
+  **Done when:** automated tests prevent a source exit from reappearing as incoming revenue.
+
+- [ ] **GOALS21-10 — Cover the typed IPC and sales-table presentation.** Test the returned
+  historical metadata, label fallback, normal PDV label, expansion copy, sorting/filtering and
+  any report/export column affected by the new distinction.
+  **Done when:** a UI regression cannot revert historical rows to anonymous `#id` labels or
+  erase their source direction.
+
+- [ ] **GOALS21-11 — Perform an isolated manual acceptance check.** Import the approved January
+  JSON into a disposable database, inspect Vendas, Financeiro, Cash Flow and Relatórios, and
+  compare every displayed amount with the approved source-direction decision. Do not use the
+  production user-data directory or import the real workbook as part of this check.
+  **Done when:** the owner can see the original names, the source exits stay exits, January cash
+  closes at R$533.83, and no report claims unsupported historical profit.
+
+**Done when:** imported history is identifiable by source description, source direction remains
+auditable, revenue excludes inappropriate source exits, and the cash/DRE limitations are visible
+instead of silently changing financial meaning.
 
 ## GOALS22 — Correct mixed-payment surcharge, budget lifecycle, update visibility, and release notes
 

@@ -802,6 +802,9 @@ function ImportacaoLojaHouse({ modo }: { modo: "loja_house" | "excel" }) {
 						<li>Estoque: {resultadoFinal.importadas.estoque}</li>
 						<li>Clientes: {resultadoFinal.importadas.clientes}</li>
 						<li>Lançamentos: {resultadoFinal.importadas.lancamentos}</li>
+						<li>
+							Vendas históricas: {resultadoFinal.importadas.vendasHistoricas}
+						</li>
 					</ul>
 
 					<p className="mt-3 text-sm text-gray-700 dark:text-gray-300">

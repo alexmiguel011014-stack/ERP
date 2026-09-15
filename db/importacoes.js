@@ -744,12 +744,13 @@ async function importarVendasFinanceiroHistorico(dados, batchId, db) {
 			await runOn(
 				conn,
 				`INSERT INTO Vendas
-				(total, forma_pagamento, data_venda, desconto, observacao, status, origem)
-				VALUES (?, NULL, ?, 0, ?, 'finalizada', 'importacao_financeiro_historico')`,
+				(total, forma_pagamento, data_venda, desconto, observacao, status, origem, direcao_fluxo_historica)
+				VALUES (?, NULL, ?, 0, ?, 'finalizada', 'importacao_financeiro_historico', ?)`,
 				[
 					item.valor,
 					item.data,
 					`Histórico financeiro: ${item.descricao}`,
+					item.direcao,
 				],
 			);
 
