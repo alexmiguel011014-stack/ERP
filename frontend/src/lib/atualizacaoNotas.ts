@@ -6,8 +6,8 @@ export type NotasAtualizacao = {
 // Fonte local e offline das notas exibidas na tela de Atualizações. A entrada
 // só deve ser alterada junto da versão que realmente será empacotada/publicada.
 export const NOTAS_ATUALIZACAO: Record<string, NotasAtualizacao> = {
-	"1.5.0": {
-		versao: "1.5.0",
+	"1.4.2": {
+		versao: "1.4.2",
 		itens: [
 			"Abas do sistema preservam o que você estava fazendo: trocar de aba e voltar mantém texto, cursor e rolagem — sem campos travados.",
 			"Financeiro: lançamento de venda histórica (sem produto nem estoque) para registrar vendas antigas; Fiado gera o recebível.",
