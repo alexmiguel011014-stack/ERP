@@ -200,6 +200,9 @@ module.exports = {
 	executarImportacaoLojHouse: importacoes.executarImportacaoLojHouse,
 	executarImportacaoFinanceiroMensal:
 		importacoes.executarImportacaoFinanceiroMensal,
+	normalizarArquivosImportacao: importacoes.normalizarArquivosImportacao,
+	carregarArquivosJsonImportacao:
+		importacoes.carregarArquivosJsonImportacao,
 	obterHistoricoLotes: importacoes.obterHistoricoLotes,
 	obterDetalhesLote: importacoes.obterDetalhesLote,
 	normalizarConteudoArquivoImportacao: importacoes.normalizarConteudoArquivo,

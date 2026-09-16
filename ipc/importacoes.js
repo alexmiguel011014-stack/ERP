@@ -7,6 +7,8 @@ const {
 	obterHistoricoLotes,
 	obterDetalhesLote,
 	normalizarConteudoArquivoImportacao,
+	normalizarArquivosImportacao,
+	carregarArquivosJsonImportacao,
 	parseExcelLojaHouse,
 	parseFinanceiroHistoricoMensal,
 	criarModeloFinanceiroMensal,
@@ -16,7 +18,7 @@ const {
 
 function lerModeloFinanceiroMensal(caminho) {
 	if (!caminho || path.extname(caminho).toLowerCase() !== ".json") {
-		throw new Error("Selecione o JSON financeiro de janeiro.");
+		throw new Error("Selecione um JSON financeiro revisado.");
 	}
 	if (!fs.existsSync(caminho)) {
 		throw new Error("Arquivo JSON não encontrado: " + caminho);
@@ -28,6 +30,26 @@ function lerModeloFinanceiroMensal(caminho) {
 		throw new Error("JSON financeiro inválido: " + erro.message);
 	}
 	return validarModeloFinanceiroMensal(modelo);
+}
+
+function criarPreviewImportacao(normalizado) {
+	const dados = normalizado.dados;
+	return {
+		categorias: dados.categorias.length,
+		produtos: dados.produtosVariacoes.length,
+		variacoes: dados.produtosVariacoes.reduce(
+			(acc, produto) =>
+				acc + (Array.isArray(produto.variacoes) ? produto.variacoes.length : 0),
+			0,
+		),
+		estoque: dados.estoqueInicial.length,
+		clientes: dados.clientes.length,
+		lancamentos:
+			dados.financeiroHistorico.length + dados.contasAbertas.length,
+		vendasHistoricas:
+			dados.vendasHistoricas.length + dados.vendasFinanceiroHistorico.length,
+		pendencias: dados.pendenciasOrigem.length,
+	};
 }
 
 // A pasta genérica de migração também pode conter o piloto financeiro mensal.
@@ -121,6 +143,57 @@ function converterExcelParaArquivos(caminho) {
 
 function registrar(ipcMain, deps) {
 	const { exigirSessao, log, getMainWindow, getSessao } = deps;
+
+	ipcMain.handle("importacoes:validar-json", async (event, selecao = {}) => {
+		try {
+			exigirSessao("admin");
+			let origem;
+			const modoSelecao = selecao?.selecao || "folder";
+
+			if (modoSelecao === "files" && !selecao.caminhos?.length) {
+				const resultado = await dialog.showOpenDialog(getMainWindow(), {
+					title: "Selecionar arquivo(s) JSON de importação",
+					properties: ["openFile", "multiSelections"],
+					filters: [{ name: "JSON", extensions: ["json"] }],
+				});
+				if (resultado.canceled || resultado.filePaths.length === 0) {
+					return { cancelado: true };
+				}
+				origem = { tipo: "json", caminhos: resultado.filePaths };
+			} else if (modoSelecao === "folder" && !selecao.pasta) {
+				const resultado = await dialog.showOpenDialog(getMainWindow(), {
+					title: "Selecionar pasta com arquivos JSON de importação",
+					properties: ["openDirectory"],
+				});
+				if (resultado.canceled || !resultado.filePaths[0]) {
+					return { cancelado: true };
+				}
+				origem = { tipo: "json", pasta: resultado.filePaths[0] };
+			} else if (modoSelecao === "files") {
+				origem = { tipo: "json", caminhos: selecao.caminhos };
+			} else if (modoSelecao === "folder") {
+				origem = { tipo: "json", pasta: selecao.pasta };
+			} else {
+				throw new Error("Tipo de seleção JSON inválido.");
+			}
+
+			const entradas = carregarArquivosJsonImportacao(origem);
+			const normalizado = normalizarArquivosImportacao(entradas);
+			return {
+				formato: "json",
+				origem,
+				arquivos: normalizado.arquivos,
+				competencias: normalizado.competencias,
+				avisos: normalizado.avisos,
+				errosFonte: normalizado.errosFonte,
+				bloqueado: normalizado.errosFonte.length > 0,
+				preview: criarPreviewImportacao(normalizado),
+				checksum: normalizado.checksum,
+			};
+		} catch (erro) {
+			return { erro: erro.message };
+		}
+	});
 
 	ipcMain.handle(
 		"importacoes:validar-pasta-loja-house",
@@ -325,11 +398,23 @@ function registrar(ipcMain, deps) {
 					lancamentos: 0,
 					pendencias: dados.pendenciasOrigem.length,
 				};
+				const naoImportados = {
+					financeiroHistorico: dados.financeiroHistorico.length,
+					contasAbertas: dados.contasAbertas.length,
+				};
+				const avisos = [];
+				if (naoImportados.financeiroHistorico || naoImportados.contasAbertas) {
+					avisos.push(
+						`As abas financeiras da planilha ficam fora desta importação (${naoImportados.financeiroHistorico} movimento(s), ${naoImportados.contasAbertas} conta(s)); revise-as em JSON mensal para preservar a competência e a classificação.`,
+					);
+				}
 
 				return {
 					formato: "excel",
 					caminho,
 					preview,
+					naoImportados,
+					avisos,
 				};
 			} catch (erro) {
 				return {
@@ -339,6 +424,10 @@ function registrar(ipcMain, deps) {
 		},
 	);
 
+	/**
+	 * @deprecated Compatibilidade temporária do renderer antigo. A página React ativa usa
+	 * importacoes:validar-json + importacoes:executar e não expõe um fluxo de Janeiro.
+	 */
 	ipcMain.handle(
 		"importacoes:gerar-modelo-financeiro-janeiro",
 		async (event, caminhoPlanilha, caminhoDestino) => {
@@ -382,6 +471,10 @@ function registrar(ipcMain, deps) {
 		},
 	);
 
+	/**
+	 * @deprecated Compatibilidade temporária do renderer antigo. A validação mensal aceita
+	 * qualquer competência YYYY-MM; a seleção nova passa por importacoes:validar-json.
+	 */
 	ipcMain.handle(
 		"importacoes:validar-modelo-financeiro-janeiro",
 		async (event, caminho) => {
@@ -427,6 +520,32 @@ function registrar(ipcMain, deps) {
 					"A planilha só gera o rascunho. Revise e selecione o JSON financeiro antes de importar.",
 				);
 			}
+			const ehJsonUnificado =
+				pasta && typeof pasta === "object" && pasta.tipo === "json";
+			const entradasJson = ehJsonUnificado
+				? carregarArquivosJsonImportacao(pasta)
+				: null;
+			const normalizadoJson = entradasJson
+				? normalizarArquivosImportacao(entradasJson)
+				: null;
+			if (normalizadoJson?.errosFonte.length > 0) {
+				throw new Error(
+					normalizadoJson.errosFonte
+						.map((item) => `${item.arquivo}: ${item.motivo}`)
+						.join("; "),
+				);
+			}
+			if (
+				normalizadoJson &&
+				(pasta.checksum || opcoes.checksum) &&
+				normalizadoJson.checksum !== (pasta.checksum || opcoes.checksum)
+			) {
+				throw new Error(
+					"O JSON mudou desde a prévia. Selecione-o novamente e execute uma nova simulação.",
+				);
+			}
+			// Compatibilidade: estes caminhos não são selecionáveis pela UI React nova. O executor
+			// mensal abaixo usa a validação competência-agnóstica; o fluxo novo usa normalizarArquivosImportacao.
 			const ehFinanceiroMensalDireto =
 				pasta &&
 				typeof pasta === "object" &&
@@ -463,7 +582,9 @@ function registrar(ipcMain, deps) {
 					? resultadoFinanceiroMensal
 					: adaptarResultadoFinanceiroMensalParaPasta(resultadoFinanceiroMensal)
 				: await executarImportacaoLojHouse(
-						pasta && typeof pasta === "object" && pasta.tipo === "excel"
+						ehJsonUnificado
+							? entradasJson
+							: pasta && typeof pasta === "object" && pasta.tipo === "excel"
 							? converterExcelParaArquivos(pasta.caminho)
 							: pasta,
 						getSessao()?.id ?? null,
@@ -477,7 +598,7 @@ function registrar(ipcMain, deps) {
 			if (opcoes.dryRun === false) {
 				log(
 					ehFinanceiroMensal
-						? "importar-financeiro-historico-janeiro"
+						? "importar-financeiro-historico-mensal"
 						: "importar-loja-house",
 					"ImportacaoBatch",
 					resultado.batchId,
@@ -487,7 +608,11 @@ function registrar(ipcMain, deps) {
 				);
 			}
 
-			return resultado;
+			return {
+				...resultado,
+				...(normalizadoJson ? { avisos: normalizadoJson.avisos } : {}),
+				...(normalizadoJson ? { competencias: normalizadoJson.competencias } : {}),
+			};
 		} catch (erro) {
 			return {
 				erro: erro.message,

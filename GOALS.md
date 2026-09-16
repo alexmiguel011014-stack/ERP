@@ -7132,3 +7132,112 @@ Fiado settlement behave safely, one historical fact appears in the intended gene
 reports without duplicate cash recognition, current stock/product margin is not fabricated, and
 the workflow is verified in the real Electron app with disposable data.
 
+## GOALS 24 — Unified import source picker and simplified Importação module
+
+**Source:** owner request (2026-09-15), following the previous financial-import work.
+
+The Importação page must expose only two visible modes: one unified JSON source field and
+one Excel (.xlsx) source. The JSON source accepts one file, multiple JSON files, or a folder
+containing JSON files. Removing the Financeiro Janeiro and legacy tabs means removing their
+dedicated visible flows, not removing valid monthly financial capability: reviewed financial
+JSONs for any `YYYY-MM` competence, including February and later months, remain importable.
+Excel remains a separate known Loja House adapter and must not reinterpret monthly financial
+sheets as cash or receivables; excluded rows must be shown honestly.
+
+### Design and safety boundaries
+
+- [ ] **GOALS24-01 — [manual] Reconfirm runtime and preserve work.** Verify the active branch,
+  default React frontend, exact Importação screen, and disposable test data boundary. Do not
+  reset, broadly stage, commit, publish, or touch production data during execution.
+- [ ] **GOALS24-02 — [manual] Simplify the information architecture.** Replace the four visible
+  buttons with exactly `Importar JSON` and `Importar Excel (.xlsx)`. Both use one shared wizard
+  for source, preview, dry-run, confirmation, result, and history, preserving Tatame Clean,
+  dark theme, accessibility, and compact operate-mode hierarchy.
+- [ ] **GOALS24-03 — [manual] Resolve native picker limits.** Keep one visual JSON field with
+  two compact actions, `Arquivo(s) JSON` and `Pasta de JSONs`, feeding the same resolver. A
+  native Electron dialog cannot select files and directories in one dialog; drag/drop is only
+  optional if it proves reliable in the real window.
+- [x] **GOALS24-04 — Freeze the JSON contract and ambiguity policy.** Support the canonical
+  roles for categories, products/variations, initial stock, clients, historical finance, open
+  accounts, historical sales, and source pendências. Accept case-insensitive names, arrays,
+  `{registros:[...]}`, reviewed monthly envelopes with valid `YYYY-MM`, arbitrary order, and
+  distinct financial role/competence pairs. Block duplicates, unknown/ambiguous files, malformed
+  JSON, missing competence, and rows spanning months; recognize manifests/reports as visible
+  metadata instead of silently discarding selected JSON files.
+- [x] **GOALS24-05 — Preserve financial and legacy semantics.** Replace the January-only active
+  flow with a competence-agnostic normalizer. Preserve dates, competence, descriptions,
+  direction, categories, deterministic external keys, and monthly retry/idempotency. Keep the
+  safe Excel financial exclusion rule. Adapt both the Loja House/Fiado and old
+  `{sku, quantidade, valorUnitario, data}` historical-sale shapes through the common batch path;
+  retain the old direct IPC bridge only as an emergency fallback.
+
+### Implementation
+
+- [x] **GOALS24-06 — Common JSON source resolver.** In `db/importacoes.js`, accept explicit
+  JSON files or a directory (recursively), filter JSON, sort deterministically, read in the
+  main process, classify canonical names, normalize arrays/envelopes/monthly data, and return
+  `{arquivos, dados, avisos, errosFonte, competencias, checksum}`. Report relative paths for
+  malformed/unknown/ambiguous files, duplicate role/competence, duplicate external keys, and
+  preserve existing import order, dry-run, atomic rollback, pendências, and batch deduplication.
+- [x] **GOALS24-07 — Batch-compatible historical sales.** Normalize both supported `07` shapes,
+  generate a deterministic `chave_externa` when absent, preserve the no-current-stock-debit
+  rule, keep unknown SKU/invalid rows visible under the established contract, and never route
+  the new page through the old non-idempotent historical-sales transaction.
+- [x] **GOALS24-08 — Consolidate IPC.** Add one `importacoes:validar-json` entry point with
+  selection `files` or `folder`, and make both selections use the same main-process resolver.
+  Feed JSON and Excel results into the same `executar` dry-run/commit path, verify checksum
+  between preview and commit, and return files, competencies, metadata, warnings, and errors.
+  January compatibility handlers may remain only with an explicit deprecated note and must not
+  reject valid later months or become active UI routes.
+- [x] **GOALS24-09 — Simplify bridge and types.** Update `preload.js`, `database.js`, and
+  `frontend/src/lib/erpApi.ts` with one JSON source method, one Excel method, one
+  `EntradaImportacao` union, and shared preview/validation types. Remove January-only methods
+  and types from the active React API after no-caller proof; keep legacy bridges only for the
+  old frontend and document that boundary.
+- [ ] **GOALS24-10 — [manual] Rebuild the React page.** Use only `Modo = json | excel`, remove
+  the dedicated January and legacy render paths, and keep one reusable wizard. Show selected
+  files/roles, folder origin, counts, competencies, metadata, unsupported/ambiguous/malformed
+  errors, checksum, and Excel exclusions. Clear stale state on source changes and disable commit
+  while source errors or checksum changes remain.
+- [x] **GOALS24-11 — Thin Excel adapter.** Keep `parseExcelLojaHouse` and its known workbook
+  behavior, adapt it to the common batch contract, preserve deterministic keys/product/stock/
+  pendência semantics, and report detected monthly financial rows as excluded or review-needed.
+- [x] **GOALS24-12 — Retire obsolete implementation only after proof.** Search runtime, tests,
+  preload, database facade, and legacy consumers before removing monthly wrappers. Keep shared
+  Excel helpers; if a compatibility export stays, mark it deprecated, keep it out of the new
+  UI, and prove valid later-month JSON remains accepted.
+
+### Tests and acceptance
+
+- [x] **GOALS24-13 — Source-resolution tests.** Cover one file, multiple files in arbitrary
+  order, nested folder, `{registros}`, metadata, malformed path, unsupported JSON, duplicate
+  role, ambiguous finance/open-account input, preview counts, and deterministic checksum without
+  touching the database in dry-run.
+- [x] **GOALS24-14 — Common pipeline/idempotency tests.** Cover every supported entity alone and
+  mixed, legacy `07`, deterministic key, unknown SKU, dry-run no-write, commit/retry, checksum
+  mismatch, rollback, existing `05`/`06` semantics, January plus February/later, March after a
+  committed January batch, distinct-month coexistence, and retry without duplicates.
+- [x] **GOALS24-15 — Excel and monthly regressions.** Preserve workbook determinism and supported
+  Excel imports, assert financial-sheet exclusion/warnings and no financial writes, and replace
+  January-only rejection tests with positive February/later envelopes plus invalid-competence
+  negatives.
+- [x] **GOALS24-16 — Run project checks.** Run the official root tests and lint, frontend lint,
+  frontend typecheck, static build, syntax checks, focused import tests, and goal-structure
+  validation. Record automated evidence separately; it does not prove native picker, packaged
+  resources, permissions, or visual acceptance.
+- [ ] **GOALS24-17 — [manual] Verify real Electron workflow.** In disposable userdata, confirm
+  exactly two tabs; file, multi-file, folder, January plus February/later, roles, competencies,
+  warnings, preview, checksum guard, commit/history/retry, Excel exclusions, no production data,
+  and an intact explicit legacy fallback. Compare the actual rendered screen, not only JSX.
+- [ ] **GOALS24-18 — Documentation after behavior proof.** Update `AGENTS.md` and this status
+  with the two-source UI, supported roles, picker limitation, Excel rule, fallback boundary,
+  automated evidence, and manual status. Do not claim release readiness, real-data migration,
+  or fallback removal without separate authorization.
+
+**Done when:** one unified JSON field accepts a file, multiple files, or a folder; Excel is the
+only separate source; January/financial-history/legacy tabs are absent from active React; all
+supported data reaches one preview/dry-run/atomic contract without silent loss or duplicate
+sales; valid reviewed `YYYY-MM` finance JSONs including February and later coexist and retry
+safely; Excel exclusions are explicit; automated checks pass; and the real Electron workflow is
+verified with disposable data while unrelated WIP and the emergency fallback remain safe.
+

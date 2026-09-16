@@ -620,6 +620,7 @@ test("reimportar o mesmo lote mescla registros já existentes sem duplicar estoq
 				tipo: "receber",
 				descricao: "Lançamento idempotente",
 				valor: 10,
+				data: "2026-01-15",
 			},
 		]),
 	);
