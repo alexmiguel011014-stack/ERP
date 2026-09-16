@@ -1287,11 +1287,64 @@ function parseAbaFinanceiroMes(linhas, nomeAba, financeiroHistorico) {
 // de LancamentosFinanceiros para os seus outros dados.
 // ---------------------------------------------------------------------------
 
-const MES_FINANCEIRO_PILOTO = "JANEIRO";
-const COMPETENCIA_FINANCEIRO_PILOTO = "2026-01";
 const FORMATO_MODELO_FINANCEIRO_HISTORICO =
 	"loja_house.financeiro_historico";
 const VERSAO_MODELO_FINANCEIRO_HISTORICO = 1;
+const NOMES_MESES = [
+	"JANEIRO",
+	"FEVEREIRO",
+	"MARCO",
+	"ABRIL",
+	"MAIO",
+	"JUNHO",
+	"JULHO",
+	"AGOSTO",
+	"SETEMBRO",
+	"OUTUBRO",
+	"NOVEMBRO",
+	"DEZEMBRO",
+];
+
+function normalizarCompetenciaFinanceira(valor) {
+	const texto = String(valor || "").trim();
+	const competencia = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(texto);
+	if (competencia) {
+		return {
+			competencia: texto,
+			numeroMes: competencia[2],
+			nomeMes: NOMES_MESES[Number(competencia[2]) - 1],
+		};
+	}
+
+	const indice = NOMES_MESES.indexOf(normalizarTexto(texto));
+	if (indice < 0) return null;
+	return {
+		numeroMes: String(indice + 1).padStart(2, "0"),
+		nomeMes: NOMES_MESES[indice],
+	};
+}
+
+function inferirCompetenciaFinanceira(mes, movimentos) {
+	const datas = [
+		...new Set(
+			movimentos
+				.map((movimento) => movimento.data)
+				.filter((data) => /^\d{4}-\d{2}-\d{2}$/.test(data)),
+		),
+	];
+	const competencias = [
+		...new Set(datas.map((data) => data.slice(0, 7))),
+	];
+	const esperada = competencias.filter((competencia) =>
+		competencia.endsWith(`-${mes.numeroMes}`),
+	);
+	if (esperada.length === 1) {
+		return { ...mes, competencia: esperada[0] };
+	}
+	throw new Error(
+		"Informe a competência no formato YYYY-MM quando a aba financeira não permite inferi-la com segurança.",
+	);
+}
 const CATEGORIAS_PAGAMENTO_HISTORICO = new Set([
 	"Pagamento de cartão",
 	"Compra para estoque histórica",
@@ -1506,11 +1559,9 @@ function arredondarFinanceiro(valor) {
 }
 
 function parseFinanceiroHistoricoMensal(caminhoXlsx, mes) {
-	const mesNormalizado = normalizarTexto(mes);
-	if (mesNormalizado !== MES_FINANCEIRO_PILOTO) {
-		throw new Error(
-			`O piloto financeiro está limitado a ${MES_FINANCEIRO_PILOTO}; ${mes || "(sem mês)"} ainda não foi revisado.`,
-		);
+	const mesSolicitado = normalizarCompetenciaFinanceira(mes);
+	if (!mesSolicitado) {
+		throw new Error(`Mês ou competência financeira inválida: ${mes || "(vazio)"}`);
 	}
 	if (!caminhoXlsx || !fs.existsSync(caminhoXlsx)) {
 		throw new Error("Arquivo Excel não encontrado: " + caminhoXlsx);
@@ -1518,18 +1569,22 @@ function parseFinanceiroHistoricoMensal(caminhoXlsx, mes) {
 
 	const workbook = XLSX.readFile(caminhoXlsx);
 	const nomeAba = workbook.SheetNames.find(
-		(nome) => normalizarTexto(nome) === `FINANCEIRO LOJA${mesNormalizado}`,
+		(nome) => normalizarTexto(nome) === `FINANCEIRO LOJA${mesSolicitado.nomeMes}`,
 	);
 	if (!nomeAba) {
-		throw new Error(`Aba Financeiro Loja${mesNormalizado} não encontrada.`);
+		throw new Error(`Aba Financeiro Loja${mesSolicitado.nomeMes} não encontrada.`);
 	}
 
 	const { movimentos, saldoInformado, saldoAbertura } = extrairMovimentosFinanceiroMensal(
 		lerAba(workbook, nomeAba, true),
 		nomeAba,
 	);
+	const competencia = mesSolicitado.competencia
+		? mesSolicitado
+		: inferirCompetenciaFinanceira(mesSolicitado, movimentos);
 	const resultado = {
-		mes: mesNormalizado,
+		mes: competencia.nomeMes,
+		competencia: competencia.competencia,
 		aba: nomeAba,
 		arquivoNome: path.basename(caminhoXlsx),
 		arquivoChecksum: crypto
@@ -1542,11 +1597,11 @@ function parseFinanceiroHistoricoMensal(caminhoXlsx, mes) {
 	};
 
 	for (const movimento of movimentos) {
-		if (movimento.data.slice(5, 7) !== "01") {
+		if (!movimento.data.startsWith(`${competencia.competencia}-`)) {
 			resultado.pendenciasHistoricas.push({
 				...movimento,
 				destino: "pendente",
-				motivo: `Data ${movimento.data} fora de janeiro na aba selecionada`,
+				motivo: `Data ${movimento.data} fora da competência ${competencia.competencia}`,
 			});
 			continue;
 		}
@@ -1608,11 +1663,12 @@ function parseFinanceiroHistoricoMensal(caminhoXlsx, mes) {
 }
 
 function criarModeloFinanceiroMensal(dados) {
-	if (!dados || dados.mes !== MES_FINANCEIRO_PILOTO) {
-		throw new Error("O modelo financeiro mensal aceita apenas o piloto de JANEIRO.");
+	const competencia = normalizarCompetenciaFinanceira(dados?.competencia);
+	if (!competencia?.competencia) {
+		throw new Error("O modelo financeiro precisa informar uma competência YYYY-MM válida.");
 	}
 	if (!dados.reconciliacao?.valida || dados.reconciliacao.saldoInformado == null) {
-		throw new Error("A planilha de janeiro não fecha para gerar o JSON revisado.");
+		throw new Error("A planilha financeira não fecha para gerar o JSON revisado.");
 	}
 	const origem = {
 		arquivo_nome: dados.arquivoNome || "Loja House.xlsx",
@@ -1638,7 +1694,7 @@ function criarModeloFinanceiroMensal(dados) {
 			};
 			return {
 				chave_externa: chaveExternaModeloFinanceiro(
-					COMPETENCIA_FINANCEIRO_PILOTO,
+					competencia.competencia,
 					origem.sha256_arquivo,
 					item,
 				),
@@ -1674,7 +1730,7 @@ function criarModeloFinanceiroMensal(dados) {
 	const modelo = {
 		formato: FORMATO_MODELO_FINANCEIRO_HISTORICO,
 		versao: VERSAO_MODELO_FINANCEIRO_HISTORICO,
-		competencia: COMPETENCIA_FINANCEIRO_PILOTO,
+		competencia: competencia.competencia,
 		origem,
 		auditoria,
 		movimentos,
@@ -1700,8 +1756,9 @@ function validarModeloFinanceiroMensal(modelo) {
 	if (modelo.versao !== VERSAO_MODELO_FINANCEIRO_HISTORICO) {
 		throw new TypeError("Versão do modelo financeiro não suportada");
 	}
-	if (modelo.competencia !== COMPETENCIA_FINANCEIRO_PILOTO) {
-		throw new TypeError("O modelo financeiro aceita apenas a competência 2026-01");
+	const competencia = normalizarCompetenciaFinanceira(modelo.competencia);
+	if (!competencia?.competencia) {
+		throw new TypeError("O modelo financeiro exige uma competência YYYY-MM válida");
 	}
 	exigirChavesExatas(
 		modelo.origem,
@@ -1711,7 +1768,8 @@ function validarModeloFinanceiroMensal(modelo) {
 	if (
 		typeof modelo.origem.arquivo_nome !== "string" ||
 		typeof modelo.origem.aba !== "string" ||
-		!/^Financeiro LojaJANEIRO$/i.test(modelo.origem.aba) ||
+		normalizarTexto(modelo.origem.aba) !==
+			`FINANCEIRO LOJA${competencia.nomeMes}` ||
 		!(/^[a-f0-9]{64}$/i.test(modelo.origem.sha256_arquivo))
 	) {
 		throw new TypeError("Origem do modelo financeiro inválida");
@@ -1871,8 +1929,8 @@ function validarModeloFinanceiroMensal(modelo) {
 		modelo: modeloCanonico,
 		checksum: hashFinanceiroHistorico(modeloCanonico),
 		dados: {
-			mes: MES_FINANCEIRO_PILOTO,
-			competencia: COMPETENCIA_FINANCEIRO_PILOTO,
+			mes: competencia.nomeMes,
+			competencia: competencia.competencia,
 			aba: modeloCanonico.origem.aba,
 			arquivoChecksum: modeloCanonico.origem.sha256_arquivo,
 			vendasHistoricas: movimentos

@@ -118,7 +118,7 @@ test("parser de janeiro classifica só fatos comprovados e reconcilia o saldo", 
 	});
 	assert.throws(
 		() => parseFinanceiroHistoricoMensal(arquivo, "FEVEREIRO"),
-		/JANEIRO/,
+		/Financeiro LojaFEVEREIRO/,
 	);
 });
 
@@ -184,7 +184,7 @@ test("consumo interno é categorizado sem produto e data fora do mês bloqueia o
 		"Consumo interno",
 	);
 	assert.equal(dados.pendenciasHistoricas.length, 1);
-	assert.match(dados.pendenciasHistoricas[0].motivo, /fora de janeiro/);
+	assert.match(dados.pendenciasHistoricas[0].motivo, /fora da competência 2026-01/);
 
 	const previa = await executarImportacaoFinanceiroMensal(dados, null, {
 		dryRun: true,
@@ -418,4 +418,10 @@ test("IPC expõe o modo mensal e o modo Excel geral não grava o financeiro lega
 		{ dryRun: true },
 	);
 	assert.equal(geral.preview.lancamentosHistoricos, 0);
+	const validacaoExcel = await handlers["importacoes:validar-arquivo-excel"](
+		{},
+		arquivo,
+	);
+	assert.ok(validacaoExcel.naoImportados.financeiroHistorico > 0);
+	assert.match(validacaoExcel.avisos[0], /abas financeiras/);
 });
