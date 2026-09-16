@@ -206,29 +206,48 @@ export default function PainelFluxoCaixa({
 			) : (
 				<>
 					<div className="rounded-xl border border-brand-200 bg-brand-50 p-4 text-sm text-brand-700 dark:border-brand-800 dark:bg-brand-500/10 dark:text-brand-300">
-						Este relatório mostra movimento de caixa, não lucro, DRE ou
-						faturamento. O realizado e o projetado usam períodos e eventos separados.
+						Este painel separa movimento de caixa de lucratividade. Realizado usa pagamentos
+						e recebimentos ocorridos; projetado usa lançamentos em aberto por vencimento.
+						O saldo inicial usa a última posição do caixa conhecida até o início do período
+						({formatarMoeda(dados.saldoInicial)}). Assim, saldo final realizado = saldo inicial +
+						movimento realizado ({formatarMoeda(dados.saldoFinalRealizado)}), e saldo final estimado
+						= saldo final realizado + projeção ({formatarMoeda(dados.saldoFinalEstimado)}).
+						O lucro bruto e o lucro líquido ficam nos relatórios/DRE; despesas de cartão em aberto
+						({formatarMoeda(dados.despesasCartaoAbertas)}) não alteram o lucro bruto.
 					</div>
 
-					<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+					<div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+						<h3 className="sm:col-span-3 text-sm font-semibold text-gray-700 dark:text-gray-200">Fluxo de caixa realizado</h3>
 						{[
 							["Entradas realizadas", dados.realizado.totalEntradas, "success"],
 							["Saídas realizadas", dados.realizado.totalSaidas, "error"],
 							["Saldo realizado", dados.realizado.saldo, "primary"],
+						].map(([label, valor, cor]) => (
+							<div key={String(label)} className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+								<div className={`text-xl font-semibold ${CORES_CARD[String(cor)]}`}>{formatarMoeda(Number(valor))}</div>
+								<div className="text-xs text-gray-500 dark:text-gray-400">{label}</div>
+							</div>
+						))}
+						<h3 className="sm:col-span-3 mt-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Fluxo de caixa projetado</h3>
+						{[
+							["Entradas projetadas", dados.projetado.totalEntradas, "success"],
+							["Saídas projetadas", dados.projetado.totalSaidas, "error"],
 							["Saldo projetado", dados.projetado.saldo, "warning"],
 						].map(([label, valor, cor]) => (
-							<div
-								key={String(label)}
-								className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"
-							>
-								<div
-									className={`text-xl font-semibold ${CORES_CARD[String(cor)]}`}
-								>
-									{formatarMoeda(Number(valor))}
-								</div>
-								<div className="text-xs text-gray-500 dark:text-gray-400">
-									{label}
-								</div>
+							<div key={String(label)} className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+								<div className={`text-xl font-semibold ${CORES_CARD[String(cor)]}`}>{formatarMoeda(Number(valor))}</div>
+								<div className="text-xs text-gray-500 dark:text-gray-400">{label}</div>
+							</div>
+						))}
+						<h3 className="sm:col-span-3 mt-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Faturamento, lucro e saldo</h3>
+						{[
+							["Faturamento bruto", dados.dre.receitaBruta, "success"],
+							["Lucro bruto", dados.dre.lucroBruto, dados.dre.lucroBruto >= 0 ? "primary" : "error"],
+							["Saldo final estimado", dados.saldoFinalEstimado, dados.saldoFinalEstimado >= 0 ? "primary" : "error"],
+						].map(([label, valor, cor]) => (
+							<div key={String(label)} className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+								<div className={`text-xl font-semibold ${CORES_CARD[String(cor)]}`}>{formatarMoeda(Number(valor))}</div>
+								<div className="text-xs text-gray-500 dark:text-gray-400">{label}</div>
 							</div>
 						))}
 					</div>

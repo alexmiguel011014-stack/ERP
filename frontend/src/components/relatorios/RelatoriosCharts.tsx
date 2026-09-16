@@ -34,6 +34,12 @@ function formatarDiaCurto(iso: string): string {
 	return `${dia}/${mes}`;
 }
 
+function formatarEixoY(valor: number): string {
+	return new Intl.NumberFormat("pt-BR", {
+		maximumFractionDigits: 0,
+	}).format(valor);
+}
+
 export function PorDiaChart({
 	dados,
 }: {
@@ -45,6 +51,7 @@ export function PorDiaChart({
 		plotOptions: { bar: { borderRadius: 4, columnWidth: "45%" } },
 		dataLabels: { enabled: false },
 		xaxis: { categories: dados.map((d) => formatarDiaCurto(d.dia)) },
+		yaxis: { labels: { formatter: formatarEixoY } },
 		legend: { show: false },
 		grid: { yaxis: { lines: { show: true } } },
 		tooltip: { y: { formatter: (v: number) => formatarMoeda(v) } },

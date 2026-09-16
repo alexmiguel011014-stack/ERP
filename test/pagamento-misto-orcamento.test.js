@@ -89,12 +89,25 @@ test("calcula e persiste a taxa do cartão somente na linha mista", async () => 
 			acrescimo_percentual: 4,
 		},
 	]);
+	// O cartão não é caixa na venda: cada parcela DA ALOCAÇÃO de cartão (não da
+	// venda inteira) vira um Pagamentos pendente sem data prevista, que só
+	// entra no realizado quando ganha data de liquidação (1.4.1).
+	const pendentesCartao = await allAsync(
+		"SELECT metodo, valor_recebido, status, data_recebimento, parcela_num, parcela_total FROM Pagamentos WHERE venda_id = ? ORDER BY parcela_num",
+		[venda.vendaId],
+	);
 	assert.deepEqual(
-		await getAsync(
-			"SELECT metodo, valor_recebido, status FROM Pagamentos WHERE venda_id = ?",
-			[venda.vendaId],
-		),
-		{ metodo: "Cartão", valor_recebido: 118.3, status: "pendente" },
+		pendentesCartao.map((p) => [p.metodo, p.valor_recebido, p.status, p.data_recebimento, p.parcela_num, p.parcela_total]),
+		[
+			["Cartão", 29.57, "pendente", null, 1, 4],
+			["Cartão", 29.57, "pendente", null, 2, 4],
+			["Cartão", 29.57, "pendente", null, 3, 4],
+			["Cartão", 29.59, "pendente", null, 4, 4],
+		],
+	);
+	assert.equal(
+		Math.round(pendentesCartao.reduce((soma, p) => soma + p.valor_recebido, 0) * 100) / 100,
+		118.3,
 	);
 });
 
@@ -197,10 +210,12 @@ test("orçamento de cartão mantém a taxa e converte uma única vez", async () 
 		(await getAsync("SELECT total FROM Vendas WHERE id = ?", [orcamento.vendaId])).total,
 		104,
 	);
-	assert.equal(
-		(await getAsync("SELECT COUNT(*) AS total FROM Pagamentos WHERE venda_id = ? AND metodo = 'Cartão'", [orcamento.vendaId])).total,
-		1,
+	// Cartão 4x: um Pagamentos pendente por parcela da alocação (26 × 4 = 104).
+	const parcelasCartao = await allAsync(
+		"SELECT valor_recebido FROM Pagamentos WHERE venda_id = ? AND metodo = 'Cartão' ORDER BY parcela_num",
+		[orcamento.vendaId],
 	);
+	assert.deepEqual(parcelasCartao.map((p) => p.valor_recebido), [26, 26, 26, 26]);
 	assert.equal(
 		(await getAsync("SELECT quantidade_estoque FROM Variacoes WHERE id = ?", [variacaoId])).quantidade_estoque,
 		1,

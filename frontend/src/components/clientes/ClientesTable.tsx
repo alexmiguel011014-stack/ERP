@@ -19,7 +19,7 @@ export default function ClientesTable({
 	onEditar: (c: Cliente) => void;
 	onExcluido: () => void;
 }) {
-	const [busca, setBusca] = useBuscaPersistida("busca");
+	const [busca, setBusca] = useBuscaPersistida("clientes");
 	const [excluindoId, setExcluindoId] = useState<number | null>(null);
 
 	const q = busca.trim().toLowerCase();

@@ -6,7 +6,10 @@ const { migrarImagensLegadas } = require("./imagens");
 // precisa de tabela própria). Incremente manualmente sempre que uma migração
 // nova for adicionada acima, para que código futuro possa checar "este banco
 // é anterior à feature X" sem depender só de IF NOT EXISTS/colunas presentes.
-const VERSAO_SCHEMA = 4;
+// 8 (merge 2026-09-16): VendaPagamentos ganhou o snapshot por alocação (valor_base,
+// valor_final, taxa, condição, parcelas) em cima do formato simples da 1.4.1, e
+// Vendas ganhou direcao_fluxo_historica — ver migrarColunas(VendaPagamentos) abaixo.
+const VERSAO_SCHEMA = 8;
 
 function obterVersaoSchema(conn) {
 	return new Promise((resolver) => {
@@ -116,6 +119,46 @@ async function iniciarBanco() {
   `,
 	);
 
+	// Alocações de uma venda entre vários meios de pagamento. Vendas antigas
+	// recebem uma linha única na migração abaixo; novas vendas gravam aqui a
+	// divisão real usada no checkout, sem alterar o total da venda.
+	// `valor` é o valor final da linha (o que financeiro/relatórios leem);
+	// valor_base/valor_final/acréscimo/condição/parcelas são o snapshot por
+	// alocação do pagamento dividido (a taxa só incide na linha de Cartão —
+	// ver db/vendas.js:calcularVendaMista). Instalações anteriores (formato
+	// simples da 1.4.1, ou o formato rico sem `valor`) são completadas por
+	// migrarColunas + backfill logo depois do backfill de vendas legadas.
+	await runOn(
+		conexao,
+		`
+    CREATE TABLE IF NOT EXISTS VendaPagamentos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      venda_id INTEGER NOT NULL,
+      forma_pagamento TEXT NOT NULL,
+      valor REAL NOT NULL,
+      valor_base REAL NOT NULL DEFAULT 0,
+      valor_final REAL NOT NULL DEFAULT 0,
+      acrescimo_percentual REAL NOT NULL DEFAULT 0,
+      acrescimo REAL NOT NULL DEFAULT 0,
+      condicao_parcelamento_id INTEGER,
+      condicao_parcelamento_nome TEXT,
+      parcelas INTEGER NOT NULL DEFAULT 1,
+      detalhes_parcelas TEXT,
+      criado_em TEXT,
+      FOREIGN KEY (venda_id) REFERENCES Vendas(id) ON DELETE CASCADE,
+      CHECK (forma_pagamento IN ('PIX', 'Cartão', 'Dinheiro', 'Fiado')),
+      CHECK (valor >= 0),
+      CHECK (valor_base >= 0),
+      CHECK (valor_final >= 0),
+      CHECK (acrescimo_percentual >= 0),
+      CHECK (parcelas >= 1)
+    )
+  `,
+	);
+	await runOn(
+		conexao,
+		"CREATE INDEX IF NOT EXISTS idx_venda_pagamentos_venda ON VendaPagamentos(venda_id)",
+	);
 	await runOn(
 		conexao,
 		`
@@ -125,6 +168,7 @@ async function iniciarBanco() {
       variacao_id INTEGER NOT NULL,
       quantidade INTEGER NOT NULL,
       preco_unitario REAL NOT NULL,
+      custo_unitario REAL,
       FOREIGN KEY (venda_id) REFERENCES Vendas(id) ON DELETE CASCADE,
       FOREIGN KEY (variacao_id) REFERENCES Variacoes(id) ON DELETE RESTRICT
     )
@@ -289,7 +333,9 @@ async function iniciarBanco() {
       origem TEXT DEFAULT 'manual',
       referencia_id INTEGER,
       forma_pagamento TEXT,
-      data_criacao TEXT
+      data_criacao TEXT,
+      subtipo TEXT,
+      competencia_mes TEXT
     )
   `,
 	);
@@ -308,6 +354,8 @@ async function iniciarBanco() {
       valor REAL NOT NULL,
       dia_mes INTEGER NOT NULL,
       categoria TEXT,
+      subtipo TEXT,
+      competencia_mes TEXT,
       ativo INTEGER NOT NULL DEFAULT 1,
       criado_em TEXT
     )
@@ -328,11 +376,53 @@ async function iniciarBanco() {
       valor_recebido REAL NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'pendente',
       observacao TEXT,
+      data_liquidacao TEXT,
+      parcela_num INTEGER,
+      parcela_total INTEGER,
       criado_em TEXT,
       FOREIGN KEY (venda_id) REFERENCES Vendas(id) ON DELETE SET NULL,
       FOREIGN KEY (cliente_id) REFERENCES Clientes(id) ON DELETE SET NULL
     )
   `,
+  );
+	// A data_recebimento do cartão é a data de liquidação prevista; a data_liquidacao
+	// é preenchida somente quando o adquirente/lançamento é confirmado. O índice
+	// acelera a deduplicação feita no processo principal, sem falhar a migração de
+	// bancos legados que já possam conter duplicatas históricas.
+	await migrarColunas(conexao, "Pagamentos", {
+		data_liquidacao: "data_liquidacao TEXT",
+		parcela_num: "parcela_num INTEGER",
+		parcela_total: "parcela_total INTEGER",
+	});
+	await runOn(
+		conexao,
+		"CREATE INDEX IF NOT EXISTS idx_pagamentos_cartao_dedupe ON Pagamentos(venda_id, numero_identificador, parcela_num) WHERE venda_id IS NOT NULL AND numero_identificador IS NOT NULL AND LOWER(TRIM(metodo)) IN ('cartao', 'cartão')",
+	);
+	await runOn(
+		conexao,
+		`CREATE TRIGGER IF NOT EXISTS trg_pagamentos_cartao_dedupe
+     BEFORE INSERT ON Pagamentos
+     WHEN NEW.venda_id IS NOT NULL
+       AND NEW.numero_identificador IS NOT NULL
+       AND LOWER(TRIM(NEW.metodo)) IN ('cartao', 'cartão')
+       AND EXISTS (
+         SELECT 1 FROM Pagamentos p
+         WHERE p.venda_id = NEW.venda_id
+           AND p.numero_identificador = NEW.numero_identificador
+           AND COALESCE(p.parcela_num, 1) = COALESCE(NEW.parcela_num, 1)
+           AND LOWER(TRIM(p.metodo)) IN ('cartao', 'cartão')
+       )
+     BEGIN
+       SELECT RAISE(ABORT, 'Pagamento de cartão duplicado.');
+		END`,
+	);
+	// Histórico: antes da separação entre previsão e liquidação, pagamentos já
+	// recebidos usavam data_recebimento como única data disponível. Esse
+	// backfill é restrito a status recebido e é idempotente; novas pendências
+	// continuam sem data de liquidação até a confirmação real.
+	await runOn(
+		conexao,
+		"UPDATE Pagamentos SET data_liquidacao = data_recebimento WHERE status = 'recebido' AND data_liquidacao IS NULL AND data_recebimento IS NOT NULL",
 	);
 
 	// Devolução/troca: estorna item(ns) de uma venda finalizada de volta ao estoque.
@@ -495,6 +585,12 @@ async function iniciarBanco() {
 		nota_provedor: "nota_provedor TEXT",
 		nota_erro: "nota_erro TEXT",
 	});
+	// Custo da mercadoria no instante da venda. Nullable de propósito: vendas
+	// históricas/importadas sem custo comprovável não podem fabricar CMV usando
+	// o custo atual da variação.
+	await migrarColunas(conexao, "ItensVenda", {
+		custo_unitario: "custo_unitario REAL",
+	});
 	await migrarColunas(conexao, "Precificacao", {
 		aplicar_custo_fixo: "aplicar_custo_fixo INTEGER NOT NULL DEFAULT 1",
 	});
@@ -537,6 +633,14 @@ async function iniciarBanco() {
 	// lançamentos antigos ficam sem categoria até serem editados.
 	await migrarColunas(conexao, "LancamentosFinanceiros", {
 		categoria: "categoria TEXT",
+		// Classificação contábil opcional. Nulos preservam lançamentos legados;
+		// competência é YYYY-MM e não substitui a data de pagamento/vencimento.
+		subtipo: "subtipo TEXT",
+		competencia_mes: "competencia_mes TEXT",
+	});
+	await migrarColunas(conexao, "LancamentosRecorrentes", {
+		subtipo: "subtipo TEXT",
+		competencia_mes: "competencia_mes TEXT",
 	});
 	// Vínculo com o cliente devedor — fecha a lacuna que deixava um recebível
 	// de Fiado sem jeito de consultar "quanto esse cliente deve" (crediário
@@ -559,6 +663,68 @@ async function iniciarBanco() {
 		data_primeiro_vencimento: "data_primeiro_vencimento TEXT",
 		request_id: "request_id TEXT",
 	});
+	// Normaliza formas gravadas por versões antigas (algumas usavam minúsculas)
+	// para que o fluxo de caixa e os relatórios apliquem a mesma regra dos novos
+	// checkouts, especialmente no caso de venda fiada.
+	await runOn(
+		conexao,
+		`UPDATE Vendas
+     SET forma_pagamento = CASE LOWER(TRIM(forma_pagamento))
+       WHEN 'pix' THEN 'PIX'
+       WHEN 'cartão' THEN 'Cartão'
+       WHEN 'cartao' THEN 'Cartão'
+       WHEN 'dinheiro' THEN 'Dinheiro'
+       WHEN 'fiado' THEN 'Fiado'
+       ELSE forma_pagamento
+     END
+     WHERE forma_pagamento IS NOT NULL`,
+	);
+	// Schema 8: instalações da 1.4.1 têm VendaPagamentos só com `valor`; bancos
+	// de dev do branch do pagamento dividido têm o snapshot rico sem `valor`.
+	// Completa o que faltar e alinha: valor (final) <-> valor_base/valor_final.
+	await migrarColunas(conexao, "VendaPagamentos", {
+		valor: "valor REAL",
+		valor_base: "valor_base REAL NOT NULL DEFAULT 0",
+		valor_final: "valor_final REAL NOT NULL DEFAULT 0",
+		acrescimo_percentual: "acrescimo_percentual REAL NOT NULL DEFAULT 0",
+		acrescimo: "acrescimo REAL NOT NULL DEFAULT 0",
+		condicao_parcelamento_id: "condicao_parcelamento_id INTEGER",
+		condicao_parcelamento_nome: "condicao_parcelamento_nome TEXT",
+		parcelas: "parcelas INTEGER NOT NULL DEFAULT 1",
+		detalhes_parcelas: "detalhes_parcelas TEXT",
+		criado_em: "criado_em TEXT",
+	});
+	// Backfill idempotente: garante que o caixa físico continue enxergando
+	// vendas legadas. Fica depois das migrações de Vendas porque instalações
+	// antigas ainda podem não possuir a coluna status.
+	await runOn(
+		conexao,
+		`INSERT INTO VendaPagamentos (venda_id, forma_pagamento, valor, valor_base, valor_final, criado_em)
+     SELECT v.id,
+       CASE LOWER(TRIM(v.forma_pagamento))
+         WHEN 'pix' THEN 'PIX'
+         WHEN 'cartão' THEN 'Cartão'
+         WHEN 'cartao' THEN 'Cartão'
+         WHEN 'dinheiro' THEN 'Dinheiro'
+         WHEN 'fiado' THEN 'Fiado'
+       END,
+       v.total, v.total, v.total, COALESCE(v.data_venda, datetime('now'))
+     FROM Vendas v
+     WHERE v.status = 'finalizada'
+       AND COALESCE(v.origem, 'pdv') NOT IN ('venda_historica_manual', 'importacao_financeiro_historico', 'loja_house_financeiro_historico')
+       AND LOWER(TRIM(v.forma_pagamento)) IN ('pix', 'cartão', 'cartao', 'dinheiro', 'fiado')
+       AND NOT EXISTS (
+         SELECT 1 FROM VendaPagamentos vp WHERE vp.venda_id = v.id
+       )`,
+	);
+	await runOn(
+		conexao,
+		"UPDATE VendaPagamentos SET valor = valor_final WHERE valor IS NULL",
+	);
+	await runOn(
+		conexao,
+		"UPDATE VendaPagamentos SET valor_base = valor, valor_final = valor WHERE valor IS NOT NULL AND valor_base = 0 AND valor_final = 0 AND valor <> 0",
+	);
 	await runOn(
 		conexao,
 		"CREATE UNIQUE INDEX IF NOT EXISTS idx_vendas_request_id ON Vendas(request_id) WHERE request_id IS NOT NULL",
@@ -589,38 +755,6 @@ async function iniciarBanco() {
 	await runOn(
 		conexao,
 		"CREATE UNIQUE INDEX IF NOT EXISTS idx_condicoes_parcelamento_forma_parcelas ON CondicoesParcelamento(forma_pagamento, numero_parcelas)",
-	);
-	// Snapshot por alocação do checkout: uma venda pode combinar formas de
-	// pagamento, mas cada linha precisa preservar sua própria condição, taxa e
-	// parcelas exatas. Vendas antigas continuam usando os campos legados de
-	// Vendas quando não houver linhas aqui.
-	await runOn(
-		conexao,
-		`
-    CREATE TABLE IF NOT EXISTS VendaPagamentos (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      venda_id INTEGER NOT NULL,
-      forma_pagamento TEXT NOT NULL,
-      valor_base REAL NOT NULL,
-      valor_final REAL NOT NULL,
-      acrescimo_percentual REAL NOT NULL DEFAULT 0,
-      acrescimo REAL NOT NULL DEFAULT 0,
-      condicao_parcelamento_id INTEGER,
-      condicao_parcelamento_nome TEXT,
-      parcelas INTEGER NOT NULL DEFAULT 1,
-      detalhes_parcelas TEXT,
-      criado_em TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (venda_id) REFERENCES Vendas(id) ON DELETE CASCADE,
-      CHECK (valor_base >= 0),
-      CHECK (valor_final >= 0),
-      CHECK (acrescimo_percentual >= 0),
-      CHECK (parcelas >= 1)
-    )
-  `,
-	);
-	await runOn(
-		conexao,
-		"CREATE INDEX IF NOT EXISTS idx_venda_pagamentos_venda ON VendaPagamentos(venda_id, id)",
 	);
 	const agoraParcelamento = new Date().toISOString();
 	await runOn(

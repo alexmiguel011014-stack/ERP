@@ -201,9 +201,15 @@
 	}
 
 	function descontoAtual() {
-		var d = Number(descontoInput.value);
-		if (!Number.isFinite(d) || d < 0) return 0;
+		var d = lerDecimalInformado(descontoInput.value);
+		if (d === null || d < 0) return 0;
 		return d;
+	}
+
+	function descontoValido() {
+		var texto = descontoInput.value.trim();
+		var d = lerDecimalInformado(texto);
+		return texto === "" || (d !== null && d >= 0);
 	}
 
 	function totalCarrinho() {
@@ -235,12 +241,13 @@
 	}
 
 	function atualizarTroco() {
-		var recebido = Number(valorRecebidoInput.value);
+		var recebido = lerValorMonetario(valorRecebidoInput.value);
 		if (!Number.isFinite(recebido) || recebido <= 0) {
 			trocoResultado.textContent = "";
 			return;
 		}
-		var troco = recebido - totalCarrinho();
+		var troco =
+			(Math.round(recebido * 100) - Math.round(totalCarrinho() * 100)) / 100;
 		if (troco < 0) {
 			trocoResultado.style.color = "var(--cor-erro)";
 			trocoResultado.textContent =
@@ -841,6 +848,11 @@
 			mostrarMensagem("Carrinho vazio.", "erro");
 			return;
 		}
+		if (!descontoValido()) {
+			mostrarMensagem("Informe um desconto válido.", "erro");
+			descontoInput.focus();
+			return;
+		}
 
 		if (
 			!confirm(
@@ -858,6 +870,11 @@
 			mostrarMensagem("Carrinho vazio.", "erro");
 			return;
 		}
+		if (!descontoValido()) {
+			mostrarMensagem("Informe um desconto válido.", "erro");
+			descontoInput.focus();
+			return;
+		}
 
 		var pagamento = formaPagamento.value;
 		if (!pagamento) {
@@ -867,7 +884,7 @@
 
 		var total = totalCarrinho();
 		var desconto = descontoAtual();
-		var recebido = Number(valorRecebidoInput.value);
+		var recebido = lerValorMonetario(valorRecebidoInput.value);
 
 		if (pagamento === "Dinheiro") {
 			if (!Number.isFinite(recebido) || recebido <= 0) {
@@ -875,7 +892,7 @@
 				valorRecebidoInput.focus();
 				return;
 			}
-			if (recebido < total) {
+			if (Math.round(recebido * 100) < Math.round(total * 100)) {
 				mostrarMensagem("Valor recebido é menor que o total da venda.", "erro");
 				valorRecebidoInput.focus();
 				return;
@@ -923,6 +940,10 @@
 		var dados = {
 			itens: carrinho,
 			forma_pagamento: formaPagamento.value || null,
+			valor_recebido:
+				formaPagamento.value === "Dinheiro"
+					? lerValorMonetario(valorRecebidoInput.value)
+					: null,
 			cliente_id: clienteSelect.value ? Number(clienteSelect.value) : null,
 			desconto: descontoAtual(),
 			observacao: observacaoInput.value.trim() || null,
@@ -965,7 +986,7 @@
 							: null,
 						valorRecebido:
 							dados.forma_pagamento === "Dinheiro"
-								? Number(valorRecebidoInput.value) || 0
+								? lerValorMonetario(valorRecebidoInput.value) || 0
 								: null,
 						data: new Date().toISOString(),
 					};
@@ -1366,6 +1387,14 @@
 		caixaOverlay.style.display = "none";
 	}
 
+	function lerValorMonetario(valorTexto) {
+		return window.lerValorMonetario(valorTexto);
+	}
+
+	function lerDecimalInformado(valorTexto) {
+		return window.lerDecimalInformado(valorTexto);
+	}
+
 	if (btnCaixa) btnCaixa.addEventListener("click", abrirCaixaModal);
 	if (btnFecharCaixaOverlay)
 		btnFecharCaixaOverlay.addEventListener("click", fecharCaixaModal);
@@ -1375,8 +1404,8 @@
 
 	if (btnConfirmarAbrirCaixa) {
 		btnConfirmarAbrirCaixa.addEventListener("click", () => {
-			var valor = Number(caixaValorAbertura.value);
-			if (!Number.isFinite(valor) || valor < 0) {
+			var valor = lerDecimalInformado(caixaValorAbertura.value);
+			if (valor === null || !Number.isFinite(valor) || valor < 0) {
 				caixaMsg("Valor de abertura inválido.");
 				return;
 			}
@@ -1397,8 +1426,9 @@
 
 	if (btnConfirmarFecharCaixa) {
 		btnConfirmarFecharCaixa.addEventListener("click", () => {
-			var valor = Number(caixaValorFechamento.value);
-			if (!Number.isFinite(valor) || valor < 0) {
+			var textoValor = caixaValorFechamento.value.trim();
+			var valor = textoValor ? lerDecimalInformado(textoValor) : 0;
+			if (valor === null || !Number.isFinite(valor) || valor < 0) {
 				caixaMsg("Informe o valor contado no caixa.");
 				return;
 			}

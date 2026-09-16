@@ -29,7 +29,7 @@ export default function VendasStats({ vendas }: { vendas: Venda[] }) {
 						<DollarLineIcon className="size-4" />
 					</div>
 					<span className="text-xs text-gray-500 dark:text-gray-400">
-						Total faturado
+						Faturamento bruto
 					</span>
 				</div>
 				<h4 className="mt-2 text-lg font-semibold text-gray-800 dark:text-white/90">

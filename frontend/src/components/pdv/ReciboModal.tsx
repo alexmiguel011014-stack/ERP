@@ -14,6 +14,8 @@ export type DadosRecibo = {
 	formaPagamento: string;
 	condicaoNome: string | null;
 	parcelas: ParcelaVenda[];
+	// Snapshot por alocação devolvido pela venda (pagamento dividido): a
+	// taxa do cartão já está em valorFinal — é isso que o cliente pagou.
 	pagamentos?: PagamentoVendaResultado[];
 	clienteNome: string | null;
 	valorRecebido: number | null;
@@ -28,8 +30,14 @@ export default function ReciboModal({
 	onClose: () => void;
 }) {
 	if (!dados) return null;
+	const totalDinheiro =
+		dados.pagamentos && dados.pagamentos.length > 0
+			? dados.pagamentos
+					.filter((pagamento) => pagamento.forma_pagamento === "Dinheiro")
+					.reduce((soma, pagamento) => soma + pagamento.valorFinal, 0)
+			: dados.total;
 	const troco =
-		dados.valorRecebido !== null ? dados.valorRecebido - dados.total : null;
+		dados.valorRecebido !== null ? dados.valorRecebido - totalDinheiro : null;
 
 	return (
 		<Modal isOpen={!!dados} onClose={onClose} className="max-w-sm p-6">

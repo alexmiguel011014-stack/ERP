@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { erpApi, type ProdutoBusca } from "@/lib/erpApi";
 import { formatarAtributos } from "@/lib/utils/formatos";
 
@@ -36,6 +36,7 @@ export function useCarrinho() {
 	const [itens, setItens] = useState<ItemCarrinho[]>([]);
 	const [alerta, setAlerta] = useState<AlertaCarrinho>(null);
 	const [carregado, setCarregado] = useState(false);
+	const limpezaPendente = useRef(false);
 
 	// Carrinho sobrevive a reload/navegação — mesmo comportamento da vanilla,
 	// que salva em localStorage a cada mutação.
@@ -47,6 +48,11 @@ export function useCarrinho() {
 	useEffect(() => {
 		if (!carregado) return;
 		try {
+			if (limpezaPendente.current) {
+				limpezaPendente.current = false;
+				window.localStorage.removeItem(CHAVE_LOCALSTORAGE);
+				return;
+			}
 			window.localStorage.setItem(CHAVE_LOCALSTORAGE, JSON.stringify(itens));
 		} catch {
 			// localStorage indisponível (modo privado etc.) — carrinho só não
@@ -164,6 +170,12 @@ export function useCarrinho() {
 	}
 
 	function limpar() {
+		limpezaPendente.current = true;
+		try {
+			window.localStorage.removeItem(CHAVE_LOCALSTORAGE);
+		} catch {
+			/* localStorage indisponível — o estado ainda será limpo. */
+		}
 		setItens([]);
 	}
 

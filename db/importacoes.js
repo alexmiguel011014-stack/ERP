@@ -1383,6 +1383,11 @@ async function importarVendasHistoricasFiado(dados, batchId, db) {
 					sku: item.sku,
 					quantidade: item.quantidade,
 					valorUnitario: item.valorUnitario ?? item.valor_unitario,
+					custoUnitario:
+						item.custoUnitario ??
+						item.custo_unitario ??
+						item.precoCusto ??
+						item.preco_custo,
 					data: item.data,
 					statusRecebivel:
 						item.statusRecebivel || item.status_recebivel || "aberto",

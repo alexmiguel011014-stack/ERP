@@ -38,6 +38,8 @@ export default function PainelPorDia({
 									<th className="px-3 py-2 text-right text-xs font-medium uppercase text-gray-400">
 										Descontos
 									</th>
+									<th className="px-3 py-2 text-right text-xs font-medium uppercase text-gray-400">Devoluções</th>
+									<th className="px-3 py-2 text-right text-xs font-medium uppercase text-gray-400">Líquido</th>
 								</tr>
 							</thead>
 							<tbody>
@@ -54,6 +56,8 @@ export default function PainelPorDia({
 										<td className="px-3 py-2 text-right">
 											{formatarMoeda(d.descontos)}
 										</td>
+										<td className="px-3 py-2 text-right text-error-600">{formatarMoeda(d.devolucoes)}</td>
+										<td className="px-3 py-2 text-right font-semibold">{formatarMoeda(d.faturamentoLiquido)}</td>
 									</tr>
 								))}
 							</tbody>

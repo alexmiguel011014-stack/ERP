@@ -143,7 +143,7 @@
 					} else {
 						var t1 = document.createElement("table");
 						t1.innerHTML =
-							"<thead><tr><th>Data</th><th style='text-align:center;'>Vendas</th><th style='text-align:right;'>Faturamento</th><th style='text-align:right;'>Descontos</th></tr></thead><tbody></tbody>";
+							"<thead><tr><th>Data</th><th style='text-align:center;'>Vendas</th><th style='text-align:right;'>Faturamento</th><th style='text-align:right;'>Descontos</th><th style='text-align:right;'>Devoluções</th><th style='text-align:right;'>Líquido</th></tr></thead><tbody></tbody>";
 						var tb1 = t1.querySelector("tbody");
 						r.porDia.forEach((d) => {
 							var tr = document.createElement("tr");
@@ -159,7 +159,9 @@
 								"</td>" +
 								"<td style='text-align:right;'>" +
 								formatarMoeda(d.descontos) +
-								"</td>";
+								"</td>" +
+								"<td style='text-align:right; color:var(--cor-erro);'>" + formatarMoeda(d.devolucoes || 0) + "</td>" +
+								"<td style='text-align:right; font-weight:600;'>" + formatarMoeda(d.faturamentoLiquido ?? d.faturamento - d.descontos) + "</td>";
 							tb1.appendChild(tr);
 						});
 						listaPorDia.appendChild(t1);
@@ -193,7 +195,7 @@
 					} else {
 						var t2 = document.createElement("table");
 						t2.innerHTML =
-							"<thead><tr><th>Forma de pagamento</th><th style='text-align:center;'>Vendas</th><th style='text-align:right;'>Faturamento</th></tr></thead><tbody></tbody>";
+							"<thead><tr><th>Forma de pagamento</th><th style='text-align:center;'>Vendas</th><th style='text-align:right;'>Faturamento</th><th style='text-align:right;'>Devoluções</th><th style='text-align:right;'>Líquido</th></tr></thead><tbody></tbody>";
 						var tb2 = t2.querySelector("tbody");
 						r.porPagamento.forEach((p) => {
 							var tr = document.createElement("tr");
@@ -206,7 +208,9 @@
 								"</td>" +
 								"<td style='text-align:right; color:var(--cor-sucesso); font-weight:600;'>" +
 								formatarMoeda(p.faturamento) +
-								"</td>";
+								"</td>" +
+								"<td style='text-align:right; color:var(--cor-erro);'>" + formatarMoeda(p.devolucoes || 0) + "</td>" +
+								"<td style='text-align:right; font-weight:600;'>" + formatarMoeda(p.faturamentoLiquido ?? p.faturamento) + "</td>";
 							tb2.appendChild(tr);
 						});
 						listaPorPagamento.appendChild(t2);
@@ -407,9 +411,10 @@
 							"</div>"
 						);
 					};
-					dreResultado.innerHTML =
+						dreResultado.innerHTML =
 						linha("Receita Bruta (" + d.vendas + " venda(s))", d.receitaBruta) +
 						linha("(-) Descontos", -d.descontos, { cor: "var(--cor-erro)" }) +
+						linha("(-) Devoluções", -(d.devolucoes || 0), { cor: "var(--cor-erro)" }) +
 						linha("(=) Receita Líquida", d.receitaLiquida, { destaque: true }) +
 						linha("(-) CMV (custo da mercadoria vendida)", -d.cmv, {
 							cor: "var(--cor-erro)",
@@ -426,6 +431,20 @@
 						linha("(-) Despesas pagas no período", -d.despesas, {
 							cor: "var(--cor-erro)",
 						}) +
+						(d.investimentosPagos
+							? linha("Investimentos (fora do lucro operacional)", d.investimentosPagos, {
+									cor: "var(--cor-cinza)",
+								})
+							: "") +
+						(d.salariosPagos || d.proLaborePago || d.encargosPagos
+							? linha(
+									"Pessoal: salários / pró-labore / encargos",
+									(d.salariosPagos || 0) +
+										(d.proLaborePago || 0) +
+										(d.encargosPagos || 0),
+									{ cor: "var(--cor-erro)" },
+								)
+							: "") +
 						linha(
 							"(=) Lucro Líquido (" +
 								d.margemLiquidaPercentual.toFixed(1) +
@@ -716,9 +735,11 @@
 			var r = relatorioCache.resumo.resumo;
 			titulo("Resumo de Vendas");
 			linhaTexto("Vendas: " + r.vendas);
-			linhaTexto("Faturamento: " + formatarMoeda(r.faturamento));
+			linhaTexto("Faturamento bruto: " + formatarMoeda(r.faturamento));
 			linhaTexto("Ticket médio: " + formatarMoeda(r.ticketMedio));
 			linhaTexto("Descontos dados: " + formatarMoeda(r.descontos));
+			linhaTexto("Devoluções: " + formatarMoeda(r.devolucoes || 0));
+			linhaTexto("Faturamento líquido: " + formatarMoeda(r.faturamentoLiquido ?? r.faturamento - r.descontos));
 			y += 10;
 		}
 
@@ -732,6 +753,7 @@
 					formatarMoeda(d.receitaBruta),
 			);
 			linhaTexto("(-) Descontos: " + formatarMoeda(d.descontos));
+			linhaTexto("(-) Devoluções: " + formatarMoeda(d.devolucoes || 0));
 			linhaTexto("(=) Receita Líquida: " + formatarMoeda(d.receitaLiquida), {
 				negrito: true,
 			});
@@ -818,27 +840,31 @@
 		if (relatorioCache.resumo && relatorioCache.resumo.porDia) {
 			titulo("Vendas por Dia");
 			tabela(
-				["Data", "Vendas", "Faturamento", "Descontos"],
+				["Data", "Vendas", "Faturamento bruto", "Descontos", "Devoluções", "Líquido"],
 				relatorioCache.resumo.porDia.map((d) => [
 					formatarData(d.dia),
 					d.vendas,
 					formatarMoeda(d.faturamento),
 					formatarMoeda(d.descontos),
+					formatarMoeda(d.devolucoes || 0),
+					formatarMoeda(d.faturamentoLiquido ?? d.faturamento - d.descontos),
 				]),
-				[80, 50, 110, 80],
+				[60, 45, 100, 80, 80, 90],
 			);
 		}
 
 		if (relatorioCache.resumo && relatorioCache.resumo.porPagamento) {
 			titulo("Faturamento por Forma de Pagamento");
 			tabela(
-				["Forma de Pagamento", "Vendas", "Faturamento"],
+				["Forma de Pagamento", "Vendas", "Faturamento bruto", "Devoluções", "Líquido"],
 				relatorioCache.resumo.porPagamento.map((p) => [
 					p.forma_pagamento,
 					String(p.vendas),
 					formatarMoeda(p.faturamento),
+					formatarMoeda(p.devolucoes || 0),
+					formatarMoeda(p.faturamentoLiquido ?? p.faturamento),
 				]),
-				[180, 50, 130],
+				[150, 50, 100, 90, 100],
 			);
 		}
 

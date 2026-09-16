@@ -4,6 +4,7 @@ import { Modal } from "@/components/ui/modal";
 import Button from "@/components/ui/button/Button";
 import ConfirmarSenhaModal from "@/components/common/ConfirmarSenhaModal";
 import ProdutoThumbnail from "./ProdutoThumbnail";
+import CategoriaSelector from "./CategoriaSelector";
 import { useProdutos } from "@/hooks/useProdutos";
 import { useCategorias } from "@/hooks/useCategorias";
 import { erpApi, type ProdutoDetalhado } from "@/lib/erpApi";
@@ -70,7 +71,7 @@ export default function ProdutosListModal({
 	// à parte da Lixeira (não faz sentido categorizar produto excluído).
 	const [modoSelecao, setModoSelecao] = useState(false);
 	const [selecionados, setSelecionados] = useState<Set<number>>(new Set());
-	const [categoriaLoteId, setCategoriaLoteId] = useState("");
+	const [categoriasLote, setCategoriasLote] = useState<string[]>([]);
 	const [aplicandoLote, setAplicandoLote] = useState(false);
 	const [mensagemLote, setMensagemLote] = useState<string | null>(null);
 
@@ -160,31 +161,46 @@ export default function ProdutosListModal({
 	function fecharModoSelecao() {
 		setModoSelecao(false);
 		setSelecionados(new Set());
-		setCategoriaLoteId("");
+		setCategoriasLote([]);
 		setMensagemLote(null);
 	}
 
+	// Backend aceita uma categoria por chamada (atribuirCategoriaEmLote é
+	// atômico por categoria: um id inválido no lote falha tudo, nada é
+	// gravado parcial). Pra permitir escolher várias categorias de uma vez
+	// no CategoriaSelector, aplicamos uma de cada vez em sequência — cada
+	// chamada continua atômica por si só, só a soma das N chamadas não é.
 	async function aplicarCategoriaLote() {
-		const catId = Number(categoriaLoteId);
-		if (!catId || selecionados.size === 0) return;
-		const categoria = categorias.find((c) => c.id === catId);
+		const idsCategorias = categoriasLote
+			.map((id) => Number(id))
+			.filter((id) => Number.isInteger(id) && id > 0);
+		if (idsCategorias.length === 0 || selecionados.size === 0) return;
+		const nomes = idsCategorias
+			.map((id) => categorias.find((c) => c.id === id)?.nome ?? id)
+			.join(", ");
 		if (
 			!confirm(
-				`Adicionar a categoria "${categoria?.nome ?? catId}" aos ${selecionados.size} produto(s) selecionado(s)? Categorias já existentes nesses produtos não são removidas.`,
+				`Adicionar a${idsCategorias.length > 1 ? "s categorias" : " categoria"} "${nomes}" aos ${selecionados.size} produto(s) selecionado(s)? Categorias já existentes nesses produtos não são removidas.`,
 			)
 		)
 			return;
 		setAplicandoLote(true);
 		setMensagemLote(null);
 		try {
-			const resultado = await erpApi.produtos.atribuirCategoriaEmLote(
-				Array.from(selecionados),
-				catId,
-			);
+			const produtoIds = Array.from(selecionados);
+			let totalAplicado = 0;
+			for (const catId of idsCategorias) {
+				const resultado = await erpApi.produtos.atribuirCategoriaEmLote(
+					produtoIds,
+					catId,
+				);
+				totalAplicado = resultado.quantidade;
+			}
 			setMensagemLote(
-				`Categoria aplicada a ${resultado.quantidade} produto(s).`,
+				`${idsCategorias.length > 1 ? "Categorias aplicadas" : "Categoria aplicada"} a ${totalAplicado} produto(s).`,
 			);
 			setSelecionados(new Set());
+			setCategoriasLote([]);
 			recarregar();
 		} catch (e) {
 			alert(
@@ -308,7 +324,7 @@ export default function ProdutosListModal({
 									modoSelecao ? fecharModoSelecao() : setModoSelecao(true)
 								}
 							>
-								{modoSelecao ? "Cancelar seleção" : "Selecionar"}
+								{modoSelecao ? "Cancelar" : "+ Categorias"}
 							</Button>
 						)}
 						<Button size="sm" variant="outline" onClick={exportarCsv}>
@@ -318,44 +334,41 @@ export default function ProdutosListModal({
 				</div>
 
 				{modoSelecao && (
-					<div className="flex flex-wrap items-center gap-2 border-b border-gray-100 bg-gray-50 px-4 py-2 text-sm dark:border-gray-800 dark:bg-white/[0.02]">
-						<span className="text-gray-600 dark:text-gray-300">
+					<div className="flex flex-wrap items-start gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3 text-sm dark:border-gray-800 dark:bg-white/[0.02]">
+						<span className="pt-2.5 text-gray-600 dark:text-gray-300">
 							{selecionados.size} selecionado(s)
 						</span>
-						<select
-							value={categoriaLoteId}
-							onChange={(e) => setCategoriaLoteId(e.target.value)}
-							className="h-9 rounded-lg border border-gray-300 bg-transparent px-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-						>
-							<option value="">Escolher categoria...</option>
-							{categorias.map((c) => (
-								<option key={c.id} value={c.id}>
-									{c.categoria_pai_nome ? c.categoria_pai_nome + " / " : ""}
-									{c.nome}
-								</option>
-							))}
-						</select>
+						<div className="w-80">
+							<CategoriaSelector
+								categorias={categorias}
+								selecionados={categoriasLote}
+								onChange={setCategoriasLote}
+								onCategoriaCriada={recarregarCategorias}
+							/>
+						</div>
 						<Button
 							size="sm"
 							disabled={
-								!categoriaLoteId || selecionados.size === 0 || aplicandoLote
+								categoriasLote.length === 0 ||
+								selecionados.size === 0 ||
+								aplicandoLote
 							}
 							onClick={aplicarCategoriaLote}
 						>
 							{aplicandoLote
 								? "Aplicando..."
-								: `Aplicar categoria aos ${selecionados.size} selecionado(s)`}
+								: `Aplicar aos ${selecionados.size} selecionado(s)`}
 						</Button>
 						{mensagemLote && (
-							<span className="text-xs text-success-600 dark:text-success-400">
+							<span className="pt-2.5 text-xs text-success-600 dark:text-success-400">
 								{mensagemLote}
 							</span>
 						)}
 					</div>
 				)}
 
-				<div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto p-4 sm:flex-row">
-					<aside className="w-full shrink-0 sm:w-52">
+				<div className="flex max-h-[70vh] flex-col gap-4 overflow-y-hidden p-4 sm:flex-row sm:gap-0">
+					<aside className="w-full shrink-0 overflow-y-auto sm:w-fit sm:min-w-[11rem] sm:max-w-[16rem]">
 						<div className="mb-2 text-xs font-semibold uppercase text-gray-400">
 							Filtros
 						</div>
@@ -411,7 +424,12 @@ export default function ProdutosListModal({
 						</button>
 					</aside>
 
-					<div className="flex-1 overflow-x-auto">
+					<div
+						aria-hidden="true"
+						className="hidden self-stretch sm:mx-4 sm:block sm:w-px sm:bg-gray-200/70 dark:sm:bg-white/10"
+					/>
+
+					<div className="min-w-0 flex-1 overflow-x-auto">
 						<table className="w-full text-left text-sm">
 							<thead>
 								<tr className="border-b border-gray-100 dark:border-gray-800">

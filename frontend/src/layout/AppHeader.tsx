@@ -44,7 +44,7 @@ const AppHeader: React.FC = () => {
 	};
 
 	return (
-		<header className="sticky top-0 flex w-full bg-[#0F172A] z-99999">
+		<header className="sticky top-0 flex w-full bg-[#0F172A] border-b-[12px] border-[#F0F4F8] dark:border-gray-50 z-99999">
 			{/* Achado real (2026-08-29, correção da compactação de abas): sem
 			    min-w-0 aqui, este div (único filho flex do <header>) nunca
 			    encolhia abaixo da largura "natural" do seu conteúdo — o

@@ -231,7 +231,6 @@ export default function EstoqueListaView({
 													type="number"
 													min={0}
 													step={1}
-													defaultValue={r.estoque_minimo}
 													value={minimos[r.variacao_id] ?? r.estoque_minimo}
 													onChange={(e) =>
 														setMinimos((m) => ({

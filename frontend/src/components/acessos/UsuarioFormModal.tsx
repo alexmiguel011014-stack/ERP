@@ -13,6 +13,7 @@ import {
 	type Usuario,
 	type UsuarioFormData,
 } from "@/lib/erpApi";
+import { lerDecimalInformado } from "@/lib/utils/formatos";
 
 const MODULOS_PERMISSAO = [
 	{ value: "produtos", label: "Produtos" },
@@ -84,6 +85,7 @@ export default function UsuarioFormModal({
 }) {
 	const { sessao } = useAuth();
 	const [form, setForm] = useState<FormState>(FORM_VAZIO);
+	const [comissaoInput, setComissaoInput] = useState("0");
 	const [erro, setErro] = useState<string | null>(null);
 	const [salvando, setSalvando] = useState(false);
 	const [rascunho, setRascunho, limparRascunho] =
@@ -96,17 +98,19 @@ export default function UsuarioFormModal({
 		if (!isOpen) return;
 		setErro(null);
 		if (usuarioEditando) {
+			const comissao = Number(usuarioEditando.comissao_percentual) || 0;
 			setForm({
 				login: usuarioEditando.login || "",
 				nome: usuarioEditando.nome || "",
 				perfil: perfilValido(usuarioEditando.perfil),
-				comissao_percentual: Number(usuarioEditando.comissao_percentual) || 0,
+				comissao_percentual: comissao,
 				ativo: Number(usuarioEditando.ativo) === 1,
 				senha: "",
 				confirmarSenha: "",
 				senhaAtual: "",
 				permissoes: parsePermissoesUsuario(usuarioEditando.permissoes),
 			});
+			setComissaoInput(String(comissao));
 		} else {
 			const base = { ...FORM_VAZIO, ...rascunho };
 			// Dono não pode criar admin — se o padrão (ou um rascunho salvo
@@ -115,6 +119,7 @@ export default function UsuarioFormModal({
 				base.perfil = "dono";
 			}
 			setForm(base);
+			setComissaoInput(String(base.comissao_percentual));
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [isOpen, usuarioEditando]);
@@ -205,6 +210,14 @@ export default function UsuarioFormModal({
 			setErro("Você não pode desativar o próprio usuário.");
 			return;
 		}
+		const comissao = lerDecimalInformado(comissaoInput);
+		if (
+			ehVendedor &&
+			(comissao === null || !Number.isFinite(comissao) || comissao < 0 || comissao > 100)
+		) {
+			setErro("Informe uma comissão entre 0 e 100%.");
+			return;
+		}
 		if (
 			editandoASiMesmo &&
 			usuarioEditando?.perfil === "admin" &&
@@ -218,7 +231,7 @@ export default function UsuarioFormModal({
 			login: loginVal,
 			nome: form.nome.trim(),
 			perfil: form.perfil,
-			comissao_percentual: form.comissao_percentual,
+			comissao_percentual: ehVendedor ? comissao! : form.comissao_percentual,
 			ativo: form.ativo,
 			senha: form.senha,
 			senhaAtual: form.senhaAtual,
@@ -334,11 +347,18 @@ export default function UsuarioFormModal({
 						<div>
 							<Label>Comissão sobre vendas (%)</Label>
 							<Input
-								type="number"
-								value={form.comissao_percentual}
-								onChange={(e) =>
-									campo("comissao_percentual", Number(e.target.value) || 0)
-								}
+								type="text"
+								inputMode="decimal"
+								value={comissaoInput}
+								onChange={(e) => {
+									const texto = e.target.value;
+									setComissaoInput(texto);
+									const valor = lerDecimalInformado(texto);
+									if (valor !== null) campo("comissao_percentual", valor);
+								}}
+								min="0"
+								max="100"
+								step={0.1}
 							/>
 						</div>
 					)}

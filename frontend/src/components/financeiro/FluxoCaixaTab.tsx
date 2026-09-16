@@ -4,6 +4,9 @@ import Button from "@/components/ui/button/Button";
 import Input from "@/components/form/input/InputField";
 import { useFluxoCaixa } from "@/hooks/useFluxoCaixa";
 import { formatarMoeda } from "@/components/dashboard/formatos";
+import {
+	lerDecimalInformado,
+} from "@/lib/utils/formatos";
 import FluxoCaixaProjetadoCard from "./FluxoCaixaProjetadoCard";
 
 function formatarData(iso: string | null): string {
@@ -43,8 +46,11 @@ export default function FluxoCaixaTab({ refreshKey = 0 }: { refreshKey?: number 
 		metaInput || (metaFaturamento ? String(metaFaturamento) : "");
 
 	async function handleSalvarAliquota() {
-		const valor = parseFloat(aliquotaInput || String(aliquota || 0)) || 0;
-		if (valor < 0) return;
+		const valor = aliquotaInput.trim()
+			? lerDecimalInformado(aliquotaInput)
+			: aliquota;
+		if (valor === null || !Number.isFinite(valor) || valor < 0 || valor > 100)
+			return;
 		setSalvandoAliquota(true);
 		try {
 			await salvarAliquota(valor);
@@ -54,8 +60,10 @@ export default function FluxoCaixaTab({ refreshKey = 0 }: { refreshKey?: number 
 	}
 
 	async function handleSalvarMeta() {
-		const valor = parseFloat(metaInput || String(metaFaturamento || 0)) || 0;
-		if (valor < 0) return;
+		const valor = metaInput.trim()
+			? lerDecimalInformado(metaInput)
+			: metaFaturamento;
+		if (valor === null || !Number.isFinite(valor) || valor < 0) return;
 		setSalvandoMeta(true);
 		try {
 			await salvarMeta(valor);
@@ -223,7 +231,8 @@ export default function FluxoCaixaTab({ refreshKey = 0 }: { refreshKey?: number 
 							Alíquota de provisão (%)
 						</label>
 						<Input
-							type="number"
+							type="text"
+							inputMode="decimal"
 							value={aliquotaExibida}
 							onChange={(e) => setAliquotaInput(e.target.value)}
 							placeholder="Ex: 6"
@@ -269,7 +278,8 @@ export default function FluxoCaixaTab({ refreshKey = 0 }: { refreshKey?: number 
 							Meta (R$)
 						</label>
 						<Input
-							type="number"
+							type="text"
+							inputMode="decimal"
 							value={metaExibida}
 							onChange={(e) => setMetaInput(e.target.value)}
 							placeholder="Ex: 30000"

@@ -7,6 +7,7 @@ import {
 	erpApi,
 	type CondicaoParcelamento,
 } from "@/lib/erpApi";
+import { lerDecimalInformado } from "@/lib/utils/formatos";
 
 type ProdutoPreview = { id: number; nome: string; preco: number };
 
@@ -68,8 +69,15 @@ export default function CondicoesParcelamentoPanel({
 
 	async function salvar() {
 		const numeroParcelas = Number(formulario.numero_parcelas);
-		const acrescimo = Number(formulario.acrescimo_percentual);
-		if (!Number.isInteger(numeroParcelas) || numeroParcelas < 1 || acrescimo < 0) {
+		const acrescimo = lerDecimalInformado(formulario.acrescimo_percentual);
+		if (
+			!Number.isInteger(numeroParcelas) ||
+			numeroParcelas < 1 ||
+			acrescimo === null ||
+			!Number.isFinite(acrescimo) ||
+			acrescimo < 0 ||
+			acrescimo > 100
+		) {
 			setMensagem("Informe parcelas inteiras (mínimo 1) e um acréscimo não negativo.");
 			return;
 		}

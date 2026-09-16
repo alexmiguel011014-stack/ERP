@@ -63,22 +63,34 @@ export default function RelatoriosPage() {
 	} = useRelatorios();
 	const vendasState = useVendas();
 	const [vendaSelecionada, setVendaSelecionada] = useState<Venda | null>(null);
+	const [exportandoPdf, setExportandoPdf] = useState(false);
 
 	function exportarCsv() {
 		exportarCurvaAbcCsv(curvaAbc);
 	}
 
-	function exportarPdf() {
-		exportarRelatorioPdf({
-			periodo: { inicio: dataInicio, fim: dataFim },
-			resumo: vendasPeriodo,
-			dre,
-			comissoes,
-			curvaAbc,
-			margemContribuicao,
-			pontoDeEquilibrio,
-			giroEstoque,
-		});
+	async function exportarPdf() {
+		setExportandoPdf(true);
+		try {
+			await exportarRelatorioPdf({
+				periodo: { inicio: dataInicio, fim: dataFim },
+				resumo: vendasPeriodo,
+				dre,
+				comissoes,
+				curvaAbc,
+				margemContribuicao,
+				pontoDeEquilibrio,
+				giroEstoque,
+				segmentacaoClientes,
+				produtosParados,
+				sazonalidade,
+				conversaoOrcamentos,
+				agingRecebiveis,
+				fluxoCaixa,
+			});
+		} finally {
+			setExportandoPdf(false);
+		}
 	}
 
 	return (
@@ -198,6 +210,7 @@ export default function RelatoriosPage() {
 						onExportarCsv={exportarCsv}
 						onExportarPdf={exportarPdf}
 						carregando={carregando}
+						exportandoPdf={exportandoPdf}
 					/>
 
 					{Object.keys(erros).length > 0 && (

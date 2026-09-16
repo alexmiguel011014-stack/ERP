@@ -20,7 +20,7 @@ Stack: Electron.js + Node.js + SQLite + HTML/CSS/JS puro.
 Paleta visual: Tatame Clean (clara: `#F8FAFC`, `#FFFFFF`, `#1E293B`, `#2563EB`, `#16A34A`, `#E2E8F0`; dark: `#0F172A`, `#1E293B`, `#3B82F6`, `#E2E8F0`).
 
 Repositório: `https://github.com/alexmiguel011014-stack/ERP.git` (branch `main`, push via HTTPS).
-Versão atual: `v1.0.5` (`package.json`). Releases publicadas no GitHub Releases.
+Versão atual: `v1.4.1` (`package.json`). Releases publicadas no GitHub Releases.
 
 ### Processo de release (checado em 2026-08-19, era conhecimento tribal até aqui)
 
@@ -232,7 +232,7 @@ pro racional completo). Os dois frontends coexistem até o cutover final (Fase 6
   completa nas ~22 telas, os dois perfis, os dois temas, antes de remover de vez.
 - **Projeto npm isolado**: `frontend/` tem `package.json`/lockfile próprios — nunca rodar
   `npm install` nele a partir da raiz (que é `"type": "commonjs"`, só Electron). Só
-  `frontend/out/` (o build estático) entra no pacote final (`package.json` → `build.files`).
+  `frontend/out/` (o build estático) entra no pacote final (`package.json` → `build.extraResources`).
 - **`trailingSlash: true` é obrigatório** (export estático — cada rota vira
   `rota/index.html`), o que significa `usePathname()` sempre devolve a rota com barra no
   final (`"/financeiro/"`), nunca sem. Qualquer comparação direta com um href construído
@@ -245,11 +245,22 @@ pro racional completo). Os dois frontends coexistem até o cutover final (Fase 6
   deliberada (IPC local, não tem o que cachear/retry como dado de rede).
 - **Sessão**: 100% estado do processo principal, sem token client-side — `AuthContext` só
   lê a sessão uma vez no mount do shell `(admin)/layout.tsx`.
-- **Sistema de abas do header** (`context/TabsContext.tsx` + `layout/AbasAtivasWrapper.tsx`):
-  mantém múltiplos módulos "montados" ao mesmo tempo (um `Map<pathname, ReactNode>`
-  capturado na primeira visita, entradas inativas só escondidas via `hidden`, não
-  desmontadas) — reimplementação manual porque o mecanismo nativo do Next
-  (`cacheComponents`/`<Activity>`) exige a versão 16 (projeto está na 15.5.23).
+- **Sistema de abas do header** (`context/TabsContext.tsx` + `layout/AbasHost.tsx`):
+  mantém múltiplos módulos montados ao mesmo tempo — uma instância por aba aberta,
+  instanciada pelo próprio host a partir de um registro `id do módulo → tela`
+  (`next/dynamic` das páginas de `app/(admin)/`), inativas só escondidas via `hidden`.
+  O `children` do layout (a página roteada pelo Next) só é renderizado em rota que não
+  é módulo (ex.: `/categorias`). NÃO cachear o `children` do layout: no App Router ele é
+  o `OuterLayoutRouter` do Next, que sempre renderiza o segmento ativo — a versão
+  anterior (`AbasAtivasWrapper`) fazia isso e multiplicava a página atual pelo número de
+  abas abertas (N× IPC a cada troca, nada preservado; causa real do "campos travam e
+  destravam sozinhos", 2026-09-15). Reimplementação manual porque o mecanismo nativo
+  (`cacheComponents`/`<Activity>`) exige Next 16 — o React que o Next 15.5.23 embute
+  (19.2.0-canary de 2025-08) não exporta `Activity`, verificado no bundle. Cada aba vive num
+  `layout/AbaViva.tsx` (display:none quando inativa + devolve o foco ao último campo usado
+  quando a aba volta); quem precisa saber se está na aba visível (título do header,
+  scroll-lock/Esc de `Modal`) usa `context/AbaVisivelContext.tsx`;
+  `layout/ProdutosWorkspace.tsx` faz o mesmo para as sub-abas de Produtos.
 - Sem suíte de teste automatizado ainda (`frontend/package.json` não tem script `test`) —
   todo o trabalho é verificado manualmente contra o app rodando. CI (ver seção acima) roda
   só lint+typecheck do frontend, sem build.
@@ -362,7 +373,7 @@ certificado A1 e conta em provedor de pagamento ainda pendentes de acesso — ve
 
 ## Funcionalidades Implementadas (resumo)
 
-Setup Electron seguro · SQLite 8 tabelas + extensões · SQLCipher (criptografia por senha) + migração automática plaintext→cipher · Migração de colunas (`migrarColunas`) · Cadastro de produtos c/ variações + SKU auto + estoque_mínimo · Clientes CRUD (CPF/CNPJ, e-mail, endereço) · Fornecedores CRUD · PDV (leitor SKU, carrinho, cliente, desconto, observação, fiado, orçamento, transação atômica com guarda de estoque, recibo) · Orçamentos (salvar → converter em venda; não movimenta estoque até conversão) · Histórico de vendas (filtro data+status, badge, detalhes modal, conversão de orçamento, CSV) · Entrada de mercadorias (custo médio ponderado, ledger `MovimentacoesEstoque`) · Alerta de estoque mínimo (dashboard, PDV, página de entrada) · Pedidos de compra (criar/receber/cancelar; recebimento gera conta a pagar) · Financeiro (contas a pagar/receber, baixa, fluxo de caixa por dia, provisão de DAS por regime de caixa) · Relatórios (vendas por período, por pagamento, ticket médio, Curva ABC A/B/C + CSV, DRE, margem de contribuição, ponto de equilíbrio, giro de estoque) · Dashboard (vendas/faturamento/estoque/hoje + a receber e a pagar hoje) · Navbar por perfil · Tema escuro · Login multi-usuário (admin) + Gerenciar Acessos · Backup/Restore + automático diário · Auto-update · Build NSIS v1.0.0 · Janela maximizada · Launcher silencioso (VBS)
+Setup Electron seguro · SQLite 8 tabelas + extensões · SQLCipher (criptografia por senha) + migração automática plaintext→cipher · Migração de colunas (`migrarColunas`) · Cadastro de produtos c/ variações + SKU auto + estoque_mínimo · Clientes CRUD (CPF/CNPJ, e-mail, endereço) · Fornecedores CRUD · PDV (leitor SKU, carrinho, cliente, desconto, observação, fiado, orçamento, transação atômica com guarda de estoque, recibo) · Orçamentos (salvar → converter em venda; não movimenta estoque até conversão) · Histórico de vendas (filtro data+status, badge, detalhes modal, conversão de orçamento, CSV) · Entrada de mercadorias (custo médio ponderado, ledger `MovimentacoesEstoque`) · Alerta de estoque mínimo (dashboard, PDV, página de entrada) · Pedidos de compra (criar/receber/cancelar; recebimento gera conta a pagar) · Financeiro (contas a pagar/receber, baixa, fluxo de caixa por dia, provisão de DAS por regime de caixa) · Relatórios (vendas por período, por pagamento, ticket médio, Curva ABC A/B/C + CSV, DRE, margem de contribuição, ponto de equilíbrio, giro de estoque) · Dashboard (vendas/faturamento/estoque/hoje + a receber e a pagar hoje) · Navbar por perfil · Tema escuro · Login multi-usuário (admin) + Gerenciar Acessos · Backup/Restore + automático diário · Auto-update · Build NSIS · Janela maximizada · Launcher silencioso (VBS)
 
 **Adicionado 2026-09-03** (ver `GOALS.md`, seção "Native Excel Parser + Structural Gaps
 Surfaced by Loja House Data"): Importação — 3º modo "Importar de planilha Excel (.xlsx)"
@@ -388,6 +399,15 @@ fixas do design system + botão "Cor aleatória") ou envia uma foto de perfil (m
 arquivo já usado pra imagem de produto, `usuario-imagens/` em vez de `produto-imagens/`), sem
 precisar de acesso à tela de Gerenciar Acessos. Foto tem prioridade sobre a cor quando as duas
 existem.
+
+**Adicionado 2026-09-11** (ver `GOALS.md`, seção "Relatórios: complete managerial PDF report with
+charts"): botão "Exportar PDF" da tela de Relatórios agora gera um relatório gerencial completo
+com 13 seções (as 7 já existentes + Indicadores-Chave, Aging de Recebíveis, Segmentação de
+Clientes, Sazonalidade, Conversão de Orçamentos, Produtos Parados, Fluxo de Caixa) e 8 gráficos
+embutidos como imagem (`apexcharts` renderizado off-screen e convertido para PNG via
+`chart.dataURI()`, já que jsPDF não desenha gráficos nativamente). Cada gráfico/seção só aparece
+quando há dado real (`talvezGrafico`), evitando eixos vazios/quebrados quando todos os valores são
+zero.
 
 ## Fora de escopo (decidido)
 

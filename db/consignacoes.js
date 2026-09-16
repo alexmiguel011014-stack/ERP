@@ -107,7 +107,6 @@ async function encerrarSemVenda(id, novoStatus) {
 					").",
 			);
 		}
-
 		await runAsync("UPDATE Consignacoes SET status = ? WHERE id = ?", [
 			novoStatus,
 			consignacaoId,
@@ -164,6 +163,11 @@ async function marcarVendida(id, dados) {
 					").",
 			);
 		}
+		const variacao = await getAsync(
+			"SELECT preco_custo FROM Variacoes WHERE id = ?",
+			[consignacao.variacao_id],
+		);
+		if (!variacao) throw new Error("Produto da consignação não encontrado.");
 
 		await runAsync("UPDATE Consignacoes SET status = 'vendido' WHERE id = ?", [
 			consignacaoId,
@@ -202,9 +206,21 @@ async function marcarVendida(id, dados) {
 		const vendaId = venda.lastID;
 
 		await runAsync(
-			"INSERT INTO ItensVenda (venda_id, variacao_id, quantidade, preco_unitario) VALUES (?, ?, ?, ?)",
-			[vendaId, consignacao.variacao_id, consignacao.quantidade, precoUnitario],
+			"INSERT INTO ItensVenda (venda_id, variacao_id, quantidade, preco_unitario, custo_unitario) VALUES (?, ?, ?, ?, ?)",
+			[
+				vendaId,
+				consignacao.variacao_id,
+				consignacao.quantidade,
+				precoUnitario,
+				Number(variacao.preco_custo) || 0,
+			],
 		);
+		if (["PIX", "Cartão", "Dinheiro", "Fiado"].includes(formaPagamento)) {
+			await runAsync(
+				"INSERT INTO VendaPagamentos (venda_id, forma_pagamento, valor, criado_em) VALUES (?, ?, ?, ?)",
+				[vendaId, formaPagamento, total, new Date().toISOString()],
+			);
+		}
 
 		// Mesma regra de finalizarVenda/converterOrcamento: fiado gera conta a
 		// receber automaticamente, não fica "perdido" fora do financeiro.

@@ -17,6 +17,7 @@ export default function PagamentosTab({
 	const [filtro, setFiltro] = useState("");
 	const [modalAberto, setModalAberto] = useState(false);
 	const [processandoId, setProcessandoId] = useState<number | null>(null);
+	const [datasPrevistas, setDatasPrevistas] = useState<Record<number, string>>({});
 
 	const q = filtro.trim().toLowerCase();
 	const filtrados = q
@@ -34,6 +35,25 @@ export default function PagamentosTab({
 		try {
 			await erpApi.pagamentos.pagar(id);
 			notificarAtualizacao("Pagamento marcado como recebido.");
+		} catch (e) {
+			notificarAtualizacao(
+				"Erro: " + (e instanceof Error ? e.message : String(e)),
+			);
+		} finally {
+			setProcessandoId(null);
+		}
+	}
+
+	async function salvarDataPrevista(id: number) {
+		const data = datasPrevistas[id] || "";
+		if (!data) {
+			notificarAtualizacao("Informe uma data prevista para o cartão.");
+			return;
+		}
+		setProcessandoId(id);
+		try {
+			await erpApi.pagamentos.atualizarDataPrevista(id, data);
+			notificarAtualizacao("Data prevista atualizada.");
 		} catch (e) {
 			notificarAtualizacao(
 				"Erro: " + (e instanceof Error ? e.message : String(e)),
@@ -87,7 +107,7 @@ export default function PagamentosTab({
 									"Cliente",
 									"Método",
 									"Identificador",
-									"Data",
+										"Data prevista/liquidação",
 									"Valor",
 									"Status",
 									"Ações",
@@ -120,7 +140,30 @@ export default function PagamentosTab({
 										{p.numero_identificador || "—"}
 									</td>
 									<td className="whitespace-nowrap px-3 py-2 text-gray-600 dark:text-gray-300">
-										{p.data_recebimento || "—"}
+										{p.metodo?.toLowerCase().includes("cart") && p.status === "pendente" ? (
+											<div className="flex items-center gap-2">
+												<input
+													type="date"
+													value={datasPrevistas[p.id] ?? p.data_recebimento?.slice(0, 10) ?? ""}
+													onChange={(e) => setDatasPrevistas((atual) => ({ ...atual, [p.id]: e.target.value }))}
+													className="h-8 rounded border border-gray-300 bg-transparent px-2 text-xs dark:border-gray-700"
+												/>
+												{!(datasPrevistas[p.id] ?? p.data_recebimento) && (
+													<span className="text-xs text-gray-400">Sem previsão</span>
+												)}
+												<button
+													onClick={() => salvarDataPrevista(p.id)}
+													disabled={processandoId === p.id}
+													className="rounded bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-200 disabled:opacity-50 dark:bg-white/5 dark:text-gray-300"
+												>
+													Salvar
+												</button>
+											</div>
+										) : p.metodo?.toLowerCase().includes("cart") ? (
+											p.data_liquidacao?.slice(0, 10) || "—"
+										) : (
+											p.data_recebimento?.slice(0, 10) || "—"
+										)}
 									</td>
 									<td className="whitespace-nowrap px-3 py-2 text-gray-600 dark:text-gray-300">
 										{formatarMoeda(p.valor_recebido)}
@@ -137,7 +180,7 @@ export default function PagamentosTab({
 										</span>
 									</td>
 									<td className="whitespace-nowrap px-3 py-2">
-										{p.status !== "recebido" && (
+										{p.status === "pendente" && (
 											<button
 												onClick={() => marcarComoRecebido(p.id)}
 												disabled={processandoId === p.id}

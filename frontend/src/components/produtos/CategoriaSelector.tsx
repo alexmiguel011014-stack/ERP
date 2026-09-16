@@ -101,7 +101,7 @@ export default function CategoriaSelector({
 			<button
 				type="button"
 				onClick={() => setAberto((a) => !a)}
-				className="flex h-11 w-full items-center justify-between rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+				className="flex h-12 w-full items-center justify-between rounded-lg border border-gray-300 bg-transparent px-5 text-base text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
 			>
 				<span>{label}</span>
 				<span className="text-gray-400">▾</span>

@@ -155,9 +155,7 @@ test.describe("sistema de abas do header (frontend novo)", () => {
 		).toBeVisible();
 
 		await window.getByRole("button", { name: "Vendas", exact: true }).click();
-		await expect(
-			window.locator('input[type="date"]:visible'),
-		).toHaveCount(2);
+		await expect(window.locator('input[type="date"]:visible')).toHaveCount(2);
 		await expect(
 			window.getByRole("button", { name: "Exportar CSV", exact: true }),
 		).toBeVisible();
@@ -182,7 +180,9 @@ test.describe("sistema de abas do header (frontend novo)", () => {
 		await window
 			.getByRole("button", { name: "Aplicar período", exact: true })
 			.click();
-		await expect(window.getByText("01/01/2026 — 31/01/2026").first()).toBeVisible();
+		await expect(
+			window.getByText("01/01/2026 — 31/01/2026").first(),
+		).toBeVisible();
 
 		await window
 			.getByRole("button", { name: "Período todo", exact: true })
@@ -190,11 +190,55 @@ test.describe("sistema de abas do header (frontend novo)", () => {
 		await expect(datas.nth(0)).toHaveValue("");
 		await expect(datas.nth(1)).toHaveValue("");
 
-		const hoje = new Date(`${new Date().toISOString().slice(0, 10)}T12:00:00`)
-			.toLocaleDateString("pt-BR");
+		const hoje = new Date(
+			`${new Date().toISOString().slice(0, 10)}T12:00:00`,
+		).toLocaleDateString("pt-BR");
 		await expect(
 			window.getByText(`01/01/1900 — ${hoje}`).first(),
 		).toBeVisible();
+	});
+
+	// Regressão real (2026-09-15, "campos travam ao trocar de aba e voltam
+	// sozinhos depois de minutos"): o keep-alive antigo (AbasAtivasWrapper)
+	// cacheava o `children` do layout, que no App Router é o OuterLayoutRouter
+	// do Next — sempre a página ATIVA. Com N abas abertas a tela visível
+	// existia N vezes no DOM, cada troca remontava as N cópias e disparava N×
+	// todo IPC de carga, e nada era preservado de fato. `layout/AbasHost.tsx`
+	// instancia uma página por aba a partir de um registro próprio. Os dois
+	// asserts abaixo falham contra o código antigo: o texto digitado sumia
+	// (página remontada) e a busca do PDV aparecia uma vez por aba aberta.
+	test("trocar de aba preserva o que estava digitado e não duplica a página", async () => {
+		await window
+			.locator("aside")
+			.getByTitle("Frente de Caixa", { exact: true })
+			.click();
+		const buscaPdv = window
+			.getByPlaceholder("Escaneie ou digite o SKU/nome e pressione Enter")
+			.and(window.locator(":visible"));
+		await expect(buscaPdv).toBeVisible();
+		await buscaPdv.fill("rascunho que precisa sobreviver");
+
+		await window
+			.locator("header")
+			.getByTitle("Financeiro", { exact: true })
+			.click();
+		await expect(buscaPdv).toHaveCount(0); // escondida, não destruída
+		await window
+			.locator("header")
+			.getByTitle("Frente de Caixa", { exact: true })
+			.click();
+
+		await expect(buscaPdv).toHaveValue("rascunho que precisa sobreviver");
+		// E o cursor volta pro campo em que a pessoa estava (layout/AbaViva.tsx),
+		// não fica no botão da aba que foi clicado.
+		await expect(buscaPdv).toBeFocused();
+		// Uma instância por aba: a busca do PDV existe exatamente uma vez no
+		// DOM inteiro (não uma por aba aberta), idem a busca de Clientes.
+		await expect(
+			window.getByPlaceholder(
+				"Escaneie ou digite o SKU/nome e pressione Enter",
+			),
+		).toHaveCount(1);
 	});
 });
 

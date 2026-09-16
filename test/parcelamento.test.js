@@ -6,6 +6,7 @@ const path = require("node:path");
 
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "erp-parcelamento-"));
 const db = require("../database");
+const pagamentos = require("../db/pagamentos");
 const { allAsync, getAsync, runAsync } = require("../db/conexao");
 const { calcularParcelamento } = require("../db/parcelamento");
 
@@ -402,16 +403,40 @@ test("reconhece Fiado somente na baixa e Cartão uma vez na venda, mesmo com Pag
 		},
 		null,
 	);
-	await runAsync(
-		"INSERT INTO Pagamentos (venda_id, metodo, numero_identificador, data_recebimento, valor_recebido, status) VALUES (?, ?, ?, ?, ?, ?)",
-		[vendaCartao.vendaId, "cartao", "teste-sem-duplicar", hoje, 100, "recebido"],
+	const pagamentosCartao = await allAsync(
+		"SELECT id, valor_recebido, status, data_recebimento, data_liquidacao, parcela_num, parcela_total FROM Pagamentos WHERE venda_id = ? ORDER BY parcela_num",
+		[vendaCartao.vendaId],
+	);
+	assert.deepEqual(
+		pagamentosCartao.map((pagamento) => ({
+			valor: pagamento.valor_recebido,
+			status: pagamento.status,
+			previsto: pagamento.data_recebimento,
+			liquidado: pagamento.data_liquidacao,
+			parcela: pagamento.parcela_num,
+			total: pagamento.parcela_total,
+		})),
+		[
+			{ valor: 25, status: "pendente", previsto: null, liquidado: null, parcela: 1, total: 4 },
+			{ valor: 25, status: "pendente", previsto: null, liquidado: null, parcela: 2, total: 4 },
+			{ valor: 25, status: "pendente", previsto: null, liquidado: null, parcela: 3, total: 4 },
+			{ valor: 25, status: "pendente", previsto: null, liquidado: null, parcela: 4, total: 4 },
+		],
 	);
 	const realizadoCartao = await db.getFluxoCaixa(hoje, hoje);
 	assert.deepEqual(
 		realizadoCartao.eventos
 			.filter((evento) => evento.referenciaId === vendaCartao.vendaId)
 			.map((evento) => ({ valor: evento.valor, origem: evento.origem })),
-		[{ valor: 100, origem: "venda" }],
+		[],
+	);
+	await pagamentos.pagarPagamento(pagamentosCartao[0].id, hoje);
+	const realizadoCartaoLiquidado = await db.getFluxoCaixa(hoje, hoje);
+	assert.deepEqual(
+		realizadoCartaoLiquidado.eventos
+			.filter((evento) => evento.referenciaId === vendaCartao.vendaId)
+			.map((evento) => ({ valor: evento.valor, origem: evento.origem })),
+		[{ valor: 25, origem: "liquidacao_cartao" }],
 	);
 });
 

@@ -7,7 +7,7 @@ import { PageHeaderProvider } from "@/context/PageHeaderContext";
 import { TabsProvider } from "@/context/TabsContext";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
-import AbasAtivasWrapper from "@/layout/AbasAtivasWrapper";
+import AbasHost from "@/layout/AbasHost";
 import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
@@ -55,7 +55,7 @@ export default function AdminLayout({
 						    dela — a intenção é ela encostar direto no conteúdo, sem
 						    nenhum respiro entre as duas. */}
 						<div className="px-4 pb-4 mx-auto max-w-(--breakpoint-2xl)">
-							<AbasAtivasWrapper>{children}</AbasAtivasWrapper>
+							<AbasHost>{children}</AbasHost>
 
 							<Footer />
 						</div>

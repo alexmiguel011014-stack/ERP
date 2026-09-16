@@ -64,8 +64,16 @@ test("registra venda histórica genérica sem item, estoque ou recebível duplic
 	const relatorio = await db.getRelatorioVendas("2020-01-10", "2020-01-10");
 	assert.equal(relatorio.resumo.vendas, 1);
 	assert.equal(relatorio.resumo.faturamento, 125.5);
+	// Desde a 1.4.1 a linha por forma também traz descontos/devoluções/líquido.
 	assert.deepEqual(relatorio.porPagamento, [
-		{ forma_pagamento: "Genérico", vendas: 1, faturamento: 125.5 },
+		{
+			forma_pagamento: "Genérico",
+			vendas: 1,
+			faturamento: 125.5,
+			descontos: 0,
+			devolucoes: 0,
+			faturamentoLiquido: 125.5,
+		},
 	]);
 });
 
