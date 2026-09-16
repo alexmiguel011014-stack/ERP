@@ -239,11 +239,22 @@ pro racional completo). Os dois frontends coexistem até o cutover final (Fase 6
   deliberada (IPC local, não tem o que cachear/retry como dado de rede).
 - **Sessão**: 100% estado do processo principal, sem token client-side — `AuthContext` só
   lê a sessão uma vez no mount do shell `(admin)/layout.tsx`.
-- **Sistema de abas do header** (`context/TabsContext.tsx` + `layout/AbasAtivasWrapper.tsx`):
-  mantém múltiplos módulos "montados" ao mesmo tempo (um `Map<pathname, ReactNode>`
-  capturado na primeira visita, entradas inativas só escondidas via `hidden`, não
-  desmontadas) — reimplementação manual porque o mecanismo nativo do Next
-  (`cacheComponents`/`<Activity>`) exige a versão 16 (projeto está na 15.5.23).
+- **Sistema de abas do header** (`context/TabsContext.tsx` + `layout/AbasHost.tsx`):
+  mantém múltiplos módulos montados ao mesmo tempo — uma instância por aba aberta,
+  instanciada pelo próprio host a partir de um registro `id do módulo → tela`
+  (`next/dynamic` das páginas de `app/(admin)/`), inativas só escondidas via `hidden`.
+  O `children` do layout (a página roteada pelo Next) só é renderizado em rota que não
+  é módulo (ex.: `/categorias`). NÃO cachear o `children` do layout: no App Router ele é
+  o `OuterLayoutRouter` do Next, que sempre renderiza o segmento ativo — a versão
+  anterior (`AbasAtivasWrapper`) fazia isso e multiplicava a página atual pelo número de
+  abas abertas (N× IPC a cada troca, nada preservado; causa real do "campos travam e
+  destravam sozinhos", 2026-09-15). Reimplementação manual porque o mecanismo nativo
+  (`cacheComponents`/`<Activity>`) exige Next 16 — o React que o Next 15.5.23 embute
+  (19.2.0-canary de 2025-08) não exporta `Activity`, verificado no bundle. Cada aba vive num
+  `layout/AbaViva.tsx` (display:none quando inativa + devolve o foco ao último campo usado
+  quando a aba volta); quem precisa saber se está na aba visível (título do header,
+  scroll-lock/Esc de `Modal`) usa `context/AbaVisivelContext.tsx`;
+  `layout/ProdutosWorkspace.tsx` faz o mesmo para as sub-abas de Produtos.
 - Sem suíte de teste automatizado ainda (`frontend/package.json` não tem script `test`) —
   todo o trabalho é verificado manualmente contra o app rodando. CI (ver seção acima) roda
   só lint+typecheck do frontend, sem build.

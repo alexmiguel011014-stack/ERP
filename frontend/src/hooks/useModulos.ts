@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 
 export type ManifestoNavbar = {
@@ -45,6 +45,21 @@ export function normalizarPathname(pathname: string): string {
 	return pathname;
 }
 
+// Uma rota pertence ao módulo cujo href é igual a ela OU é prefixo dela
+// ("/produtos/estoque" é do módulo "produtos") — sub-rotas de um workspace
+// contam como a mesma aba. O Dashboard ("/") só casa exato, senão seria
+// prefixo de tudo.
+export function moduloDaRota(
+	modulos: ManifestoModulo[],
+	rota: string,
+): ManifestoModulo | undefined {
+	return modulos.find((m) => {
+		const href = hrefDoModulo(m);
+		if (href === "/") return rota === "/";
+		return rota === href || rota.startsWith(href + "/");
+	});
+}
+
 // Lista única de módulos com item de sidebar, já filtrada pela permissão da
 // sessão atual — fonte compartilhada entre AppSidebar.tsx (o que aparece
 // como link) e TabsContext.tsx (o que pode virar aba), pra não duplicar essa
@@ -61,11 +76,14 @@ export function useModulosPermitidos() {
 			.catch(() => setModulos([]));
 	}, []);
 
-	function permissaoLiberada(m: ManifestoModulo) {
-		if (m.permissao.tipo === "sempre") return true;
-		if (m.permissao.tipo === "admin") return isAdmin;
-		return podeModulo(m.permissao.nomeModulo);
-	}
-
-	return modulos.filter((m) => m.navbar).filter(permissaoLiberada);
+	// useMemo: a lista é dependência de efeitos em TabsContext — sem
+	// memoizar, um array novo a cada render reexecutava esses efeitos à toa.
+	return useMemo(() => {
+		function permissaoLiberada(m: ManifestoModulo) {
+			if (m.permissao.tipo === "sempre") return true;
+			if (m.permissao.tipo === "admin") return isAdmin;
+			return podeModulo(m.permissao.nomeModulo);
+		}
+		return modulos.filter((m) => m.navbar).filter(permissaoLiberada);
+	}, [modulos, isAdmin, podeModulo]);
 }

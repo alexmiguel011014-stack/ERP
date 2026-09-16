@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
 	hrefDoModulo,
+	moduloDaRota,
 	normalizarPathname,
 	useModulosPermitidos,
 } from "@/hooks/useModulos";
@@ -17,7 +18,11 @@ export type Aba = {
 
 type TabsContextType = {
 	abas: Aba[];
+	// null quando a rota atual não é de nenhum módulo (ex.: /categorias) —
+	// AbasHost usa isso pra cair no conteúdo normal do Next nesse caso.
 	abaAtivaId: string | null;
+	// false enquanto o manifesto de módulos ainda não chegou do IPC.
+	pronto: boolean;
 	fecharAba: (id: string) => void;
 };
 
@@ -47,8 +52,13 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
 	useEffect(() => {
 		if (modulos.length === 0) return; // manifesto ainda não carregou
 		const rota = normalizarPathname(pathname);
-		const modulo = modulos.find((m) => hrefDoModulo(m) === rota);
-		if (!modulo) return; // rota fora do conjunto tabável (ex: /signin)
+		// moduloDaRota casa também sub-rotas ("/produtos/estoque" -> produtos):
+		// a aba de um workspace é uma só, não importa em qual sub-tela esteja.
+		const modulo = moduloDaRota(modulos, rota);
+		if (!modulo) {
+			setAbaAtivaId(null); // rota fora do conjunto tabável (ex: /categorias)
+			return;
+		}
 		setAbas((atual) => {
 			if (atual.some((a) => a.id === modulo.id)) return atual;
 			return [
@@ -85,7 +95,9 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
 	}
 
 	return (
-		<TabsContext.Provider value={{ abas, abaAtivaId, fecharAba }}>
+		<TabsContext.Provider
+			value={{ abas, abaAtivaId, pronto: modulos.length > 0, fecharAba }}
+		>
 			{children}
 		</TabsContext.Provider>
 	);
