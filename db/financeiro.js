@@ -389,6 +389,7 @@ async function getFluxoCaixa(dataInicio, dataFim) {
      FROM Vendas v
      JOIN VendaPagamentos vp ON vp.venda_id = v.id
      WHERE v.status = 'finalizada'
+       AND COALESCE(v.origem, 'pdv') NOT IN ('venda_historica_manual', 'importacao_financeiro_historico', 'loja_house_financeiro_historico')
        AND LOWER(TRIM(vp.forma_pagamento)) IN ('pix', 'dinheiro')
        AND DATE(v.data_venda) BETWEEN ? AND ?
      ORDER BY dia, v.id, vp.id`,
@@ -401,6 +402,7 @@ async function getFluxoCaixa(dataInicio, dataFim) {
             v.origem, v.observacao
      FROM Vendas v
      WHERE v.status = 'finalizada'
+       AND COALESCE(v.origem, 'pdv') NOT IN ('venda_historica_manual', 'importacao_financeiro_historico', 'loja_house_financeiro_historico')
        AND (v.forma_pagamento IS NULL OR LOWER(TRIM(v.forma_pagamento)) IN ('pix', 'dinheiro'))
        AND NOT EXISTS (SELECT 1 FROM VendaPagamentos vp WHERE vp.venda_id = v.id)
        AND DATE(v.data_venda) BETWEEN ? AND ?
@@ -419,6 +421,23 @@ async function getFluxoCaixa(dataInicio, dataFim) {
        AND (v.id IS NULL OR v.status = 'finalizada')
        AND DATE(p.data_liquidacao) BETWEEN ? AND ?
      ORDER BY dia, p.id`,
+		[periodo.inicio, periodo.fim],
+	);
+	// Vendas históricas (lançadas à mão no Financeiro ou importadas da planilha
+	// da loja) não são checkout: não têm VendaPagamentos nem Pagamentos de
+	// cartão. Entram pelo total, na data histórica, com qualquer método
+	// (inclusive 'Genérico') — ou SAEM, quando a planilha registrou a venda
+	// como saída de caixa (direcao_fluxo_historica = 'saida'). Fiado histórico
+	// fica de fora aqui: o recebível entra quando pago, como qualquer fiado.
+	const vendasHistoricas = await allAsync(
+		`SELECT id, DATE(data_venda) AS dia, total, forma_pagamento, origem,
+            observacao, direcao_fluxo_historica
+     FROM Vendas
+     WHERE status = 'finalizada'
+       AND origem IN ('venda_historica_manual', 'importacao_financeiro_historico', 'loja_house_financeiro_historico')
+       AND (forma_pagamento IS NULL OR forma_pagamento != 'Fiado')
+       AND DATE(data_venda) BETWEEN ? AND ?
+     ORDER BY dia, id`,
 		[periodo.inicio, periodo.fim],
 	);
 	const entradasRecebimentos = await allAsync(
@@ -456,12 +475,9 @@ async function getFluxoCaixa(dataInicio, dataFim) {
 		...entradasVendas.map((venda) => ({
 			data: venda.dia,
 			tipo: "entrada",
-			origem: venda.origem === "importacao_financeiro_historico" ? "importacao_financeiro_historico" : "venda",
-			descricao: venda.origem === "importacao_financeiro_historico" ? venda.observacao || "Venda histórica importada" : `Venda #${venda.id}`,
-			categoria:
-				venda.origem === "importacao_financeiro_historico"
-					? "Vendas históricas"
-					: null,
+			origem: "venda",
+			descricao: `Venda #${venda.id}`,
+			categoria: null,
 			valor: venda.valor,
 			referenciaId: venda.id,
 			formaPagamento: venda.forma_pagamento || null,
@@ -469,9 +485,22 @@ async function getFluxoCaixa(dataInicio, dataFim) {
 		...entradasVendasLegadas.map((venda) => ({
 			data: venda.dia,
 			tipo: "entrada",
-			origem: venda.origem === "importacao_financeiro_historico" ? "importacao_financeiro_historico" : "venda",
-			descricao: venda.origem === "importacao_financeiro_historico" ? venda.observacao || "Venda histórica importada" : `Venda #${venda.id}`,
-			categoria: venda.origem === "importacao_financeiro_historico" ? "Vendas históricas" : null,
+			origem: "venda",
+			descricao: `Venda #${venda.id}`,
+			categoria: null,
+			valor: venda.total,
+			referenciaId: venda.id,
+			formaPagamento: venda.forma_pagamento || null,
+		})),
+		...vendasHistoricas.map((venda) => ({
+			data: venda.dia,
+			tipo: venda.direcao_fluxo_historica === "saida" ? "saida" : "entrada",
+			origem: venda.origem,
+			descricao:
+				venda.origem === "venda_historica_manual"
+					? venda.observacao || `Venda histórica #${venda.id}`
+					: venda.observacao || "Venda histórica importada",
+			categoria: "Vendas históricas",
 			valor: venda.total,
 			referenciaId: venda.id,
 			formaPagamento: venda.forma_pagamento || null,

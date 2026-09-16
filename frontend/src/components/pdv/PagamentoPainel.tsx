@@ -4,9 +4,15 @@ import Input from "@/components/form/input/InputField";
 import { formatarMoeda, lerDecimalInformado, lerValorMonetario } from "./formatos";
 import type {
 	CondicaoParcelamento,
-	PagamentoVendaInput,
 	PreviaVendaParcelada,
 } from "@/lib/erpApi";
+
+export type PagamentoLinha = {
+	id: string;
+	formaPagamento: string;
+	valor: string;
+	condicaoId: number | null;
+};
 
 const FORMAS_PAGAMENTO = [
 	{ value: "", label: "Selecione..." },
@@ -16,11 +22,6 @@ const FORMAS_PAGAMENTO = [
 	{ value: "Fiado", label: "Fiado (a receber)" },
 ];
 
-export type PagamentoCheckout = {
-	forma_pagamento: PagamentoVendaInput["forma_pagamento"] | "";
-	valor: string;
-};
-
 export default function PagamentoPainel({
 	subtotal,
 	desconto,
@@ -28,7 +29,9 @@ export default function PagamentoPainel({
 	formaPagamento,
 	setFormaPagamento,
 	pagamentos,
-	setPagamentos,
+	onAlterarPagamento,
+	onAdicionarPagamento,
+	onRemoverPagamento,
 	condicoes,
 	condicaoId,
 	setCondicaoId,
@@ -52,8 +55,10 @@ export default function PagamentoPainel({
 	setDesconto: (v: string) => void;
 	formaPagamento: string;
 	setFormaPagamento: (v: string) => void;
-	pagamentos: PagamentoCheckout[];
-	setPagamentos: (v: PagamentoCheckout[] | ((atual: PagamentoCheckout[]) => PagamentoCheckout[])) => void;
+	pagamentos: PagamentoLinha[];
+	onAlterarPagamento: (id: string, dados: Partial<PagamentoLinha>) => void;
+	onAdicionarPagamento: () => void;
+	onRemoverPagamento: (id: string) => void;
 	condicoes: CondicaoParcelamento[];
 	condicaoId: number | null;
 	setCondicaoId: (v: number | null) => void;
@@ -72,13 +77,12 @@ export default function PagamentoPainel({
 	onFinalizar: () => void;
 	onOrcamento: () => void;
 }) {
+	// Parser pt-BR compartilhado (1.4.1): aceita "12,50", "R$ 12,50", "1.250,00";
+	// texto inválido bloqueia a venda em vez de virar 0 silenciosamente.
 	const descontoInformado = lerDecimalInformado(desconto);
 	const descontoInvalido = desconto.trim() !== "" && descontoInformado === null;
 	const descontoNum = Math.max(0, descontoInformado ?? 0);
-	const variasFormas = pagamentos.length > 1;
-	const condicao = !variasFormas
-		? condicoes.find((item) => item.id === condicaoId) || null
-		: null;
+	const condicao = condicoes.find((item) => item.id === condicaoId) || null;
 	const valorBase = Math.max(0, subtotal);
 	const acrescimoLocal = condicao
 		? Math.round(valorBase * Number(condicao.acrescimo_percentual || 0) * 100) /
@@ -87,49 +91,34 @@ export default function PagamentoPainel({
 	const totalLocal = Math.max(0, valorBase + acrescimoLocal - descontoNum);
 	const total = previaParcelamento?.total ?? totalLocal;
 	const acrescimo = previaParcelamento?.acrescimo ?? acrescimoLocal;
-	const formaPagamentoEfetiva = variasFormas ? "Misto" : formaPagamento;
-	const condicaoCartaoMisto = variasFormas
-		? condicoes.find(
-				(item) => item.id === condicaoId && item.forma_pagamento === "Cartão",
-			) || null
-		: null;
-	const valorCartaoAlocado = variasFormas
+	const misto = pagamentos.length > 1;
+	const valorDinheiro = misto
 		? pagamentos
-				.filter((pagamento) => pagamento.forma_pagamento === "Cartão")
-				.reduce((soma, pagamento) => soma + lerValorMonetario(pagamento.valor), 0)
-		: 0;
-	const parcelamentoAtivo = !variasFormas && (formaPagamento === "Fiado" || formaPagamento === "Cartão");
-	const valorDinheiroAlocado = variasFormas
-		? pagamentos
-				.filter((pagamento) => pagamento.forma_pagamento === "Dinheiro")
-				.reduce((soma, pagamento) => soma + lerValorMonetario(pagamento.valor), 0)
-		: formaPagamento === "Dinheiro"
-			? total
-			: 0;
+				.filter((item) => item.formaPagamento === "Dinheiro")
+				.reduce((soma, item) => soma + lerValorMonetario(item.valor), 0)
+		: total;
+	const linhasMistasValidas = !misto || pagamentos.every(
+		(item) => !!item.formaPagamento && lerValorMonetario(item.valor) > 0,
+	);
+	const temFiadoMisto = misto && pagamentos.some((item) => item.formaPagamento === "Fiado");
+	const parcelamentoAtivo = formaPagamento === "Fiado" || formaPagamento === "Cartão";
+	// Comparações em centavos: 0.1 + 0.2 não pode bloquear um troco de R$ 0,00.
 	const recebidoCentavos = Math.round(lerValorMonetario(valorRecebido) * 100);
-	const totalCentavos = Math.round(total * 100);
 	const recebidoNum = recebidoCentavos / 100;
-	const dinheiroCentavos = Math.round(valorDinheiroAlocado * 100);
-	const troco = valorDinheiroAlocado > 0 ? (recebidoCentavos - dinheiroCentavos) / 100 : 0;
-	const pagamentosValidos =
-		pagamentos.every(
-			(pagamento) =>
-				!!pagamento.forma_pagamento && lerValorMonetario(pagamento.valor) > 0,
-		) &&
-		Math.round(
-			pagamentos.reduce(
-				(soma, pagamento) => soma + lerValorMonetario(pagamento.valor),
-				0,
-			) * 100,
-		) === totalCentavos;
+	const dinheiroCentavos = Math.round(valorDinheiro * 100);
+	const temDinheiro =
+		formaPagamento === "Dinheiro" ||
+		pagamentos.some((item) => item.formaPagamento === "Dinheiro");
+	const troco = temDinheiro ? (recebidoCentavos - dinheiroCentavos) / 100 : 0;
 
 	const podeFinalizar =
 		!carrinhoVazio &&
 		!descontoInvalido &&
-		!!formaPagamentoEfetiva &&
+		!!formaPagamento &&
 		!processando &&
-		(!variasFormas || pagamentosValidos) &&
-		(valorDinheiroAlocado === 0 || recebidoCentavos >= dinheiroCentavos) &&
+		linhasMistasValidas &&
+		!temFiadoMisto &&
+		(!temDinheiro || recebidoCentavos >= dinheiroCentavos) &&
 		(!parcelamentoAtivo ||
 			(!!condicao &&
 				!!previaParcelamento &&
@@ -145,8 +134,6 @@ export default function PagamentoPainel({
 					inputMode="decimal"
 					value={desconto}
 					onChange={(e) => setDesconto(e.target.value)}
-					min="0"
-					step={0.01}
 				/>
 				{descontoInvalido && (
 					<p className="mt-1 text-xs text-error-600 dark:text-error-400">
@@ -157,120 +144,69 @@ export default function PagamentoPainel({
 
 			<div>
 				<Label>Forma de pagamento</Label>
-				{pagamentos.map((pagamento, indice) => (
-					<div key={indice} className="mb-2">
-					<div className="flex gap-2">
-						<select
-							value={pagamento.forma_pagamento}
-							onChange={(e) => {
-								const forma = e.target.value as PagamentoCheckout["forma_pagamento"];
-								setPagamentos((atual) =>
-									atual.map((item, i) =>
-										i === indice ? { ...item, forma_pagamento: forma } : item,
-									),
-								);
-								if (indice === 0) setFormaPagamento(variasFormas ? "Misto" : forma);
-							}}
-							className="h-11 min-w-0 flex-1 appearance-none rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-						>
-							{FORMAS_PAGAMENTO.filter(
-								(f) => !variasFormas || f.value !== "Fiado",
-							).map((f) => (
-								<option key={f.value} value={f.value}>
-									{f.label}
-								</option>
-							))}
-						</select>
-						{variasFormas && (
-							<>
-								<Input
-									type="text"
-									inputMode="decimal"
-									value={pagamento.valor}
-									onChange={(e) =>
-										setPagamentos((atual) =>
-											atual.map((item, i) =>
-												i === indice ? { ...item, valor: e.target.value } : item,
-											),
-										)
-									}
-									placeholder="Valor"
-									className="w-28"
-								/>
-								{indice > 0 && (
-									<button
-										type="button"
-										onClick={() => {
-											const restantes = pagamentos.filter((_, i) => i !== indice);
-											setPagamentos(restantes);
-											if (restantes.length === 1) {
-												setFormaPagamento(restantes[0].forma_pagamento);
-											}
-										}}
-									className="px-2 text-error-600"
-									aria-label="Remover pagamento"
+				{pagamentos.length <= 1 ? (
+					// Embrulhado num div de propósito: a suíte e2e (parcelamento.spec.ts)
+					// acha o select como descendente do irmão do rótulo, nos dois modos.
+					<div>
+					<select
+						value={formaPagamento}
+						onChange={(e) => setFormaPagamento(e.target.value)}
+						className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+					>
+						{FORMAS_PAGAMENTO.map((f) => (
+							<option key={f.value} value={f.value}>
+								{f.label}
+							</option>
+						))}
+					</select>
+					</div>
+				) : (
+					<div className="space-y-2">
+						{pagamentos.map((pagamento, indice) => (
+							<div key={pagamento.id} className="space-y-2 rounded-lg border border-gray-200 p-2 dark:border-gray-700">
+								<div className="flex gap-2">
+									<select
+										value={pagamento.formaPagamento}
+										onChange={(e) => onAlterarPagamento(pagamento.id, { formaPagamento: e.target.value, condicaoId: null })}
+										className="h-10 min-w-0 flex-1 rounded-lg border border-gray-300 bg-transparent px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
 									>
-										×
-									</button>
+										{FORMAS_PAGAMENTO.filter((f) => f.value).map((f) => (
+											<option key={f.value} value={f.value}>{f.label}</option>
+										))}
+									</select>
+									<Input
+										type="text"
+										inputMode="decimal"
+										value={pagamento.valor}
+										onChange={(e) => onAlterarPagamento(pagamento.id, { valor: e.target.value })}
+										placeholder="Valor base"
+										className="w-32"
+									/>
+									<button type="button" onClick={() => onRemoverPagamento(pagamento.id)} className="px-1 text-error-600" aria-label={`Remover pagamento ${indice + 1}`}>×</button>
+								</div>
+								{pagamento.formaPagamento === "Cartão" && (
+									<select
+										value={pagamento.condicaoId ?? condicaoId ?? ""}
+										onChange={(e) => onAlterarPagamento(pagamento.id, { condicaoId: e.target.value ? Number(e.target.value) : null })}
+										className="h-10 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+									>
+										<option value="">Condição do cartão...</option>
+										{condicoes.map((item) => <option key={item.id} value={item.id}>{item.nome} — {Number(item.acrescimo_percentual).toFixed(2)}%</option>)}
+									</select>
 								)}
-							</>
-						)}
+							</div>
+						))}
+						<button type="button" onClick={onAdicionarPagamento} className="text-sm font-medium text-brand-600 dark:text-brand-400">+ Adicionar pagamento</button>
+						<p className="text-xs text-gray-500 dark:text-gray-400">Os valores são a divisão do total após o desconto. A taxa do cartão é somada somente à linha do cartão.</p>
+						{temFiadoMisto && <p className="text-xs text-error-600 dark:text-error-400">Fiado não pode ser misturado com outra forma de pagamento.</p>}
 					</div>
-					{variasFormas && pagamento.forma_pagamento === "Cartão" && (
-						<div className="mt-1 pl-1">
-							<select
-								value={condicaoId ?? ""}
-								onChange={(event) =>
-									setCondicaoId(
-										event.target.value ? Number(event.target.value) : null,
-									)
-								}
-								className="h-9 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-								aria-label="Parcelamento do cartão"
-							>
-								<option value="">Selecionar parcelas do cartão...</option>
-								{condicoes
-									.filter((condicao) => condicao.forma_pagamento === "Cartão")
-									.map((condicao) => (
-										<option key={condicao.id} value={condicao.id}>
-											{condicao.nome} — {condicao.numero_parcelas}x
-										</option>
-									))}
-							</select>
-						</div>
-					)}
-					</div>
-				))}
-				<button
-					type="button"
-					disabled={!formaPagamentoEfetiva || formaPagamento === "Fiado" || processando || descontoInvalido}
-					onClick={() => {
-						setFormaPagamento("Misto");
-						setCondicaoId(null);
-						setPagamentos((atual) => [
-							...atual.map((item, indice) =>
-								indice === 0 ? { ...item, valor: totalLocal.toFixed(2) } : item,
-							),
-							{ forma_pagamento: "", valor: "" },
-						]);
-					}}
-					className="text-sm font-medium text-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
-				>
-					+ Adicionar pagamento
-				</button>
-				{variasFormas && (
-					<p className={`mt-1 text-xs ${pagamentosValidos ? "text-success-600" : "text-error-600"}`}>
-						Total dos pagamentos: {formatarMoeda(pagamentos.reduce((soma, item) => soma + lerValorMonetario(item.valor), 0))} de {formatarMoeda(total)}
-					</p>
 				)}
-				{variasFormas && valorCartaoAlocado > 0 && condicaoCartaoMisto && (
-					<p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-						Cartão: {condicaoCartaoMisto.numero_parcelas}x de aproximadamente {formatarMoeda(valorCartaoAlocado / condicaoCartaoMisto.numero_parcelas)} (valor do cartão: {formatarMoeda(valorCartaoAlocado)}).
-					</p>
+				{pagamentos.length === 1 && formaPagamento && formaPagamento !== "Fiado" && (
+					<button type="button" onClick={onAdicionarPagamento} className="mt-2 text-sm font-medium text-brand-600 dark:text-brand-400">+ Adicionar pagamento</button>
 				)}
 			</div>
 
-			{valorDinheiroAlocado > 0 && (
+			{temDinheiro && (
 				<div>
 					<Label>Valor recebido (R$)</Label>
 					<Input
@@ -278,21 +214,12 @@ export default function PagamentoPainel({
 						inputMode="decimal"
 						value={valorRecebido}
 						onChange={(e) => setValorRecebido(e.target.value)}
-						min="0"
-						step={0.01}
 					/>
 					{recebidoNum > 0 && (
 						<p
 							className={`mt-1 text-sm font-medium ${troco >= 0 ? "text-success-600 dark:text-success-400" : "text-error-600 dark:text-error-400"}`}
 						>
-							{troco >= 0
-								? `Troco: ${formatarMoeda(troco)}`
-								: `Falta: ${formatarMoeda(Math.abs(troco))}`}
-						</p>
-					)}
-					{recebidoCentavos > 0 && recebidoCentavos < dinheiroCentavos && (
-						<p className="mt-1 text-xs text-error-600 dark:text-error-400">
-							Venda não finalizada: complete o valor ou escolha outra forma de pagamento.
+							Troco: {formatarMoeda(troco)}
 						</p>
 					)}
 				</div>
@@ -342,16 +269,26 @@ export default function PagamentoPainel({
 							)}
 						</>
 					)}
-					{formaPagamento === "Cartão" && (
+			{formaPagamento === "Cartão" && (
 						<p className="text-xs text-gray-500 dark:text-gray-400">
 							O parcelamento fica registrado na venda; não cria contas a receber do cliente.
 						</p>
 					)}
-					{erroPreviaParcelamento && (
+			{erroPreviaParcelamento && (
 						<p className="text-xs text-error-600 dark:text-error-400">
 							{erroPreviaParcelamento}
 						</p>
 					)}
+				</div>
+			)}
+			{misto && previaParcelamento?.pagamentos && (
+				<div className="space-y-1 text-xs text-gray-500 dark:text-gray-400">
+					{previaParcelamento.pagamentos.map((pagamento, indice) => (
+						<div key={`${pagamento.forma_pagamento}-${indice}`}>
+							<p>{pagamento.forma_pagamento}: {formatarMoeda(pagamento.valorBase)}{pagamento.acrescimo > 0 ? ` + ${formatarMoeda(pagamento.acrescimo)} = ${formatarMoeda(pagamento.valorFinal)}` : ""}</p>
+							{pagamento.forma_pagamento === "Cartão" && pagamento.parcelas.length > 1 && <p>{pagamento.parcelas.length}x: {pagamento.parcelas.map((parcela) => formatarMoeda(parcela.valor)).join(" · ")}</p>}
+						</div>
+					))}
 				</div>
 			)}
 
@@ -407,7 +344,7 @@ export default function PagamentoPainel({
 				<button
 					type="button"
 					onClick={onOrcamento}
-					disabled={carrinhoVazio || processando}
+					disabled={carrinhoVazio || processando || misto}
 					className="flex-1 rounded-lg bg-warning-500 px-4 py-3.5 text-sm font-medium text-white transition hover:bg-warning-600 disabled:cursor-not-allowed disabled:opacity-50"
 				>
 					Criar Orçamento

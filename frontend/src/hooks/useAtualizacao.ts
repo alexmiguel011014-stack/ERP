@@ -15,6 +15,7 @@ type EventoStatus = {
 		| "update-downloaded"
 		| "error";
 	progress?: number;
+	version?: string;
 	message?: string;
 };
 
@@ -23,8 +24,15 @@ type Mensagem = {
 	texto: string;
 };
 
+function classificarErroAtualizacao(texto: string) {
+	if (/sessão|acesso|administrador|permissão/i.test(texto)) return "permissão/sessão";
+	if (/conexão|conectar|tempo|latest\.yml|github|rede/i.test(texto)) return "rede/release";
+	return "inesperado";
+}
+
 export function useAtualizacao() {
 	const [versao, setVersao] = useState("--");
+	const [versaoDisponivel, setVersaoDisponivel] = useState<string | null>(null);
 	const [status, setStatus] = useState("Verificando...");
 	const [statusCor, setStatusCor] = useState<"normal" | "vermelho" | "verde">(
 		"normal",
@@ -36,12 +44,25 @@ export function useAtualizacao() {
 	const [disponivel, setDisponivel] = useState(false);
 	const [botaoDesabilitado, setBotaoDesabilitado] = useState(false);
 	const [confirmando, setConfirmando] = useState(false);
+	const [diagnostico, setDiagnostico] = useState<string | null>(null);
 	const baixandoRef = useRef(false);
 
 	function mostrarMensagem(tipo: Mensagem["tipo"], texto: string) {
 		setMensagem({ tipo, texto });
 		setTimeout(() => setMensagem(null), 8000);
 	}
+
+	const registrarDiagnostico = useCallback((texto: string) => {
+		const categoria = classificarErroAtualizacao(texto);
+		void window.api?.getAuthSession?.().then((sessao) => {
+			const perfil = String(sessao?.perfil || "desconhecido").trim().toLowerCase();
+			setDiagnostico(
+				`Diagnóstico: ${categoria} · versão ${versao} · perfil ${perfil || "desconhecido"}`,
+			);
+		}).catch(() => {
+			setDiagnostico(`Diagnóstico: ${categoria} · versão ${versao} · perfil desconhecido`);
+		});
+	}, [versao]);
 
 	useEffect(() => {
 		function handler(e: Event) {
@@ -54,6 +75,7 @@ export function useAtualizacao() {
 					setStatusCor("normal");
 				}
 			} else if (s === "available") {
+				setVersaoDisponivel(data.version || null);
 				setDisponivel(true);
 				setBaixado(false);
 				setProgresso(null);
@@ -65,6 +87,7 @@ export function useAtualizacao() {
 				);
 				setBotaoDesabilitado(false);
 			} else if (s === "not-available") {
+				setVersaoDisponivel(null);
 				setDisponivel(false);
 				setBaixado(false);
 				setProgresso(null);
@@ -103,15 +126,14 @@ export function useAtualizacao() {
 				setBotaoDesabilitado(false);
 				setStatus("Erro");
 				setStatusCor("vermelho");
-				mostrarMensagem(
-					"error",
-					"Erro na atualização: " + (data.message || "desconhecido"),
-				);
+				const texto = data.message || "desconhecido";
+				mostrarMensagem("error", "Erro na atualização: " + texto);
+				registrarDiagnostico(texto);
 			}
 		}
 		window.addEventListener("update-status", handler);
 		return () => window.removeEventListener("update-status", handler);
-	}, []);
+	}, [registrarDiagnostico]);
 
 	const check = useCallback(() => {
 		if (!window.api?.checkForUpdates) return;
@@ -125,9 +147,11 @@ export function useAtualizacao() {
 			setStatus("Erro ao verificar");
 			setStatusCor("vermelho");
 			setBotaoDesabilitado(false);
-			mostrarMensagem("error", e instanceof Error ? e.message : String(e));
+			const texto = e instanceof Error ? e.message : String(e);
+			mostrarMensagem("error", texto);
+			registrarDiagnostico(texto);
 		});
-	}, []);
+	}, [registrarDiagnostico]);
 
 	const download = useCallback(() => {
 		if (!window.api?.downloadUpdate) return;
@@ -158,8 +182,9 @@ export function useAtualizacao() {
 				setStatus("Erro no download");
 				setStatusCor("vermelho");
 				mostrarMensagem("error", msg);
+				registrarDiagnostico(texto);
 			});
-	}, []);
+	}, [registrarDiagnostico]);
 
 	// Instalar precisa de uma confirmação explícita ("reinicia o app, deseja
 	// prosseguir?") antes de disparar — pedido do dono. Este hook abre o
@@ -188,7 +213,9 @@ export function useAtualizacao() {
 		erpApi.sistema.quitAndInstall().catch((e: unknown) => {
 			setStatus("Erro ao instalar");
 			setStatusCor("vermelho");
-			mostrarMensagem("error", e instanceof Error ? e.message : String(e));
+			const texto = e instanceof Error ? e.message : String(e);
+			mostrarMensagem("error", texto);
+			registrarDiagnostico(texto);
 		});
 	}
 
@@ -224,6 +251,7 @@ export function useAtualizacao() {
 
 	return {
 		versao,
+		versaoDisponivel,
 		status,
 		statusCor,
 		progresso,
@@ -234,5 +262,6 @@ export function useAtualizacao() {
 		confirmando,
 		confirmarInstalacao,
 		cancelarInstalacao,
+		diagnostico,
 	};
 }

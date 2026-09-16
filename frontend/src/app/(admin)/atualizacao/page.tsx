@@ -4,6 +4,7 @@ import Button from "@/components/ui/button/Button";
 import { usePageHeader } from "@/context/PageHeaderContext";
 import { useAtualizacao } from "@/hooks/useAtualizacao";
 import ConfirmarInstalacaoModal from "@/components/atualizacao/ConfirmarInstalacaoModal";
+import { obterNotasAtualizacao } from "@/lib/atualizacaoNotas";
 
 // Cores pro status no header — fundo azul-marinho fixo, não usa o par
 // light/dark que os cards no corpo da página usam.
@@ -34,6 +35,7 @@ const COR_MENSAGEM: Record<string, string> = {
 export default function AtualizacaoPage() {
 	const {
 		versao,
+		versaoDisponivel,
 		status,
 		statusCor,
 		progresso,
@@ -44,7 +46,10 @@ export default function AtualizacaoPage() {
 		confirmando,
 		confirmarInstalacao,
 		cancelarInstalacao,
+		diagnostico,
 	} = useAtualizacao();
+	const versaoDasNotas = versaoDisponivel || versao;
+	const notas = obterNotasAtualizacao(versaoDasNotas);
 
 	// Achado real (2026-08-29, investigação do travamento de navegação): sem
 	// useMemo, esse JSX é um objeto NOVO a cada render — a dependência do
@@ -103,6 +108,27 @@ export default function AtualizacaoPage() {
 					{mensagem.texto}
 				</div>
 			)}
+
+			{diagnostico && (
+				<p className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-500 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-400">
+					{diagnostico}
+				</p>
+			)}
+
+			<section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+				<h2 className="text-base font-semibold text-gray-800 dark:text-white/90">
+					Notas da atualização {versaoDasNotas}
+				</h2>
+				{notas ? (
+					<ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-600 dark:text-gray-300">
+						{notas.itens.map((item) => <li key={item}>{item}</li>)}
+					</ul>
+				) : (
+					<p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+						Notas ainda não cadastradas para esta versão.
+					</p>
+				)}
+			</section>
 
 			<div className="text-center">
 				<Button onClick={clicarBotao} disabled={botaoDesabilitado}>

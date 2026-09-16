@@ -121,7 +121,8 @@ function logErro(texto) {
 // num único ponto, em vez de espalhar `perfil === "admin" || perfil === "dono"`
 // pelos ~15 arquivos de ipc/*.js que chamam exigirSessao("admin").
 function ehNivelAdmin(perfil) {
-	return perfil === "admin" || perfil === "dono";
+	const perfilNormalizado = String(perfil || "").trim().toLowerCase();
+	return perfilNormalizado === "admin" || perfilNormalizado === "dono";
 }
 
 function exigirSessao(perfil) {

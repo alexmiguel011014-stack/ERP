@@ -50,7 +50,16 @@ export function PorDiaChart({
 		chart: { type: "bar", height: 240, toolbar: { show: false } },
 		plotOptions: { bar: { borderRadius: 4, columnWidth: "45%" } },
 		dataLabels: { enabled: false },
-		xaxis: { categories: dados.map((d) => formatarDiaCurto(d.dia)) },
+		// "Período todo" pode ter centenas de dias: sem limitar os ticks o
+		// ApexCharts desenha um rótulo por barra, tudo sobreposto e ilegível
+		// (relato do dono, 2026-09-16). Mesma regra do gráfico do dashboard:
+		// no máximo ~8 rótulos, sem rotação; as barras continuam uma por dia e
+		// o tooltip mostra a data completa de qualquer uma.
+		xaxis: {
+			categories: dados.map((d) => formatarDiaCurto(d.dia)),
+			tickAmount: Math.max(0, Math.min(dados.length - 1, 8)),
+			labels: { rotate: 0, hideOverlappingLabels: true },
+		},
 		yaxis: { labels: { formatter: formatarEixoY } },
 		legend: { show: false },
 		grid: { yaxis: { lines: { show: true } } },

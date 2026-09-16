@@ -27,6 +27,7 @@ function origemTexto(origem: string): string {
 			devolucao: "Devolução",
 			importacao_migracao: "Importação",
 			importacao_financeiro_historico: "Histórico financeiro",
+			venda_historica_manual: "Venda histórica",
 		}[origem] || origem
 	);
 }

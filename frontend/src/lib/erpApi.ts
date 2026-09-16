@@ -130,6 +130,32 @@ export type LinhaImportacaoVenda = {
 	data: string;
 };
 
+export type FormaPagamentoHistorica =
+	| "PIX"
+	| "Cartão"
+	| "Dinheiro"
+	| "Fiado"
+	| "Genérico";
+
+export type VendaHistoricaDados = {
+	nome: string;
+	total: number;
+	data_venda: string;
+	cliente_id: number | null;
+	forma_pagamento: FormaPagamentoHistorica;
+	status_recebivel?: "aberto" | "pago";
+	data_primeiro_vencimento?: string | null;
+	request_id?: string | null;
+};
+
+export type ResultadoVendaHistorica = {
+	success: boolean;
+	vendaId: number;
+	total: number;
+	formaPagamento: FormaPagamentoHistorica;
+	idempotente?: boolean;
+};
+
 export type Lancamento = {
 	id: number;
 	tipo: "receber" | "pagar";
@@ -138,7 +164,7 @@ export type Lancamento = {
 	data_vencimento: string;
 	data_pagamento: string | null;
 	status: "aberto" | "pago" | "cancelado";
-	origem: "manual" | "venda" | "compra";
+	origem: string | null;
 	referencia_id: number | null;
 	forma_pagamento: string | null;
 	data_criacao: string;
@@ -344,6 +370,7 @@ export type Venda = {
 	parcelas: number | null;
 	acrescimo_parcelamento: number | null;
 	data_primeiro_vencimento: string | null;
+	origem: string;
 };
 
 export type FiltroVendas = {
@@ -455,10 +482,10 @@ export type ItemCarrinho = {
 	preco_unitario: number;
 };
 
-export type PagamentoVendaInput = {
-	forma_pagamento: "PIX" | "Cartão" | "Dinheiro" | "Fiado";
-	valor: number;
-};
+// Uma linha do pagamento dividido enviada pelo PDV. Alias de PagamentoVenda:
+// a linha de Cartão carrega a própria condição de parcelamento (a taxa só
+// incide sobre ela — ver db/vendas.js:calcularVendaMista).
+export type PagamentoVendaInput = PagamentoVenda;
 
 export type NovaVendaDados = {
 	itens: ItemCarrinho[];
@@ -467,12 +494,18 @@ export type NovaVendaDados = {
 	total: number;
 	cliente_id?: number | null;
 	forma_pagamento?: string | null;
-	pagamentos?: PagamentoVendaInput[];
-	valor_recebido?: number | null;
 	condicao_parcelamento_id?: number | null;
 	data_primeiro_vencimento?: string | null;
+	pagamentos?: PagamentoVenda[];
+	valor_recebido?: number | null;
 	request_id?: string | null;
 	observacao?: string | null;
+};
+
+export type PagamentoVenda = {
+	forma_pagamento: "PIX" | "Cartão" | "Dinheiro" | "Fiado";
+	valor: number;
+	condicao_parcelamento_id?: number | null;
 };
 
 export type ParcelaVenda = {
@@ -492,8 +525,17 @@ export type ResultadoVenda = {
 	vendaId: number;
 	total?: number;
 	parcelas?: ParcelaVenda[];
-	pagamentos?: PagamentoVendaInput[];
+	pagamentos?: PagamentoVendaResultado[];
 	idempotente?: boolean;
+};
+
+export type PagamentoVendaResultado = PagamentoVenda & {
+	valorBase: number;
+	valorFinal: number;
+	acrescimo: number;
+	acrescimoPercentual: number;
+	condicao_parcelamento_nome?: string | null;
+	parcelas: ParcelaVenda[];
 };
 
 export type CondicaoParcelamento = {
@@ -515,6 +557,7 @@ export type PreviaVendaParcelada = {
 	desconto: number;
 	total: number;
 	parcelas: ParcelaVenda[];
+	pagamentos?: PagamentoVendaResultado[];
 };
 
 // Crediário histórico (GOALS.md "4. Crediário histórico") — lançamento
@@ -751,11 +794,12 @@ export type ResultadoImportacaoVendas = {
 export type DreResultado = {
 	periodo: { inicio: string; fim: string };
 	vendas: number;
+	vendasHistoricasSemCMV: number;
+	receitaHistoricaSemCMV: number;
 	receitaBruta: number;
 	descontos: number;
 	devolucoes: number;
 	receitaLiquida: number;
-	receitaHistoricaSemCMV: number;
 	receitaSemCMV: number;
 	quantidadeCustoDesconhecido: number;
 	custoDesconhecido: boolean;
@@ -925,12 +969,8 @@ export type AgingRecebiveisResultado = {
 	totalGeral: number;
 };
 
-// Importação de dados da Loja House (pasta com JSONs 01_categorias.json,
-// 02_produtos_variacoes.json, etc — ver db/importacoes.js). Duas rotas
-// diferentes trazem "preview" com formas diferentes: validarPastaImportacao
-// conta lancamentos/pendencias já somados, enquanto o dry-run de
-// executarImportacao devolve os totais brutos por arquivo — não são o
-// mesmo shape, por isso dois types (ver ipc/importacoes.js e db/importacoes.js).
+// Contrato compartilhado da fonte JSON/Excel e do dry-run
+// (ver ipc/importacoes.js e db/importacoes.js).
 export type PreviewImportacao = {
 	categorias: number;
 	produtos: number;
@@ -939,21 +979,53 @@ export type PreviewImportacao = {
 	clientes: number;
 	lancamentos: number;
 	pendencias: number;
+	vendasHistoricas?: number;
 };
 
-export type ValidacaoPastaImportacao =
+export type ArquivoFonteImportacao = {
+	arquivo: string;
+	tipo: "importacao" | "metadado" | "desconhecido";
+	papel?: string;
+	competencia?: string | null;
+	itens?: number;
+	motivo?: string;
+};
+
+export type AvisoFonteImportacao = {
+	arquivo: string;
+	motivo: string;
+	bloqueiaCommit?: boolean;
+};
+
+export type OrigemJsonImportacao = {
+	tipo: "json";
+	caminhos?: string[];
+	pasta?: string;
+	checksum?: string;
+};
+
+export type SelecaoJsonImportacao = {
+	selecao: "files" | "folder";
+	caminhos?: string[];
+	pasta?: string;
+};
+
+export type ValidacaoJsonImportacao =
 	| { cancelado: true }
 	| { erro: string }
 	| {
-			formato: "loja_house";
-			pasta: string;
-			arquivos: string[];
+			formato: "json";
+			origem: OrigemJsonImportacao;
+			arquivos: ArquivoFonteImportacao[];
+			competencias: string[];
+			avisos: AvisoFonteImportacao[];
+			errosFonte: AvisoFonteImportacao[];
+			bloqueado: boolean;
 			preview: PreviewImportacao;
+			checksum: string;
 	  };
 
-// Terceiro modo do wizard: planilha .xlsx nativa da Loja House (ver
-// db/excel-loja-house.js). Mesmo preview de contagens de validarPasta, só
-// muda "pasta"+"arquivos" por "caminho" (um arquivo só, não uma pasta).
+// Planilha .xlsx nativa da Loja House (ver db/excel-loja-house.js).
 export type ValidacaoArquivoExcelImportacao =
 	| { cancelado: true }
 	| { erro: string }
@@ -961,91 +1033,19 @@ export type ValidacaoArquivoExcelImportacao =
 			formato: "excel";
 			caminho: string;
 			preview: PreviewImportacao;
+			naoImportados?: {
+				financeiroHistorico: number;
+				contasAbertas: number;
+			};
+			avisos?: string[];
 	  };
 
-export type MovimentoFinanceiroHistoricoPreview = {
-	chave_externa: string;
-	linha: number;
-	data: string;
-	descricao: string;
-	valor: number;
-	direcao: "entrada" | "saida";
-	destino: "venda_historica" | "pagamento_historico" | "pendente";
-	categoria?: string;
-	motivo?: string;
-};
-
-export type ReconciliacaoFinanceiroHistorico = {
-	saldoAbertura: number;
-	totalEntradas: number;
-	totalSaidas: number;
-	saldoCalculado: number;
-	saldoInformado: number | null;
-	diferenca: number | null;
-	valida: boolean;
-};
-
-export type PreviewFinanceiroJaneiroImportacao = {
-	mes: "JANEIRO";
-	aba: string;
-	arquivoChecksum: string;
-	vendasHistoricas: MovimentoFinanceiroHistoricoPreview[];
-	pagamentosHistoricos: MovimentoFinanceiroHistoricoPreview[];
-	pendenciasHistoricas: MovimentoFinanceiroHistoricoPreview[];
-	reconciliacao: ReconciliacaoFinanceiroHistorico;
-};
-
-export type ValidacaoFinanceiroJaneiroImportacao =
-	| { cancelado: true }
-	| { erro: string }
-	| {
-			formato: "json_financeiro_mes";
-			caminho: string;
-			checksum: string;
-			preview: PreviewFinanceiroJaneiroImportacao;
-	  };
-
-export type EntradaImportacaoFinanceiroJaneiro = {
-	tipo: "json_financeiro_mes";
-	caminho: string;
-	checksum: string;
-};
-
-export type PreviewDryRunFinanceiroJaneiro = {
-	mes: "JANEIRO";
-	vendasHistoricas: number;
-	pagamentosHistoricos: number;
-	pendenciasHistoricas: number;
-	porCategoria: Record<string, number>;
-	reconciliacao: ReconciliacaoFinanceiroHistorico;
-};
-
-export type ResultadoDryRunFinanceiroJaneiro = {
-	dryRun: true;
-	preview: PreviewDryRunFinanceiroJaneiro;
-	conflitos: ConflitosImportacao;
-	checksum: string;
-};
-
-export type ResultadoImportacaoFinanceiroJaneiro = {
-	batchId: string;
-	importadas: { vendasHistoricas: number; pagamentosHistoricos: number };
-	ignoradas: number;
-	pendencias: number;
-	erros: ErroImportacaoItem[];
-	reconciliacao: ReconciliacaoFinanceiroHistorico;
-};
-
-export type ResultadoExecucaoFinanceiroJaneiro =
-	| ResultadoDryRunFinanceiroJaneiro
-	| ResultadoImportacaoFinanceiroJaneiro
-	| ErroImportacao;
-
-// Entrada aceita por executarImportacao: pasta de JSONs (string), ou
-// planilha Excel nativa — espelha os dois formatos que
-// executarImportacaoLojHouse (via ipc/importacoes.js) já aceita além do
-// array de {arquivo,conteudo} usado internamente para uploads de JSON.
-export type EntradaImportacao = string | { tipo: "excel"; caminho: string };
+// Entrada aceita por executarImportacao. A string permanece para o fallback
+// antigo; o frontend novo usa sempre a origem JSON ou Excel tipada.
+export type EntradaImportacao =
+	| string
+	| { tipo: "excel"; caminho: string }
+	| OrigemJsonImportacao;
 
 export type PreviewDryRunImportacao = {
 	categorias: number;
@@ -1056,7 +1056,10 @@ export type PreviewDryRunImportacao = {
 	lancamentosHistoricos: number;
 	contasAbertas: number;
 	vendasHistoricas: number;
+	vendasFinanceiroHistorico?: number;
 	pendenciasOrigem: number;
+	avisos?: AvisoFonteImportacao[];
+	competencias?: string[];
 };
 
 export type ConflitosImportacao = {
@@ -1080,6 +1083,7 @@ export type ItensImportadosLote = {
 	estoque: number;
 	clientes: number;
 	lancamentos: number;
+	vendasHistoricas: number;
 };
 
 export type ErroImportacaoItem = {
@@ -1093,6 +1097,8 @@ export type ResultadoImportacaoLote = {
 	ignoradas: number;
 	pendencias: number;
 	erros: ErroImportacaoItem[];
+	avisos?: AvisoFonteImportacao[];
+	competencias?: string[];
 };
 
 export type ErroImportacao = { erro: string };
@@ -1447,6 +1453,8 @@ export const erpApi = {
 				"registrarVendaFiadoHistorica",
 				dados,
 			),
+		registrarHistorica: (dados: VendaHistoricaDados) =>
+			invocar<ResultadoVendaHistorica>("registrarVendaHistorica", dados),
 	},
 	financeiro: {
 		lancamentos: (filtro: FiltroLancamentos = {}) =>
@@ -1569,10 +1577,8 @@ export const erpApi = {
 			invocar<AgingRecebiveisResultado>("getAgingRecebiveis"),
 	},
 	importacoes: {
-		// Sem argumento: o próprio backend abre o dialog nativo do Electron
-		// (dialog.showOpenDialog) e devolve a pasta escolhida.
-		validarPasta: (pasta?: string) =>
-			invocar<ValidacaoPastaImportacao>("validarPastaImportacao", pasta),
+		validarJson: (selecao?: SelecaoJsonImportacao) =>
+			invocar<ValidacaoJsonImportacao>("validarJsonImportacao", selecao),
 		// Mesma ideia, mas pra planilha Excel (.xlsx) nativa em vez de pasta
 		// de JSONs — sem argumento também abre o dialog nativo, já filtrado
 		// pra .xlsx.
@@ -1581,34 +1587,11 @@ export const erpApi = {
 				"validarArquivoExcelImportacao",
 				caminho,
 			),
-		gerarModeloFinanceiroJaneiro: (
-			caminhoPlanilha?: string,
-			caminhoDestino?: string,
-		) =>
-			invocar<ValidacaoFinanceiroJaneiroImportacao>(
-				"gerarModeloFinanceiroJaneiro",
-				caminhoPlanilha,
-				caminhoDestino,
-			),
-		validarModeloFinanceiroJaneiro: (caminho?: string) =>
-			invocar<ValidacaoFinanceiroJaneiroImportacao>(
-				"validarModeloFinanceiroJaneiro",
-				caminho,
-			),
 		executar: (
 			pasta: EntradaImportacao,
 			opcoes: { dryRun: boolean; dataMovimentacao?: string },
 		) =>
 			invocar<ResultadoExecucaoImportacao>("executarImportacao", pasta, opcoes),
-		executarFinanceiroJaneiro: (
-			entrada: EntradaImportacaoFinanceiroJaneiro,
-			opcoes: { dryRun: boolean },
-		) =>
-			invocar<ResultadoExecucaoFinanceiroJaneiro>(
-				"executarImportacao",
-				entrada,
-				opcoes,
-			),
 		historico: () => invocar<LoteImportacao[]>("historicoImportacoes"),
 		detalhes: (batchId: string) =>
 			invocar<DetalhesLoteImportacao>("detalhesImportacao", batchId),

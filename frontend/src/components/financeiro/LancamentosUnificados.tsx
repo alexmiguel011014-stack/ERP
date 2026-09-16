@@ -28,6 +28,7 @@ function origemTexto(origem: string | null): string {
 			compra: "Compra",
 			recorrente: "Recorrente",
 			importacao_migracao: "Importação",
+			venda_historica_manual: "Venda histórica",
 		}[origem || ""] || origem || "Outra"
 	);
 }

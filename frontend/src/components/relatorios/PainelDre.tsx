@@ -52,6 +52,13 @@ export default function PainelDre({ dre }: { dre: DreResultado }) {
 			<div className="mt-3">
 				<DreChart dre={dre} />
 			</div>
+			{dre.receitaHistoricaSemCMV > 0 && (
+				<div className="mt-3 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-sm text-warning-800 dark:border-warning-800 dark:bg-warning-500/10 dark:text-warning-300">
+					{dre.vendasHistoricasSemCMV} venda(s) histórica(s), totalizando{" "}
+					{formatarMoeda(dre.receitaHistoricaSemCMV)}, foram registradas sem itens
+					e, portanto, ficam fora do CMV e das margens deste DRE.
+				</div>
+			)}
 			<div className="mt-3">
 				<LinhaDre
 					label="Receita Bruta"

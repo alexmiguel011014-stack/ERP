@@ -3,6 +3,7 @@ const fs = require("fs");
 const crypto = require("crypto");
 const { getConexao, runOn, allAsync, getAsync } = require("./conexao");
 const { registrarVendaFiadoHistorica } = require("./vendas");
+const { validarModeloFinanceiroMensal } = require("./excel-loja-house");
 
 function gerarIdUnido() {
 	return crypto.randomBytes(8).toString("hex");
@@ -46,6 +47,398 @@ function normalizarConteudoArquivo(dados) {
 		return dados.registros;
 	}
 	return dados;
+}
+
+const PAPEIS_IMPORTACAO = Object.freeze({
+	categorias: "01_categorias.json",
+	produtosVariacoes: "02_produtos_variacoes.json",
+	estoqueInicial: "03_estoque_inicial.json",
+	clientes: "04_clientes.json",
+	financeiroHistorico: "05_financeiro_historico.json",
+	contasAbertas: "06_contas_abertas.json",
+	vendasHistoricas: "07_vendas_historicas.json",
+	pendenciasOrigem: "99_pendencias.json",
+});
+
+const EXTENSOES_METADADOS = [
+	"manifest",
+	"manifesto",
+	"validacao",
+	"validation",
+	"relatorio",
+	"report",
+	"checksum",
+];
+
+function textoArquivoImportacao(arquivo) {
+	return path
+		.basename(arquivo, path.extname(arquivo))
+		.normalize("NFD")
+		.replace(/[\u0300-\u036f]/g, "")
+		.toLowerCase();
+}
+
+function extrairCompetenciaDoArquivo(arquivo) {
+	const texto = String(arquivo).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+	const encontrada = texto.match(/(?:^|[^\d])(20\d{2})[-_](0[1-9]|1[0-2])(?:[^\d]|$)/);
+	return encontrada ? `${encontrada[1]}-${encontrada[2]}` : null;
+}
+
+function classificarArquivoImportacao(arquivo) {
+	const base = textoArquivoImportacao(arquivo);
+	if (EXTENSOES_METADADOS.some((termo) => base.includes(termo))) {
+		return { tipo: "metadado", motivo: "arquivo de manifesto/validação" };
+	}
+
+	const regras = [
+		[/^(?:01[_-]?)?categorias(?:[_-].*)?$/, "categorias"],
+		[/^(?:02[_-]?)?produtos(?:[_-]?variacoes)?(?:[_-].*)?$/, "produtosVariacoes"],
+		[/^(?:03[_-]?)?estoque(?:[_-]?inicial)?(?:[_-].*)?$/, "estoqueInicial"],
+		[/^(?:04[_-]?)?clientes?(?:[_-].*)?$/, "clientes"],
+		[/^(?:(?:05[_-]?)?financeiro(?:[_-]?historico)?|loja-house[-_]financeiro)(?:[_-].*)?$/, "financeiroHistorico"],
+		[/^(?:06[_-]?)?contas?(?:[_-]?abertas)?(?:[_-].*)?$/, "contasAbertas"],
+		[/^(?:07[_-]?)?vendas?(?:[_-]?historicas?)?(?:[_-].*)?$/, "vendasHistoricas"],
+		[/^(?:99[_-]?)?pendencias?(?:[_-].*)?$/, "pendenciasOrigem"],
+	];
+	const regra = regras.find(([padrao]) => padrao.test(base));
+	if (!regra) {
+		return { tipo: "desconhecido", motivo: "nome não corresponde a um papel suportado" };
+	}
+	return { tipo: "importacao", papel: regra[1] };
+}
+
+function gerarChaveVendaHistoricaLegada(arquivo, indice, item) {
+	return `LEGACY-SALE-${gerarChecksum([arquivo, indice, item])}`;
+}
+
+function extrairCompetenciasDasLinhasFinanceiras(lista) {
+	return [
+		...new Set(
+			lista
+				.map(
+					(item) =>
+						item?.data || item?.data_pagamento || item?.data_vencimento,
+				)
+				.filter((data) => typeof data === "string")
+				.map((data) => data.slice(0, 7))
+				.filter((competencia) => /^(20\d{2})-(0[1-9]|1[0-2])$/.test(competencia)),
+		),
+	];
+}
+
+function normalizarVendasHistoricasLegadas(dados, arquivo) {
+	return dados.map((item, indice) => {
+		if (!item || typeof item !== "object") return item;
+		const chaveExterna =
+			item.chave_externa || gerarChaveVendaHistoricaLegada(arquivo, indice, item);
+		if (
+			item.sku &&
+			!item.cliente_id &&
+			!item.clienteId &&
+			item.quantidade !== undefined &&
+			(item.valorUnitario !== undefined || item.valor_unitario !== undefined) &&
+			item.data
+		) {
+			const quantidade = Number(item.quantidade);
+			const valorUnitario = Number(item.valorUnitario ?? item.valor_unitario);
+			return {
+				...item,
+				chave_externa: chaveExterna,
+				valor: quantidade * valorUnitario,
+				descricao: item.descricao || `Venda histórica — SKU ${item.sku}`,
+				direcao: "entrada",
+				_origem_legada_resumida: true,
+			};
+		}
+		return { ...item, chave_externa: chaveExterna };
+	});
+}
+
+function normalizarModeloFinanceiroParaImportacao(modelo, arquivo) {
+	const validacao = validarModeloFinanceiroMensal(modelo);
+	const dados = validacao.dados;
+	return {
+		arquivo,
+		competencia: modelo.competencia,
+		financeiroHistorico: dados.pagamentosHistoricos.map((item) => ({
+			chave_externa: item.chave_externa,
+			tipo: item.tipo || "pagar",
+			descricao: item.descricao,
+			valor: item.valor,
+			data_vencimento: item.data_vencimento || item.data,
+			data_pagamento: item.data_pagamento || item.data,
+			status: item.status || "pago",
+			categoria: item.categoria || null,
+			origem: "importacao_financeiro_historico",
+		})),
+		vendasFinanceiroHistorico: dados.vendasHistoricas.map((item) => ({
+			chave_externa: item.chave_externa,
+			data: item.data,
+			descricao: item.descricao,
+			valor: item.valor,
+			direcao: item.direcao,
+			competencia: modelo.competencia,
+		})),
+		pendenciasOrigem: dados.pendenciasHistoricas.map((item) => ({
+			id: item.chave_externa,
+			chave_externa: item.chave_externa,
+			tipo: "financeiro_historico",
+			descricao: item.descricao,
+			valor: item.valor,
+			acao_sugerida: item.motivo,
+		})),
+		preview: {
+			competencia: modelo.competencia,
+			vendasHistoricas: dados.vendasHistoricas.length,
+			pagamentosHistoricos: dados.pagamentosHistoricos.length,
+			pendenciasHistoricas: dados.pendenciasHistoricas.length,
+			reconciliacao: dados.reconciliacao,
+		},
+	};
+}
+
+function normalizarArquivosImportacao(entradas) {
+	if (!Array.isArray(entradas) || entradas.length === 0) {
+		throw new Error("Nenhum arquivo JSON de importação foi selecionado.");
+	}
+
+	const dados = {
+		categorias: [],
+		produtosVariacoes: [],
+		estoqueInicial: [],
+		clientes: [],
+		financeiroHistorico: [],
+		contasAbertas: [],
+		vendasHistoricas: [],
+		vendasFinanceiroHistorico: [],
+		pendenciasOrigem: [],
+	};
+	const arquivos = [];
+	const avisos = [];
+	const errosFonte = [];
+	const competencias = new Set();
+	const papeisCompetencias = new Set();
+
+	const ordenadas = [...entradas].sort((a, b) =>
+		String(a.arquivo).localeCompare(String(b.arquivo), "pt-BR"),
+	);
+	for (const entrada of ordenadas) {
+		const arquivo = String(entrada.arquivo || "").replace(/\\/g, "/");
+		const classificacao = classificarArquivoImportacao(arquivo);
+		if (classificacao.tipo === "metadado") {
+			arquivos.push({ arquivo, tipo: "metadado", motivo: classificacao.motivo });
+			avisos.push({ arquivo, motivo: classificacao.motivo });
+			continue;
+		}
+		if (classificacao.tipo !== "importacao") {
+			const aviso = { arquivo, motivo: classificacao.motivo };
+			arquivos.push({ arquivo, tipo: "desconhecido", motivo: aviso.motivo });
+			errosFonte.push(aviso);
+			continue;
+		}
+
+		let conteudo = entrada.conteudo;
+		if (typeof conteudo === "string") {
+			try {
+				conteudo = JSON.parse(conteudo);
+			} catch (erro) {
+				throw new Error(`Arquivo ${arquivo} inválido: ${erro.message}`);
+			}
+		}
+
+		const competenciaDoArquivo = extrairCompetenciaDoArquivo(arquivo);
+		if (
+			classificacao.papel === "financeiroHistorico" &&
+			conteudo &&
+			typeof conteudo === "object" &&
+			!Array.isArray(conteudo) &&
+			conteudo.formato === "loja_house.financeiro_historico"
+		) {
+			const mensal = normalizarModeloFinanceiroParaImportacao(conteudo, arquivo);
+			competencias.add(mensal.competencia);
+			const chavePapel = `${classificacao.papel}:${mensal.competencia}`;
+			if (papeisCompetencias.has(chavePapel)) {
+				errosFonte.push({ arquivo, motivo: `competência duplicada: ${mensal.competencia}` });
+				continue;
+			}
+			papeisCompetencias.add(chavePapel);
+			dados.financeiroHistorico.push(...mensal.financeiroHistorico);
+			dados.vendasFinanceiroHistorico.push(...mensal.vendasFinanceiroHistorico);
+			dados.pendenciasOrigem.push(...mensal.pendenciasOrigem);
+			arquivos.push({
+				arquivo,
+				tipo: "importacao",
+				papel: classificacao.papel,
+				competencia: mensal.competencia,
+				itens:
+					mensal.financeiroHistorico.length +
+					mensal.vendasFinanceiroHistorico.length +
+					mensal.pendenciasOrigem.length,
+			});
+			continue;
+		}
+
+		let lista = normalizarConteudoArquivo(conteudo);
+		if (classificacao.papel === "vendasHistoricas" && Array.isArray(lista)) {
+			lista = normalizarVendasHistoricasLegadas(lista, arquivo);
+		}
+		try {
+			validarStructura(lista, PAPEIS_IMPORTACAO[classificacao.papel]);
+		} catch (erro) {
+			throw new Error(`Arquivo ${arquivo} inválido: ${erro.message}`);
+		}
+		let competenciaFinanceira = competenciaDoArquivo;
+		if (
+			classificacao.papel === "financeiroHistorico" &&
+			!competenciaFinanceira &&
+			lista.length > 0
+		) {
+			const competenciasDasLinhas = extrairCompetenciasDasLinhasFinanceiras(lista);
+			if (competenciasDasLinhas.length === 1) {
+				competenciaFinanceira = competenciasDasLinhas[0];
+			} else {
+				const motivo = competenciasDasLinhas.length
+					? "linhas financeiras de competências diferentes; informe um arquivo por competência"
+					: "competência financeira ausente; use YYYY-MM no nome do arquivo ou em um envelope revisado";
+				errosFonte.push({ arquivo, motivo });
+				arquivos.push({
+					arquivo,
+					tipo: "importacao",
+					papel: classificacao.papel,
+					competencia: null,
+					itens: lista.length,
+					motivo,
+				});
+				continue;
+			}
+		}
+		if (classificacao.papel === "financeiroHistorico" && competenciaFinanceira) {
+			const competenciasDasLinhas = extrairCompetenciasDasLinhasFinanceiras(lista);
+			if (
+				competenciasDasLinhas.some(
+					(item) => item !== competenciaFinanceira,
+				)
+			) {
+				const motivo = `linhas financeiras fora da competência ${competenciaFinanceira}`;
+				errosFonte.push({ arquivo, motivo });
+				arquivos.push({
+					arquivo,
+					tipo: "importacao",
+					papel: classificacao.papel,
+					competencia: competenciaFinanceira,
+					itens: lista.length,
+					motivo,
+				});
+				continue;
+			}
+			competencias.add(competenciaFinanceira);
+			const chavePapel = `${classificacao.papel}:${competenciaFinanceira}`;
+			if (papeisCompetencias.has(chavePapel)) {
+				errosFonte.push({ arquivo, motivo: `competência duplicada: ${competenciaFinanceira}` });
+				continue;
+			}
+			papeisCompetencias.add(chavePapel);
+		}
+		if (classificacao.papel === "vendasHistoricas") {
+			dados.vendasFinanceiroHistorico.push(
+				...lista
+					.filter((item) => item?._origem_legada_resumida)
+					.map((item) => {
+						const copia = { ...item };
+						delete copia._origem_legada_resumida;
+						return copia;
+					}),
+			);
+			dados.vendasHistoricas.push(
+				...lista.filter((item) => !item?._origem_legada_resumida),
+			);
+		} else {
+			dados[classificacao.papel].push(...lista);
+		}
+		arquivos.push({
+			arquivo,
+			tipo: "importacao",
+			papel: classificacao.papel,
+			competencia: competenciaFinanceira,
+			itens: lista.length,
+		});
+	}
+
+	const chaves = new Map();
+	for (const [papel, lista] of Object.entries(dados)) {
+		for (const [indice, item] of lista.entries()) {
+			const chave = item?.chave_externa || item?.id;
+			if (!chave) continue;
+			const anterior = chaves.get(chave);
+			if (anterior) {
+				errosFonte.push({
+					arquivo: `${papel}[${indice}]`,
+					motivo: `chave_externa duplicada; já aparece em ${anterior}`,
+				});
+			} else {
+				chaves.set(chave, `${papel}[${indice}]`);
+			}
+		}
+	}
+
+	if (errosFonte.length > 0) {
+		avisos.push(...errosFonte.map((item) => ({ ...item, bloqueiaCommit: true })));
+	}
+	return {
+		arquivos,
+		dados,
+		avisos,
+		errosFonte,
+		competencias: [...competencias].sort(),
+		checksum: gerarChecksum({ arquivos, dados }),
+	};
+}
+
+function obterCaminhosJsonImportacao(origem) {
+	if (typeof origem === "string") {
+		const estat = fs.statSync(origem);
+		if (estat.isFile()) return { caminhos: [origem], base: path.dirname(origem) };
+		if (estat.isDirectory()) return { caminhos: listarJsonRecursivo(origem), base: origem };
+	}
+	if (origem?.tipo === "folder") {
+		return { caminhos: listarJsonRecursivo(origem.caminho), base: origem.caminho };
+	}
+	if (origem?.tipo === "files") {
+		return { caminhos: origem.caminhos || [], base: null };
+	}
+	if (origem?.tipo === "json") {
+		return origem.pasta
+			? { caminhos: listarJsonRecursivo(origem.pasta), base: origem.pasta }
+			: { caminhos: origem.caminhos || [], base: null };
+	}
+	throw new Error("Origem JSON inválida: informe arquivos ou uma pasta.");
+}
+
+function listarJsonRecursivo(pasta) {
+	if (!pasta || !fs.existsSync(pasta) || !fs.statSync(pasta).isDirectory()) {
+		throw new Error("Pasta de importação não encontrada: " + pasta);
+	}
+	const encontrados = [];
+	for (const entrada of fs.readdirSync(pasta, { withFileTypes: true })) {
+		const caminho = path.join(pasta, entrada.name);
+		if (entrada.isDirectory()) encontrados.push(...listarJsonRecursivo(caminho));
+		else if (entryNameIsJson(entrada.name)) encontrados.push(caminho);
+	}
+	return encontrados.sort((a, b) => a.localeCompare(b, "pt-BR"));
+}
+
+function entryNameIsJson(nome) {
+	return path.extname(nome).toLowerCase() === ".json";
+}
+
+function carregarArquivosJsonImportacao(origem) {
+	const { caminhos, base } = obterCaminhosJsonImportacao(origem);
+	if (!caminhos.length) throw new Error("Nenhum arquivo .json encontrado na origem selecionada.");
+	return caminhos.map((caminho) => ({
+		arquivo: base ? path.relative(base, caminho) || path.basename(caminho) : path.basename(caminho),
+		caminho,
+		conteudo: fs.readFileSync(caminho, "utf8"),
+	}));
 }
 
 function validarStructura(dados, nomeArquivo) {
@@ -744,12 +1137,13 @@ async function importarVendasFinanceiroHistorico(dados, batchId, db) {
 			await runOn(
 				conn,
 				`INSERT INTO Vendas
-				(total, forma_pagamento, data_venda, desconto, observacao, status, origem)
-				VALUES (?, NULL, ?, 0, ?, 'finalizada', 'importacao_financeiro_historico')`,
+				(total, forma_pagamento, data_venda, desconto, observacao, status, origem, direcao_fluxo_historica)
+				VALUES (?, NULL, ?, 0, ?, 'finalizada', 'importacao_financeiro_historico', ?)`,
 				[
 					item.valor,
 					item.data,
 					`Histórico financeiro: ${item.descricao}`,
+					item.direcao,
 				],
 			);
 
@@ -805,11 +1199,11 @@ async function executarImportacaoFinanceiroMensal(dados, usuarioId, opcoes = {})
 	const { dryRun = true } = opcoes;
 	if (
 		!dados ||
-		dados.mes !== "JANEIRO" ||
-		dados.competencia !== "2026-01" ||
+		dados.mes == null ||
+		!/^(20\d{2})-(0[1-9]|1[0-2])$/.test(dados.competencia || "") ||
 		!(/^[a-f0-9]{64}$/i.test(dados.modeloChecksum || ""))
 	) {
-		throw new Error("A importação financeira mensal aceita apenas o piloto de JANEIRO.");
+		throw new Error("A importação financeira mensal exige uma competência YYYY-MM válida.");
 	}
 
 	const vendas = Array.isArray(dados.vendasHistoricas)
@@ -839,7 +1233,7 @@ async function executarImportacaoFinanceiroMensal(dados, usuarioId, opcoes = {})
 	}
 	if (lotesExistentes.diferente) {
 		alertasRegrasNegocio.push(
-			"Já existe um JSON financeiro de janeiro diferente. A substituição exige uma operação auditada separada.",
+			"Já existe um JSON financeiro histórico diferente. A substituição exige uma operação auditada separada.",
 		);
 	}
 
@@ -1217,52 +1611,19 @@ async function executarImportacaoLojHouse(
 	const conn = getConexao();
 	const { dryRun = true, dataMovimentacao = "2026-09-02" } = opcoes;
 
-	const arquivos = {};
-
-	// Carregar JSONs
-	if (typeof pastaOuArquivos === "string") {
-		// É uma pasta
-		const nomesProcurados = [
-			"01_categorias.json",
-			"02_produtos_variacoes.json",
-			"03_estoque_inicial.json",
-			"04_clientes.json",
-			"05_financeiro_historico.json",
-			"06_contas_abertas.json",
-			"07_vendas_historicas.json",
-			"99_pendencias.json",
-		];
-
-		for (const nome of nomesProcurados) {
-			const caminho = path.join(pastaOuArquivos, nome);
-			if (fs.existsSync(caminho)) {
-				const conteudo = fs.readFileSync(caminho, "utf8");
-				arquivos[nome] = normalizarConteudoArquivo(JSON.parse(conteudo));
-			}
-		}
-	} else if (Array.isArray(pastaOuArquivos)) {
-		// É um array de {arquivo, conteudo}
-		for (const item of pastaOuArquivos) {
-			arquivos[item.arquivo] = normalizarConteudoArquivo(item.conteudo);
-		}
+	const normalizado = normalizarArquivosImportacao(
+		Array.isArray(pastaOuArquivos)
+			? pastaOuArquivos
+			: carregarArquivosJsonImportacao(pastaOuArquivos),
+	);
+	if (normalizado.errosFonte.length > 0) {
+		throw new Error(
+			normalizado.errosFonte
+				.map((item) => `${item.arquivo}: ${item.motivo}`)
+				.join("; "),
+		);
 	}
-
-	// Validar estrutura
-	for (const [nome, dados] of Object.entries(arquivos)) {
-		validarStructura(dados, nome);
-	}
-
-	// Extrair dados
-	const dados = {
-		categorias: arquivos["01_categorias.json"] || [],
-		produtosVariacoes: arquivos["02_produtos_variacoes.json"] || [],
-		estoqueInicial: arquivos["03_estoque_inicial.json"] || [],
-		clientes: arquivos["04_clientes.json"] || [],
-		financeiroHistorico: arquivos["05_financeiro_historico.json"] || [],
-		contasAbertas: arquivos["06_contas_abertas.json"] || [],
-		vendasHistoricas: arquivos["07_vendas_historicas.json"] || [],
-		pendenciasOrigem: arquivos["99_pendencias.json"] || [],
-	};
+	const dados = normalizado.dados;
 
 	// Coletar todas as chaves para dedup check
 	const todasAsChaves = [];
@@ -1298,6 +1659,7 @@ async function executarImportacaoLojHouse(
 		lancamentosHistoricos: dados.financeiroHistorico.length,
 		contasAbertas: dados.contasAbertas.length,
 		vendasHistoricas: dados.vendasHistoricas.length,
+		vendasFinanceiroHistorico: dados.vendasFinanceiroHistorico.length,
 		pendenciasOrigem: dados.pendenciasOrigem.length,
 	};
 
@@ -1311,7 +1673,9 @@ async function executarImportacaoLojHouse(
 			dryRun: true,
 			preview,
 			conflitos,
-			checksum: gerarChecksum(dados),
+			checksum: normalizado.checksum,
+			avisos: normalizado.avisos,
+			competencias: normalizado.competencias,
 		};
 	}
 
@@ -1453,6 +1817,18 @@ async function executarImportacaoLojHouse(
 			resultado.ignoradas += resPendVendasHist.ignoradas;
 		}
 
+		// Vendas históricas resumidas (financeiro revisado ou formato legado
+		// {sku, quantidade, valorUnitario, data}) não têm vínculo seguro com o
+		// catálogo atual: preservam o fato comercial sem criar item/estoque.
+		const resVendasFinanceiro = await importarVendasFinanceiroHistorico(
+			dados.vendasFinanceiroHistorico,
+			batchId,
+			connTxn,
+		);
+		resultado.importadas.vendasHistoricas += resVendasFinanceiro.importadas;
+		resultado.ignoradas += resVendasFinanceiro.ignoradas;
+		resultado.erros.push(...resVendasFinanceiro.erros);
+
 		if (resultado.erros.length > 0) {
 			throw new Error(
 				`Importação cancelada para não deixar dados parciais: ${resultado.erros
@@ -1470,6 +1846,7 @@ async function executarImportacaoLojHouse(
 			dados.financeiroHistorico.length +
 			dados.contasAbertas.length +
 			dados.vendasHistoricas.length +
+			dados.vendasFinanceiroHistorico.length +
 			dados.pendenciasOrigem.length;
 
 		const status = "sucesso";
@@ -1486,7 +1863,7 @@ async function executarImportacaoLojHouse(
 				resultado.ignoradas,
 				resultado.erros.length,
 				JSON.stringify(resultado),
-				gerarChecksum(dados),
+				normalizado.checksum,
 				batchId,
 			],
 		);
@@ -1534,5 +1911,7 @@ module.exports = {
 	checarDuplicacao,
 	importarVendasFinanceiroHistorico,
 	normalizarConteudoArquivo,
+	normalizarArquivosImportacao,
+	carregarArquivosJsonImportacao,
 	mesclarDuplicidadesImportacao,
 };

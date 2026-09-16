@@ -71,6 +71,8 @@ contextBridge.exposeInMainWorld("api", {
 		ipcRenderer.invoke("importar-vendas-historicas", linhas),
 	registrarVendaFiadoHistorica: (dados) =>
 		ipcRenderer.invoke("registrar-venda-fiado-historica", dados),
+	registrarVendaHistorica: (dados) =>
+		ipcRenderer.invoke("registrar-venda-historica", dados),
 	getItensVenda: (vendaId) => ipcRenderer.invoke("get-itens-venda", vendaId),
 	getParcelasVenda: (vendaId) =>
 		ipcRenderer.invoke("get-parcelas-venda", vendaId),
@@ -275,6 +277,8 @@ contextBridge.exposeInMainWorld("api", {
 		ipcRenderer.invoke("verificar-senha-admin", senha),
 	validarPastaImportacao: (pasta) =>
 		ipcRenderer.invoke("importacoes:validar-pasta-loja-house", pasta),
+	validarJsonImportacao: (selecao) =>
+		ipcRenderer.invoke("importacoes:validar-json", selecao),
 	validarArquivoExcelImportacao: (caminho) =>
 		ipcRenderer.invoke("importacoes:validar-arquivo-excel", caminho),
 	gerarModeloFinanceiroJaneiro: (caminhoPlanilha, caminhoDestino) =>

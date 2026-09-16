@@ -5,7 +5,7 @@ import { formatarAtributos } from "@/lib/utils/formatos";
 import { formatarData, formatarMoeda } from "./formatos";
 import type { ItemVenda, Venda } from "@/lib/erpApi";
 
-const FORMAS_PAGAMENTO = ["PIX", "Cartão", "Dinheiro", "Fiado"];
+const FORMAS_PAGAMENTO = ["PIX", "Cartão", "Dinheiro", "Fiado", "Genérico"];
 const LINHAS_POR_PAGINA_OPCOES = [10, 20, 50, 100];
 
 const BADGE_POR_STATUS = {
@@ -265,6 +265,11 @@ export default function VendasTable({
 											</td>
 											<td className="px-3 py-2 font-mono text-xs text-gray-500 dark:text-gray-400">
 												#{v.id}
+												{v.origem === "venda_historica_manual" && v.observacao && (
+													<div className="max-w-[220px] truncate text-xs font-normal text-gray-400">
+														{v.observacao}
+													</div>
+												)}
 											</td>
 											<td className="px-3 py-2 font-medium text-gray-800 dark:text-white/90">
 												{v.cliente_nome || "---"}
@@ -299,7 +304,9 @@ export default function VendasTable({
 														</p>
 													) : !itens || itens.length === 0 ? (
 														<p className="text-sm text-gray-400">
-															Nenhum item encontrado.
+															{v.origem === "venda_historica_manual"
+																? `Venda histórica resumida: ${v.observacao || "sem descrição"}. Nenhuma movimentação de estoque foi registrada.`
+																: "Nenhum item encontrado."}
 														</p>
 													) : (
 														<table className="w-full text-left text-xs">

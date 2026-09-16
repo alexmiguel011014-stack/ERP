@@ -59,6 +59,7 @@ module.exports = {
 	finalizarVenda: vendas.finalizarVenda,
 	calcularParcelamento: parcelamento.calcularParcelamento,
 	calcularVendaParcelada: parcelamento.calcularVendaParcelada,
+	calcularVendaMista: parcelamento.calcularVendaMista,
 	listarCondicoesParcelamento: parcelamento.listarCondicoesParcelamento,
 	obterCondicaoParcelamento: parcelamento.obterCondicaoParcelamento,
 	salvarCondicaoParcelamento: parcelamento.salvarCondicaoParcelamento,
@@ -78,6 +79,7 @@ module.exports = {
 	getVendas: vendas.getVendas,
 	getVendasHoje: vendas.getVendasHoje,
 	importarVendasHistoricas: vendas.importarVendasHistoricas,
+	registrarVendaHistorica: vendas.registrarVendaHistorica,
 	registrarVendaFiadoHistorica: vendas.registrarVendaFiadoHistorica,
 	getFaturamentoMedioHistorico: precificacao.getFaturamentoMedioHistorico,
 	getItensVenda: vendas.getItensVenda,
@@ -198,6 +200,9 @@ module.exports = {
 	executarImportacaoLojHouse: importacoes.executarImportacaoLojHouse,
 	executarImportacaoFinanceiroMensal:
 		importacoes.executarImportacaoFinanceiroMensal,
+	normalizarArquivosImportacao: importacoes.normalizarArquivosImportacao,
+	carregarArquivosJsonImportacao:
+		importacoes.carregarArquivosJsonImportacao,
 	obterHistoricoLotes: importacoes.obterHistoricoLotes,
 	obterDetalhesLote: importacoes.obterDetalhesLote,
 	normalizarConteudoArquivoImportacao: importacoes.normalizarConteudoArquivo,
