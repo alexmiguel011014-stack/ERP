@@ -1,6 +1,6 @@
 {
 	"name": "erp",
-	"version": "1.4.1",
+	"version": "1.5.0",
 	"description": "ERP local (offline) da ALLU",
 	"main": "main.js",
 	"scripts": {
