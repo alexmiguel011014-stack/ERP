@@ -36,7 +36,13 @@ const AppSidebar: React.FC = () => {
 	const { sessao } = useAuth();
 	const modulos = useModulosPermitidos();
 
-	const isActive = (path: string) => path === normalizarPathname(pathname);
+	// Sub-rotas de um workspace ("/produtos/estoque") mantêm o item do módulo
+	// aceso — mesma regra de moduloDaRota() em hooks/useModulos.ts.
+	const isActive = (path: string) => {
+		const rota = normalizarPathname(pathname);
+		if (path === "/") return rota === "/";
+		return rota === path || rota.startsWith(path + "/");
+	};
 
 	const secoes = ORDEM_SECAO.map((secaoId) => {
 		const itens = modulos

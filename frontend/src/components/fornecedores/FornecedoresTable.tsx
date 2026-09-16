@@ -19,7 +19,7 @@ export default function FornecedoresTable({
 	onEditar: (f: Fornecedor) => void;
 	onExcluido: () => void;
 }) {
-	const [busca, setBusca] = useBuscaPersistida("busca");
+	const [busca, setBusca] = useBuscaPersistida("fornecedores");
 	const [excluindoId, setExcluindoId] = useState<number | null>(null);
 
 	const q = busca.trim().toLowerCase();

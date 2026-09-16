@@ -1,5 +1,6 @@
 "use client";
 import React, { useRef, useEffect } from "react";
+import { useAbaVisivel } from "@/context/AbaVisivelContext";
 
 interface ModalProps {
 	isOpen: boolean;
@@ -19,6 +20,11 @@ export const Modal: React.FC<ModalProps> = ({
 	isFullscreen = false,
 }) => {
 	const modalRef = useRef<HTMLDivElement>(null);
+	// Um modal aberto numa aba escondida (keep-alive, layout/AbasHost.tsx)
+	// continua montado mas não pode nem travar o scroll da página nem
+	// fechar com Esc — esses efeitos globais são só da aba que está na tela.
+	const visivel = useAbaVisivel();
+	const ativo = isOpen && visivel;
 
 	useEffect(() => {
 		const handleEscape = (event: KeyboardEvent) => {
@@ -27,17 +33,17 @@ export const Modal: React.FC<ModalProps> = ({
 			}
 		};
 
-		if (isOpen) {
+		if (ativo) {
 			document.addEventListener("keydown", handleEscape);
 		}
 
 		return () => {
 			document.removeEventListener("keydown", handleEscape);
 		};
-	}, [isOpen, onClose]);
+	}, [ativo, onClose]);
 
 	useEffect(() => {
-		if (isOpen) {
+		if (ativo) {
 			document.body.style.overflow = "hidden";
 		} else {
 			document.body.style.overflow = "unset";
@@ -46,7 +52,7 @@ export const Modal: React.FC<ModalProps> = ({
 		return () => {
 			document.body.style.overflow = "unset";
 		};
-	}, [isOpen]);
+	}, [ativo]);
 
 	if (!isOpen) return null;
 

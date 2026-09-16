@@ -18,13 +18,11 @@ test.describe("Cadastro de Produto", () => {
 	let userDataDir: string;
 	let imagemFalsaPath: string;
 
-	// O sistema de abas (Header Tab System) mantém painéis de rotas
-	// anteriormente visitadas montados no DOM (keep-alive) — inclusive o
-	// stub de redirect `/produtos` → `/produtos/cadastro`. Isso faz
-	// getByPlaceholder/getByRole baterem em mais de um elemento com o mesmo
-	// texto (só um de fato visível). `.and(visible())` restringe ao que
-	// está realmente na tela, sem depender de conhecer a estrutura exata do
-	// cache de abas.
+	// O sistema de abas (layout/AbasHost.tsx) mantém as abas já abertas
+	// montadas no DOM (keep-alive, uma instância por aba, inativas em
+	// display:none) — um placeholder/texto pode existir em mais de uma aba
+	// (só um de fato visível). `.and(visible())` restringe ao que está
+	// realmente na tela, sem depender de conhecer a estrutura exata do host.
 	function visible(): Locator {
 		return window.locator(":visible");
 	}
