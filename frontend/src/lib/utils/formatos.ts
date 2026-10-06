@@ -83,3 +83,13 @@ export function formatarAtributos(
 
 	return partes.join(" | ") || "---";
 }
+
+// Data/hora curta em pt-BR e horário local ("06/10/2026 15:42"). Entrada é o
+// ISO-8601 UTC que o banco guarda; null/inválido vira "—" (data desconhecida —
+// ver db/datas-modificacao.js: nunca inventamos uma data).
+export function formatarDataHora(iso: string | null | undefined): string {
+	if (!iso) return "—";
+	const data = new Date(iso);
+	if (Number.isNaN(data.getTime())) return "—";
+	return data.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+}

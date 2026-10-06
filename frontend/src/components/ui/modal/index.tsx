@@ -2,6 +2,12 @@
 import React, { useRef, useEffect } from "react";
 import { useAbaVisivel } from "@/context/AbaVisivelContext";
 
+// Pilha dos modais abertos e visíveis, em ordem de abertura: só o do TOPO
+// reage ao Esc. Antes, cada modal ouvia Esc no `document` por conta própria —
+// com a senha de exclusão aberta por cima da Lista de Produtos, um Esc fechava
+// os dois. Módulo, não estado de React: precisa valer entre instâncias.
+const pilhaDeModais: symbol[] = [];
+
 interface ModalProps {
 	isOpen: boolean;
 	onClose: () => void;
@@ -26,21 +32,60 @@ export const Modal: React.FC<ModalProps> = ({
 	const visivel = useAbaVisivel();
 	const ativo = isOpen && visivel;
 
+	// onClose costuma ser uma arrow nova a cada render do pai: guardar a mais
+	// recente numa ref deixa o registro na pilha abaixo depender só de `ativo`
+	// (se dependesse de onClose, todo re-render do pai reinseriria o modal no
+	// topo da pilha e roubaria o Esc de quem está por cima).
+	const onCloseRef = useRef(onClose);
 	useEffect(() => {
+		onCloseRef.current = onClose;
+	});
+
+	useEffect(() => {
+		if (!ativo) return;
+		const id = Symbol("modal");
+		pilhaDeModais.push(id);
 		const handleEscape = (event: KeyboardEvent) => {
-			if (event.key === "Escape") {
-				onClose();
-			}
+			if (event.key !== "Escape") return;
+			if (pilhaDeModais[pilhaDeModais.length - 1] !== id) return;
+			onCloseRef.current();
 		};
-
-		if (ativo) {
-			document.addEventListener("keydown", handleEscape);
-		}
-
+		document.addEventListener("keydown", handleEscape);
 		return () => {
 			document.removeEventListener("keydown", handleEscape);
+			const i = pilhaDeModais.indexOf(id);
+			if (i >= 0) pilhaDeModais.splice(i, 1);
 		};
-	}, [ativo, onClose]);
+	}, [ativo]);
+
+	// Devolve o foco do teclado a quem o tinha antes do modal abrir (o botão
+	// que o abriu) — o que um diálogo nativo fazia e um modal React não: sem
+	// isso o foco cai no <body> e a próxima digitação "não responde". O
+	// elemento é capturado durante o render que abre o modal (e não num
+	// efeito) porque um `autoFocus` dentro do modal já teria roubado o foco
+	// quando os efeitos rodam.
+	const focoAnterior = useRef<HTMLElement | null>(null);
+	const estavaAtivo = useRef(false);
+	if (ativo && !estavaAtivo.current && typeof document !== "undefined") {
+		focoAnterior.current =
+			document.activeElement instanceof HTMLElement
+				? document.activeElement
+				: null;
+	}
+	estavaAtivo.current = ativo;
+
+	useEffect(() => {
+		if (!ativo) return;
+		return () => {
+			const alvo = focoAnterior.current;
+			focoAnterior.current = null;
+			if (!alvo || !alvo.isConnected) return;
+			// Se alguém (um campo, outro botão) já pegou o foco, não rouba.
+			const atual = document.activeElement;
+			if (atual && atual !== document.body) return;
+			alvo.focus();
+		};
+	}, [ativo]);
 
 	useEffect(() => {
 		if (ativo) {

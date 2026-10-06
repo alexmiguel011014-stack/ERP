@@ -5,9 +5,23 @@ import Button from "@/components/ui/button/Button";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import ConfirmarSenhaModal from "@/components/common/ConfirmarSenhaModal";
+import OrdenarMenu from "@/components/common/OrdenarMenu";
+import CabecalhoOrdenavel from "@/components/common/CabecalhoOrdenavel";
 import { useCategorias } from "@/hooks/useCategorias";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { erpApi, type CategoriaComUso } from "@/lib/erpApi";
+import { formatarDataHora } from "@/lib/utils/formatos";
+import {
+	OPCOES_ORDENACAO_CATEGORIAS,
+	ORDENACAO_PADRAO_CATEGORIAS,
+	alternarPorCampo,
+	ariaSortDoCampo,
+	buscarOpcao,
+	lerOrdenacaoPersistida,
+	ordenar,
+} from "@/lib/utils/ordenacao";
 
+import { avisar } from "@/lib/dialogo";
 export default function CategoriasListModal({
 	isOpen,
 	onClose,
@@ -20,6 +34,18 @@ export default function CategoriasListModal({
 	const [verInativas, setVerInativas] = useState(false);
 	const { categorias, carregando, erro, recarregar } = useCategorias(true);
 	const [busca, setBusca] = useState("");
+	// Ordenação lembrada entre aberturas/sessões — "Padrão" é a ordem de
+	// sempre (grupos primeiro, depois por nome).
+	const [ordenacaoSalva, setOrdenacaoSalva] = usePersistedState<string>(
+		"erp.ordenacao.categorias",
+		ORDENACAO_PADRAO_CATEGORIAS,
+	);
+	const ordenacaoId = lerOrdenacaoPersistida(
+		ordenacaoSalva,
+		OPCOES_ORDENACAO_CATEGORIAS,
+		ORDENACAO_PADRAO_CATEGORIAS,
+	);
+	const opcaoOrdenacao = buscarOpcao(OPCOES_ORDENACAO_CATEGORIAS, ordenacaoId)!;
 	const [tipoFiltro, setTipoFiltro] = useState<string[]>([]);
 	const [filtroComUso, setFiltroComUso] = useState(false);
 	const [filtroSemUso, setFiltroSemUso] = useState(false);
@@ -52,23 +78,24 @@ export default function CategoriasListModal({
 	}
 
 	const q = busca.trim().toLowerCase();
-	const filtradas = categorias.filter((c) => {
-		if (!verInativas && !c.ativo) return false;
-		if (tipoFiltro.length > 0 && !tipoFiltro.includes(c.tipo)) return false;
-		if (filtroComUso && c.uso_count === 0) return false;
-		if (filtroSemUso && c.uso_count > 0) return false;
-		if (!q) return true;
-		return [c.codigo, c.nome, c.categoria_pai_nome || ""]
-			.join(" ")
-			.toLowerCase()
-			.includes(q);
-	});
+	const filtradas = ordenar(
+		categorias.filter((c) => {
+			if (!verInativas && !c.ativo) return false;
+			if (tipoFiltro.length > 0 && !tipoFiltro.includes(c.tipo)) return false;
+			if (filtroComUso && c.uso_count === 0) return false;
+			if (filtroSemUso && c.uso_count > 0) return false;
+			if (!q) return true;
+			return [c.codigo, c.nome, c.categoria_pai_nome || ""]
+				.join(" ")
+				.toLowerCase()
+				.includes(q);
+		}),
+		opcaoOrdenacao,
+	);
 
 	async function inativar(c: CategoriaComUso) {
 		if (c.uso_ativo_count > 0) {
-			alert(
-				`A categoria "${c.nome}" está vinculada a ${c.uso_ativo_count} produto(s) ativo(s). Inative ou reclassifique os produtos antes.`,
-			);
+			void avisar({ tipo: "erro", mensagem: `A categoria "${c.nome}" está vinculada a ${c.uso_ativo_count} produto(s) ativo(s). Inative ou reclassifique os produtos antes.` });
 			return;
 		}
 		setProcessandoId(c.id);
@@ -77,9 +104,7 @@ export default function CategoriasListModal({
 			recarregar();
 			onAlterado();
 		} catch (e) {
-			alert(
-				"Erro ao inativar: " + (e instanceof Error ? e.message : String(e)),
-			);
+			void avisar({ tipo: "erro", mensagem: "Erro ao inativar: " + (e instanceof Error ? e.message : String(e)) });
 		} finally {
 			setProcessandoId(null);
 		}
@@ -92,9 +117,7 @@ export default function CategoriasListModal({
 			recarregar();
 			onAlterado();
 		} catch (e) {
-			alert(
-				"Erro ao reativar: " + (e instanceof Error ? e.message : String(e)),
-			);
+			void avisar({ tipo: "erro", mensagem: "Erro ao reativar: " + (e instanceof Error ? e.message : String(e)) });
 		} finally {
 			setProcessandoId(null);
 		}
@@ -138,9 +161,7 @@ export default function CategoriasListModal({
 	async function excluirConfirmado() {
 		if (!categoriaParaExcluir) return;
 		if (categoriaParaExcluir.uso_count > 0) {
-			alert(
-				`A categoria "${categoriaParaExcluir.nome}" está vinculada a ${categoriaParaExcluir.uso_count} produto(s). Remova as vinculações antes.`,
-			);
+			void avisar({ tipo: "erro", mensagem: `A categoria "${categoriaParaExcluir.nome}" está vinculada a ${categoriaParaExcluir.uso_count} produto(s). Remova as vinculações antes.` });
 			return;
 		}
 		setProcessandoId(categoriaParaExcluir.id);
@@ -149,7 +170,7 @@ export default function CategoriasListModal({
 			recarregar();
 			onAlterado();
 		} catch (e) {
-			alert("Erro ao excluir: " + (e instanceof Error ? e.message : String(e)));
+			void avisar({ tipo: "erro", mensagem: "Erro ao excluir: " + (e instanceof Error ? e.message : String(e)) });
 		} finally {
 			setProcessandoId(null);
 		}
@@ -169,6 +190,11 @@ export default function CategoriasListModal({
 							onChange={(e) => setBusca(e.target.value)}
 							placeholder="Buscar por nome..."
 							className="h-9 rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+						/>
+						<OrdenarMenu
+							opcoes={OPCOES_ORDENACAO_CATEGORIAS}
+							valor={ordenacaoId}
+							onChange={setOrdenacaoSalva}
 						/>
 						<Button
 							size="sm"
@@ -245,14 +271,24 @@ export default function CategoriasListModal({
 						<table className="w-full text-left text-sm">
 							<thead>
 								<tr className="border-b border-gray-100 dark:border-gray-800">
-									{[
-										"Código",
-										"Nome",
-										"Tipo",
-										"Uso (produtos)",
-										"Status",
-										"Ações",
-									].map((c) => (
+									<th className="whitespace-nowrap px-3 py-2 text-xs font-medium uppercase text-gray-400">
+										Código
+									</th>
+									<CabecalhoOrdenavel
+										ordenado={ariaSortDoCampo(opcaoOrdenacao, "nome")}
+										onClick={() =>
+											setOrdenacaoSalva(
+												alternarPorCampo(
+													OPCOES_ORDENACAO_CATEGORIAS,
+													ordenacaoId,
+													"nome",
+												),
+											)
+										}
+									>
+										Nome
+									</CabecalhoOrdenavel>
+									{["Tipo", "Uso (produtos)", "Status"].map((c) => (
 										<th
 											key={c}
 											className="whitespace-nowrap px-3 py-2 text-xs font-medium uppercase text-gray-400"
@@ -260,13 +296,30 @@ export default function CategoriasListModal({
 											{c}
 										</th>
 									))}
+									<CabecalhoOrdenavel
+										ordenado={ariaSortDoCampo(opcaoOrdenacao, "modificado")}
+										onClick={() =>
+											setOrdenacaoSalva(
+												alternarPorCampo(
+													OPCOES_ORDENACAO_CATEGORIAS,
+													ordenacaoId,
+													"modificado",
+												),
+											)
+										}
+									>
+										Modificado em
+									</CabecalhoOrdenavel>
+									<th className="whitespace-nowrap px-3 py-2 text-xs font-medium uppercase text-gray-400">
+										Ações
+									</th>
 								</tr>
 							</thead>
 							<tbody>
 								{carregando ? (
 									<tr>
 										<td
-											colSpan={6}
+											colSpan={7}
 											className="px-3 py-8 text-center text-sm text-gray-400"
 										>
 											Carregando...
@@ -275,7 +328,7 @@ export default function CategoriasListModal({
 								) : filtradas.length === 0 ? (
 									<tr>
 										<td
-											colSpan={6}
+											colSpan={7}
 											className="px-3 py-8 text-center text-sm text-gray-400"
 										>
 											{categorias.length === 0
@@ -334,6 +387,12 @@ export default function CategoriasListModal({
 															Inativa
 														</span>
 													)}
+												</td>
+												<td
+													className="whitespace-nowrap px-3 py-2 text-xs text-gray-500 dark:text-gray-400"
+													title="Data da última alteração (nome, grupo ou status)"
+												>
+													{formatarDataHora(c.atualizado_em)}
 												</td>
 												<td className="whitespace-nowrap px-3 py-2">
 													<div className="flex gap-2">

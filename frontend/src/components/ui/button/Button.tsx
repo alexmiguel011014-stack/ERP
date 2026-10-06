@@ -9,6 +9,9 @@ interface ButtonProps {
 	onClick?: () => void; // Click handler
 	disabled?: boolean; // Disabled state
 	className?: string; // Disabled state
+	title?: string;
+	"aria-haspopup"?: React.AriaAttributes["aria-haspopup"];
+	"aria-expanded"?: boolean;
 	type?: "button" | "submit" | "reset"; // Defaults to the browser's own default
 	// (submit, inside a <form>) — pass "button" explicitly for anything that
 	// shouldn't submit, e.g. a "Cancelar" button next to a submit action.
@@ -24,6 +27,9 @@ const Button: React.FC<ButtonProps> = ({
 	className = "",
 	disabled = false,
 	type,
+	title,
+	"aria-haspopup": ariaHasPopup,
+	"aria-expanded": ariaExpanded,
 }) => {
 	// Size Classes
 	const sizeClasses = {
@@ -49,6 +55,9 @@ const Button: React.FC<ButtonProps> = ({
 			onClick={onClick}
 			disabled={disabled}
 			type={type}
+			title={title}
+			aria-haspopup={ariaHasPopup}
+			aria-expanded={ariaExpanded}
 		>
 			{startIcon && <span className="flex items-center">{startIcon}</span>}
 			{children}

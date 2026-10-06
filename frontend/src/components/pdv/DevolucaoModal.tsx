@@ -7,6 +7,7 @@ import { erpApi, type ItemVenda } from "@/lib/erpApi";
 import { formatarAtributos } from "@/lib/utils/formatos";
 import { formatarMoeda } from "./formatos";
 
+import { confirmar as confirmarDialogo } from "@/lib/dialogo";
 export default function DevolucaoModal({
 	isOpen,
 	onClose,
@@ -79,9 +80,7 @@ export default function DevolucaoModal({
 			return;
 		}
 		if (
-			!confirm(
-				"Confirmar devolução? O estoque dos itens selecionados será estornado.",
-			)
+			!(await confirmarDialogo("Confirmar devolução? O estoque dos itens selecionados será estornado."))
 		)
 			return;
 		setProcessando(true);

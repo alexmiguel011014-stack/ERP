@@ -7,6 +7,7 @@ import { formatarAtributos } from "@/lib/utils/formatos";
 import { Modal } from "@/components/ui/modal";
 import Button from "@/components/ui/button/Button";
 
+import { confirmar } from "@/lib/dialogo";
 const LABEL_STATUS: Record<string, string> = {
 	aberto: "Aberto",
 	parcial: "Recebido parcial",
@@ -110,7 +111,7 @@ export default function PedidosList({
 	}
 
 	async function cancelarPedido(pedido: PedidoCompra) {
-		if (!confirm(`Cancelar o pedido #${pedido.id}?`)) return;
+		if (!(await confirmar({ mensagem: `Cancelar o pedido #${pedido.id}?`, destrutivo: true, confirmarLabel: "Cancelar pedido", cancelarLabel: "Voltar" }))) return;
 		setProcessandoId(pedido.id);
 		try {
 			await erpApi.compras.cancelarPedido(pedido.id);

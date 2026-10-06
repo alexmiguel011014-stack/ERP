@@ -11,6 +11,7 @@ import { formatarMoeda } from "@/components/dashboard/formatos";
 import Button from "@/components/ui/button/Button";
 import Input from "@/components/form/input/InputField";
 
+import { confirmar } from "@/lib/dialogo";
 function formatarData(iso: string | null): string {
 	if (!iso) return "---";
 	try {
@@ -78,7 +79,7 @@ export default function LancamentosUnificados({
 
 	async function baixar(lancamento: Lancamento) {
 		const verbo = lancamento.tipo === "receber" ? "recebimento" : "pagamento";
-		if (!confirm(`Confirmar ${verbo} de ${formatarMoeda(lancamento.valor)}?`))
+		if (!(await confirmar(`Confirmar ${verbo} de ${formatarMoeda(lancamento.valor)}?`)))
 			return;
 		setProcessandoId(lancamento.id);
 		try {
@@ -94,7 +95,7 @@ export default function LancamentosUnificados({
 	}
 
 	async function excluir(lancamento: Lancamento) {
-		if (!confirm("Excluir este lançamento?")) return;
+		if (!(await confirmar({ mensagem: "Excluir este lançamento?", destrutivo: true, confirmarLabel: "Excluir" }))) return;
 		setProcessandoId(lancamento.id);
 		try {
 			await erpApi.financeiro.excluir(lancamento.id);

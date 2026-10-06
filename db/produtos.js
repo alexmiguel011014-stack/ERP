@@ -368,7 +368,8 @@ async function listProdutosDetalhados(incluirInativos) {
 	const produtos = await all(
 		`SELECT p.id, p.nome, p.categoria AS categoria_legada,
             c.nome AS categoria_nome, s.nome AS subcategoria_nome,
-            p.categoria_id, p.subcategoria_id, CAST(p.imagem_id AS TEXT) AS imagem, p.ativo
+            p.categoria_id, p.subcategoria_id, CAST(p.imagem_id AS TEXT) AS imagem, p.ativo,
+            p.criado_em, p.atualizado_em
      FROM Produtos p
      LEFT JOIN Categorias c ON c.id = p.categoria_id
      LEFT JOIN Categorias s ON s.id = p.subcategoria_id
@@ -402,6 +403,8 @@ async function listProdutosDetalhados(incluirInativos) {
 		subcategoria_id: p.subcategoria_id,
 		imagem: p.imagem,
 		ativo: p.ativo,
+		criado_em: p.criado_em,
+		atualizado_em: p.atualizado_em,
 		categorias_selecionadas: catsProd
 			.filter((c) => c.produto_id === p.id)
 			.map((c) => ({

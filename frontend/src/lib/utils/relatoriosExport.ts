@@ -17,6 +17,7 @@ import type {
 	SegmentacaoClienteLinha,
 } from "@/lib/erpApi";
 
+import { avisar } from "@/lib/dialogo";
 // Mesma paleta de RelatoriosCharts.tsx (não exportada de lá) — duplicada aqui
 // de propósito, mesmo padrão de "pequeno o bastante pra não valer a pena
 // compartilhar arquivo" já usado em formatos.ts.
@@ -97,7 +98,7 @@ function csvCampo(v: unknown): string {
 
 export function exportarCurvaAbcCsv(linhas: CurvaAbcLinha[]) {
 	if (linhas.length === 0) {
-		alert("Gere a Curva ABC antes de exportar.");
+		void avisar({ tipo: "info", mensagem: "Gere a Curva ABC antes de exportar." });
 		return;
 	}
 	const cabecalho =

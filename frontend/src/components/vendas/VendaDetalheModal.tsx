@@ -10,6 +10,7 @@ import { exportarVendaDetalhePdf } from "@/lib/utils/vendasExport";
 import { formatarData, formatarMoeda } from "./formatos";
 import type { ItemVenda, ParcelaVenda, Venda } from "@/lib/erpApi";
 
+import { confirmar } from "@/lib/dialogo";
 const OPCOES_NOTA = [
 	{ value: "nao_emitida", label: "Não emitida" },
 	{ value: "emitida_externa", label: "Emitida (externa)" },
@@ -75,7 +76,7 @@ export default function VendaDetalheModal({
 
 	async function converter() {
 		if (!venda) return;
-		if (!confirm(`Converter o orçamento #${venda.id} em venda finalizada?`))
+		if (!(await confirmar(`Converter o orçamento #${venda.id} em venda finalizada?`)))
 			return;
 		setConvertendo(true);
 		try {

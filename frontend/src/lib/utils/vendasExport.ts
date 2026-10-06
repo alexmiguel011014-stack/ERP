@@ -3,13 +3,14 @@ import { formatarData, formatarMoeda } from "@/components/vendas/formatos";
 import type { ItemVenda, Venda } from "@/lib/erpApi";
 import { formatarAtributos } from "./formatos";
 
+import { avisar } from "@/lib/dialogo";
 function csvCampo(v: unknown): string {
 	return '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
 }
 
 export function exportarVendasCsv(vendas: Venda[]) {
 	if (vendas.length === 0) {
-		alert("Nenhuma venda para exportar.");
+		void avisar({ tipo: "info", mensagem: "Nenhuma venda para exportar." });
 		return;
 	}
 	const cabecalho =

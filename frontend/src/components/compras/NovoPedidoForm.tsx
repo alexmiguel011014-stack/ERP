@@ -16,6 +16,7 @@ import {
 	lerDecimalInformado,
 } from "@/lib/utils/formatos";
 
+import { confirmar } from "@/lib/dialogo";
 type ItemCarrinho = {
 	variacao_id: number;
 	nome: string;
@@ -189,7 +190,7 @@ export default function NovoPedidoForm({
 
 	async function criarPedido() {
 		if (itens.length === 0) return;
-		if (!confirm(`Criar pedido de compra com ${itens.length} item(ns)?`))
+		if (!(await confirmar(`Criar pedido de compra com ${itens.length} item(ns)?`)))
 			return;
 		setCriando(true);
 		try {

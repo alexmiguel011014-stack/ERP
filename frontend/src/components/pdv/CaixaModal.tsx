@@ -10,6 +10,7 @@ import {
 } from "./formatos";
 import type { CaixaAberto, ResumoCaixa } from "@/lib/erpApi";
 
+import { confirmar } from "@/lib/dialogo";
 export default function CaixaModal({
 	isOpen,
 	onClose,
@@ -72,7 +73,7 @@ export default function CaixaModal({
 			setErro("Valor contado inválido.");
 			return;
 		}
-		if (!confirm("Fechar o caixa com o valor informado?")) return;
+		if (!(await confirmar("Fechar o caixa com o valor informado?"))) return;
 		setProcessando(true);
 		setErro(null);
 		try {

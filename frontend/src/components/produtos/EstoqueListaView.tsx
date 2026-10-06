@@ -6,6 +6,7 @@ import { erpApi, type EstoqueVisaoGeralLinha } from "@/lib/erpApi";
 import { formatarMoeda } from "@/components/dashboard/formatos";
 import { formatarAtributos } from "@/lib/utils/formatos";
 
+import { avisar } from "@/lib/dialogo";
 type Status = "todos" | "normal" | "baixo" | "negativo";
 
 function statusDe(r: EstoqueVisaoGeralLinha): Exclude<Status, "todos"> {
@@ -63,17 +64,15 @@ export default function EstoqueListaView({
 	async function salvarMinimo(variacaoId: number, valor: string) {
 		const novoMin = parseInt(valor, 10);
 		if (!Number.isInteger(novoMin) || novoMin < 0) {
-			alert("Estoque mínimo inválido.");
+			void avisar({ tipo: "erro", mensagem: "Estoque mínimo inválido." });
 			return;
 		}
 		try {
 			await erpApi.estoque.salvarMinimo(variacaoId, novoMin);
 			recarregar();
 		} catch (e) {
-			alert(
-				"Erro ao salvar mínimo: " +
-					(e instanceof Error ? e.message : String(e)),
-			);
+			void avisar({ tipo: "erro", mensagem: "Erro ao salvar mínimo: " +
+					(e instanceof Error ? e.message : String(e)) });
 		}
 	}
 

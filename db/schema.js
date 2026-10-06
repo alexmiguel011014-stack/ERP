@@ -1,6 +1,7 @@
 const { getConexao, runOn } = require("./conexao");
 const { criarVariacoesPadrao } = require("./produtos");
 const { migrarImagensLegadas } = require("./imagens");
+const { migrarDatasModificacao } = require("./datas-modificacao");
 
 // Marcador de versão do schema (PRAGMA user_version, nativo do SQLite — não
 // precisa de tabela própria). Incremente manualmente sempre que uma migração
@@ -9,7 +10,9 @@ const { migrarImagensLegadas } = require("./imagens");
 // 8 (merge 2026-09-16): VendaPagamentos ganhou o snapshot por alocação (valor_base,
 // valor_final, taxa, condição, parcelas) em cima do formato simples da 1.4.1, e
 // Vendas ganhou direcao_fluxo_historica — ver migrarColunas(VendaPagamentos) abaixo.
-const VERSAO_SCHEMA = 8;
+// 9 (GOALS 30): Produtos e Categorias ganharam criado_em/atualizado_em, carimbados
+// por triggers — ver db/datas-modificacao.js.
+const VERSAO_SCHEMA = 9;
 
 function obterVersaoSchema(conn) {
 	return new Promise((resolver) => {
@@ -885,6 +888,12 @@ async function iniciarBanco() {
 	// Migração única dos arquivos legados em produto-imagens/ pro BLOB acima —
 	// idempotente (produtos já migrados são pulados via imagem_id IS NULL).
 	await migrarImagensLegadas();
+
+	// Datas de modificação (colunas + backfill + triggers). Fica DEPOIS de
+	// migrarImagensLegadas de propósito: aquela migração reescreve
+	// Produtos.imagem_id, e com os triggers já ativos todo produto com imagem
+	// legada viraria "modificado agora".
+	await migrarDatasModificacao(conexao);
 
 	// Grava a versão do schema por último, só depois de toda migração acima
 	// já ter rodado com sucesso — se `iniciarBanco` falhar no meio, o marcador

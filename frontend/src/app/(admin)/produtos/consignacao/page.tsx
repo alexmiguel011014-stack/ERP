@@ -12,6 +12,7 @@ import {
 } from "@/lib/utils/formatos";
 import ConsignacaoFormModal from "@/components/produtos/ConsignacaoFormModal";
 
+import { confirmar } from "@/lib/dialogo";
 function formatarMoeda(valor: number | null | undefined): string {
 	return new Intl.NumberFormat("pt-BR", {
 		style: "currency",
@@ -207,7 +208,7 @@ export default function ConsignacaoPage() {
 			acao === "devolvida"
 				? `Confirmar devolução de ${consignacao.quantidade}x ${consignacao.produto_nome}?`
 				: `Marcar ${consignacao.quantidade}x ${consignacao.produto_nome} como perdido? Essa ação não pode ser desfeita.`;
-		if (!confirm(confirmacao)) return;
+		if (!(await confirmar(confirmacao))) return;
 
 		setProcessandoId(consignacao.id);
 		try {

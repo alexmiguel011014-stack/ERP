@@ -3,6 +3,7 @@ import Button from "@/components/ui/button/Button";
 import { erpApi } from "@/lib/erpApi";
 import { useImagemProduto } from "@/hooks/useImagemProduto";
 
+import { confirmar } from "@/lib/dialogo";
 export type ImagemPendente = { caminho: string; dataUrl: string };
 
 export default function ProdutoImagemPicker({
@@ -65,7 +66,7 @@ export default function ProdutoImagemPicker({
 			onPendenteRemovida?.();
 			return;
 		}
-		if (!confirm("Remover a imagem deste produto?")) return;
+		if (!(await confirmar({ mensagem: "Remover a imagem deste produto?", destrutivo: true, confirmarLabel: "Remover" }))) return;
 		try {
 			await erpApi.produtos.removerImagem(produtoId);
 			onSucesso("Imagem removida.");

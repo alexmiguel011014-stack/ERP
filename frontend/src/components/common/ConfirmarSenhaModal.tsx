@@ -73,6 +73,7 @@ export default function ConfirmarSenhaModal({
 						value={senha}
 						onChange={(e) => setSenha(e.target.value)}
 						placeholder="Confirme sua senha para continuar"
+						autoFocus
 					/>
 				</div>
 				{erro && (

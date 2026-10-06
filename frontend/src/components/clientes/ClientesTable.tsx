@@ -10,6 +10,7 @@ import {
 import { erpApi, type Cliente } from "@/lib/erpApi";
 import { useBuscaPersistida } from "@/hooks/useBuscaPersistida";
 
+import { avisar, confirmar } from "@/lib/dialogo";
 export default function ClientesTable({
 	clientes,
 	onEditar,
@@ -34,9 +35,7 @@ export default function ClientesTable({
 
 	async function excluir(c: Cliente) {
 		if (
-			!confirm(
-				`Enviar o cliente "${c.nome}" para a lixeira? Ele para de aparecer nas buscas e no PDV, mas pode ser restaurado depois.`,
-			)
+			!(await confirmar(`Enviar o cliente "${c.nome}" para a lixeira? Ele para de aparecer nas buscas e no PDV, mas pode ser restaurado depois.`))
 		)
 			return;
 		setExcluindoId(c.id);
@@ -44,7 +43,7 @@ export default function ClientesTable({
 			await erpApi.clientes.remover(c.id);
 			onExcluido();
 		} catch (e) {
-			alert("Erro ao excluir: " + (e instanceof Error ? e.message : String(e)));
+			void avisar({ tipo: "erro", mensagem: "Erro ao excluir: " + (e instanceof Error ? e.message : String(e)) });
 		} finally {
 			setExcluindoId(null);
 		}

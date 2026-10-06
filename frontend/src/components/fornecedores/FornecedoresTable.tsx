@@ -10,6 +10,7 @@ import {
 import { erpApi, type Fornecedor } from "@/lib/erpApi";
 import { useBuscaPersistida } from "@/hooks/useBuscaPersistida";
 
+import { avisar, confirmar } from "@/lib/dialogo";
 export default function FornecedoresTable({
 	fornecedores,
 	onEditar,
@@ -33,13 +34,13 @@ export default function FornecedoresTable({
 		: fornecedores;
 
 	async function excluir(f: Fornecedor) {
-		if (!confirm(`Excluir "${f.nome}"?`)) return;
+		if (!(await confirmar({ mensagem: `Excluir "${f.nome}"?`, destrutivo: true, confirmarLabel: "Excluir" }))) return;
 		setExcluindoId(f.id);
 		try {
 			await erpApi.fornecedores.remover(f.id);
 			onExcluido();
 		} catch (e) {
-			alert("Erro ao excluir: " + (e instanceof Error ? e.message : String(e)));
+			void avisar({ tipo: "erro", mensagem: "Erro ao excluir: " + (e instanceof Error ? e.message : String(e)) });
 		} finally {
 			setExcluindoId(null);
 		}

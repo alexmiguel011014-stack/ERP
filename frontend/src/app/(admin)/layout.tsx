@@ -8,6 +8,7 @@ import { TabsProvider } from "@/context/TabsContext";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import AbasHost from "@/layout/AbasHost";
+import DialogoHost from "@/components/common/DialogoHost";
 import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
@@ -61,6 +62,9 @@ export default function AdminLayout({
 						</div>
 					</div>
 				</div>
+				{/* Diálogos in-app (substituem alert/confirm nativos — lib/dialogo.ts).
+				    Fora do AbasHost: nunca escondido por display:none de aba. */}
+				<DialogoHost />
 			</TabsProvider>
 		</PageHeaderProvider>
 	);

@@ -5,10 +5,24 @@ import Button from "@/components/ui/button/Button";
 import ConfirmarSenhaModal from "@/components/common/ConfirmarSenhaModal";
 import ProdutoThumbnail from "./ProdutoThumbnail";
 import CategoriaSelector from "./CategoriaSelector";
+import OrdenarMenu from "@/components/common/OrdenarMenu";
+import CabecalhoOrdenavel from "@/components/common/CabecalhoOrdenavel";
 import { useProdutos } from "@/hooks/useProdutos";
 import { useCategorias } from "@/hooks/useCategorias";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { erpApi, type ProdutoDetalhado } from "@/lib/erpApi";
+import { formatarDataHora } from "@/lib/utils/formatos";
+import {
+	OPCOES_ORDENACAO_PRODUTOS,
+	ORDENACAO_PADRAO_PRODUTOS,
+	alternarPorCampo,
+	ariaSortDoCampo,
+	buscarOpcao,
+	lerOrdenacaoPersistida,
+	ordenar,
+} from "@/lib/utils/ordenacao";
 
+import { avisar, confirmar } from "@/lib/dialogo";
 type ExclusaoPendente = { produto: ProdutoDetalhado; permanente: boolean };
 
 function tagsCategorias(p: ProdutoDetalhado): string[] {
@@ -59,6 +73,18 @@ export default function ProdutosListModal({
 	}, [verLixeira]);
 
 	const [busca, setBusca] = useState("");
+	// Ordenação escolhida lembrada entre aberturas (e entre sessões do app),
+	// como o Explorador lembra a ordem de cada pasta.
+	const [ordenacaoSalva, setOrdenacaoSalva] = usePersistedState<string>(
+		"erp.ordenacao.produtos",
+		ORDENACAO_PADRAO_PRODUTOS,
+	);
+	const ordenacaoId = lerOrdenacaoPersistida(
+		ordenacaoSalva,
+		OPCOES_ORDENACAO_PRODUTOS,
+		ORDENACAO_PADRAO_PRODUTOS,
+	);
+	const opcaoOrdenacao = buscarOpcao(OPCOES_ORDENACAO_PRODUTOS, ordenacaoId)!;
 	const [categoriasFiltro, setCategoriasFiltro] = useState<string[]>([]);
 	const [filtroEstoqueBaixo, setFiltroEstoqueBaixo] = useState(false);
 	const [filtroSemEstoque, setFiltroSemEstoque] = useState(false);
@@ -115,19 +141,24 @@ export default function ProdutosListModal({
 	}
 
 	const filtro = busca.trim().toLowerCase();
-	const produtosFiltrados = produtos.filter((p) => {
-		if (
-			filtro &&
-			![p.nome, tagsCategorias(p).join(" ")]
-				.join(" ")
-				.toLowerCase()
-				.includes(filtro)
-		)
-			return false;
-		if (!produtoNasCategoriasFiltro(p)) return false;
-		if (!produtoNoFiltroEstoque(p)) return false;
-		return true;
-	});
+	// Ordena DEPOIS de filtrar: "selecionar todos visíveis" e o que se vê na
+	// tabela seguem a mesma ordem escolhida.
+	const produtosFiltrados = ordenar(
+		produtos.filter((p) => {
+			if (
+				filtro &&
+				![p.nome, tagsCategorias(p).join(" ")]
+					.join(" ")
+					.toLowerCase()
+					.includes(filtro)
+			)
+				return false;
+			if (!produtoNasCategoriasFiltro(p)) return false;
+			if (!produtoNoFiltroEstoque(p)) return false;
+			return true;
+		}),
+		opcaoOrdenacao,
+	);
 
 	function limparFiltros() {
 		setCategoriasFiltro([]);
@@ -179,9 +210,7 @@ export default function ProdutosListModal({
 			.map((id) => categorias.find((c) => c.id === id)?.nome ?? id)
 			.join(", ");
 		if (
-			!confirm(
-				`Adicionar a${idsCategorias.length > 1 ? "s categorias" : " categoria"} "${nomes}" aos ${selecionados.size} produto(s) selecionado(s)? Categorias já existentes nesses produtos não são removidas.`,
-			)
+			!(await confirmar(`Adicionar a${idsCategorias.length > 1 ? "s categorias" : " categoria"} "${nomes}" aos ${selecionados.size} produto(s) selecionado(s)? Categorias já existentes nesses produtos não são removidas.`))
 		)
 			return;
 		setAplicandoLote(true);
@@ -203,10 +232,8 @@ export default function ProdutosListModal({
 			setCategoriasLote([]);
 			recarregar();
 		} catch (e) {
-			alert(
-				"Erro ao aplicar categoria em lote: " +
-					(e instanceof Error ? e.message : String(e)),
-			);
+			void avisar({ tipo: "erro", mensagem: "Erro ao aplicar categoria em lote: " +
+					(e instanceof Error ? e.message : String(e)) });
 		} finally {
 			setAplicandoLote(false);
 		}
@@ -218,9 +245,7 @@ export default function ProdutosListModal({
 			await erpApi.produtos.restaurar(p.id);
 			recarregar();
 		} catch (e) {
-			alert(
-				"Erro ao restaurar: " + (e instanceof Error ? e.message : String(e)),
-			);
+			void avisar({ tipo: "erro", mensagem: "Erro ao restaurar: " + (e instanceof Error ? e.message : String(e)) });
 		} finally {
 			setProcessandoId(null);
 		}
@@ -238,7 +263,7 @@ export default function ProdutosListModal({
 			}
 			recarregar();
 		} catch (e) {
-			alert("Erro ao excluir: " + (e instanceof Error ? e.message : String(e)));
+			void avisar({ tipo: "erro", mensagem: "Erro ao excluir: " + (e instanceof Error ? e.message : String(e)) });
 		} finally {
 			setProcessandoId(null);
 		}
@@ -246,7 +271,7 @@ export default function ProdutosListModal({
 
 	function exportarCsv() {
 		if (produtos.length === 0) {
-			alert("Nenhum produto para exportar.");
+			void avisar({ tipo: "info", mensagem: "Nenhum produto para exportar." });
 			return;
 		}
 		const cabecalho =
@@ -308,6 +333,11 @@ export default function ProdutosListModal({
 							onChange={(e) => setBusca(e.target.value)}
 							placeholder="Buscar por nome ou categoria..."
 							className="h-9 rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+						/>
+						<OrdenarMenu
+							opcoes={OPCOES_ORDENACAO_PRODUTOS}
+							valor={ordenacaoId}
+							onChange={setOrdenacaoSalva}
 						/>
 						<Button
 							size="sm"
@@ -451,12 +481,37 @@ export default function ProdutosListModal({
 									<th className="whitespace-nowrap px-3 py-2 text-xs font-medium uppercase text-gray-400">
 										SKU
 									</th>
-									<th className="whitespace-nowrap px-3 py-2 text-xs font-medium uppercase text-gray-400">
+									<CabecalhoOrdenavel
+										ordenado={ariaSortDoCampo(opcaoOrdenacao, "nome")}
+										onClick={() =>
+											setOrdenacaoSalva(
+												alternarPorCampo(
+													OPCOES_ORDENACAO_PRODUTOS,
+													ordenacaoId,
+													"nome",
+												),
+											)
+										}
+									>
 										Produto
-									</th>
+									</CabecalhoOrdenavel>
 									<th className="whitespace-nowrap px-3 py-2 text-xs font-medium uppercase text-gray-400">
 										Categorias / Atributos
 									</th>
+									<CabecalhoOrdenavel
+										ordenado={ariaSortDoCampo(opcaoOrdenacao, "modificado")}
+										onClick={() =>
+											setOrdenacaoSalva(
+												alternarPorCampo(
+													OPCOES_ORDENACAO_PRODUTOS,
+													ordenacaoId,
+													"modificado",
+												),
+											)
+										}
+									>
+										Modificado em
+									</CabecalhoOrdenavel>
 									<th className="whitespace-nowrap px-3 py-2 text-xs font-medium uppercase text-gray-400">
 										Ações
 									</th>
@@ -466,7 +521,7 @@ export default function ProdutosListModal({
 								{carregando ? (
 									<tr>
 										<td
-											colSpan={modoSelecao ? 6 : 5}
+											colSpan={modoSelecao ? 7 : 6}
 											className="px-3 py-8 text-center text-sm text-gray-400"
 										>
 											Carregando...
@@ -475,7 +530,7 @@ export default function ProdutosListModal({
 								) : produtosFiltrados.length === 0 ? (
 									<tr>
 										<td
-											colSpan={modoSelecao ? 6 : 5}
+											colSpan={modoSelecao ? 7 : 6}
 											className="px-3 py-8 text-center text-sm text-gray-400"
 										>
 											{produtos.length === 0
@@ -545,6 +600,12 @@ export default function ProdutosListModal({
 													) : (
 														<span className="text-gray-400">---</span>
 													)}
+												</td>
+												<td
+													className="whitespace-nowrap px-3 py-2 text-xs text-gray-500 dark:text-gray-400"
+													title="Data da última alteração do cadastro (na Lixeira: quando foi excluído)"
+												>
+													{formatarDataHora(p.atualizado_em)}
 												</td>
 												<td className="whitespace-nowrap px-3 py-2">
 													<div className="flex gap-2">
