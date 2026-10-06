@@ -6,6 +6,15 @@ export type NotasAtualizacao = {
 // Fonte local e offline das notas exibidas na tela de Atualizações. A entrada
 // só deve ser alterada junto da versão que realmente será empacotada/publicada.
 export const NOTAS_ATUALIZACAO: Record<string, NotasAtualizacao> = {
+	"1.4.3": {
+		versao: "1.4.3",
+		itens: [
+			"Corrige campos que deixavam de aceitar digitação depois de uma confirmação ou aviso (por exemplo, ao finalizar uma venda ou excluir um produto): as confirmações agora são janelas do próprio sistema.",
+			"Excluir produto: o campo de senha já abre pronto para digitar, Esc fecha só a janela de cima e o cursor volta ao botão de origem.",
+			"Listas de Produtos e Categorias: botão Ordenar (nome A→Z ou Z→A, modificação mais recente ou mais antiga), cabeçalhos clicáveis e nova coluna \"Modificado em\".",
+			"Motor do aplicativo atualizado (Electron 43.7.8), com a correção de digitação no Windows.",
+		],
+	},
 	"1.4.2": {
 		versao: "1.4.2",
 		itens: [
