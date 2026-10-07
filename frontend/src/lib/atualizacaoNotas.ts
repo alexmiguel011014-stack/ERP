@@ -6,6 +6,13 @@ export type NotasAtualizacao = {
 // Fonte local e offline das notas exibidas na tela de Atualizações. A entrada
 // só deve ser alterada junto da versão que realmente será empacotada/publicada.
 export const NOTAS_ATUALIZACAO: Record<string, NotasAtualizacao> = {
+	"1.4.4": {
+		versao: "1.4.4",
+		itens: [
+			"Tabelas e listas longas (relatórios, financeiro, histórico de vendas, clientes, fornecedores, pedidos de compra, carrinho do PDV) agora têm altura máxima e rolam dentro do próprio card, sem esticar a página: o cabeçalho da tabela fica fixo e um degradê no rodapé indica que há mais conteúdo.",
+			"Janelas altas deixaram de perder o topo: o conteúdo rola dentro da janela e o botão de fechar fica sempre à vista.",
+		],
+	},
 	"1.4.3": {
 		versao: "1.4.3",
 		itens: [
