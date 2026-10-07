@@ -1,4 +1,5 @@
 "use client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import type { SazonalidadeResultado } from "@/lib/erpApi";
 import { formatarMoeda } from "./formatos";
 
@@ -69,7 +70,7 @@ export default function PainelSazonalidade({
 				<p className="mt-1 text-xs text-gray-400">
 					Todo o histórico de vendas, não só o período filtrado acima.
 				</p>
-				<div className="mt-3 max-h-72 space-y-2 overflow-y-auto">
+				<ScrollArea className="mt-3 space-y-2">
 					{dados.porHora.map((h) => (
 						<Barra
 							key={h.hora}
@@ -78,7 +79,7 @@ export default function PainelSazonalidade({
 							maximo={maxHora}
 						/>
 					))}
-				</div>
+				</ScrollArea>
 			</div>
 		</div>
 	);

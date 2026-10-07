@@ -1,4 +1,5 @@
 "use client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useFechamentosCaixa } from "@/hooks/useFechamentosCaixa";
 import { formatarMoeda } from "@/components/dashboard/formatos";
 
@@ -68,7 +69,7 @@ export default function FechamentosTab({ refreshKey = 0 }: { refreshKey?: number
 					{erro}
 				</div>
 			)}
-			<div className="mt-3 overflow-x-auto">
+			<ScrollArea axis="both" stickyHeader className="mt-3">
 				{carregando ? (
 					<div className="py-6 text-center text-sm text-gray-400">
 						Carregando...
@@ -137,7 +138,7 @@ export default function FechamentosTab({ refreshKey = 0 }: { refreshKey?: number
 						</tbody>
 					</table>
 				)}
-			</div>
+			</ScrollArea>
 			</div>
 		</div>
 	);

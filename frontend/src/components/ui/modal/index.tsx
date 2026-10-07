@@ -103,7 +103,11 @@ export const Modal: React.FC<ModalProps> = ({
 
 	const contentClasses = isFullscreen
 		? "w-full h-full"
-		: "relative w-full rounded-3xl bg-white  dark:bg-gray-900";
+		: // Teto na CAIXA (não num wrapper com subtração fixa): o padding varia por
+			// modal (p-0, p-6, lg:p-10) e o botão de fechar fica fora da caixa
+			// (-top-3), então só o filho abaixo rola — a caixa nunca o recorta. Sem
+			// teto, um modal mais alto que a janela fica centralizado e o topo some.
+			"relative flex max-h-[calc(100dvh-3rem)] w-full flex-col rounded-3xl bg-white dark:bg-gray-900";
 
 	return (
 		<div className="fixed inset-0 flex items-center justify-center overflow-y-auto modal z-99999">
@@ -139,7 +143,13 @@ export const Modal: React.FC<ModalProps> = ({
 						</svg>
 					</button>
 				)}
-				<div>{children}</div>
+				{isFullscreen ? (
+					<div>{children}</div>
+				) : (
+					<div className="scroll-area no-scrollbar min-h-0 flex-1 overflow-y-auto">
+						{children}
+					</div>
+				)}
 			</div>
 		</div>
 	);

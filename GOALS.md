@@ -8051,3 +8051,288 @@ the app (verified before/after with a real keyboard on the unpatched/patched Ele
 Electron containing #54462 and contains no native `alert`/`confirm`/`prompt` (lint-enforced); deleting a
 product opens a password field that is already focused, Esc closes only the top modal and focus returns
 to the trigger; and the fixed build is installed on the customer's machine.
+
+
+## GOALS 32 — Bounded, scrollable cards: fixed max height + hidden scrollbar (feature, not started)
+
+**Source:** owner request (2026-10-06), with a screenshot of Relatórios → Vendas → *Faturamento por dia*:
+the table runs far past the viewport and stretches the card. "Some cards are occasionally getting too
+big — make a responsive, scrollable card with a fixed maximum size, survey everything that can grow
+too large, and give it a max height with a hidden scrollbar."
+
+**Current (wrong) behaviour:** cards that render database-driven rows grow with the data, so the page
+becomes one very long column (the table in the screenshot has one row per day of the chosen period).
+**Expected:** every card that can outgrow the screen has a fixed ceiling (shrinking on short windows),
+scrolls inside itself with no visible scrollbar, and keeps its title/filters/header row in view.
+
+```mermaid
+flowchart TD
+    D["Decisions D1-D6 (below)"] --> P["ScrollArea primitive + globals.css"]
+    P --> T1["Tier 1: reports, financeiro, PDV, secondary cards"]
+    P --> T2["Tier 2: main list pages"]
+    P --> T3["Tier 3: Modal safety net + dialog text"]
+    T1 --> E["e2e: cards-rolagem.spec.ts"]
+    T2 --> E
+    T3 --> E
+    E --> C["Project checks"]
+    C --> DOC["Docs (AGENTS.md)"]
+    DOC --> M["manual: visual + print + keyboard"]
+```
+
+Suggested: sonnet · medium — reversible, frontend-only className/CSS work with no data or IPC changes;
+the `Modal` safety-net item (32-12) is shared by every dialog, so run that one at sonnet · high.
+
+### Current state (verified 2026-10-06 — do not re-research)
+
+- **The screenshot is `components/relatorios/PainelPorDia.tsx`.** Its table wrapper (`:25`) is only
+  `overflow-x-auto`; one row per day, and the period controls reach arbitrary ranges, so hundreds of
+  rows are possible. Report queries aggregate with `GROUP BY` and have no `LIMIT`.
+- **There is no shared card or scroll primitive.** ~74 hand-rolled wrappers
+  (`rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]`) exist;
+  `components/common/ComponentCard.tsx` is used only by template demo pages — do not build on it.
+  Do **not** refactor the 74 wrappers; wrap only the *growing region* inside them.
+- **Eight ad-hoc caps already exist, all different:** `max-h-64` (`FluxoCaixaProjetadoCard.tsx:70`,
+  `importacao/page.tsx:307`, `CategoriaSelector.tsx:121`), `max-h-72` (`PainelSazonalidade.tsx:72`),
+  `max-h-96` (`PainelProdutosParados.tsx:23`, `PainelSegmentacaoClientes.tsx:35`), `70vh`/`75vh`
+  (modal bodies: `ProdutosListModal.tsx:400`, `CategoriasListModal.tsx:209`, `MovimentacoesList.tsx:77`,
+  `EstoqueListaView.tsx:87`). None has a sticky header or a "more below" cue.
+- **Scrollbars are already hidden globally**, do not touch: `globals.css:779-789` hides
+  `.overflow-y-auto/.overflow-x-auto/.overflow-auto` except `.custom-scrollbar`; `no-scrollbar`
+  utility at `:292`; document scrollbar hidden at `:795-802` (GOALS "App-wide Scrollbar Hiding").
+- **Cards that grow with data, not yet capped** (file:line = the element to wrap):
+  - Relatórios: `PainelPorDia.tsx:25`, `PainelCurvaAbc.tsx:31`, `PainelGiroEstoque.tsx:19`,
+    `PainelMargemPontoEquilibrio.tsx:53` (per product), `PainelFluxoCaixa.tsx:63` (`TabelaDias`, used
+    twice), `:141` (`TabelaGrupos` — a `divide-y` div list: Por origem/tipo/categoria), `:273` (eventos).
+  - Financeiro: `FluxoCaixaTab.tsx:155`, `FechamentosTab.tsx:71`, `PagamentosTab.tsx:93`,
+    `LancamentosRecorrentesTab.tsx:241`, `LancamentosUnificados.tsx:217` (backend `LIMIT 200`,
+    `db/financeiro.js:244`), `LancamentosTab.tsx:109` (div list).
+  - PDV: `Carrinho.tsx:47` is `flex-1 overflow-y-auto` but its parent (`pdv/page.tsx:664`) has only
+    `min-h-[500px]` and no max, so the scroll **never engages** and the cart pushes the page down;
+    `PagamentoPainel.tsx:324` (Fiado/Cartão parcel preview, one line per parcel);
+    `DevolucaoModal.tsx:129` (one row per sold item).
+  - Compras/Produtos: `NovoPedidoForm.tsx:307` (items of a purchase order), `PedidosList.tsx:219-260`
+    (expanded items), `CondicoesParcelamentoPanel.tsx:137`, `produtos/consignacao/page.tsx:262`.
+  - Vendas: `VendaDetalheModal.tsx:165` (parcelas) and `:179` (items table).
+  - Admin: `LogAtividadesPanel.tsx:103` (backend limit up to 500, `db/banco-admin.js:236`),
+    `banco/page.tsx:211` (raw table, up to 200 rows × every column, `whitespace-nowrap`),
+    `importacao/page.tsx:329` (`AvisosResultado` `<ul>`), `:216` (validation messages), `:258`
+    (history, `LIMIT 50`).
+  - Main list pages (Tier 2): `ClientesTable.tsx:66`, `FornecedoresTable.tsx:63`, `VendasTable.tsx:219`
+    (paginated, `LIMIT 100` — still grows with the page size), `PedidosList.tsx:169`,
+    `PrecificacaoTable.tsx:190` (bare `<table>`; wrap it at `produtos/precificacao/page.tsx:612`).
+  - Text blocks: `DialogoHost.tsx:79` (`whitespace-pre-line` message, no cap).
+- **`Modal` has no height cap.** `ui/modal/index.tsx:109` is a fixed `flex items-center justify-center
+  overflow-y-auto` container and the box (`:116-142`) has no max-height. A modal taller than the
+  viewport is centered, so its **top becomes unreachable** (flex-centering + overflow). The close button
+  is `absolute -right-3 -top-3` (`:124`) outside the box, so a cap on a wrapper that clips would hide it;
+  and modal paddings vary (`p-0`, `p-6`, `m-4`, `lg:p-10`), so the cap must live on the **box** with the
+  scroll on an inner flex child, not on a wrapper with a fixed subtraction.
+- **Printing:** `#print-area` (`ReciboModal.tsx:45`, `VendaDetalheModal.tsx:92`, `PedidosList.tsx:291`)
+  is printed with `window.print()`; `globals.css:232-246` shows only that subtree. A capped region inside
+  would print truncated. PDF/CSV exports build from data, not the DOM (`lib/utils/relatoriosExport.ts`,
+  `vendasExport.ts`) — unaffected.
+- **Sticky-header gotchas:** Tailwind preflight sets `border-collapse: collapse` on tables, so a
+  `border-b` on a sticky `th`/`tr` scrolls away — draw the divider with an inset `box-shadow` on the `th`;
+  and the card surface in dark theme is translucent (`dark:bg-white/[0.03]`), so the sticky `th` needs an
+  **opaque** background that visually matches it (token `--color-gray-dark: #1a2231`, `globals.css:93`, is
+  what dropdowns use — compare, do not assume).
+- **Constraints:** window minimum is 1024×640 (`AGENTS.md`); Tailwind v4 needs **literal** class strings
+  to generate arbitrary-value utilities (a preset lookup object, never string concatenation); Electron's
+  Chromium supports `dvh`, `mask-image` and keyboard-focusable scrollers.
+- **Reviewed and deliberately NOT capped:** `MaisVendidos.tsx` (`db/dashboard.js:89` is `LIMIT 5`),
+  `UsuariosTable.tsx` (bounded by staff count), `PainelPorPagamento.tsx` (≤ 5 methods),
+  `PainelComissoes.tsx` (per seller), `PainelDre/AgingRecebiveis/ConversaoOrcamentos` (fixed rows),
+  `atualizacao/page.tsx` (one version's notes), `ReciboModal` item list (a receipt must be seen whole —
+  the Modal safety net covers tall receipts), the 70vh/75vh modal bodies listed above (they already
+  scroll internally; **also being edited by GOALS 30 — do not touch `ProdutosListModal.tsx` /
+  `CategoriasListModal.tsx`**), the Banco image grid (already paginated, `db/imagens.js:120`), and all
+  template demo code (`components/example`, `components/ecommerce`, `components/tables/BasicTableOne`,
+  `app/(admin)/(ui-elements)`, `(others-pages)`).
+
+### Decisions (final — do not reopen)
+
+- **D1 — One primitive, four presets.** New `components/ui/scroll-area/index.tsx` (same
+  `ui/<name>/index.tsx` convention as `modal`, `table`, `dropdown`). Ceiling = a fixed rem value,
+  clamped by the viewport so short windows shrink it (responsive):
+  `sm` `max-h-[min(16rem,45dvh)]` · `md` (default) `max-h-[min(24rem,55dvh)]` ·
+  `lg` `max-h-[min(32rem,65dvh)]` · `xl` `max-h-[min(40rem,calc(100dvh-18rem))]` (main list pages).
+- **D2 — The card stays; only the body scrolls.** Title, filters, totals and the table header stay
+  pinned outside/over the scroll region; tables get a sticky `thead`. Never put the scroll on the whole
+  card (the title would scroll away).
+- **D3 — Scrollbar hidden explicitly** with `no-scrollbar` on the primitive (not relying on the global
+  `.overflow-*` rule). Keep wheel/trackpad/keyboard scrolling; leave scroll chaining at the browser
+  default so the wheel continues to the page once the inner region hits its end (no scroll trap).
+- **D4 — Because the scrollbar is gone, add a cue:** a bottom fade (`mask-image`, theme-agnostic — it
+  fades the content itself, so no card color is needed) shown only while more content is below, driven by
+  `data-mais-abaixo` set directly on the DOM node (no React state per scroll event). `fade` prop,
+  default on.
+- **D5 — Print and Modal safety.** `@media print` removes any `.scroll-area` cap/clip/mask; the `Modal`
+  gets a box-level cap with an inner scroll child (details in 32-12).
+- **D6 — Scope tiers.** Tier 1 = analytical/secondary cards; Tier 2 = main list pages (`xl` + sticky
+  header) — independent one-line wraps, so the owner can drop Tier 2 after seeing Tier 1 without
+  touching the rest; Tier 3 = `Modal` + dialog text. **Out of scope:** pagination/virtualization,
+  changing queries or limits, restyling cards, the GOALS 30 modals, template demo code.
+
+### Primitive
+
+- [x] **GOALS 32-01 — Create `ScrollArea`.** `frontend/src/components/ui/scroll-area/index.tsx`
+  (`"use client"`). Props: `size?: "sm"|"md"|"lg"|"xl"` (default `md`), `axis?: "y"|"both"` (default
+  `y`; `both` for wide tables → `overflow-auto`), `stickyHeader?: boolean`, `fade?: boolean` (default
+  true), `className`, `children`, plus pass-through of other div props (`data-testid`, `aria-label`).
+  Root classes: `scroll-area no-scrollbar min-w-0` + the preset (literal lookup object) + overflow class.
+  When `aria-label` is given also set `role="region"`. Implement the fade with one `useEffect`:
+  `scroll` listener + `ResizeObserver` that toggles `data-mais-abaixo` (`scrollHeight - scrollTop -
+  clientHeight > 1`) on the ref node. Done when: `cd frontend && npm run typecheck` passes and the
+  component renders in one real card (32-05) with its cap, no scrollbar and the fade.
+- [x] **GOALS 32-02 — `globals.css` additions only** (do not edit the existing scrollbar rules at
+  `:779-805`): (a) `[data-mais-abaixo="true"] { mask-image: linear-gradient(to bottom, #000
+  calc(100% - 1.5rem), transparent); }`; (b) inside the existing `@media print` block (`:232`) add
+  `.scroll-area { max-height: none !important; overflow: visible !important; mask-image: none
+  !important; }`. Done when: both rules exist and nothing else in the file changed.
+- [x] **GOALS 32-03 — Sticky header.** When `stickyHeader`, add to the root: `[&_thead_th]:sticky
+  [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-white
+  dark:[&_thead_th]:bg-gray-dark [&_thead_th]:shadow-[inset_0_-1px_0_var(--color-gray-100)]
+  dark:[&_thead_th]:shadow-[inset_0_-1px_0_var(--color-gray-800)]` (works for raw `<th>` and `<TableCell
+  isHeader>`). Then **measure** in the running app that the dark `th` color is indistinguishable from the
+  card surface (read `getComputedStyle` of card + body and composite the 3% white overlay); if it is not,
+  pick the exact opaque color — do not guess. Done when: header stays visible and opaque while rows scroll
+  under it, divider line stays, both themes.
+
+### Tier 1 — analytical and secondary cards (wrap the growing region; keep headings outside)
+
+- [x] **GOALS 32-04 — Wrap rule:** wrap *inside* the existing card, replacing the table's
+  `overflow-x-auto` wrapper with `<ScrollArea axis="both" stickyHeader size=…>` (tables) or
+  `<ScrollArea size=…>` (div lists). Never change columns, formatting or data. After each file group
+  run `cd frontend && npm run lint && npm run typecheck`.
+- [x] **GOALS 32-05 — Relatórios.** `PainelPorDia.tsx:25` `md` (the reported card — do this one first and
+  confirm it live); `PainelCurvaAbc.tsx:31`, `PainelGiroEstoque.tsx:19`,
+  `PainelMargemPontoEquilibrio.tsx:53` `md`; `PainelFluxoCaixa.tsx:63` (`TabelaDias`) `md`, `:273`
+  (eventos) `lg`, `:141` (`TabelaGrupos`, no `stickyHeader`) `sm`. **Migrate the ad-hoc caps:**
+  `PainelProdutosParados.tsx:23` and `PainelSegmentacaoClientes.tsx:35` (`max-h-96`) → `md`;
+  `PainelSazonalidade.tsx:72` (`max-h-72`) → `md`.
+- [x] **GOALS 32-06 — Financeiro.** `FluxoCaixaTab.tsx:155` `md`; `FechamentosTab.tsx:71`,
+  `PagamentosTab.tsx:93`, `LancamentosRecorrentesTab.tsx:241` `md`; `LancamentosUnificados.tsx:217` `lg`;
+  `LancamentosTab.tsx:109` `lg` (no sticky header — div list). Migrate `FluxoCaixaProjetadoCard.tsx:70`
+  (`max-h-64`) → `sm`.
+- [x] **GOALS 32-07 — PDV and Vendas.** `Carrinho.tsx:47` → `<ScrollArea size="lg" className="flex-1">`
+  (keep `space-y-2`); `PagamentoPainel.tsx:324` `sm`; `DevolucaoModal.tsx:129` `md`;
+  `VendaDetalheModal.tsx:165` `sm`, `:179` `md` (the items table is inside `#print-area` — the 32-02
+  print rule is what keeps it whole on paper).
+- [x] **GOALS 32-08 — Compras, Produtos, Admin, Importação.** `NovoPedidoForm.tsx:307` `sm`;
+  `PedidosList.tsx` expanded blocks (`:219` and the receive-mode block right below it) `sm`;
+  `CondicoesParcelamentoPanel.tsx:137` `md`; `produtos/consignacao/page.tsx:262` `lg`;
+  `LogAtividadesPanel.tsx:103` `lg`; `banco/page.tsx:211` `xl` + `axis="both"` + `stickyHeader`
+  (200 rows × all columns); `importacao/page.tsx:329` and `:216` `sm`, `:258` `md`, and migrate `:307`
+  (`max-h-64`) → `sm`.
+
+### Tier 2 — main list pages (`xl`, sticky header; independent of Tier 1)
+
+- [x] **GOALS 32-09 — Wrap the primary list of each CRUD page:** `ClientesTable.tsx:66`,
+  `FornecedoresTable.tsx:63`, `VendasTable.tsx:219` (keep the pagination footer **outside** the scroll
+  region, and the row-expansion nested table inside it), `PedidosList.tsx:169` (the pedido list),
+  `produtos/precificacao/page.tsx:612` (wrap `<PrecificacaoTable>`; its editable inputs must keep
+  focus/typing — see GOALS 31). Done when: each page shows its filters/pagination fixed and scrolls only
+  the rows, with no extra page-level scroll on a 1024×640 window beyond the card.
+
+### Tier 3 — Modal safety net and dialog text
+
+- [x] **GOALS 32-10 — `DialogoHost.tsx:79`:** wrap the message in `<ScrollArea size="sm"
+  className="mb-5">` (keep `whitespace-pre-line break-words`); a long multi-line `avisar()` must not
+  grow the dialog past the screen.
+- [x] **GOALS 32-11 — Decide the fallback before editing `Modal`:** check which modals host popup
+  selectors (`ConsignacaoFormModal.tsx`, `VendaFiadoHistoricaModal.tsx`, `VendaHistoricaForm.tsx` use
+  `ClienteSelector`/`BuscaProduto`, whose dropdown is `absolute z-20`). Inside a clipping scroll child the
+  dropdown extends the scroll height instead of overflowing visibly. Record the result; if any popup is
+  unusable, add an opt-out prop (`scrollInterno={false}`) for that caller only.
+- [x] **GOALS 32-12 — `Modal` safety net** (`ui/modal/index.tsx`, not for `isFullscreen`): box classes
+  add `flex max-h-[calc(100dvh-3rem)] flex-col`; replace `<div>{children}</div>` (`:142`) with
+  `<div className="scroll-area no-scrollbar min-h-0 flex-1 overflow-y-auto">{children}</div>`. The close
+  button stays a sibling of that child, so it is never clipped; paddings on the box are unaffected.
+  Existing modals that already scroll internally (70vh bodies, `UserInfoCard`-style panels) just nest
+  harmlessly. Done when: a modal with 200 lines of content shows its top, scrolls inside, and its close
+  button is visible; every existing modal still looks and behaves the same at normal content size.
+  Keep GOALS 31's modal behaviours: Esc closes only the top modal, focus returns to the trigger.
+
+### Tests
+
+- [x] **GOALS 32-13 — e2e `e2e/cards-rolagem.spec.ts`** (copy the launch/login boilerplate from
+  `e2e/relatorios-faturamento-bruto.spec.ts`; needs `frontend/out` rebuilt). Seed ≥ 120 dated sales with
+  `window.api.registrarVendaHistorica` (type `VendaHistoricaDados`, `frontend/src/lib/erpApi.ts:140`;
+  one per day over ~4 months), open Relatórios → period covering them → Vendas, then on the
+  *Faturamento por dia* region (`data-testid`): (1) `clientHeight <= min(384, 0.55 × innerHeight)` and
+  `scrollHeight > clientHeight`; (2) no visible scrollbar: `offsetWidth === clientWidth`; (3) after
+  `scrollTop = 400`, the first `th` is still at the region's top edge (sticky) and rows have moved;
+  (4) `data-mais-abaixo` is `"true"` at the top and `"false"` at the bottom; (5) with
+  `page.emulateMedia({ media: "print" })` the region has `max-height: none` and `overflow: visible`;
+  (6) shrink the window (`electronApp.evaluate` → `BrowserWindow.setSize(1024, 640)`) and assert the cap
+  follows `55dvh`; (7) Modal net: trigger a very long `avisar()` using the same mechanism as
+  `e2e/dialogos.spec.ts` and assert the dialog's box height ≤ `innerHeight` and its OK button is
+  reachable. Done when: the spec passes on its own via `npx playwright test e2e/cards-rolagem.spec.ts`.
+- [x] **GOALS 32-14 — Project checks.** Frontend: `cd frontend && npm run lint && npm run typecheck &&
+  npm run build`; root: `npm run lint`; `npm test` (not expected to change); full `npm run test:e2e` after
+  rebuilding `frontend/out`. Existing specs locate tables by text/role, so a new wrapper should not break
+  them — fix any that do. A random 5 s `toBeVisible` timeout only on a push-triggered CI e2e run is the
+  known flake, not a signal (the PR run of the same commit passes).
+
+### Docs
+
+- [x] **GOALS 32-15 — `AGENTS.md`:** under "Decisões Arquiteturais" add: any list/table fed by database
+  data that can pass ~10 rows must sit in `<ScrollArea>` (`components/ui/scroll-area`) — never a
+  hand-rolled `max-h-* overflow-y-auto`; presets, sticky header, hidden scrollbar + fade cue, print rule,
+  and that the `Modal` caps itself. No version bump here: when the owner next releases, add a note to
+  `frontend/src/lib/atualizacaoNotas.ts` (e.g. "Tabelas e listas longas agora rolam dentro do card").
+
+### Execution notes (2026-10-06)
+
+- **32-03 measured, not guessed.** In the running app the dark card surface is the page background
+  `#101828` + 3% white = `rgb(23,31,46)` (`#171f2e`), and a `Modal` is plain `gray-900`
+  (`rgb(16,24,40)`); the planned `gray-dark` (`rgb(26,34,49)`) would have been a visible band in both.
+  `ScrollArea` therefore takes `surface="card" | "modal"` (default `card`); only
+  `VendaDetalheModal.tsx` (its items table) passes `surface="modal"`. Light theme: `th` and card are both
+  `rgb(255,255,255)`.
+- **32-08/32-09 coverage.** All listed call sites were wrapped (31 + 5, via a one-off script that swaps only
+  the opening/closing `<div>` and keeps every other class); `AvisosResultado`'s `<ul>` was wrapped by
+  hand. Diffs are exactly import + open + close per site (+ `className` leftovers like `mt-3`).
+- **32-11 result.** Two modals host popup selectors — `ConsignacaoFormModal.tsx` and
+  `VendaFiadoHistoricaModal.tsx` (`ClienteSelector`/`BuscaProduto`, `absolute z-20`). In both there are
+  quantity/date/observation fields and the buttons *below* the selectors, so the popup overlays form
+  content inside the modal; at worst an overshoot scrolls inside the modal. No opt-out prop was added
+  (nothing unusable); 32-18 still asks the owner to confirm them by hand.
+- **32-13 deviations from the written test list.** (1) Item (7) used a long `avisar()` — impossible to
+  trigger from e2e (every `avisar()` has a fixed message), so the Modal net is tested through the real
+  tall modal instead: `VendaDetalheModal` of a seeded 40-item sale on a 640-px-high window (asserts box
+  ≤ `innerHeight − 47`, top and close button on screen, inner scroll overflow > 0). `DialogoHost`'s
+  `ScrollArea` is covered by typecheck/build only, plus manual 32-18. (2) The short window is
+  **1280×640**, not 1024×640: at ~1008 px of content width the layout drops below the `lg` breakpoint and
+  hides the sidebar, which the e2e navigation needs. (3) The print assertion must not use `:visible`
+  (print CSS sets `body * { visibility: hidden }`).
+- **32-14 results.** Frontend `typecheck` clean; `lint` 0 errors (3 pre-existing warnings: `<img>` in
+  `banco/page.tsx` and the auth layout); `build` ok; root `lint` 0 errors (4 pre-existing warnings);
+  `npm test` 274/274; full `npm run test:e2e` 53/53 (the 4 new specs included).
+
+### Manual verification (manual)
+
+- [ ] **GOALS 32-16 — [manual] Reported card.** Relatórios → Vendas with ≥ 60 days: the card has a fixed
+  ceiling, scrolls inside with no scrollbar (wheel, trackpad, and keyboard: Tab onto the region, then
+  ↑/↓/PgDn/End), header row stays, bottom fade appears and disappears at the end. Light **and** dark
+  theme, maximized **and** 1024×640. Owner pastes a screenshot of each theme (do not capture the
+  desktop — ask).
+- [ ] **GOALS 32-17 — [manual] Tier 2 feel.** Clientes, Vendas, Precificação: wheel continues to the page
+  after the card reaches its end (no trap); pagination/filters stay put. If the owner dislikes capping
+  main list pages, revert 32-09 only.
+- [ ] **GOALS 32-18 — [manual] Modals and print.** A tall modal (Venda with many items) shows its top and
+  scrolls; popups in Consignação / Venda fiado histórica are usable; close button visible; Esc/focus as in
+  GOALS 31. Print a receipt, a sale detail and a purchase order with many items — nothing cut off.
+
+### Registration
+
+- [x] None beyond 32-15 — no routes, IPC, permissions or schema.
+
+**Ordering rule:** decisions before the primitive; the primitive (32-01…03) before any usage; Tier 1
+before Tier 2 and 3 (the reported card is confirmed first); the `Modal` change (32-12) after its popup
+check (32-11); tests after all usages; docs and manual verification last.
+
+**Done when:** no card that renders database-driven rows can grow past its preset ceiling — the owner's
+*Faturamento por dia* card included — each scrolls inside itself with no visible scrollbar, keeps its
+header row, shows a "more below" fade, shrinks on a 1024×640 window, prints in full, and
+`cards-rolagem.spec.ts` plus the full lint/typecheck/build/e2e suite pass.

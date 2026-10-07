@@ -1,4 +1,5 @@
 "use client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState } from "react";
 import { useLancamentos } from "@/hooks/useLancamentos";
 import {
@@ -214,7 +215,7 @@ export default function LancamentosUnificados({
 					{erro}
 				</div>
 			)}
-			<div className="mt-4 overflow-x-auto">
+			<ScrollArea size="lg" axis="both" stickyHeader className="mt-4">
 				{carregando ? (
 					<div className="py-6 text-center text-sm text-gray-400">
 						Carregando lançamentos...
@@ -357,7 +358,7 @@ export default function LancamentosUnificados({
 						</tbody>
 					</table>
 				)}
-			</div>
+			</ScrollArea>
 		</div>
 	);
 }

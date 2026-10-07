@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/ui/modal";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
 	registrarHostDeDialogos,
 	type PedidoDialogo,
@@ -76,9 +77,11 @@ export default function DialogoHost() {
 				>
 					{titulo}
 				</h2>
-				<p className="mb-5 whitespace-pre-line break-words text-sm text-gray-500 dark:text-gray-400">
-					{atual.opcoes.mensagem}
-				</p>
+				<ScrollArea size="sm" className="mb-5" data-testid="dialogo-mensagem">
+					<p className="whitespace-pre-line break-words text-sm text-gray-500 dark:text-gray-400">
+						{atual.opcoes.mensagem}
+					</p>
+				</ScrollArea>
 				<div className="flex justify-end gap-3">
 					{confirmando ? (
 						<>

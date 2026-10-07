@@ -1,4 +1,5 @@
 "use client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useCallback, useEffect, useState } from "react";
 import Badge from "@/components/ui/badge/Badge";
 import Button from "@/components/ui/button/Button";
@@ -259,7 +260,7 @@ export default function ConsignacaoPage() {
 					</div>
 				)}
 
-				<div className="overflow-x-auto">
+				<ScrollArea size="lg" axis="both" stickyHeader>
 					{carregando ? (
 						<div className="py-8 text-center text-sm text-gray-400">
 							Carregando...
@@ -364,7 +365,7 @@ export default function ConsignacaoPage() {
 							</tbody>
 						</table>
 					)}
-				</div>
+				</ScrollArea>
 			</div>
 
 			<ConsignacaoFormModal

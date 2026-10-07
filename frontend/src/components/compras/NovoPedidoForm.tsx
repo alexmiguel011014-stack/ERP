@@ -1,4 +1,5 @@
 "use client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useEffect, useState } from "react";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
@@ -304,7 +305,7 @@ export default function NovoPedidoForm({
 				</Button>
 			</div>
 
-			<div className="mt-4 divide-y divide-gray-100 dark:divide-gray-800">
+			<ScrollArea size="sm" className="mt-4 divide-y divide-gray-100 dark:divide-gray-800">
 				{itens.length === 0 ? (
 					<div className="py-4 text-center text-sm text-gray-400">
 						Nenhum item no pedido.
@@ -334,7 +335,7 @@ export default function NovoPedidoForm({
 						</div>
 					))
 				)}
-			</div>
+			</ScrollArea>
 
 			<div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3">
 				<div className="col-span-2">

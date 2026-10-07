@@ -1,4 +1,5 @@
 "use client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState } from "react";
 import { usePedidosCompra } from "@/hooks/usePedidosCompra";
 import { erpApi, type ItemPedidoCompra, type PedidoCompra } from "@/lib/erpApi";
@@ -156,7 +157,7 @@ export default function PedidosList({
 					{erro}
 				</div>
 			)}
-			<div className="mt-3 divide-y divide-gray-100 dark:divide-gray-800">
+			<ScrollArea size="xl" className="mt-3 divide-y divide-gray-100 dark:divide-gray-800">
 				{carregando ? (
 					<div className="py-6 text-center text-sm text-gray-400">
 						Carregando...
@@ -218,7 +219,7 @@ export default function PedidosList({
 							</div>
 
 							{expandidoId === p.id && !modoReceber && (
-								<div className="mt-2 rounded-lg bg-gray-50 p-3 text-sm text-gray-600 dark:bg-white/5 dark:text-gray-300">
+								<ScrollArea size="sm" className="mt-2 rounded-lg bg-gray-50 p-3 text-sm text-gray-600 dark:bg-white/5 dark:text-gray-300">
 									{itensExpandidos.length === 0
 										? "Sem itens."
 										: itensExpandidos.map((i) => (
@@ -231,11 +232,11 @@ export default function PedidosList({
 														: ""}
 												</div>
 											))}
-								</div>
+								</ScrollArea>
 							)}
 
 							{expandidoId === p.id && modoReceber && (
-								<div className="mt-2 rounded-lg bg-gray-50 p-3 dark:bg-white/5">
+								<ScrollArea size="sm" className="mt-2 rounded-lg bg-gray-50 p-3 dark:bg-white/5">
 									{itensExpandidos.map((i) => {
 										const falta = i.quantidade - i.quantidade_recebida;
 										return (
@@ -274,12 +275,12 @@ export default function PedidosList({
 									>
 										Confirmar recebimento
 									</Button>
-								</div>
+								</ScrollArea>
 							)}
 						</div>
 					))
 				)}
-			</div>
+			</ScrollArea>
 
 			<Modal
 				isOpen={!!pedidoImprimindo}

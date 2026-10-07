@@ -1,4 +1,5 @@
 "use client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useEffect, useState } from "react";
 import { erpApi, type FluxoCaixaProjetado } from "@/lib/erpApi";
 import { formatarMoeda } from "@/components/dashboard/formatos";
@@ -67,7 +68,7 @@ export default function FluxoCaixaProjetadoCard() {
 							Nenhum lançamento em aberto vencendo nos próximos 30 dias.
 						</p>
 					) : (
-						<div className="mt-3 max-h-64 overflow-y-auto">
+						<ScrollArea size="sm" axis="both" stickyHeader className="mt-3">
 							<table className="w-full text-left text-sm">
 								<thead>
 									<tr className="border-b border-gray-100 dark:border-gray-800">
@@ -107,7 +108,7 @@ export default function FluxoCaixaProjetadoCard() {
 									))}
 								</tbody>
 							</table>
-						</div>
+						</ScrollArea>
 					)}
 				</>
 			)}

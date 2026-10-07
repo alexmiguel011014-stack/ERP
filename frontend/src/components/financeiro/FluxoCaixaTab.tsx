@@ -1,4 +1,5 @@
 "use client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState } from "react";
 import Button from "@/components/ui/button/Button";
 import Input from "@/components/form/input/InputField";
@@ -152,7 +153,7 @@ export default function FluxoCaixaTab({ refreshKey = 0 }: { refreshKey?: number 
 				<h2 className="text-base font-semibold text-gray-800 dark:text-white/90">
 					Movimento por dia
 				</h2>
-				<div className="mt-3 overflow-x-auto">
+				<ScrollArea axis="both" stickyHeader className="mt-3">
 					{carregando ? (
 						<div className="py-6 text-center text-sm text-gray-400">
 							Carregando...
@@ -208,7 +209,7 @@ export default function FluxoCaixaTab({ refreshKey = 0 }: { refreshKey?: number 
 							</tbody>
 						</table>
 					)}
-				</div>
+				</ScrollArea>
 			</div>
 
 			<div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">

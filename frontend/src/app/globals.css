@@ -243,6 +243,20 @@
     top: 0;
     width: 100%;
   }
+  /* ScrollArea (components/ui/scroll-area) limita a altura na tela; no papel
+     tudo precisa sair inteiro, sem corte nem degradê. */
+  .scroll-area {
+    max-height: none !important;
+    overflow: visible !important;
+    mask-image: none !important;
+  }
+}
+
+/* ScrollArea: rodapé em degradê enquanto há mais conteúdo abaixo. Máscara no
+   próprio conteúdo (não uma cor de fundo), então vale nos dois temas. O atributo
+   é mantido pelo componente. */
+[data-mais-abaixo="true"] {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5rem), transparent);
 }
 
 @utility menu-item-icon-active {

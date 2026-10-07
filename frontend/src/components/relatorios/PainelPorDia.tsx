@@ -1,4 +1,5 @@
 "use client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { PorDiaChart } from "./RelatoriosCharts";
 import { formatarData, formatarMoeda } from "./formatos";
 import type { RelatorioVendasResultado } from "@/lib/erpApi";
@@ -22,7 +23,7 @@ export default function PainelPorDia({
 					<div className="mt-3">
 						<PorDiaChart dados={dados} />
 					</div>
-					<div className="mt-3 overflow-x-auto">
+					<ScrollArea axis="both" stickyHeader data-testid="rolagem-faturamento-por-dia" className="mt-3">
 						<table className="w-full text-left text-sm">
 							<thead>
 								<tr className="border-b border-gray-100 dark:border-gray-800">
@@ -62,7 +63,7 @@ export default function PainelPorDia({
 								))}
 							</tbody>
 						</table>
-					</div>
+					</ScrollArea>
 				</>
 			)}
 		</div>

@@ -1,4 +1,5 @@
 "use client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState } from "react";
 import { useLogAtividades } from "@/hooks/useLogAtividades";
 import type { Usuario } from "@/lib/erpApi";
@@ -100,7 +101,7 @@ export default function LogAtividadesPanel({
 				</div>
 			)}
 
-			<div className="mt-3 divide-y divide-gray-100 dark:divide-gray-800">
+			<ScrollArea size="lg" className="mt-3 divide-y divide-gray-100 dark:divide-gray-800">
 				{carregando ? (
 					<div className="py-6 text-center text-sm text-gray-400">
 						Carregando...
@@ -129,7 +130,7 @@ export default function LogAtividadesPanel({
 						</div>
 					))
 				)}
-			</div>
+			</ScrollArea>
 		</div>
 	);
 }

@@ -1,4 +1,5 @@
 "use client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState } from "react";
 import {
 	Table,
@@ -63,7 +64,7 @@ export default function ClientesTable({
 					{filtrados.length} cliente{filtrados.length !== 1 ? "s" : ""}
 				</span>
 			</div>
-			<div className="overflow-x-auto">
+			<ScrollArea size="xl" axis="both" stickyHeader>
 				<Table>
 					<TableHeader className="border-b border-gray-100 dark:border-gray-800">
 						<TableRow>
@@ -155,7 +156,7 @@ export default function ClientesTable({
 						)}
 					</TableBody>
 				</Table>
-			</div>
+			</ScrollArea>
 		</div>
 	);
 }

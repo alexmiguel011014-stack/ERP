@@ -1,4 +1,5 @@
 "use client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMemo, useState } from "react";
 import { usePageHeader } from "@/context/PageHeaderContext";
 import Label from "@/components/form/Label";
@@ -603,7 +604,7 @@ export default function PrecificacaoPage() {
 						{erro}
 					</div>
 				)}
-				<div className="overflow-x-auto">
+				<ScrollArea size="xl" axis="both" stickyHeader>
 					{carregando ? (
 						<div className="py-8 text-center text-sm text-gray-400">
 							Carregando...
@@ -618,7 +619,7 @@ export default function PrecificacaoPage() {
 							onAlterar={registrarAlteracao}
 						/>
 					)}
-				</div>
+				</ScrollArea>
 			</div>
 				</>
 			)}

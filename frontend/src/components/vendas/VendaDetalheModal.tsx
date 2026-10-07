@@ -1,4 +1,5 @@
 "use client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import Button from "@/components/ui/button/Button";
@@ -161,7 +162,7 @@ export default function VendaDetalheModal({
 						{carregandoParcelas ? (
 							<p className="mt-2 text-gray-500">Carregando parcelas...</p>
 						) : parcelas && parcelas.length > 0 ? (
-							<div className="mt-2 space-y-1 text-gray-600 dark:text-gray-300">
+							<ScrollArea size="sm" className="mt-2 space-y-1 text-gray-600 dark:text-gray-300">
 								{parcelas.map((parcela) => (
 									<p key={parcela.id || parcela.numero}>
 										{parcela.numero}/{parcela.total || venda.parcelas}: {" "}
@@ -169,14 +170,14 @@ export default function VendaDetalheModal({
 										{parcela.status ? ` (${parcela.status})` : ""}
 									</p>
 								))}
-							</div>
+							</ScrollArea>
 						) : (
 							<p className="mt-2 text-gray-500">Sem parcelas em aberto.</p>
 						)}
 					</div>
 				)}
 
-				<div className="mt-4 overflow-x-auto">
+				<ScrollArea axis="both" stickyHeader surface="modal" className="mt-4">
 					<table className="w-full text-left text-sm">
 						<thead>
 							<tr className="border-b border-gray-100 dark:border-gray-800">
@@ -247,7 +248,7 @@ export default function VendaDetalheModal({
 							)}
 						</tbody>
 					</table>
-				</div>
+				</ScrollArea>
 
 				<div className="mt-3 space-y-1 border-t border-gray-100 pt-3 text-right text-sm dark:border-gray-800">
 					<p className="text-gray-500 dark:text-gray-400">

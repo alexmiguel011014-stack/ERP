@@ -1,4 +1,5 @@
 "use client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState } from "react";
 import { TrashBinIcon } from "@/icons";
 import { formatarMoeda } from "./formatos";
@@ -44,7 +45,7 @@ export default function Carrinho({
 	}
 
 	return (
-		<div className="flex-1 space-y-2 overflow-y-auto">
+		<ScrollArea size="lg" className="flex-1 space-y-2">
 			{itens.map((item) => {
 				const expandido = aberto === item.variacao_id;
 				return (
@@ -105,6 +106,6 @@ export default function Carrinho({
 					</div>
 				);
 			})}
-		</div>
+		</ScrollArea>
 	);
 }
