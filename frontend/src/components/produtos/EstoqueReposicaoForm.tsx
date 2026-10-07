@@ -11,6 +11,7 @@ import {
 	lerDecimalInformado,
 } from "@/lib/utils/formatos";
 
+import { confirmar } from "@/lib/dialogo";
 type ItemReposicao = {
 	variacao_id: number;
 	nome: string;
@@ -139,7 +140,7 @@ export default function EstoqueReposicaoForm({
 
 	async function confirmarReposicao() {
 		if (itens.length === 0) return;
-		if (!confirm(`Confirmar entrada de ${itens.length} item(ns) no estoque?`))
+		if (!(await confirmar(`Confirmar entrada de ${itens.length} item(ns) no estoque?`)))
 			return;
 		setConfirmando(true);
 		try {

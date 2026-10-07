@@ -6,6 +6,7 @@ import { formatarMoeda } from "@/components/dashboard/formatos";
 import Button from "@/components/ui/button/Button";
 import PagamentoFormModal from "./PagamentoFormModal";
 
+import { confirmar } from "@/lib/dialogo";
 export default function PagamentosTab({
 	refreshKey = 0,
 	onAtualizado,
@@ -30,7 +31,7 @@ export default function PagamentosTab({
 	}
 
 	async function marcarComoRecebido(id: number) {
-		if (!confirm("Marcar este pagamento como recebido?")) return;
+		if (!(await confirmar("Marcar este pagamento como recebido?"))) return;
 		setProcessandoId(id);
 		try {
 			await erpApi.pagamentos.pagar(id);

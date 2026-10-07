@@ -30,7 +30,7 @@ async function getListCategoriasWithUsage(incluirInativas) {
 	);
 
 	const linhas = await allAsync(
-		`SELECT c.id, c.nome, c.categoria_pai_id, c.ativo,
+		`SELECT c.id, c.nome, c.categoria_pai_id, c.ativo, c.criado_em, c.atualizado_em,
             p.nome AS categoria_pai_nome,
             (SELECT COUNT(*) FROM ProdutoCategorias pc WHERE pc.categoria_id = c.id) AS uso_checklist,
             (SELECT COUNT(*) FROM Produtos pr WHERE pr.categoria_id = c.id OR pr.subcategoria_id = c.id) AS uso_legado,
@@ -51,6 +51,8 @@ async function getListCategoriasWithUsage(incluirInativas) {
 		categoria_pai_nome: l.categoria_pai_nome,
 		tipo: l.categoria_pai_id ? "subcategoria" : "categoria",
 		ativo: Number(l.ativo) !== 0,
+		criado_em: l.criado_em,
+		atualizado_em: l.atualizado_em,
 		uso_count: Number(l.uso_checklist || 0) + Number(l.uso_legado || 0),
 		uso_ativo_count:
 			Number(l.uso_ativo_checklist || 0) + Number(l.uso_ativo_legado || 0),

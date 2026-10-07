@@ -25,6 +25,9 @@ interface InputProps {
 	error?: boolean;
 	hint?: string; // Optional hint text
 	autoComplete?: string;
+	// Foca o campo quando ele monta — pensado pra campo dentro de modal (ex.:
+	// senha de ConfirmarSenhaModal), cujo conteúdo só monta ao abrir.
+	autoFocus?: boolean;
 }
 
 const Input: FC<InputProps> = ({
@@ -46,6 +49,7 @@ const Input: FC<InputProps> = ({
 	error = false,
 	hint,
 	autoComplete = "off",
+	autoFocus = false,
 }) => {
 	const inputRef = useRef<HTMLInputElement>(null);
 	const isDate = type === "date";
@@ -82,6 +86,7 @@ const Input: FC<InputProps> = ({
 				inputMode={inputMode}
 				disabled={disabled}
 				autoComplete={autoComplete}
+				autoFocus={autoFocus}
 				className={inputClasses}
 			/>
 

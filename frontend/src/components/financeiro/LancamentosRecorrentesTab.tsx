@@ -14,6 +14,7 @@ import {
 import { formatarMoeda } from "@/components/dashboard/formatos";
 import { lerDecimalInformado } from "@/lib/utils/formatos";
 
+import { confirmar } from "@/lib/dialogo";
 export default function LancamentosRecorrentesTab() {
 	const [lista, setLista] = useState<LancamentoRecorrente[]>([]);
 	const [carregando, setCarregando] = useState(true);
@@ -97,7 +98,7 @@ export default function LancamentosRecorrentesTab() {
 	}
 
 	async function remover(id: number) {
-		if (!confirm("Remover este lançamento recorrente?")) return;
+		if (!(await confirmar({ mensagem: "Remover este lançamento recorrente?", destrutivo: true, confirmarLabel: "Remover" }))) return;
 		try {
 			await erpApi.financeiro.removerLancamentoRecorrente(id);
 			mostrarMensagem("Removido.");

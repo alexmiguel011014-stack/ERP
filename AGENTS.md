@@ -20,7 +20,7 @@ Stack: Electron.js + Node.js + SQLite + HTML/CSS/JS puro.
 Paleta visual: Tatame Clean (clara: `#F8FAFC`, `#FFFFFF`, `#1E293B`, `#2563EB`, `#16A34A`, `#E2E8F0`; dark: `#0F172A`, `#1E293B`, `#3B82F6`, `#E2E8F0`).
 
 Repositório: `https://github.com/alexmiguel011014-stack/ERP.git` (branch `main`, push via HTTPS).
-Versão atual: `v1.4.2` (`package.json`). Releases publicadas no GitHub Releases.
+Versão atual: `v1.4.3` (`package.json`). Releases publicadas no GitHub Releases.
 
 ### Processo de release (checado em 2026-08-19, era conhecimento tribal até aqui)
 
@@ -253,8 +253,9 @@ pro racional completo). Os dois frontends coexistem até o cutover final (Fase 6
   é módulo (ex.: `/categorias`). NÃO cachear o `children` do layout: no App Router ele é
   o `OuterLayoutRouter` do Next, que sempre renderiza o segmento ativo — a versão
   anterior (`AbasAtivasWrapper`) fazia isso e multiplicava a página atual pelo número de
-  abas abertas (N× IPC a cada troca, nada preservado; causa real do "campos travam e
-  destravam sozinhos", 2026-09-15). Reimplementação manual porque o mecanismo nativo
+  abas abertas (N× IPC a cada troca, nada preservado; uma das causas do "campos travam e
+  destravam sozinhos", 2026-09-15 — a outra é o diálogo nativo, ver "Nunca use `window.alert()`"
+  em Decisões Arquiteturais). Reimplementação manual porque o mecanismo nativo
   (`cacheComponents`/`<Activity>`) exige Next 16 — o React que o Next 15.5.23 embute
   (19.2.0-canary de 2025-08) não exporta `Activity`, verificado no bundle. Cada aba vive num
   `layout/AbaViva.tsx` (display:none quando inativa + devolve o foco ao último campo usado
@@ -290,6 +291,22 @@ pro racional completo). Os dois frontends coexistem até o cutover final (Fase 6
   dedicados, ao vivo), reusando o mesmo gate de senha (`verificarSenhaAdmin`) e o `ipc/imagens.js`
   registrado via `modules/banco/modulo.json`: grid com abas Produtos/Outros/Órfãs, busca dinâmica
   por nome do produto (client-side, sobre a lista já carregada) e ver/substituir/excluir.
+- **Datas de modificação (`criado_em`/`atualizado_em` em `Produtos` e `Categorias`, schema v9, ver
+  `GOALS.md` "GOALS 30")**: carimbadas por **triggers** do SQLite em `db/datas-modificacao.js` — nunca
+  por UPDATEs espalhados no código — formato UTC ISO-8601 com ms e `Z` (mesma forma de
+  `LogAtividades.data`, então comparar como texto ordena certo). "Modificação" = o cadastro mudou:
+  linha do produto (nome, categorias, lixeira, imagem, campos fiscais), identidade/preço/custo/estoque
+  mínimo de uma variação, variação criada/removida, vínculo de categoria. **Não** conta: venda,
+  devolução, consignação, ajuste manual e entrada de estoque (a entrada muda `preco_custo` junto com
+  `quantidade_estoque` no mesmo UPDATE; o `WHEN` do trigger de `Variacoes` a deixa de fora, senão cada
+  venda reembaralharia "mais recentes"). `NULL` = **desconhecido**: o backfill (uma vez, ao criar a
+  coluna) usa só o `LogAtividades` como evidência — produto sem registro, categorias (sem log) e tudo
+  que existia antes ficam `NULL`, a tela mostra "—" e a ordenação os põe no fim nas duas direções;
+  nunca se inventa data. Restrições: `ALTER TABLE ADD COLUMN` não aceita default não-constante (por isso
+  colunas nullable + trigger); o bloco roda **depois** de `migrarImagensLegadas()` em `iniciarBanco()`
+  (senão todo produto com imagem legada seria carimbado "modificado agora"); não ligar
+  `recursive_triggers`. Ordenação das listas (Produtos/Categorias) é client-side, em
+  `frontend/src/lib/utils/ordenacao.ts`, lembrada em `localStorage` (`erp.ordenacao.*`).
 
 ### Parcelamento v1
 
@@ -353,6 +370,22 @@ certificado A1 e conta em provedor de pagamento ainda pendentes de acesso — ve
 - **Camada central de acesso**: `modules/core/banco.js` expõe `window.erpBanco` (agrupado por domínio: produtos, categorias, clientes, vendas, estoque, precificacao, fornecedores, compras, financeiro, relatorios, dashboard, usuarios, sistema). Incluído em todas as páginas via `<script src="../core/banco.js">`. Módulos novos devem usar `window.erpBanco.*`; `window.api.*` permanece disponível para código legado.
 - **Módulo banco** (`modules/banco/banco.html` + `banco.js`): inspeção crua das tabelas via sidebar (admin). Exige sessão admin (`exigirSessao('admin')`) nos IPC `listar-tabelas-banco` / `consultar-tabela-banco` e confirmação de senha do admin (`verificar-senha-admin`). Cadastros do dia a dia NÃO exigem senha extra (a sessão já autentica).
 - **Conta de suporte do desenvolvedor** (`db/usuarios.js:garantirContaSuporte`, opcional, ver GOALS.md "Developer Support Admin Account" e a Pegadinha real acima sobre colisão de login): existe pra permitir gerenciar qualquer instalação de cliente sem saber a senha daquela loja especificamente. Login/senha só existem se `ERP_SUPORTE_LOGIN`/`ERP_SUPORTE_SENHA` forem definidos no shell de quem publica (nunca commitados — ver `.env.example`); embrulhados na chave-mestre a cada login bem-sucedido de qualquer usuário, não só no bootstrap. Nunca listado em `listarUsuarios()` (não aparece em Gerenciar Acessos), nunca removível/editável via `removerUsuario`/`salvarUsuario`. Deliberadamente **não documentado no README.md** (arquivo público) — a existência é ok pra quem mantém o repo, não pra quem só vê o GitHub público.
+
+- **Nunca use `window.alert()` / `window.confirm()` / `window.prompt()` no frontend** (GOALS 31,
+  2026-10-06). No Electron/Windows, depois que um diálogo JS nativo fecha, a janela inteira pode
+  ficar sem aceitar digitação (cursor some, teclas descartadas) até dar alt-tab — upstream
+  electron/electron#19977, #20400, #40212, #41603, corrigido em #54380 e backportado pra série 43
+  em **#54462** (primeira 43.x com o fix: **v43.7.6**; `package.json` exige `electron ^43.7.8`).
+  Era a causa dos "inputs que não respondem" relatados (o `confirm(resumo)` do PDV rodava a CADA
+  venda). Use `confirmar()` / `avisar()` de `@/lib/dialogo` (ou o hook `useDialogo()`), renderizados
+  por `components/common/DialogoHost.tsx` no layout autenticado: `await confirmar("...")` devolve
+  `boolean` (opções `destrutivo`, `confirmarLabel`, `cancelarLabel`), `avisar("...")` devolve
+  `Promise<void>`; funcionam também em funções fora de componentes. Trava: regra `no-alert` no
+  `frontend/eslint.config.mjs` (roda no CI) + `e2e/helpers/dialogos-nativos.ts`
+  (`vigiarDialogosNativos` falha o teste se um diálogo nativo abrir). `Modal`
+  (`components/ui/modal`) fecha só o do TOPO no Esc e devolve o foco a quem o abriu; `Input` aceita
+  `autoFocus` (a senha de `ConfirmarSenhaModal` já abre focada). Playwright injeta teclado via CDP e
+  NÃO reproduz o bug do SO — a verificação do conserto do Electron em si é manual, com teclado real.
 
 ## Regras de Continuidade
 

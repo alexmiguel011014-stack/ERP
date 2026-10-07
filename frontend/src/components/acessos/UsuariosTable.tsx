@@ -10,6 +10,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { erpApi, parsePermissoesUsuario, type Usuario } from "@/lib/erpApi";
 
+import { avisar, confirmar } from "@/lib/dialogo";
 const LABEL_PERFIL: Record<string, string> = {
 	admin: "ADM",
 	dono: "DONO",
@@ -43,7 +44,7 @@ export default function UsuariosTable({
 			});
 			onAlterado();
 		} catch (e) {
-			alert("Erro: " + (e instanceof Error ? e.message : String(e)));
+			void avisar({ tipo: "erro", mensagem: "Erro: " + (e instanceof Error ? e.message : String(e)) });
 		} finally {
 			setProcessandoId(null);
 		}
@@ -51,9 +52,7 @@ export default function UsuariosTable({
 
 	async function excluir(u: Usuario) {
 		if (
-			!confirm(
-				`Excluir o usuário "${u.nome || u.login}" (${u.login})? Esta ação não pode ser desfeita.`,
-			)
+			!(await confirmar({ mensagem: `Excluir o usuário "${u.nome || u.login}" (${u.login})? Esta ação não pode ser desfeita.`, destrutivo: true, confirmarLabel: "Excluir" }))
 		)
 			return;
 		setProcessandoId(u.id);
@@ -61,7 +60,7 @@ export default function UsuariosTable({
 			await erpApi.usuarios.remover(u.id);
 			onAlterado();
 		} catch (e) {
-			alert("Erro: " + (e instanceof Error ? e.message : String(e)));
+			void avisar({ tipo: "erro", mensagem: "Erro: " + (e instanceof Error ? e.message : String(e)) });
 		} finally {
 			setProcessandoId(null);
 		}

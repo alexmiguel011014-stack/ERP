@@ -27,6 +27,7 @@ import {
 	lerValorMonetario,
 } from "@/components/pdv/formatos";
 
+import { confirmar } from "@/lib/dialogo";
 function formasPagamentoLabel(forma: string): string {
 	return forma || "---";
 }
@@ -148,6 +149,11 @@ export default function PdvPage() {
 	// Depois de uma venda o rascunho é apagado; sem isso o efeito de salvar
 	// abaixo regravava o formulário vazio (com requestId null) por cima.
 	const limpezaFormularioPendente = useRef(false);
+	// O diálogo in-app não bloqueia a thread como o confirm() nativo: sem esta
+	// trava, um segundo clique/Enter em Finalizar (ou Orçamento) com a
+	// confirmação já aberta empilharia outra — e aceitar as duas gravaria duas
+	// vendas.
+	const confirmacaoPendente = useRef(false);
 
 	// Igual o carrinho: sobrevive a uma navegação/reload acidental antes de
 	// finalizar a venda, em vez de perder o que já foi preenchido.
@@ -456,6 +462,7 @@ export default function PdvPage() {
 	}
 
 	async function finalizar() {
+		if (confirmacaoPendente.current) return;
 		const descontoInformado = lerDecimalInformado(desconto);
 		if (desconto.trim() !== "" && descontoInformado === null) {
 			mostrarMensagem("Informe um desconto válido.", false);
@@ -490,7 +497,11 @@ export default function PdvPage() {
 				: formaPagamento === "Cartão"
 					? `\n\n${condicao?.nome || "Condição"} será registrada na venda; nenhuma conta a receber será criada.`
 				: "");
-		if (!confirm(resumo)) {
+		confirmacaoPendente.current = true;
+		const confirmou = await confirmar(resumo).finally(() => {
+			confirmacaoPendente.current = false;
+		});
+		if (!confirmou) {
 			setRequestId(null);
 			return;
 		}
@@ -552,6 +563,7 @@ export default function PdvPage() {
 	}
 
 	async function criarOrcamento() {
+		if (confirmacaoPendente.current) return;
 		if (pagamentos.length > 1) {
 			mostrarMensagem(
 				"Pagamento dividido só pode ser usado ao finalizar a venda. Remova a divisão para criar um orçamento.",
@@ -559,12 +571,13 @@ export default function PdvPage() {
 			);
 			return;
 		}
-		if (
-			!confirm(
-				"Criar orçamento com os itens do carrinho? O estoque NÃO será baixado agora — converta em venda depois, na tela de Vendas.",
-			)
-		)
-			return;
+		confirmacaoPendente.current = true;
+		const confirmou = await confirmar(
+			"Criar orçamento com os itens do carrinho? O estoque NÃO será baixado agora — converta em venda depois, na tela de Vendas.",
+		).finally(() => {
+			confirmacaoPendente.current = false;
+		});
+		if (!confirmou) return;
 
 		setProcessando(true);
 		try {

@@ -7660,3 +7660,394 @@ sales; valid reviewed `YYYY-MM` finance JSONs including February and later coexi
 safely; Excel exclusions are explicit; automated checks pass; and the real Electron workflow is
 verified with disposable data while unrelated WIP and the emergency fallback remain safe.
 
+
+## GOALS 30 — Produtos & Categorias lists: Explorer-style sorting and "Modificado em" (feature, not started)
+
+**Source:** owner request (2026-10-06). In the *Lista de Produtos* and *Lista de Categorias* modals
+(opened from Produtos → Cadastro, buttons at `frontend/src/components/produtos/ProdutoFormPanel.tsx:329-337`),
+the order is hard-coded A→Z. The owner wants Windows-Explorer-like control: a sort button
+(name A→Z / Z→A, modified newest / oldest), a "last modified" column, and a heads-up about any
+other sort that fits the same menu (see 30-14).
+
+```mermaid
+flowchart TD
+    D["Design decisions"] --> S["Schema: columns, backfill, triggers"]
+    S --> T1["DB tests"]
+    S --> A["Expose fields: query results + TS types"]
+    A --> U["Sort util + OrdenarMenu"]
+    U --> P["Lista de Produtos UI"]
+    U --> C["Lista de Categorias UI"]
+    P --> T2["Unit + e2e tests"]
+    C --> T2
+    T2 --> R["Docs + manual visual check"]
+    R --> X["manual: owner picks extra sorts"]
+```
+
+Suggested: opus · high — the schema/trigger migration runs inside `iniciarBanco()` on every
+customer's encrypted DB at boot (a bug there blocks the whole app from opening); the UI items
+alone would be sonnet · medium.
+
+### Current state (verified 2026-10-06 — do not re-research)
+
+- **No modification timestamps exist.** `Produtos`, `Variacoes` and `Categorias` have no
+  `criado_em`/`atualizado_em` (`db/schema.js:49-90`, `migrarColunas` blocks at `:527-554`). Only
+  `Imagens`, `CondicoesParcelamento`, `LogAtividades` etc. have them. So "last modified" is a
+  **schema change**, not just UI.
+- **Ordering is server-side and fixed.** `listProdutosDetalhados` (`db/produtos.js:357-427`) does
+  `ORDER BY p.nome COLLATE NOCASE`; `categoriasWithUsage` (`db/categorias.js:32-57`) does groups-first
+  then `c.nome COLLATE NOCASE`. SQLite `NOCASE` folds only ASCII, so accented names ("Água", "Ágata")
+  sort after "Z". Both modals already **filter client-side** over the full loaded array
+  (`ProdutosListModal.tsx:117-130`, `CategoriasListModal.tsx:54-65`) — sorting client-side after the
+  filter fits the existing pattern, with no new IPC.
+- **Audit log is real history for products.** `LogAtividades(acao, entidade, entidade_id, data ISO-Z)`
+  records `criar-produto`, `editar-produto`, `atribuir-categoria-produtos-lote`, `excluir-produto`,
+  `restaurar-produto`, `excluir-produto-permanente`, `alterar-imagem-produto`, `remover-imagem-produto`
+  with `entidade='Produtos'` (`ipc/produtos.js:36,68,84,101,112,123,148,196,208`). Categories have
+  **no** log entries (`ipc/categorias.js` never calls `log`) and imported products are not logged
+  per-row, so for those no real history exists.
+- **Write sites are scattered** (do not patch each one): `Produtos`/`Variacoes`/`Categorias`/
+  `ProdutoCategorias` are written from `db/produtos.js`, `db/categorias.js`, `db/importacoes.js`,
+  `db/precificacao.js:99,325,346` (preco/preco_custo), `db/estoque.js:31` (stock **and** custo in one
+  UPDATE), `db/vendas.js`/`db/consignacoes.js` (stock/reserved only), `db/imagens.js:185`.
+  A SQLite trigger layer covers all of them, including future ones.
+- **Gotchas found while reading the code:** (a) SQLite `ALTER TABLE ADD COLUMN` cannot take a
+  non-constant default, so the columns must be nullable and stamped by triggers; (b) `package.json`
+  `"test"` is an **explicit file list**, not a glob — a new `test/*.test.js` must be appended;
+  (c) `migrarImagensLegadas()` (`db/schema.js:887`) rewrites `Produtos.imagem_id` at boot and the
+  production image migration is still pending — triggers must be created **after** it or every
+  legacy-image product would be stamped "modified now"; (d) `ProdutosListModal.tsx:469,478` and
+  `CategoriasListModal.tsx:269,278` hard-code `colSpan` for the table width — adding a column breaks
+  the empty/loading rows unless updated; (e) the modal's Esc handler is a `document` listener, so the
+  sort popover must not let Esc close the whole modal.
+
+### Design decisions (settled in this plan; owner may override before execution)
+
+- **Scope:** only the two modals. Sorting is client-side over the loaded rows, applied **after** the
+  existing filters and **before** render, so "selecionar todos visíveis" and CSV export keep working on
+  what is shown. Default order is unchanged: products = Name A→Z; categories = **"Padrão"**
+  (groups first, then name — today's order). Choice persists per list in `localStorage` via
+  `usePersistedState` (`erp.ordenacao.produtos`, `erp.ordenacao.categorias`); an unknown/stale stored
+  value falls back to the default.
+- **Requested options (4):** Nome (A → Z), Nome (Z → A), Modificação (mais recente), Modificação
+  (mais antiga). Categories add "Padrão" as the default. Name compare uses
+  `Intl.Collator("pt-BR", { sensitivity: "base", numeric: true })` (accents and "A2 < A10" behave);
+  ties break by name then id so the order is stable.
+- **Explorer-style affordances:** a single **Ordenar** button (popover with radio options, active one
+  checked) in the modal header, **plus** clickable column headers with ▲/▼ and `aria-sort` — both drive
+  the same state. First click on "Produto"/"Nome" = ascending; first click on "Modificado em" =
+  newest first (Explorer behaviour for date columns); second click reverses.
+- **"Última modificação" semantics:** the product's *registry* changed — product row (name, categories,
+  active/trash, image, fiscal fields), any variation's identity/price/cost/min-stock, variation
+  added/removed, category link added/removed. **Not** a modification: sales, returns, consignment,
+  manual stock adjustments, and stock entries (a stock entry changes `quantidade_estoque` together with
+  `preco_custo` in one UPDATE — the trigger guard `quantidade_estoque` unchanged skips it), otherwise
+  every sale would reshuffle "most recently modified". Trashing a product counts, so in the Lixeira
+  "Modificado em" effectively reads as "excluded at". Categories: rename, re-parent, activate/inactivate.
+- **No invented history:** `criado_em`/`atualizado_em` are stored as UTC ISO-8601 with ms and `Z`
+  (`strftime('%Y-%m-%dT%H:%M:%fZ','now')`, the same shape as `LogAtividades.data`, so plain string
+  comparison sorts correctly). Existing rows are backfilled **only** from real log entries; anything
+  without evidence stays `NULL`, renders as "—" and sorts **last in both directions**.
+- **Display:** `dd/MM/yyyy HH:mm` in local time (`toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })`).
+- **Out of scope:** drag-and-drop manual order (would need a persisted `ordem` column and would touch
+  every screen that lists products), group-by, sorting in PDV/Estoque/Precificação, the legacy
+  `modules/` frontend (it ignores the new fields), and any change to PDV search ordering.
+
+### Schema and data (backend)
+
+- [x] **GOALS 30-01 — Add timestamp columns and bump the schema version.** In `db/schema.js`
+  `iniciarBanco()`, via `migrarColunas`: `Produtos.criado_em TEXT`, `Produtos.atualizado_em TEXT`,
+  `Categorias.criado_em TEXT`, `Categorias.atualizado_em TEXT` (nullable, no default — see gotcha a).
+  Place this block **after** `migrarImagensLegadas()` and before `PRAGMA user_version` (gotcha c).
+  Bump `VERSAO_SCHEMA` 8 → 9 with a comment line in the existing history comment
+  (`db/schema.js:5-12`; `test/backup.test.js` compares against the constant, so it stays green).
+  Done when: a fresh DB and an upgraded v8 DB both end with the four columns and `user_version = 9`.
+- [x] **GOALS 30-02 — One-time, evidence-only backfill.** Before creating the triggers, and only when
+  `Produtos.atualizado_em` did not exist before this boot's `migrarColunas` (check `colunasDaTabela`
+  first), set `Produtos.criado_em = MIN(LogAtividades.data)` for `acao='criar-produto'` and
+  `Produtos.atualizado_em = MAX(LogAtividades.data)` over any log row with `entidade='Produtos'` and
+  that `entidade_id`. Guard each UPDATE with `WHERE EXISTS (…matching log row…)` so rows without
+  evidence are left `NULL`. Export the backfill as a small named function so a test can call it.
+  Categories get no backfill (no history exists). Done when: a product with a log row gets those dates,
+  a product/category without one stays `NULL`, and running the function twice changes nothing.
+- [x] **GOALS 30-03 — Triggers that stamp the dates (single source of truth).** Created with
+  `CREATE TRIGGER IF NOT EXISTS`, after 30-02, idempotent on every boot, using
+  `strftime('%Y-%m-%dT%H:%M:%fZ','now')`:
+  `Produtos` AFTER INSERT (set both dates where `criado_em IS NULL`) and AFTER UPDATE
+  `WHEN NEW.atualizado_em IS OLD.atualizado_em` (bump — the WHEN guard means a statement that already
+  sets the date, like the backfill, does not re-trigger and no column list needs maintenance);
+  `Variacoes` AFTER INSERT, AFTER DELETE, and AFTER UPDATE OF `sku, codigo_barras, tamanho, cor, preco,
+  preco_custo, atributos, estoque_minimo` `WHEN NEW.quantidade_estoque IS OLD.quantidade_estoque` —
+  each bumps the parent `Produtos.atualizado_em`; `ProdutoCategorias` AFTER INSERT / AFTER DELETE bump
+  the product; `Categorias` AFTER INSERT (both dates) and AFTER UPDATE
+  `WHEN NEW.atualizado_em IS OLD.atualizado_em`. Do **not** enable `recursive_triggers`. Done when 30-05
+  passes, including the negative cases (sales, stock entry, manual stock adjustment do **not** bump).
+- [x] **GOALS 30-04 — Expose the dates.** Add `p.criado_em, p.atualizado_em` to the product SELECT and
+  mapped object in `listProdutosDetalhados` (`db/produtos.js:368-426`) and `c.criado_em,
+  c.atualizado_em` to `categoriasWithUsage` (`db/categorias.js:32-57`); add
+  `criado_em: string | null; atualizado_em: string | null` to `ProdutoDetalhado`
+  (`frontend/src/lib/erpApi.ts:660`) and `CategoriaComUso` (`:690`). No new IPC channel, no
+  `preload.js`/`database.js` change (same handlers, richer rows). Done when: both types and both
+  queries carry the fields and `npm run typecheck` (frontend) passes.
+- [x] **GOALS 30-05 — DB tests.** New `test/produtos-datas-modificacao.test.js` (temporary-DB pattern
+  of `test/categorias-editar.test.js`) **and append it to the `"test"` script list in `package.json`**.
+  Cover: new product/category get both dates; editing a product (`atualizarProduto`) bumps it; changing
+  a variation's price via the precificação path bumps it; category rename and activate/inactivate bump
+  the category; batch category assignment bumps only products that actually got a new link
+  (`INSERT OR IGNORE` of an existing pair does not); trashing/restoring bumps; **a sale
+  (`quantidade_estoque` decrement) and a stock entry (`db/estoque.js:31`) do not bump**; backfill
+  from a seeded `LogAtividades` row; backfill leaves evidence-less rows `NULL`; upgrading a DB created
+  by the previous schema (no columns) via `iniciarBanco()` succeeds and is idempotent on a second boot
+  (see `scripts/test-migracao.js` for the old-schema pattern). Done when: all pass and each negative
+  case fails if its trigger guard is removed.
+
+### Frontend
+
+- [x] **GOALS 30-06 — Sort model and date formatter (pure, no React).** New
+  `frontend/src/lib/utils/ordenacao.ts` — **no `@/` alias imports** so a Playwright spec can import it:
+  `Ordenacao = { campo; direcao }`, one option registry per list (id, pt-BR label, campo, direcao),
+  `ordenar(lista, opcaoId)` implementing the collator rule, nulls-last-in-both-directions, and the
+  name→id tie-break from the decisions above, and `lerOrdenacaoPersistida()` that validates a stored id
+  against the registry. Add one shared `formatarDataHora(iso | null)` (returns `"—"` for null) to
+  `frontend/src/lib/utils/formatos.ts`; do not refactor the two private copies in
+  `app/(admin)/importacao/page.tsx` and `components/acessos/LogAtividadesPanel.tsx`.
+- [x] **GOALS 30-07 — `OrdenarMenu` component.** `frontend/src/components/common/OrdenarMenu.tsx`,
+  reused by both modals: an outline `Button size="sm"` "Ordenar" (sort icon) that opens a popover
+  (reuse `components/ui/dropdown/Dropdown.tsx` — its click-outside already ignores `.dropdown-toggle`)
+  with a radio list (`role="menuitemradio"`, `aria-checked`), grouped "Nome" / "Última modificação",
+  active option checked. Keyboard: arrows move, Enter selects, **Esc closes only the popover** (verify
+  in 30-11 that the parent modal stays open). It lives in the modal header row, not inside the
+  `overflow-y-auto`/`overflow-x-auto` regions, so the popover is not clipped.
+- [x] **GOALS 30-08 — Lista de Produtos.** In `ProdutosListModal.tsx`: add the `OrdenarMenu` to the
+  toolbar (`:304-333`, between search and "Lixeira"); persisted state per 30-06; sort
+  `produtosFiltrados` (`:118-130`) after filtering; add a **"Modificado em"** column before "Ações"
+  (with `title`: "Data da última alteração do cadastro (na Lixeira: quando foi excluído)"); make the
+  "Produto" and "Modificado em" `<th>` clickable buttons with ▲/▼ + `aria-sort`; bump both
+  `colSpan={modoSelecao ? 6 : 5}` to account for the new column. Done when: the four requested options
+  reorder the list, the column shows `—` for rows without a date, selection mode and CSV export still
+  act on the visible rows.
+- [x] **GOALS 30-09 — Lista de Categorias.** Same treatment in `CategoriasListModal.tsx`: toolbar button
+  (`:165-180`), options "Padrão" (default) + the four requested, sort `filtradas` (`:55-65`), new
+  "Modificado em" column (add to the header array at `:248-255`) and `colSpan` 6 → 7 at `:269,278`.
+  The edit modal (`:395-462`) is untouched.
+- [x] **GOALS 30-10 — Unit tests for the comparator.** New Playwright spec **without launching Electron**
+  (e.g. `e2e/ordenacao.spec.ts`, imports `../frontend/src/lib/utils/ordenacao`; Playwright compiles TS,
+  `frontend/` has no unit runner): accents ("Água" before "Zebra"), numeric ("A2" before "A10"),
+  asc/desc, `null` dates last in both directions, tie-break stability, unknown persisted id → default.
+- [x] **GOALS 30-11 — e2e for both lists.** New `e2e/ordenacao-listas.spec.ts` following
+  `e2e/produtos-cadastro.spec.ts` / `e2e/parcelamento.spec.ts` (isolated `ERP_TEST_USERDATA_DIR`, seed via
+  `window.evaluate(() => window.api.salvarProduto(...))`, ≥3 products created ~20 ms apart, then one
+  edited via `window.api.atualizarProduto`). Assert: default A→Z; "Modificação (mais recente)" puts the
+  edited product first and "mais antiga" last; Z→A; the column shows a formatted date; header click
+  toggles; **Esc inside the open popover closes it but not the modal**; the chosen order survives
+  closing/reopening the modal; same for categories (rename one, check order). Use web-first assertions
+  with the repo's usual timeouts — push-run e2e has shown unrelated random 5 s timeouts before.
+- [ ] **GOALS 30-12 — [manual] Visual check.** In the real Electron window, light and dark theme, 1024-px
+  minimum width: toolbar wrapping with the extra button, popover not clipped, column widths, ▲/▼ legible.
+  Ask the owner for a screenshot of each modal in each theme (do not capture the desktop).
+- [x] **GOALS 30-13 — Docs.** `AGENTS.md` "Banco de Dados": document the four columns, trigger-based
+  stamping, what does/does not count as a modification, the `NULL`-means-unknown rule, and the
+  trigger-after-image-migration ordering constraint. Add the user-facing line to the release notes in
+  `frontend/src/lib/atualizacaoNotas.ts` **only** when GOALS 31-14 bumps the version (that file is
+  validated against `package.json` by `npm run check:version-notes`).
+- [ ] **GOALS 30-14 — [manual] Owner decision: extra sorts (the "tell me" part of the request).**
+  Because the registry in 30-06 makes each option a one-line addition, these all fit the same menu —
+  recommended first: **Products** — *Data de cadastro* (newest/oldest; `criado_em` is being captured
+  anyway and cannot be recovered later), *Estoque total* (most/least, sum of variations),
+  *SKU* (A→Z/Z→A), *Preço* (lowest/highest variation price — ambiguous for multi-variation products,
+  decide min vs. range), *Categoria* (A→Z; "sem categoria primeiro" helps the batch-categorize flow).
+  **Categories** — *Código*, *Nº de produtos vinculados* (most/least), *Tipo* (grupos/atributos first),
+  *Data de cadastro*. Not implemented until the owner picks; default if no answer = none.
+- [x] **GOALS 30-15 — Run project checks.** Root `npm test`, root `npm run lint`, frontend
+  `npm run lint` + `npm run typecheck`, frontend `npm run build`, `npx playwright test e2e/ordenacao.spec.ts
+  e2e/ordenacao-listas.spec.ts`, plus one full `npm run test:e2e` pass. Record automated evidence apart
+  from the manual items (it does not prove visual acceptance).
+
+**Done when:** both lists offer the four requested orders through an Ordenar menu and clickable
+headers, show a "Modificado em" column, remember the choice, keep today's default order; modification
+dates are stamped by triggers for every registry change (and never by sales or stock movements),
+backfilled only from real log evidence; existing and fresh databases both migrate cleanly and
+idempotently; automated tests pass; the owner has seen both modals in both themes and answered the
+extra-sorts question.
+
+---
+
+## GOALS 31 — Inputs stop responding after a native alert()/confirm() (fix, not started)
+
+**Source:** owner request (2026-10-06): a customer reported that while deleting a product "the input
+was not responding", and the owner says this happens a lot in the app.
+
+**Current (wrong) behaviour:** after any native `window.confirm()` / `window.alert()` is dismissed, text
+inputs in the whole window stop accepting typing (caret gone, keystrokes dropped) until the window is
+deactivated and reactivated (alt-tab, minimize/restore). **Expected:** inputs always accept typing
+right after a dialog closes.
+
+```mermaid
+flowchart TD
+    F["manual: customer version + repro"] --> E["Bump Electron to patched 43.x"]
+    E --> V["manual: real-keyboard re-verify"]
+    V --> REL["manual: release"]
+    E --> P["In-app dialog provider"]
+    P --> M1["Migrate Produtos / Categorias / Estoque flows"]
+    M1 --> M2["Migrate PDV, then the rest + non-React callers"]
+    M2 --> G["Guards: no-alert lint + e2e tripwire"]
+    P --> H["Modal / Input hardening"]
+    H --> T["e2e for the delete flow"]
+    G --> DOC["Docs"]
+    T --> DOC
+    DOC --> REL
+```
+
+Suggested: sonnet · high — the Electron bump itself is low risk, but the dialog migration touches 22
+files across PDV/Financeiro/Acessos (high traffic) and `Modal` is shared by every screen; release
+steps are manual. Item 31-03 alone is haiku · low.
+
+### Root cause (evidence gathered 2026-10-06)
+
+- **Confirmed upstream, not yet reproduced in this app.** Electron bug on Windows (and Linux): after
+  `alert()`/`confirm()`/beforeunload is dismissed, the renderer view is focused in the UI layer but not
+  in the browser engine (no IME client), so input events are discarded until the window is deactivated
+  and reactivated. Reports: electron/electron#19977, #20400, #20821, #35872, #40212, #41602, #41603.
+  Fixed by electron/electron#54380 (merged to `main` 2026-09-26, "fix: restore keyboard input after a
+  JavaScript dialog on Windows and Linux"); **backported to `43-x-y` as #54462 (merged 2026-09-27)**
+  (also 44/45). This project's `package-lock.json:2358` pins `electron` **43.4.0** (shipped in 1.4.2,
+  released 2026-09-17) — ten days before the backport existed. The newest 43.x at plan time was
+  v43.7.8 (2026-10-06); verify the exact first fixed tag in step 31-03.
+- **Why it looks "random" and "all over the app":** `frontend/src` has **38 native dialog calls in 22
+  files (20 `confirm`, 18 `alert`)** — listed in 31-06/07/08. The worst offender is the PDV: `confirm(resumo)`
+  at `frontend/src/app/(admin)/pdv/page.tsx:493` fires on **every sale finalization**, so the search
+  field is dead right after each sale (this also fits the never-confirmed "PDV trava" symptom noted
+  from 2026-09-03). The state is **window-wide and persists across screens**, so the victim input is
+  often not the one that opened the dialog.
+- **Why the delete flow got hit:** product delete (`ProdutosListModal.tsx:584-595` → `ConfirmarSenhaModal`)
+  contains **no** native dialog itself, so the freeze came from an *earlier* native dialog in the same
+  session (batch-category confirm `:182`, the error alerts `:206,221,241,249`, "Remover imagem?" in
+  `ProdutoImagemPicker.tsx:68`, a PDV sale, …); the password field in the delete modal was just where
+  the customer noticed it.
+- **Distinct earlier cause, already fixed:** the tab keep-alive that mounted the active page N× (PR #18,
+  merged 2026-09-15, shipped in **1.4.2**, published 2026-09-17; 1.4.1 published 2026-09-13 does
+  **not** contain it). A customer still on ≤ 1.4.1 has both problems.
+- **Contributing defects in the delete modal (not the main cause):** `ConfirmarSenhaModal.tsx:71-76`
+  never focuses its password field and `Input` (`components/form/input/InputField.tsx:9-28`) has no
+  `autoFocus` prop, so any focus loss looks like a dead input; `Modal`
+  (`components/ui/modal/index.tsx:29-43`) registers a `document` Esc listener per open modal, so Esc in
+  the password modal also closes the *Lista de Produtos* behind it; `Modal` never restores focus to the
+  trigger on close.
+- **Ruled out:** catalog size/perf (`listProdutosDetalhados` is O(P×V) but the store catalog is
+  hundreds of rows); `AbaViva` focus restore (skips elements that are not connected/visible).
+- **Why no automated repro:** Playwright drives Electron through CDP synthetic input, which bypasses the
+  OS-level focus path that breaks — do not spend time trying; the before/after gate is manual (31-02,
+  31-04), and the *mitigation* is gated automatically (31-10).
+
+### Facts and repro
+
+- [ ] **GOALS 31-01 — [manual] Collect the missing facts.** Ask the owner for the customer's installed
+  version (Atualizações screen) and what the customer did just before the freeze (any confirm/alert, a
+  sale?). If the version is ≤ 1.4.1, the tab-multiplication cause is also in play and updating fixes
+  that part regardless of this plan.
+- [ ] **GOALS 31-02 — [manual] Reproduce on the current build with a real keyboard.** On Windows, run the
+  current build (`npm start` after `cd frontend && npm run build`, Electron 43.4.0). Path A: PDV → add an
+  item → Finalizar → accept the native "Confirmar venda…?" → type in the product search field. Path B:
+  Produtos → Lista de Produtos → "+ Categorias" → tick a product + a category → Aplicar → accept the
+  native confirm → click "Excluir" on a row → try typing in the password field. Expected on 43.4.0:
+  caret missing / keys dropped until alt-tab and back. Record yes/no for each path — this is the
+  "fails before" gate. If it does **not** reproduce, stop and re-open the root-cause analysis (the
+  plan below would still be a correct hardening, but the diagnosis would be wrong).
+
+### Fix A — upstream root cause
+
+- [x] **GOALS 31-03 — Bump Electron to a release that contains #54462.** (Done: first fixed 43.x is v43.7.6 — its release notes list #54462; installed v43.7.8, `package.json` `^43.7.8`.) Run
+  `npm view electron@^43 version --json` and pick the newest 43.x (v43.7.8 at plan time); confirm its
+  release notes (or the `43-x-y` backport #54462 merge date 2026-09-27 vs the tag date) include the
+  dialog-keyboard fix. Update `package.json:87` to that minimum (e.g. `^43.7.8`) and refresh
+  `package-lock.json` (`npm install`), commit the lockfile (CI `npm ci` and electron-builder both build
+  from it). Same major ⇒ same Node ABI, but still run `npm run rebuild` if `@journeyapps/sqlcipher` fails
+  to load, then `npm test`, `npx electron scripts/test-ui.js`, and the e2e suite. Done when: `npx electron
+  --version` prints the new version and all of the above pass. Do **not** bump the app version here
+  (31-14).
+- [ ] **GOALS 31-04 — [manual] Verify on the patched build with a real keyboard.** Repeat 31-02 paths A and B
+  on the patched Electron (before any dialog migration, so the Electron fix is proven on its own).
+  Done when: typing works immediately after each native dialog closes, without alt-tab.
+
+### Fix B — remove the native dialogs (defense in depth, keeps working if Electron regresses)
+
+- [x] **GOALS 31-05 — In-app dialog provider.** New `frontend/src/context/DialogoContext.tsx` +
+  `components/common/DialogoHost.tsx` built on the existing `Modal`
+  (`components/atualizacao/ConfirmarInstalacaoModal.tsx` is the visual template). API:
+  `confirmar({ titulo?, mensagem, confirmarLabel?, cancelarLabel?, destrutivo? }): Promise<boolean>` and
+  `avisar({ titulo?, mensagem, tipo?: "erro"|"info"|"sucesso" } | string): Promise<void>` via
+  `useDialogo()`, **plus a module-level imperative bridge** the provider registers on mount (two callers,
+  `lib/utils/vendasExport.ts:12` and `lib/utils/relatoriosExport.ts:100`, are plain functions, not
+  components). Behaviour to match native: FIFO queue (overlapping calls never clobber each other),
+  `mensagem` rendered with `whitespace-pre-line` (the PDV summary uses `\n\n`), Enter confirms / Esc
+  cancels, backdrop click = cancel, default focus on the confirm button (PDV is keyboard-driven) except
+  `destrutivo: true`, which focuses Cancel; on close, focus returns to the element that had it before
+  (see 31-09). Mount once in `app/(admin)/layout.tsx`, outside the tab host, so it is never hidden by
+  `AbaViva`'s `display:none` and renders above any open modal (same `z-99999`, later in the DOM).
+- [x] **GOALS 31-06 — Migrate the Produtos / Categorias / Estoque flows first (the reported area).**
+  `ProdutosListModal.tsx` (confirm `:182`, alerts `:206,221,241,249`), `CategoriasListModal.tsx` (alerts
+  `:69,80,95,141,152` — note `:141` fires inside `excluirConfirmado`, i.e. a native alert right after
+  the password modal), `CategoriaSelector.tsx:85`, `ProdutoImagemPicker.tsx:68`,
+  `EstoqueReposicaoForm.tsx:142`, `EstoqueListaView.tsx:66,73`, `app/(admin)/produtos/consignacao/page.tsx:210`.
+  Handlers that were synchronous become `async`; keep the message text identical (it is user-facing,
+  Portuguese, and tested nowhere else).
+- [x] **GOALS 31-07 — Migrate the PDV.** `app/(admin)/pdv/page.tsx:493` (sale summary — on cancel it must
+  still run `setRequestId(null)`), `:563` (orçamento), `components/pdv/CaixaModal.tsx:75`,
+  `components/pdv/DevolucaoModal.tsx:82`, `components/vendas/VendaDetalheModal.tsx:78`. Guard against
+  re-entry while a dialog is pending (a second Enter/click must not queue a second "finalizar"). After
+  the sale dialog resolves, focus must land back in the PDV search field (`BuscaProduto.tsx:41`
+  already refocuses on `inputRef`).
+- [x] **GOALS 31-08 — Migrate the rest.** `components/clientes/ClientesTable.tsx:37,47`,
+  `components/fornecedores/FornecedoresTable.tsx:36,42`, `components/acessos/UsuariosTable.tsx:46,54,64`,
+  `components/compras/NovoPedidoForm.tsx:192`, `components/compras/PedidosList.tsx:113`,
+  `components/financeiro/LancamentosRecorrentesTab.tsx:100`, `LancamentosTab.tsx:39,56`,
+  `LancamentosUnificados.tsx:81,97`, `PagamentosTab.tsx:33`, and the two non-React callers
+  (`vendasExport.ts:12`, `relatoriosExport.ts:100`) through the imperative bridge. Done when
+  `grep -rnE "(^|[^.\w])(alert|confirm|prompt)\(|window\.(alert|confirm|prompt)" frontend/src` returns nothing.
+- [x] **GOALS 31-09 — Harden `Modal` and `Input` (shared by every screen — keep the diff small).**
+  (a) `components/form/input/InputField.tsx`: add an `autoFocus?: boolean` prop forwarded to the
+  `<input>`; set it on the password field in `ConfirmarSenhaModal.tsx:71`. (b) `components/ui/modal/index.tsx`:
+  replace the per-modal `document` Esc listener with a module-level stack so **only the top-most open
+  modal** closes on Esc; keep the existing `useAbaVisivel()` gating. (c) On open remember
+  `document.activeElement`; on close restore it if still connected (what a native dialog did). No full
+  focus trap (Tab can still leave the modal — pre-existing, out of scope).
+- [x] **GOALS 31-10 — Guards so it cannot come back.** (a) `frontend/eslint.config.mjs`: add
+  `{ rules: { "no-alert": "error" } }` after the Next presets — CI's frontend job already runs
+  `npm run lint`. (b) A shared e2e helper (or `test.beforeEach`) that registers `window.on("dialog", …)`
+  and **fails the test if any native JS dialog fires**, enabled in the specs that exercise the migrated
+  flows. Done when: temporarily reintroducing a `confirm(` makes both `npm run lint` and the tripwire
+  fail (verify once, then revert).
+- [x] **GOALS 31-11 — Tests for the delete flow and the dialog provider.** New `e2e/dialogos.spec.ts`
+  (seed a product via `window.evaluate(() => window.api.salvarProduto(...))`, as `e2e/parcelamento.spec.ts`
+  does): open Lista de Produtos → Excluir → the password field is **already focused** (`toBeFocused`),
+  typing works, **Esc closes only the password modal** (the list stays open), Cancel returns focus to
+  the "Excluir" button, a wrong password shows the inline error, a correct one moves the product to the
+  Lixeira. Provider: confirm resolves true/false on Enter/Esc/click, destructive focuses Cancel, two
+  queued calls resolve in order, multi-line message renders. Note: this proves the *mitigation*; it
+  cannot prove the OS-level fix (31-04).
+- [x] **GOALS 31-12 — Run project checks.** Root `npm test` + `npm run lint`; frontend `npm run lint`,
+  `npm run typecheck`, `npm run build`; `npx electron scripts/test-ui.js`; full `npm run test:e2e`.
+  Existing specs that dismiss native dialogs through Playwright (`page.on("dialog")`) or click through a
+  `confirm` must be updated to click the new in-app buttons — grep `e2e/` for `dialog` and
+  `accept()` first.
+- [x] **GOALS 31-13 — Docs.** `AGENTS.md`: add a rule under "Decisões Arquiteturais" — never use
+  `window.alert/confirm/prompt` (Electron/Windows focus bug; use `useDialogo()`), enforced by `no-alert`;
+  record the Electron minimum version and why (#54380/#54462). Update the older note in AGENTS.md about
+  the tab keep-alive so it points to both causes.
+
+### Release
+
+- [ ] **GOALS 31-14 — [manual] Ship it to the customer.** The fix reaches the store only through a new
+  installer (Electron is baked into the `.exe`). Hotfix path = 31-01…31-04 only; otherwise include
+  everything done under GOALS 30 and 31. Steps (owner-approved, outward-facing): choose the version
+  (suggest **1.4.3**), add its entry to `frontend/src/lib/atualizacaoNotas.ts` (e.g. "Corrige campos que
+  deixavam de aceitar digitação depois de uma confirmação" and, if GOALS 30 is included, "Listas de
+  Produtos e Categorias: ordenação e coluna Modificado em"), bump `package.json`, run
+  `npm run check:version-notes`, build/publish following `AGENTS.md` §"Processo de release"
+  (`GH_TOKEN` in the shell only, then un-draft the release with `gh release edit … --draft=false`), have
+  the customer update, and re-run 31-02 path B on the customer's machine. Never commit tokens.
+
+**Done when:** on a real Windows window, typing works immediately after any dialog or confirmation in
+the app (verified before/after with a real keyboard on the unpatched/patched Electron); the app ships an
+Electron containing #54462 and contains no native `alert`/`confirm`/`prompt` (lint-enforced); deleting a
+product opens a password field that is already focused, Esc closes only the top modal and focus returns
+to the trigger; and the fixed build is installed on the customer's machine.

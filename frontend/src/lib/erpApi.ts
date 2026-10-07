@@ -667,6 +667,11 @@ export type ProdutoDetalhado = {
 	subcategoria_id: number | null;
 	imagem: string | null;
 	ativo: number;
+	// UTC ISO-8601 (com ms e "Z") carimbado por triggers — ver
+	// db/datas-modificacao.js. null = desconhecido (registro anterior ao
+	// carimbo e sem evidência no log), nunca uma data inventada.
+	criado_em: string | null;
+	atualizado_em: string | null;
 	categorias_selecionadas: CategoriaSelecionada[];
 	variacoes: VariacaoProduto[];
 };
@@ -695,6 +700,8 @@ export type CategoriaComUso = {
 	categoria_pai_nome: string | null;
 	tipo: "categoria" | "subcategoria";
 	ativo: boolean;
+	criado_em: string | null;
+	atualizado_em: string | null;
 	uso_count: number;
 	// Só produtos com ativo=1 — é essa contagem que bloqueia Inativar (ao
 	// contrário de Excluir, que bloqueia com QUALQUER vínculo, ativo ou não).

@@ -3,6 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import type { ElectronApplication, Locator, Page } from "playwright-core";
+import { vigiarDialogosNativos } from "./helpers/dialogos-nativos";
 
 const ROOT = path.join(__dirname, "..");
 const PRODUTO = "Produto Parcelamento E2E";
@@ -13,16 +14,20 @@ test.describe("parcelamento no Electron", () => {
 	let electronApp: ElectronApplication;
 	let window: Page;
 	let userDataDir: string;
+	let vigia: ReturnType<typeof vigiarDialogosNativos>;
 
 	function visible(): Locator {
 		return window.locator(":visible");
 	}
 
+	// A confirmação é um diálogo in-app (lib/dialogo.ts, role="alertdialog"),
+	// não mais o confirm() nativo — o tripwire abaixo falha se um nativo abrir.
 	async function confirmarClique(botao: Locator) {
-		window.once("dialog", (dialogo) => {
-			void dialogo.accept();
-		});
 		await botao.click();
+		await window
+			.getByRole("alertdialog")
+			.getByRole("button", { name: "Confirmar" })
+			.click();
 	}
 
 	async function adicionarProdutoNoPdv() {
@@ -50,6 +55,7 @@ test.describe("parcelamento no Electron", () => {
 			},
 		});
 		window = await electronApp.firstWindow();
+		vigia = vigiarDialogosNativos(window);
 		await window.waitForLoadState("domcontentloaded");
 		await window.getByPlaceholder("Seu login de acesso").fill("teste");
 		await window.getByPlaceholder("Digite a senha de acesso").fill("teste123");
@@ -75,6 +81,10 @@ test.describe("parcelamento no Electron", () => {
 			await window.api.abrirCaixa(0);
 		});
 	}, { timeout: 60_000 });
+
+	test.afterEach(() => {
+		vigia.garantirNenhum();
+	});
 
 	test.afterAll(async () => {
 		await electronApp.close();

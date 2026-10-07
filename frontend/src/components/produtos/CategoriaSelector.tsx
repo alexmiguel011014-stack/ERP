@@ -6,6 +6,7 @@ import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import Button from "@/components/ui/button/Button";
 
+import { avisar } from "@/lib/dialogo";
 export default function CategoriaSelector({
 	categorias,
 	selecionados,
@@ -82,7 +83,7 @@ export default function CategoriaSelector({
 			onCategoriaCriada();
 			if (resultado.id) onChange([...selecionados, String(resultado.id)]);
 		} catch (e) {
-			alert("Erro ao salvar: " + (e instanceof Error ? e.message : String(e)));
+			void avisar({ tipo: "erro", mensagem: "Erro ao salvar: " + (e instanceof Error ? e.message : String(e)) });
 		} finally {
 			setSalvandoCat(false);
 		}

@@ -4,6 +4,7 @@ import { useLancamentos } from "@/hooks/useLancamentos";
 import { erpApi, type Lancamento } from "@/lib/erpApi";
 import { formatarMoeda } from "@/components/dashboard/formatos";
 
+import { confirmar } from "@/lib/dialogo";
 function formatarData(iso: string | null): string {
 	if (!iso) return "---";
 	try {
@@ -36,7 +37,7 @@ export default function LancamentosTab({
 
 	async function baixar(l: Lancamento) {
 		const verbo = tipo === "receber" ? "recebimento" : "pagamento";
-		if (!confirm(`Confirmar ${verbo} de ${formatarMoeda(l.valor)}?`)) return;
+		if (!(await confirmar(`Confirmar ${verbo} de ${formatarMoeda(l.valor)}?`))) return;
 		setProcessandoId(l.id);
 		try {
 			await erpApi.financeiro.baixar(l.id);
@@ -53,7 +54,7 @@ export default function LancamentosTab({
 	}
 
 	async function excluir(l: Lancamento) {
-		if (!confirm("Excluir este lançamento?")) return;
+		if (!(await confirmar({ mensagem: "Excluir este lançamento?", destrutivo: true, confirmarLabel: "Excluir" }))) return;
 		setProcessandoId(l.id);
 		try {
 			await erpApi.financeiro.excluir(l.id);
