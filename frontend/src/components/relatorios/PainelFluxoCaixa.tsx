@@ -1,4 +1,5 @@
 "use client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatarMoeda } from "@/components/dashboard/formatos";
 import PeriodoRelatorioControles, {
 	type PeriodoRelatorio,
@@ -60,7 +61,7 @@ function TabelaDias({ dados, titulo }: { dados: FluxoCaixa; titulo: string }) {
 					Nenhuma movimentação nesse período.
 				</div>
 			) : (
-				<div className="mt-3 overflow-x-auto">
+				<ScrollArea axis="both" stickyHeader className="mt-3">
 					<table className="w-full text-left text-sm">
 						<thead>
 							<tr className="border-b border-gray-100 dark:border-gray-800">
@@ -117,7 +118,7 @@ function TabelaDias({ dados, titulo }: { dados: FluxoCaixa; titulo: string }) {
 							))}
 						</tbody>
 					</table>
-				</div>
+				</ScrollArea>
 			)}
 		</div>
 	);
@@ -138,7 +139,7 @@ function TabelaGrupos({
 		{grupos.length === 0 ? (
 				<div className="py-5 text-sm text-gray-400">Sem dados para agrupar.</div>
 			) : (
-				<div className="mt-3 divide-y divide-gray-100 dark:divide-gray-800">
+				<ScrollArea size="sm" className="mt-3 divide-y divide-gray-100 dark:divide-gray-800">
 					{grupos.map((grupo) => (
 						<div
 							key={grupo.chave}
@@ -162,7 +163,7 @@ function TabelaGrupos({
 							</div>
 						</div>
 					))}
-				</div>
+				</ScrollArea>
 			)}
 		</div>
 	);
@@ -270,7 +271,7 @@ export default function PainelFluxoCaixa({
 								Nenhum evento realizado para detalhar.
 							</div>
 						) : (
-							<div className="mt-3 overflow-x-auto">
+							<ScrollArea size="lg" axis="both" stickyHeader className="mt-3">
 								<table className="w-full text-left text-sm">
 									<thead>
 										<tr className="border-b border-gray-100 dark:border-gray-800">
@@ -317,7 +318,7 @@ export default function PainelFluxoCaixa({
 										))}
 									</tbody>
 								</table>
-							</div>
+							</ScrollArea>
 						)}
 					</div>
 

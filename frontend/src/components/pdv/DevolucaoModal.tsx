@@ -1,4 +1,5 @@
 "use client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import Button from "@/components/ui/button/Button";
@@ -125,7 +126,7 @@ export default function DevolucaoModal({
 			)}
 
 			{itens.length > 0 && (
-				<div className="mt-4 space-y-2">
+				<ScrollArea className="mt-4 space-y-2">
 					{itens.map((item) => {
 						const disponivel = item.quantidade - item.quantidade_devolvida;
 						return (
@@ -160,7 +161,7 @@ export default function DevolucaoModal({
 					<Button onClick={confirmar} disabled={processando} className="w-full">
 						{processando ? "Confirmando..." : "Confirmar Devolução"}
 					</Button>
-				</div>
+				</ScrollArea>
 			)}
 		</Modal>
 	);

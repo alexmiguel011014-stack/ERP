@@ -1,4 +1,5 @@
 "use client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import Badge from "@/components/ui/badge/Badge";
 import { CurvaAbcChart } from "./RelatoriosCharts";
 import { formatarMoeda, formatarPercentual } from "./formatos";
@@ -28,7 +29,7 @@ export default function PainelCurvaAbc({ dados }: { dados: CurvaAbcLinha[] }) {
 					<div className="mt-3">
 						<CurvaAbcChart dados={dados} />
 					</div>
-					<div className="mt-3 overflow-x-auto">
+					<ScrollArea axis="both" stickyHeader className="mt-3">
 						<table className="w-full text-left text-sm">
 							<thead>
 								<tr className="border-b border-gray-100 dark:border-gray-800">
@@ -108,7 +109,7 @@ export default function PainelCurvaAbc({ dados }: { dados: CurvaAbcLinha[] }) {
 								))}
 							</tbody>
 						</table>
-					</div>
+					</ScrollArea>
 				</>
 			)}
 		</div>

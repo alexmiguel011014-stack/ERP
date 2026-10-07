@@ -20,7 +20,7 @@ Stack: Electron.js + Node.js + SQLite + HTML/CSS/JS puro.
 Paleta visual: Tatame Clean (clara: `#F8FAFC`, `#FFFFFF`, `#1E293B`, `#2563EB`, `#16A34A`, `#E2E8F0`; dark: `#0F172A`, `#1E293B`, `#3B82F6`, `#E2E8F0`).
 
 Repositório: `https://github.com/alexmiguel011014-stack/ERP.git` (branch `main`, push via HTTPS).
-Versão atual: `v1.4.3` (`package.json`). Releases publicadas no GitHub Releases.
+Versão atual: `v1.4.4` (`package.json`). Releases publicadas no GitHub Releases.
 
 ### Processo de release (checado em 2026-08-19, era conhecimento tribal até aqui)
 
@@ -386,6 +386,25 @@ certificado A1 e conta em provedor de pagamento ainda pendentes de acesso — ve
   (`components/ui/modal`) fecha só o do TOPO no Esc e devolve o foco a quem o abriu; `Input` aceita
   `autoFocus` (a senha de `ConfirmarSenhaModal` já abre focada). Playwright injeta teclado via CDP e
   NÃO reproduz o bug do SO — a verificação do conserto do Electron em si é manual, com teclado real.
+
+- **Lista/tabela alimentada pelo banco que pode passar de ~10 linhas vai dentro de `<ScrollArea>`**
+  (`frontend/src/components/ui/scroll-area`, GOALS 32) — nunca um `max-h-* overflow-y-auto` feito à
+  mão. Ele vai DENTRO do card, só em volta do que cresce (título/filtros/totais ficam fora, sempre à
+  vista). Tetos fixos em rem limitados por fração da janela: `sm` 16rem/45dvh · `md` (padrão)
+  24rem/55dvh · `lg` 32rem/65dvh · `xl` 40rem/(100dvh−18rem), este último para a lista principal de
+  uma tela. `axis="both"` para tabela larga; `stickyHeader` fixa o `thead` (fundo opaco que combina
+  com a superfície — `surface="modal"` dentro de Modal, senão aparece uma faixa no tema escuro; o
+  divisor é um `box-shadow` inset porque a borda de um `th` sticky com `border-collapse` rola
+  embora). A barra de rolagem é escondida (`no-scrollbar`), então há um degradê no rodapé enquanto
+  houver mais conteúdo (`data-mais-abaixo`, mantido pelo componente; `fade={false}` desliga). Em
+  `@media print` o `.scroll-area` perde teto/corte/máscara (`globals.css`), então `#print-area`
+  imprime inteiro. O `Modal` se limita sozinho a `100dvh − 3rem` (caixa `flex-col`, só o filho
+  rola; o botão de fechar fica fora dele): sem isso um modal mais alto que a janela perde o topo.
+  Tailwind v4 só gera utilidade arbitrária escrita por inteiro — por isso os tetos são um mapa de
+  strings literais, nunca concatenados. Não está coberto (de propósito): `MaisVendidos` (LIMIT 5),
+  `UsuariosTable`, painéis de linhas fixas (DRE/Aging/Conversão), e os corpos de modal que já
+  rolam por dentro (`ProdutosListModal`, `CategoriasListModal`, `MovimentacoesList`,
+  `EstoqueListaView`). Teste: `e2e/cards-rolagem.spec.ts`.
 
 ## Regras de Continuidade
 

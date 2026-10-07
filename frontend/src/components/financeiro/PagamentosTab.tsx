@@ -1,4 +1,5 @@
 "use client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState } from "react";
 import { usePagamentos } from "@/hooks/usePagamentos";
 import { erpApi } from "@/lib/erpApi";
@@ -90,7 +91,7 @@ export default function PagamentosTab({
 				</div>
 			)}
 
-			<div className="mt-3 overflow-x-auto">
+			<ScrollArea axis="both" stickyHeader className="mt-3">
 				{carregando ? (
 					<div className="py-6 text-center text-sm text-gray-400">
 						Carregando...
@@ -196,7 +197,7 @@ export default function PagamentosTab({
 						</tbody>
 					</table>
 				)}
-			</div>
+			</ScrollArea>
 
 			<PagamentoFormModal
 				isOpen={modalAberto}

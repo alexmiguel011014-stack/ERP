@@ -1,4 +1,5 @@
 "use client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useEffect, useState } from "react";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
@@ -208,7 +209,7 @@ export default function BancoPage() {
 					</div>
 				)}
 
-				<div className="mt-3 overflow-x-auto">
+				<ScrollArea size="xl" axis="both" stickyHeader className="mt-3">
 					{carregandoTabela ? (
 						<div className="py-8 text-center text-sm text-gray-400">
 							Consultando {tabelaSelecionada}...
@@ -267,7 +268,7 @@ export default function BancoPage() {
 							</tbody>
 						</table>
 					)}
-				</div>
+				</ScrollArea>
 			</div>
 
 			<ConfirmarSenhaModal

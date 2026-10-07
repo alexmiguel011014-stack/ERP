@@ -1,4 +1,5 @@
 "use client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMemo, useState } from "react";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
@@ -134,7 +135,7 @@ export default function CondicoesParcelamentoPanel({
 			</div>
 
 			<div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-				<div className="overflow-x-auto">
+				<ScrollArea axis="both" stickyHeader>
 					<table className="min-w-full text-left text-sm">
 						<thead className="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:text-gray-400">
 							<tr>
@@ -188,7 +189,7 @@ export default function CondicoesParcelamentoPanel({
 							))}
 						</tbody>
 					</table>
-				</div>
+				</ScrollArea>
 
 				<div className="border border-gray-200 p-4 dark:border-gray-800">
 					<h3 className="text-sm font-semibold text-gray-800 dark:text-white/90">

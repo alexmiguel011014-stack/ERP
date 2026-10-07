@@ -1,4 +1,5 @@
 "use client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import { formatarMoeda, lerDecimalInformado, lerValorMonetario } from "./formatos";
@@ -320,7 +321,7 @@ export default function PagamentoPainel({
 					<span>{formatarMoeda(total)}</span>
 				</div>
 				{parcelamentoAtivo && previaParcelamento && (
-					<div className="pt-1 text-xs text-gray-500 dark:text-gray-400">
+					<ScrollArea size="sm" className="pt-1 text-xs text-gray-500 dark:text-gray-400">
 						{previaParcelamento.parcelas.map((parcela) => (
 							<p key={parcela.numero}>
 								{parcela.numero}/{previaParcelamento.parcelas.length}: {formatarMoeda(parcela.valor)}
@@ -329,7 +330,7 @@ export default function PagamentoPainel({
 									: ""}
 							</p>
 						))}
-					</div>
+					</ScrollArea>
 				)}
 			</div>
 

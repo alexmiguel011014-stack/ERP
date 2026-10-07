@@ -1,5 +1,6 @@
 "use client";
 
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import Badge from "@/components/ui/badge/Badge";
 import Button from "@/components/ui/button/Button";
@@ -212,7 +213,7 @@ function AvisosFonte({ validacao }: { validacao: ValidacaoFonte | null }) {
 	if (!mensagens.length) return null;
 
 	return (
-		<div className="mt-4 space-y-2">
+		<ScrollArea size="sm" className="mt-4 space-y-2">
 			{mensagens.map((aviso, indice) => (
 				<div
 					key={`${aviso.texto}-${indice}`}
@@ -226,7 +227,7 @@ function AvisosFonte({ validacao }: { validacao: ValidacaoFonte | null }) {
 					{aviso.texto}
 				</div>
 			))}
-		</div>
+		</ScrollArea>
 	);
 }
 
@@ -255,7 +256,7 @@ function HistoricoImportacoes({
 			<p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
 				Clique em um lote para ver as pendências geradas por ele.
 			</p>
-			<div className="mt-3 overflow-x-auto">
+			<ScrollArea axis="both" stickyHeader className="mt-3">
 				{carregando ? (
 					<div className="py-8 text-center text-sm text-gray-400">Carregando histórico...</div>
 				) : erro ? (
@@ -292,7 +293,7 @@ function HistoricoImportacoes({
 						</tbody>
 					</table>
 				)}
-			</div>
+			</ScrollArea>
 		</div>
 	);
 }
@@ -304,12 +305,12 @@ function DetalhesLote({ detalhes }: { detalhes: DetalhesLoteImportacao }) {
 			{detalhes.pendencias.length === 0 ? (
 				<p className="text-sm text-gray-500 dark:text-gray-400">Nenhuma pendência neste lote.</p>
 			) : (
-				<div className="max-h-64 overflow-y-auto rounded-lg border border-gray-100 dark:border-gray-800">
+				<ScrollArea size="sm" axis="both" stickyHeader className="rounded-lg border border-gray-100 dark:border-gray-800">
 					<table className="w-full text-left text-xs">
 						<thead><tr className="border-b border-gray-200 dark:border-gray-700"><th className="px-2 py-1 font-medium uppercase text-gray-400">Tipo</th><th className="px-2 py-1 font-medium uppercase text-gray-400">Descrição</th><th className="px-2 py-1 font-medium uppercase text-gray-400">Motivo</th></tr></thead>
 						<tbody>{detalhes.pendencias.map((pendencia) => <tr key={pendencia.id} className="border-b border-gray-100 last:border-0 dark:border-gray-800"><td className="px-2 py-1 text-gray-600 dark:text-gray-300">{pendencia.tipo_entidade}</td><td className="px-2 py-1 text-gray-600 dark:text-gray-300">{pendencia.descricao || "---"}</td><td className="px-2 py-1 text-gray-600 dark:text-gray-300">{pendencia.motivo_rejeicao || "---"}</td></tr>)}</tbody>
 					</table>
-				</div>
+				</ScrollArea>
 			)}
 		</div>
 	);
@@ -326,7 +327,7 @@ function origemTexto(origem: EntradaImportacao | null, validacao: ValidacaoFonte
 
 function AvisosResultado({ avisos }: { avisos?: AvisoFonteImportacao[] }) {
 	if (!avisos?.length) return null;
-	return <ul className="mt-3 space-y-1 text-xs text-warning-700 dark:text-orange-300">{avisos.map((aviso, indice) => <li key={`${aviso.arquivo}-${indice}`}>{aviso.arquivo}: {aviso.motivo}</li>)}</ul>;
+	return <ScrollArea size="sm" className="mt-3"><ul className="space-y-1 text-xs text-warning-700 dark:text-orange-300">{avisos.map((aviso, indice) => <li key={`${aviso.arquivo}-${indice}`}>{aviso.arquivo}: {aviso.motivo}</li>)}</ul></ScrollArea>;
 }
 
 function ImportacaoWizard({ modo }: { modo: Modo }) {

@@ -1,4 +1,5 @@
 "use client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatarMoeda, formatarPercentual } from "./formatos";
 import type {
 	MargemContribuicaoResultado,
@@ -50,7 +51,7 @@ export default function PainelMargemPontoEquilibrio({
 					Sem produtos vendidos no período.
 				</p>
 			) : (
-				<div className="mt-3 overflow-x-auto">
+				<ScrollArea axis="both" stickyHeader className="mt-3">
 					<table className="w-full text-left text-sm">
 						<thead>
 							<tr className="border-b border-gray-100 dark:border-gray-800">
@@ -94,7 +95,7 @@ export default function PainelMargemPontoEquilibrio({
 							))}
 						</tbody>
 					</table>
-				</div>
+				</ScrollArea>
 			)}
 		</div>
 	);

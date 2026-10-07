@@ -1,4 +1,5 @@
 "use client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Fragment, useMemo, useState } from "react";
 import Badge from "@/components/ui/badge/Badge";
 import { formatarAtributos } from "@/lib/utils/formatos";
@@ -216,7 +217,7 @@ export default function VendasTable({
 				)}
 			</div>
 
-			<div className="mt-4 overflow-x-auto">
+			<ScrollArea size="xl" axis="both" stickyHeader className="mt-4">
 				<table className="w-full text-left text-sm">
 					<thead>
 						<tr className="border-b border-gray-100 dark:border-gray-800">
@@ -351,7 +352,7 @@ export default function VendasTable({
 						)}
 					</tbody>
 				</table>
-			</div>
+			</ScrollArea>
 
 			<div className="mt-4 flex flex-wrap items-center justify-between gap-3">
 				<div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">

@@ -1,4 +1,5 @@
 "use client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import type { SegmentacaoClienteLinha } from "@/lib/erpApi";
 import { formatarMoeda } from "./formatos";
 
@@ -32,7 +33,7 @@ export default function PainelSegmentacaoClientes({
 					Nenhum cliente cadastrado.
 				</p>
 			) : (
-				<div className="mt-3 max-h-96 overflow-x-auto overflow-y-auto">
+				<ScrollArea axis="both" stickyHeader className="mt-3">
 					<table className="w-full text-left text-sm">
 						<thead>
 							<tr className="border-b border-gray-100 dark:border-gray-800">
@@ -74,7 +75,7 @@ export default function PainelSegmentacaoClientes({
 							))}
 						</tbody>
 					</table>
-				</div>
+				</ScrollArea>
 			)}
 		</div>
 	);

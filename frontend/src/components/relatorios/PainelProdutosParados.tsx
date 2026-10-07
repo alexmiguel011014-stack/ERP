@@ -1,4 +1,5 @@
 "use client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import type { ProdutoParadoLinha } from "@/lib/erpApi";
 
 export default function PainelProdutosParados({
@@ -20,7 +21,7 @@ export default function PainelProdutosParados({
 					Nenhum produto parado no período.
 				</p>
 			) : (
-				<div className="mt-3 max-h-96 overflow-x-auto overflow-y-auto">
+				<ScrollArea axis="both" stickyHeader className="mt-3">
 					<table className="w-full text-left text-sm">
 						<thead>
 							<tr className="border-b border-gray-100 dark:border-gray-800">
@@ -54,7 +55,7 @@ export default function PainelProdutosParados({
 							))}
 						</tbody>
 					</table>
-				</div>
+				</ScrollArea>
 			)}
 		</div>
 	);
