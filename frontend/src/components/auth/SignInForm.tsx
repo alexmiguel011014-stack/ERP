@@ -43,7 +43,7 @@ export default function SignInForm() {
 							src="/images/logo/allu-logo.png"
 							alt="Allu"
 							width={220}
-							height={98}
+							height={54}
 							className="mb-3 h-11 w-auto"
 							priority
 						/>

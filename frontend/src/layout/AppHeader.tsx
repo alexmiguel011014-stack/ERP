@@ -63,7 +63,7 @@ const AppHeader: React.FC = () => {
 						    login onde o fundo do formulário de fato muda com o tema. */}
 						<Image
 							width={154}
-							height={68}
+							height={37}
 							className="h-8 w-auto"
 							src="/images/logo/allu-logo-dark.png"
 							alt="Allu"

@@ -70,7 +70,7 @@ const AppSidebar: React.FC = () => {
 							src="/images/logo/allu-logo-dark.png"
 							alt="Allu"
 							width={220}
-							height={98}
+							height={54}
 							className="h-8 w-auto"
 						/>
 					) : (
@@ -78,7 +78,7 @@ const AppSidebar: React.FC = () => {
 							src="/images/logo/allu-mark-white.png"
 							alt="Allu"
 							width={454}
-							height={601}
+							height={568}
 							className="h-8 w-8 shrink-0 object-contain"
 						/>
 					)}
