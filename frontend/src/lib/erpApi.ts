@@ -751,14 +751,18 @@ export type MovimentacaoEstoque = {
 	atributos: string | null;
 	tamanho: string | null;
 	cor: string | null;
+	produto_id: number;
 	produto_nome: string;
 };
 
 export type EstoqueVisaoGeralLinha = {
 	variacao_id: number;
 	sku: string;
+	codigo_barras: string | null;
 	quantidade_estoque: number;
 	estoque_minimo: number;
+	quantidade_reservada: number;
+	quantidade_disponivel: number;
 	preco_custo: number | null;
 	atributos: string | null;
 	tamanho: string | null;
@@ -781,6 +785,19 @@ export type AjusteManualEstoque = {
 	variacao_id: number;
 	quantidade: number;
 	observacao: string;
+};
+
+export type SaidaEstoque = {
+	variacao_id: number;
+	quantidade: number;
+	observacao: string;
+};
+
+export type ResultadoSaidaEstoque = {
+	success: boolean;
+	quantidade_estoque: number;
+	quantidade_reservada: number;
+	abaixoDoReservado: boolean;
 };
 
 export type ResultadoAjusteEstoque = {
@@ -1301,6 +1318,8 @@ export const erpApi = {
 			invocar<MovimentacaoEstoque[]>("getMovimentacoesEstoque", limite),
 		registrarEntrada: (dados: NovaEntradaEstoque) =>
 			invocar<{ success: boolean }>("registrarEntradaEstoque", dados),
+		registrarSaida: (dados: SaidaEstoque) =>
+			invocar<ResultadoSaidaEstoque>("registrarSaidaEstoque", dados),
 		ajustarManual: (dados: AjusteManualEstoque) =>
 			invocar<ResultadoAjusteEstoque>("ajustarEstoqueManual", dados),
 		salvarMinimo: (variacaoId: number, valor: number) =>

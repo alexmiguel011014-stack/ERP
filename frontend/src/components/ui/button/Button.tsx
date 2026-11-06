@@ -17,7 +17,7 @@ interface ButtonProps {
 	// shouldn't submit, e.g. a "Cancelar" button next to a submit action.
 }
 
-const Button: React.FC<ButtonProps> = ({
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button({
 	children,
 	size = "md",
 	variant = "primary",
@@ -30,7 +30,7 @@ const Button: React.FC<ButtonProps> = ({
 	title,
 	"aria-haspopup": ariaHasPopup,
 	"aria-expanded": ariaExpanded,
-}) => {
+}, ref) {
 	// Size Classes
 	const sizeClasses = {
 		sm: "px-4 py-3 text-sm",
@@ -47,6 +47,7 @@ const Button: React.FC<ButtonProps> = ({
 
 	return (
 		<button
+			ref={ref}
 			className={`inline-flex items-center justify-center font-medium gap-2 rounded-lg transition ${className} ${
 				sizeClasses[size]
 			} ${variantClasses[variant]} ${
@@ -64,6 +65,8 @@ const Button: React.FC<ButtonProps> = ({
 			{endIcon && <span className="flex items-center">{endIcon}</span>}
 		</button>
 	);
-};
+});
+
+Button.displayName = "Button";
 
 export default Button;

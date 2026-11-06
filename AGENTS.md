@@ -20,7 +20,7 @@ Stack: Electron.js + Node.js + SQLite + HTML/CSS/JS puro.
 Paleta visual: Tatame Clean (clara: `#F8FAFC`, `#FFFFFF`, `#1E293B`, `#2563EB`, `#16A34A`, `#E2E8F0`; dark: `#0F172A`, `#1E293B`, `#3B82F6`, `#E2E8F0`).
 
 Repositório: `https://github.com/alexmiguel011014-stack/ERP.git` (branch `main`, push via HTTPS).
-Versão atual: `v1.4.4` (`package.json`). Releases publicadas no GitHub Releases.
+Versão atual: `v1.5.0` (`package.json`). Releases publicadas no GitHub Releases.
 
 ### Processo de release (checado em 2026-08-19, era conhecimento tribal até aqui)
 
@@ -354,6 +354,10 @@ certificado A1 e conta em provedor de pagamento ainda pendentes de acesso — ve
 - Janela inicia maximizada (`janela.maximize()`), mínimo 1024x640.
 - Tema escuro via classe `dark-theme` no `<html>` (configurado por `js/head.js`).
 - Checkout de estoque com guarda atômica: `UPDATE ... WHERE id=? AND quantidade_estoque >= ?`; rollback na falha contendo o SKU do item com saldo insuficiente.
+- Estoque: a lista apresenta saldos e ações por variação; o lote preserva rascunhos.
+- O mínimo é alerta; baixas usam o IPC existente e avisam sobre reservas.
+- Demonstrações exigem pasta isolada e conferência dos caminhos do Electron e do banco.
+- Prepare uma demo com node scripts/preparar-demo-estoque.js --check.
 - Auth via sessão no processo principal (`get-auth-session` → `getAuthSession` no preload); perfil atual `erp_perfil` = admin.
 - Login exigido apenas na entrada do app (`modules/core/auth.js` redireciona para `modules/auth/login.html` se não autenticado). Usuários são gerenciados em `modules/acessos/` (acessível pela sidebar: "Gerenciar Acessos", admin).
 - Dois perfis: `admin` (acesso total) e `vendedor` (restrito por `permissoes` JSON, gerenciado em `modules/acessos/`). Admin sempre passa em `exigirPermissao(modulo)` independente de `permissoes`. `main.js:exigirPermissao` já gate 11 domínios IPC (produtos, categorias, clientes, vendas, estoque, fornecedores, compras, precificacao, financeiro, caixa, relatorios); `pagamentos`, `dashboard`, `usuarios`, `banco-admin`, `sistema` e `auth` ainda usam só `exigirSessao('admin')`.

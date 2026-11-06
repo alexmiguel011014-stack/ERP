@@ -8,6 +8,7 @@ module.exports = [
 			"dist/**",
 			"graphify-out/**",
 			"data/**",
+			".claude/worktrees/**",
 			"modules/core/vendor/**",
 			"servers/**",
 			// frontend/ é um projeto Next.js separado (próprio package.json,

@@ -1,6 +1,7 @@
 const {
 	getEstoqueNegativo,
 	registrarEntradaEstoque,
+	registrarSaidaEstoque,
 	getMovimentacoesEstoque,
 	getEstoqueBaixo,
 	getEstoqueVisaoGeral,
@@ -26,6 +27,15 @@ function registrar(ipcMain, deps) {
 		try {
 			exigirPermissao("estoque");
 			return await registrarEntradaEstoque(dados);
+		} catch (erro) {
+			throw erro.message;
+		}
+	});
+
+	ipcMain.handle("registrar-saida-estoque", async (event, dados) => {
+		try {
+			exigirPermissao("estoque");
+			return await registrarSaidaEstoque(dados);
 		} catch (erro) {
 			throw erro.message;
 		}

@@ -1,12 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
-import { Modal } from "@/components/ui/modal";
-import { useEstoqueVisaoGeral } from "@/hooks/useEstoqueVisaoGeral";
+import { useRef, useState } from "react";
+import { ScrollArea, type SuperficieScrollArea } from "@/components/ui/scroll-area";
 import { erpApi, type EstoqueVisaoGeralLinha } from "@/lib/erpApi";
 import { formatarMoeda } from "@/components/dashboard/formatos";
 import { formatarAtributos } from "@/lib/utils/formatos";
 
-import { avisar } from "@/lib/dialogo";
 type Status = "todos" | "normal" | "baixo" | "negativo";
 
 function statusDe(r: EstoqueVisaoGeralLinha): Exclude<Status, "todos"> {
@@ -22,37 +20,69 @@ const CHIPS: { id: Status; label: string }[] = [
 	{ id: "negativo", label: "Negativo" },
 ];
 
-export default function EstoqueListaView({
-	isOpen,
-	onClose,
-	buscaInicial,
-}: {
-	isOpen: boolean;
-	onClose: () => void;
-	buscaInicial?: string;
-}) {
-	const { linhas, carregando, erro, recarregar } = useEstoqueVisaoGeral();
+function normalizarBuscaEstoque(valor: string) {
+	return valor
+		.normalize("NFD")
+		.replace(/[\u0300-\u036f]/g, "")
+		.toLowerCase()
+		.trim();
+}
+
+type EstoqueListaPanelProps = {
+	linhas: EstoqueVisaoGeralLinha[];
+	carregando: boolean;
+	erro: string | null;
+	recarregar: () => Promise<"success" | "error" | "superseded">;
+	surface: SuperficieScrollArea;
+	onBusyChange?: (busy: boolean) => void;
+	onAdicionar?: (linha: EstoqueVisaoGeralLinha) => void;
+	onRetirar?: (linha: EstoqueVisaoGeralLinha) => void;
+};
+
+export function EstoqueListaPanel({
+	linhas,
+	carregando,
+	erro,
+	recarregar,
+	surface,
+	onBusyChange,
+	onAdicionar,
+	onRetirar,
+}: EstoqueListaPanelProps) {
 	const [busca, setBusca] = useState("");
 	const [statusAtivo, setStatusAtivo] = useState<Status>("todos");
 	const [minimos, setMinimos] = useState<Record<number, string>>({});
+	const [errosMinimos, setErrosMinimos] = useState<Record<number, string>>({});
+	const [salvandoMinimos, setSalvandoMinimos] = useState<Set<number>>(() => new Set());
+	const salvandoMinimosRef = useRef(new Set<number>());
+	const [feedbackRecarga, setFeedbackRecarga] = useState<string | null>(null);
 
-	// Reabrir com dado fresco (mínimo editado em outra hora não pode ficar
-	// velho) e já filtrado pelo SKU que o usuário tinha digitado no formulário
-	// que abriu esta modal.
-	useEffect(() => {
-		if (isOpen) {
-			recarregar();
-			setBusca(buscaInicial || "");
+	async function recarregarLista() {
+		const resultado = await recarregar();
+		switch (resultado) {
+			case "success":
+				setFeedbackRecarga("Lista atualizada");
+				break;
+			case "error":
+				setFeedbackRecarga(null);
+				break;
+			case "superseded":
+				break;
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [isOpen, buscaInicial]);
+		return resultado;
+	}
 
-	const termo = busca.trim().toLowerCase();
-	const filtradas = linhas.filter((r) => {
-		if (statusAtivo !== "todos" && statusDe(r) !== statusAtivo) return false;
-		if (!termo) return true;
-		return (r.produto_nome + " " + r.sku).toLowerCase().includes(termo);
-	});
+	const termo = normalizarBuscaEstoque(busca);
+	const idExato = /^\d+$/.test(termo) ? Number(termo) : null;
+	const filtradas = linhas.filter(
+		(r) =>
+			(statusAtivo === "todos" || statusDe(r) === statusAtivo) &&
+			(!termo ||
+				normalizarBuscaEstoque(r.produto_nome).includes(termo) ||
+				normalizarBuscaEstoque(r.sku).includes(termo) ||
+				normalizarBuscaEstoque(r.codigo_barras || "").includes(termo) ||
+				(idExato !== null && r.produto_id === idExato)),
+	);
 
 	const valorTotal = linhas.reduce((soma, r) => {
 		const qtd = Math.max(0, Number(r.quantidade_estoque) || 0);
@@ -60,31 +90,70 @@ export default function EstoqueListaView({
 	}, 0);
 	const baixos = linhas.filter((r) => statusDe(r) === "baixo").length;
 	const negativos = linhas.filter((r) => statusDe(r) === "negativo").length;
+	const temAcoes = Boolean(onAdicionar || onRetirar);
 
 	async function salvarMinimo(variacaoId: number, valor: string) {
-		const novoMin = parseInt(valor, 10);
-		if (!Number.isInteger(novoMin) || novoMin < 0) {
-			void avisar({ tipo: "erro", mensagem: "Estoque mínimo inválido." });
+		const novoMin = Number(valor);
+		if (valor.trim() === "" || !Number.isInteger(novoMin) || novoMin < 0) {
+			setMinimos((atuais) => {
+				const restantes = { ...atuais };
+				delete restantes[variacaoId];
+				return restantes;
+			});
+			setErrosMinimos((erros) => ({
+				...erros,
+				[variacaoId]: "Informe um número inteiro igual ou maior que zero.",
+			}));
 			return;
 		}
+		if (salvandoMinimosRef.current.has(variacaoId)) return;
+		salvandoMinimosRef.current.add(variacaoId);
+		onBusyChange?.(true);
+		setErrosMinimos((erros) => {
+			const restantes = { ...erros };
+			delete restantes[variacaoId];
+			return restantes;
+		});
+		setSalvandoMinimos((atuais) => new Set(atuais).add(variacaoId));
 		try {
 			await erpApi.estoque.salvarMinimo(variacaoId, novoMin);
-			recarregar();
+			setMinimos((atuais) => {
+				const restantes = { ...atuais };
+				delete restantes[variacaoId];
+				return restantes;
+			});
+			void recarregarLista();
 		} catch (e) {
-			void avisar({ tipo: "erro", mensagem: "Erro ao salvar mínimo: " +
-					(e instanceof Error ? e.message : String(e)) });
+			setMinimos((atuais) => {
+				const restantes = { ...atuais };
+				delete restantes[variacaoId];
+				return restantes;
+			});
+			setErrosMinimos((erros) => ({
+				...erros,
+				[variacaoId]: "Erro ao salvar mínimo: " +
+					(e instanceof Error ? e.message : String(e)),
+			}));
+		} finally {
+			salvandoMinimosRef.current.delete(variacaoId);
+			onBusyChange?.(salvandoMinimosRef.current.size > 0);
+			setSalvandoMinimos((atuais) => {
+				const restantes = new Set(atuais);
+				restantes.delete(variacaoId);
+				return restantes;
+			});
 		}
 	}
 
 	return (
-		<Modal isOpen={isOpen} onClose={onClose} className="max-w-[960px] p-0">
-			<div className="border-b border-gray-100 p-4 dark:border-gray-800">
-				<h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-					Lista completa do estoque
-				</h2>
-			</div>
-
-			<div className="max-h-[75vh] overflow-y-auto p-4">
+			<div className="p-4">
+				<p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+					Estoque atual é o saldo registrado da variação. Estoque mínimo é o
+					limite de alerta e não altera esse saldo.
+				</p>
+				<h3 className="mb-2 mt-4 text-sm font-semibold text-gray-800 dark:text-white/90">
+					Resumo e valores
+				</h3>
 				<div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
 					<div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
 						<div className="text-xl font-semibold text-gray-800 dark:text-white/90">
@@ -141,9 +210,17 @@ export default function EstoqueListaView({
 						type="text"
 						value={busca}
 						onChange={(e) => setBusca(e.target.value)}
-						placeholder="Buscar por produto ou SKU..."
+						placeholder="Buscar por nome, SKU, código de barras ou ID..."
 						className="h-9 rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
 					/>
+					<button
+						type="button"
+						onClick={() => void recarregarLista()}
+						disabled={carregando}
+						className="h-9 rounded-lg border border-gray-300 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-wait disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-white/5"
+					>
+						{carregando ? "Atualizando..." : "Atualizar lista"}
+					</button>
 				</div>
 
 				{erro && (
@@ -151,8 +228,13 @@ export default function EstoqueListaView({
 						{erro}
 					</div>
 				)}
+				{feedbackRecarga && !erro && (
+					<div role="status" aria-live="polite" className="mt-3 text-sm text-success-700 dark:text-success-400">
+						{feedbackRecarga}
+					</div>
+				)}
 
-				<div className="mt-3 overflow-x-auto">
+				<ScrollArea className="mt-3" size="lg" axis="both" stickyHeader surface={surface} aria-label="Variações em estoque">
 					<table className="w-full text-left text-sm">
 						<thead>
 							<tr className="border-b border-gray-100 dark:border-gray-800">
@@ -160,11 +242,12 @@ export default function EstoqueListaView({
 									"SKU",
 									"Produto",
 									"Atributos",
-									"Qtd.",
-									"Mínimo",
+									"Estoque atual",
+									"Estoque mínimo",
 									"Custo",
 									"Valor",
 									"Status",
+									...(temAcoes ? ["Ações"] : []),
 								].map((c) => (
 									<th
 										key={c}
@@ -176,10 +259,10 @@ export default function EstoqueListaView({
 							</tr>
 						</thead>
 						<tbody>
-							{carregando ? (
+							{carregando && linhas.length === 0 ? (
 								<tr>
 									<td
-										colSpan={8}
+										colSpan={temAcoes ? 9 : 8}
 										className="px-3 py-8 text-center text-sm text-gray-400"
 									>
 										Carregando...
@@ -188,7 +271,7 @@ export default function EstoqueListaView({
 							) : filtradas.length === 0 ? (
 								<tr>
 									<td
-										colSpan={8}
+										colSpan={temAcoes ? 9 : 8}
 										className="px-3 py-8 text-center text-sm text-gray-400"
 									>
 										Nenhum item encontrado.
@@ -228,20 +311,39 @@ export default function EstoqueListaView({
 											<td className="whitespace-nowrap px-3 py-2">
 												<input
 													type="number"
+													aria-label={`Estoque mínimo de ${r.produto_nome}, SKU ${r.sku}`}
 													min={0}
 													step={1}
 													value={minimos[r.variacao_id] ?? r.estoque_minimo}
-													onChange={(e) =>
+													aria-invalid={Boolean(errosMinimos[r.variacao_id])}
+													aria-describedby={errosMinimos[r.variacao_id] ? `erro-minimo-${r.variacao_id}` : undefined}
+													aria-busy={salvandoMinimos.has(r.variacao_id)}
+													onChange={(e) => {
 														setMinimos((m) => ({
 															...m,
 															[r.variacao_id]: e.target.value,
-														}))
-													}
+														}));
+														setErrosMinimos((erros) => {
+															const restantes = { ...erros };
+															delete restantes[r.variacao_id];
+															return restantes;
+														});
+													}}
 													onBlur={(e) =>
 														salvarMinimo(r.variacao_id, e.target.value)
 													}
-													className="h-8 w-16 rounded-lg border border-gray-300 bg-transparent px-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+													disabled={salvandoMinimos.has(r.variacao_id)}
+													className="h-8 w-16 rounded-lg border border-gray-300 bg-transparent px-2 text-sm text-gray-800 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
 												/>
+												{errosMinimos[r.variacao_id] && (
+													<p
+														id={`erro-minimo-${r.variacao_id}`}
+														role="alert"
+														className="mt-1 max-w-40 text-xs text-error-600 dark:text-error-400"
+													>
+														{errosMinimos[r.variacao_id]}
+													</p>
+												)}
 											</td>
 											<td className="whitespace-nowrap px-3 py-2 text-gray-600 dark:text-gray-300">
 												{formatarMoeda(r.preco_custo)}
@@ -270,14 +372,41 @@ export default function EstoqueListaView({
 													</span>
 												)}
 											</td>
+											{temAcoes && (
+												<td className="whitespace-nowrap px-3 py-2">
+													<div className="flex gap-2">
+														{onAdicionar && (
+															<button
+																type="button"
+																onClick={() => onAdicionar(r)}
+																disabled={salvandoMinimos.size > 0}
+																aria-label={`Adicionar estoque para ${r.produto_nome}, SKU ${r.sku}`}
+																className="rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
+															>
+																Adicionar
+															</button>
+														)}
+														{onRetirar && (
+															<button
+																type="button"
+																onClick={() => onRetirar(r)}
+																disabled={salvandoMinimos.size > 0}
+																aria-label={`Retirar estoque para ${r.produto_nome}, SKU ${r.sku}`}
+																className="rounded-lg border border-error-300 px-3 py-1.5 text-xs font-semibold text-error-600 hover:bg-error-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-error-800 dark:text-error-400 dark:hover:bg-error-500/10"
+															>
+																Retirar
+															</button>
+														)}
+													</div>
+												</td>
+											)}
 										</tr>
 									);
 								})
 							)}
 						</tbody>
 					</table>
-				</div>
+				</ScrollArea>
 			</div>
-		</Modal>
 	);
 }

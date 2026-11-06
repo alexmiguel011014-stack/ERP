@@ -118,6 +118,7 @@ module.exports = {
 	getEstoqueVisaoGeral: estoque.getEstoqueVisaoGeral,
 	salvarEstoqueMinimo: estoque.salvarEstoqueMinimo,
 	ajustarEstoqueManual: estoque.ajustarEstoqueManual,
+	registrarSaidaEstoque: estoque.registrarSaidaEstoque,
 	converterOrcamento: vendas.converterOrcamento,
 	getFornecedores: fornecedores.getFornecedores,
 	salvarFornecedor: fornecedores.salvarFornecedor,

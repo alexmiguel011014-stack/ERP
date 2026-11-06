@@ -6,6 +6,15 @@ export type NotasAtualizacao = {
 // Fonte local e offline das notas exibidas na tela de Atualizações. A entrada
 // só deve ser alterada junto da versão que realmente será empacotada/publicada.
 export const NOTAS_ATUALIZACAO: Record<string, NotasAtualizacao> = {
+	"1.5.0": {
+		versao: "1.5.0",
+		itens: [
+			"Estoque: veja saldo atual, mínimo, custo, valor e situação de cada variação, com ações de entrada e retirada.",
+			"Reposição em lote com busca por nome, SKU, código de barras ou ID; o rascunho fica salvo enquanto você alterna de tela.",
+			"Baixas avisam quando há itens reservados. O estoque mínimo continua sendo um alerta e não altera o saldo.",
+			"O histórico mostra entradas, retiradas, quantidades e custos; a busca por leitor seleciona automaticamente uma única variação correspondente.",
+		],
+	},
 	"1.4.4": {
 		versao: "1.4.4",
 		itens: [

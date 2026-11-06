@@ -69,7 +69,8 @@ async function sincronizarPrecosPendentesInterno() {
 	const pendentes = await allAsync(
 		`SELECT pr.produto_id, pr.preco_custo, pr.impostos_extras, pr.preco_venda, pr.aplicar_custo_fixo
      FROM Precificacao pr
-     WHERE pr.status = 'pendente'`,
+     JOIN Produtos p ON p.id = pr.produto_id
+     WHERE pr.status = 'pendente' AND p.ativo = 1`,
 	);
 	const atualizacoes = [];
 	for (const p of pendentes) {
@@ -91,12 +92,12 @@ async function sincronizarPrecosPendentesInterno() {
 		for (const { produtoId, precoCalculado } of atualizacoes) {
 			await runOn(
 				conn,
-				"UPDATE Precificacao SET preco_venda = ? WHERE produto_id = ?",
+				"UPDATE Precificacao SET preco_venda = ? WHERE produto_id = ? AND EXISTS (SELECT 1 FROM Produtos p WHERE p.id = Precificacao.produto_id AND p.ativo = 1)",
 				[precoCalculado, produtoId],
 			);
 			await runOn(
 				conn,
-				"UPDATE Variacoes SET preco = ? WHERE produto_id = ?",
+				"UPDATE Variacoes SET preco = ? WHERE produto_id = ? AND EXISTS (SELECT 1 FROM Produtos p WHERE p.id = Variacoes.produto_id AND p.ativo = 1)",
 				[precoCalculado, produtoId],
 			);
 		}
@@ -124,7 +125,7 @@ async function getPricingDataInterno() {
      FROM Produtos p
      LEFT JOIN (SELECT produto_id, MIN(preco_custo) AS preco_custo, MIN(preco) AS preco
                 FROM Variacoes GROUP BY produto_id) v ON v.produto_id = p.id
-     WHERE p.id NOT IN (SELECT produto_id FROM Precificacao)`,
+     WHERE p.ativo = 1 AND p.id NOT IN (SELECT produto_id FROM Precificacao)`,
 	);
 
 	// Recupera preços/custos já cadastrados na variação quando a precificação ainda está pendente.
@@ -132,7 +133,8 @@ async function getPricingDataInterno() {
 		`UPDATE Precificacao
         SET preco_custo = CASE WHEN preco_custo = 0 THEN COALESCE((SELECT MIN(v.preco_custo) FROM Variacoes v WHERE v.produto_id = Precificacao.produto_id), 0) ELSE preco_custo END,
             preco_venda = CASE WHEN preco_venda = 0 THEN COALESCE((SELECT MIN(v.preco) FROM Variacoes v WHERE v.produto_id = Precificacao.produto_id), 0) ELSE preco_venda END
-      WHERE status = 'pendente'`,
+      WHERE status = 'pendente'
+        AND EXISTS (SELECT 1 FROM Produtos p WHERE p.id = Precificacao.produto_id AND p.ativo = 1)`,
 	);
 
 	// Produtos "pendentes" (sem override manual) usam a margem global para exibição,
@@ -162,6 +164,7 @@ async function getPricingDataInterno() {
      LEFT JOIN (SELECT produto_id, MIN(id) AS first_id FROM Variacoes GROUP BY produto_id) vf
               ON vf.produto_id = p.id
      LEFT JOIN Variacoes v ON v.id = vf.first_id
+     WHERE p.ativo = 1
      ORDER BY p.nome COLLATE NOCASE`,
 	);
 

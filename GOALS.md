@@ -17,6 +17,591 @@ produtos, clientes, fornecedores, compras, entrada de estoque, vendas, financeir
 precificação, relatórios, acessos, dashboard, backup/restore, auto-update) are **not**
 repeated here — see `AGENTS.md` §"Funcionalidades Implementadas" for that list.
 
+## Owner backlog
+
+Owner items left open by archived plans. Mark them done here.
+
+- [ ] **S33-12 Review the stock workflow with the owner** (GOALS 33)
+  tier: user · gate: ask · after: S33-10, S33-11, S34.19
+  files: none
+  Anchor: Customer screenshot asking where to add stock numbers.
+  Change: Review an isolated demo with fictional variations and no production database.
+  Do not touch: The store database or existing sales.
+  do:
+  1. Ask the owner to open DevTools Console attached to the authenticated demo window.
+  2. Ask the owner to run `window.api.getDBPath().then(console.log)`.
+  3. Ask the owner to compare the result with `<demo folder>\erp_housekimono.sqlite` from the helper.
+  4. Stop before changes if paths differ, Console is unavailable, or the API denies access.
+  5. Ask the owner to find a variation and add or remove stock without guidance.
+  6. Ask the owner to distinguish current stock from minimum stock.
+  7. Ask the owner to inspect restored and trashed products in pricing and stock.
+  8. Ask the owner to review both themes at 1024×640 and a maximized window.
+  9. Ask the owner to inspect single entries, exits, batch drafts, costs, and movement signs.
+  Verify: Record the owner's observations and explicit acceptance or requested changes.
+  Source: Customer audio and screenshot; `main.js:221`; `preload.js:132`; `ipc/sistema.js:210`.
+  check: manual — The owner checks the demo path, both themes and sizes, entries, exits, batch, and history, then explicitly accepts.
+
+The previous `data/demo-estoque-J3qt1D` demonstration failed authentication. Use the verified GOALS 34 demonstration.
+
+---
+
+## GOALS 34 — Simplify the stock workspace (ALLU ERP feature)
+
+Format: executor-v1
+
+Baseline: `cf4a94d`, plus the uncommitted GOALS 33 changes in the current working tree.
+The screenshot shows a queued replenishment item; preserve drafts without inspecting the session.
+Redesign stock operations without reading customer data or discarding existing work.
+
+### Decisions
+
+- Place the active variation list on the stock screen. Keep stock actions beside each variation.
+- Search product name, SKU, barcode, or product ID. Product ID accepts digits with or without `#`.
+- Show every matching variation when numeric IDs, SKUs, or barcodes collide.
+- Keep the `Todos`, `Normal`, `Baixo`, and `Negativo` filters and existing status rules.
+- Show current stock, editable minimum, status, and `Adicionar` and `Retirar` actions in each row.
+- Put stock totals, unit costs, and per-variation values in `Resumo e valores`.
+- Keep `Entrada em lote` and `Ver movimentações` visible above the list.
+- Submit one selected variation directly from `Confirmar entrada` without queuing a batch.
+- Show the estimated balance before submission. Use database results for the final balance.
+- Keep blank cost distinct from zero. Preserve the existing weighted-cost calculation.
+- Keep all five current exit reasons. Warn when an exit may leave stock below reservations.
+- Keep the batch confirmation and atomic transaction. Keep existing draft keys and item shape.
+- Keep a batch draft after closing its dialog, changing tabs, errors, exits, and single entries.
+- Clear a batch draft only after batch success or an explicit discard.
+- Close untouched single dialogs immediately. Ask before discarding changed single-dialog fields.
+- Guard each submission synchronously. Never repeat a committed write after a reload error.
+- Treat superseded reloads separately from current reload failures.
+- Keep movement history for inactive products. Preserve permanent-deletion behavior.
+- Resolve current main categories only through the existing products-authorized APIs.
+- Never expose category metadata through a stock-only IPC.
+- Keep stock confirmations inside the same stock dialog.
+- Block item changes and closing while a stock write is pending.
+- Keep existing sales, purchase, consignment, permissions, schema, and IPC channels.
+- Use a fresh isolated demo. Check both main-process paths before its first login.
+- Run Electron checks in a child PowerShell with `ELECTRON_RUN_AS_NODE` removed there.
+- On sandbox `EPERM` or `2147483651`, retry the same command with environment approval.
+- Stop and report the rejection reason if environment approval is denied.
+- Do not weaken tests or isolation after a sandbox failure.
+- Keep S33-12 open. Perform its owner review after S34.19.
+
+| Stage | Items | Depends on | Can run in parallel with |
+| --- | --- | --- | --- |
+| Data contracts | S34.1, S34.2 | none; S34.1 for S34.2 | none |
+| Isolated Electron fixture | S34.3a | S34.2 | none |
+| Reload and drafts | S34.3, S34.4 | S34.3a; S34.3 for S34.4 | none |
+| Actions and dialogs | S34.5, S34.6, S34.7, S34.8 | S34.4; each item follows the previous item | none |
+| Panel and history | S34.9, S34.10 | S34.8; S34.9 for S34.10 | none |
+| Workspace integration | S34.11, S34.11a, S34.12 | S34.10; S34.11 → S34.11a → S34.12 | none |
+| Regression checks | S34.14, S34.15, S34.16, S34.17, S34.18 | S34.12; each item follows the previous item | none |
+| Verified demo | S34.13 | S34.18 | none |
+| Registration | S34.19 | S34.13 | none |
+| Owner review | S33-12 | S34.19 | none |
+
+<!-- item-contract: v1 -->
+
+### Design rationale
+
+The screenshot places the balance list behind two forms and a separate button.
+The new list exposes balances and actions before detailed forms.
+The project stays offline and uses its existing stock contracts.
+Out of scope: schema migration, real data, releases, and changes to other product modules.
+Stop if an existing anchor differs from this plan. Report the changed anchor without discarding work.
+
+### Implementation
+
+- [x] **S34.1 Extend the active stock overview**
+  - tier: standard · high
+  - gate: auto
+  - after: none
+  - files: `db/estoque.js` (exists), `frontend/src/lib/erpApi.ts` (exists), `test/produtos-financeiro-melhorias.test.js` (exists)
+  - Files: `db/estoque.js` (exists), `frontend/src/lib/erpApi.ts` (exists), `test/produtos-financeiro-melhorias.test.js` (exists)
+  - Anchor: `async function getEstoqueVisaoGeral()`; `export type EstoqueVisaoGeralLinha = {`.
+  - Change: Add barcode, reserved quantity, and available quantity to each active variation.
+  - Do not touch: Stock mutations, inactive records, IPC authorization, and schema.
+  - do:
+    1. Select `v.codigo_barras` and `COALESCE(v.quantidade_reservada, 0) AS quantidade_reservada`.
+    2. Select stock minus reserved quantity as `quantidade_disponivel`.
+    3. Keep `p.id AS produto_id`, existing fields, ordering, and `p.ativo = 1`.
+    4. Add matching barcode and reservation fields to `EstoqueVisaoGeralLinha`.
+    5. Add tests for barcode, reservations, available stock, inactive rows, and restoration.
+  - Verify: `npm --prefix frontend run typecheck` exits 0.
+  - Source: `db/estoque.js:getEstoqueVisaoGeral`; `ipc/estoque.js` requires the `estoque` permission.
+  - check: `node --test test/produtos-financeiro-melhorias.test.js` exits 0 with the new overview assertions.
+  - proof: frontend typecheck passed; 18/18 targeted tests passed, 2026-11-04, /root.
+
+- [x] **S34.2 Expose the movement product ID**
+  - tier: standard · high
+  - gate: auto
+  - after: S34.1
+  - files: `db/estoque.js` (exists), `frontend/src/lib/erpApi.ts` (exists), `test/produtos-financeiro-melhorias.test.js` (exists)
+  - Files: `db/estoque.js` (exists), `frontend/src/lib/erpApi.ts` (exists), `test/produtos-financeiro-melhorias.test.js` (exists)
+  - Anchor: `async function getMovimentacoesEstoque(limite)`; `export type MovimentacaoEstoque = {`.
+  - Change: Add only the existing product ID to each movement result.
+  - Do not touch: Category data, movement records, ordering, limits, inactive history, IPC gates, and schema.
+  - do:
+    1. Select `p.id AS produto_id` in the existing movement query.
+    2. Add `produto_id: number` to `MovimentacaoEstoque`.
+    3. Keep the existing joins and do not filter by `p.ativo`.
+    4. Add tests for duplicate names, inactive products, ordering, and the requested limit.
+    5. Assert movement results expose no category IDs or names.
+  - Verify: `npm --prefix frontend run typecheck` exits 0.
+  - Source: `db/estoque.js:getMovimentacoesEstoque`; `frontend/src/lib/erpApi.ts:MovimentacaoEstoque`.
+  - check: `node --test test/produtos-financeiro-melhorias.test.js` exits 0 with the new movement assertions.
+  - proof: frontend typecheck passed; 19/19 targeted tests passed, 2026-11-04, /root.
+
+- [x] **S34.3a Check the Electron fixture isolation**
+  - tier: strong · high
+  - gate: auto
+  - after: S34.2
+  - files: `e2e/produtos-cadastro.spec.ts` (exists)
+  - Files: `e2e/produtos-cadastro.spec.ts` (exists)
+  - Anchor: `test.beforeAll(async () => {`; `ERP_TEST_USERDATA_DIR: userDataDir`.
+  - Change: Check both effective main-process paths before the fixture's first login.
+  - Do not touch: Existing test scenarios and real user profiles.
+  - do:
+    1. Create a fresh temporary userData directory for the Electron fixture.
+    2. Read `app.getPath("userData")` and `database.getDBPath()` from the Electron main process.
+    3. Assert both paths match the temporary directory and its database before login.
+    4. After login, assert `window.api.getDBPath()` matches the same database.
+    5. Add the test named `stock fixture isolation` without creating products.
+  - stop-if: Either main-process path differs before login. Close Electron and report the mismatch.
+  - Verify: `npm --prefix frontend run build` exits 0 before the Electron check.
+  - Source: `main.js:79`; `main.js:372`; `database.js:67`; `preload.js:132`.
+  - check: `npx playwright test e2e/produtos-cadastro.spec.ts -g "stock fixture isolation"` exits 0.
+  - proof: frontend build exported 39 routes; isolated Electron test passed 1/1 with both main paths checked before login and the API path after login, 2026-11-04, /root.
+
+- [x] **S34.3 Report stock reload outcomes**
+  - tier: standard · high
+  - gate: notify
+  - after: S34.3a
+  - files: `frontend/src/hooks/useEstoqueVisaoGeral.ts` (exists), `frontend/src/components/produtos/EstoqueListaView.tsx` (exists), `e2e/produtos-cadastro.spec.ts` (exists)
+  - Files: `frontend/src/hooks/useEstoqueVisaoGeral.ts` (exists), `frontend/src/components/produtos/EstoqueListaView.tsx` (exists), `e2e/produtos-cadastro.spec.ts` (exists)
+  - Anchor: `export function useEstoqueVisaoGeral()`; `const recarregar = useCallback(async () => {`.
+  - Change: Return success, error, or superseded while applying only the latest response.
+  - Do not touch: Stock writes and existing IPC calls.
+  - do:
+    1. Return `success` after applying the latest successful overview response.
+    2. Return `error` after recording the latest failed response.
+    3. Return `superseded` for every older response, including rejected requests.
+    4. Let only the latest request change rows, error, and loading state.
+    5. Keep existing rows on current request failure.
+    6. Handle all three outcomes in the existing stock-list caller.
+    7. Show `Lista atualizada` on success and the existing error on current failure.
+    8. Leave current feedback unchanged when the result is `superseded`.
+    9. Add `stock reload latest request`; assert `Lista atualizada`, current error, and unchanged superseded feedback.
+  - Verify: `npm --prefix frontend run build` exits 0 before the Electron check.
+  - Source: `frontend/src/hooks/useEstoqueVisaoGeral.ts`; W3C feedback, https://www.w3.org/WAI/tutorials/forms/notifications/ (accessed 2026-11-04).
+  - check: `npx playwright test e2e/produtos-cadastro.spec.ts -g "stock reload latest request"` exits 0.
+  - proof: frontend build exported 39 routes; isolated stock reload Electron test passed 1/1, 2026-11-04, /root.
+
+- [x] **S34.4 Extract and check the batch draft**
+  - tier: strong · high
+  - gate: auto
+  - after: S34.3
+  - files: `frontend/src/hooks/useEstoqueReposicao.ts` (new), `frontend/src/components/produtos/EstoqueReposicaoForm.tsx` (exists), `e2e/produtos-cadastro.spec.ts` (exists)
+  - Files: `frontend/src/hooks/useEstoqueReposicao.ts` (new), `frontend/src/components/produtos/EstoqueReposicaoForm.tsx` (exists), `e2e/produtos-cadastro.spec.ts` (exists)
+  - Anchor: `type ItemReposicao = {`; `"estoque_reposicao_itens"`; `"estoque_reposicao_observacao"`.
+  - Change: Move existing batch state into one hook owned by the current form.
+  - Do not touch: Other localStorage keys, item serialization, and existing page props.
+  - do:
+    1. Move `ItemReposicao` and both persisted-state calls into `useEstoqueReposicao`.
+    2. Keep both existing keys, defaults, and serialized item fields unchanged.
+    3. Call the hook once inside `EstoqueReposicaoForm` and preserve the current UI.
+    4. Add `stock draft survives reload` with fictional queued items and observation.
+    5. Check both draft fields after page reload and stock-tab return.
+  - Verify: `npm --prefix frontend run build` exits 0 before the Electron check.
+  - Source: `frontend/src/hooks/usePersistedState.ts:usePersistedState`; the supplied screenshot shows a queued item.
+  - check: `npx playwright test e2e/produtos-cadastro.spec.ts -g "stock draft survives reload"` exits 0.
+  - proof: frontend build exported 39 routes; isolated Electron test verified two queued items and observation after reload and tab return, 2026-11-04, /root.
+
+- [x] **S34.5 Add direct single entries**
+  - tier: strong · high
+  - gate: notify
+  - after: S34.4
+  - files: `frontend/src/components/produtos/EstoqueReposicaoForm.tsx` (exists), `e2e/produtos-cadastro.spec.ts` (exists)
+  - Files: `frontend/src/components/produtos/EstoqueReposicaoForm.tsx` (exists), `e2e/produtos-cadastro.spec.ts` (exists)
+  - Anchor: `async function adicionarItem()`; `async function confirmarReposicao()`.
+  - Change: Add a directly testable single-entry mode while keeping the existing caller compatible.
+  - Change: Show `Alterações não salvas` when the temporary form receives dirty state.
+  - Change: Compare quantity, cost, and observation with their initial values for dirty state.
+  - Do not touch: Database transaction rules and unrelated draft keys.
+  - do:
+    1. Export `EntradaUnica` with selected `variacao_id`, stock, SKU, and success and dirty-state callbacks.
+    2. Render it in temporary `Entrada individual` mode; map selector `id` to `variacao_id`.
+    3. Show stock, quantity, optional cost, observation, and `Saldo estimado`.
+    4. Send only that variation to `erpApi.estoque.registrarEntrada` on confirmation.
+    5. Keep blank cost as `null`; accept zero and reject invalid costs.
+    6. Merge repeated variations by adding quantities; replace cost only when the new cost is non-null.
+    7. Keep batch editing and observation; embed submit and discard confirmation panels.
+    8. Guard both submit paths with a synchronous ref before any awaited call.
+    9. Keep entered values and the batch draft after errors; release the guard after completion.
+    10. Add `stock single entry preserves batch`; update existing batch-confirmation selectors.
+  - stop-if: A single entry submits or clears a pre-existing batch draft. Report the path.
+  - Verify: `npm --prefix frontend run build` exits 0 before the Electron check.
+  - Source: `db/estoque.js:aplicarEntradaEstoque`; `frontend/src/components/produtos/EstoqueReposicaoForm.tsx:confirmarReposicao`.
+  - check: `npx playwright test e2e/produtos-cadastro.spec.ts -g "stock single entry preserves batch|busca variações por nome"` exits 0, including selected variation and dirty feedback.
+  - proof: frontend build exported 39 routes; isolated E2E passed direct entry, invalid-cost preservation, zero cost, unchanged batch draft, and existing SKU/barcode/ID flow, 2026-11-04, /root.
+
+- [x] **S34.6 Protect selector keyboard choices**
+  - tier: strong · high
+  - gate: notify
+  - after: S34.5
+  - files: `frontend/src/components/produtos/EstoqueProdutoSelector.tsx` (exists), `e2e/produtos-cadastro.spec.ts` (exists)
+  - Files: `frontend/src/components/produtos/EstoqueProdutoSelector.tsx` (exists), `e2e/produtos-cadastro.spec.ts` (exists)
+  - Anchor: `function aoTeclar(evento: React.KeyboardEvent<HTMLInputElement>)`; `async function executarBusca(valor: string, buscaAtual: number)`.
+  - Change: Keep scanner selection unique and let Escape close an open result list.
+  - Do not touch: Product search authorization, variation identity checks, and delayed-response guards.
+  - do:
+    1. Select a unique result on Enter before or after the search debounce.
+    2. Keep multiple results open on Enter until explicit arrow navigation.
+    3. Make the first Down Arrow highlight the first result.
+    4. Accept Enter after explicit arrow navigation and keep pointer selection.
+    5. Stop Escape propagation only when closing an open result list.
+    6. Add `stock selector keyboard safety` for immediate and delayed scans, collisions, arrows, and Escape.
+  - Verify: `npm --prefix frontend run build` exits 0 before the Electron check.
+  - Source: W3C combobox pattern, https://www.w3.org/WAI/ARIA/apg/patterns/combobox/ (accessed 2026-11-04).
+  - check: `npx playwright test e2e/produtos-cadastro.spec.ts -g "stock selector keyboard safety"` exits 0.
+  - proof: frontend build exported 39 routes; four isolated Electron tests passed for immediate and delayed Enter, collisions, arrow navigation, pointer selection, ARIA state, and Escape propagation, 2026-11-04, /root.
+
+- [x] **S34.7 Adapt and check manual exits**
+  - tier: strong · high
+  - gate: notify
+  - after: S34.6
+  - files: `frontend/src/components/produtos/EstoqueBaixaForm.tsx` (exists), `e2e/produtos-cadastro.spec.ts` (exists)
+  - Files: `frontend/src/components/produtos/EstoqueBaixaForm.tsx` (exists), `e2e/produtos-cadastro.spec.ts` (exists)
+  - Anchor: `const MOTIVOS = [`; `async function darBaixa()`.
+  - Change: Extract a selected-variation exit component and use it in the existing form.
+  - Change: Show `Alterações não salvas` when the temporary form receives dirty state.
+  - Change: Compare quantity and reason with their initial values for dirty state.
+  - Do not touch: `registrarSaidaEstoque`, sale deductions, and reservation data.
+  - do:
+    1. Export `SaidaUnica` with selected `variacao_id` and success and dirty-state callbacks.
+    2. Render it in the existing form; map selector `id` to `variacao_id`.
+    3. Keep the component rendered when no variation is selected.
+    4. Show stock, reservations, positive integer quantity, existing reasons, and `Saldo estimado`.
+    5. Warn before an exit below reservations and show the authoritative warning after success.
+    6. Send the selected `variacao_id` and reason through `erpApi.estoque.registrarSaida`.
+    7. Guard submission synchronously; preserve fields on failure and release the guard afterward.
+    8. Add `stock exit warning and lock` with stock 10 and an `orcamento` reserving 9.
+    9. Switch selection from A to B; check only B is changed.
+    10. Check invalid quantities, reservation warnings, committed balance, and duplicate clicks.
+  - Verify: `npm --prefix frontend run build` exits 0 before the Electron check.
+  - Source: `db/estoque.js:registrarSaidaEstoque`; `test/produtos-financeiro-melhorias.test.js:193`; https://www.w3.org/WAI/tutorials/forms/notifications/ (accessed 2026-11-04).
+  - check: `npx playwright test e2e/produtos-cadastro.spec.ts -g "stock exit warning and lock"` exits 0, including selected variation and dirty feedback.
+  - proof: frontend build exported 39 routes; two isolated Electron tests passed for reserved-stock warning, invalid quantity, cancellation, duplicate dispatch, A-to-B selection, and missing-selection regression, 2026-11-05, /root.
+
+- [x] **S34.8 Add and use an accessible stock dialog**
+  - tier: strong · high
+  - gate: notify
+  - after: S34.7
+  - files: `frontend/src/components/produtos/EstoqueDialog.tsx` (new), `frontend/src/components/produtos/EstoqueListaView.tsx` (exists), `e2e/produtos-cadastro.spec.ts` (exists)
+  - Files: `frontend/src/components/produtos/EstoqueDialog.tsx` (new), `frontend/src/components/produtos/EstoqueListaView.tsx` (exists), `e2e/produtos-cadastro.spec.ts` (exists)
+  - Anchor: `showCloseButton?: boolean;` in `frontend/src/components/ui/modal/index.tsx`; `export default function EstoqueListaView({`.
+  - Change: Use a stock-specific dialog wrapper in the existing list modal.
+  - Do not touch: The global Modal component, its other callers, and real data.
+  - do:
+    1. Create `EstoqueDialog` with title, close, busy, initial-focus, and children props.
+    2. Use `Modal` with `showCloseButton={false}` and a named `Fechar` button.
+    3. Add `role="dialog"`, `aria-modal="true"`, and a labelled title.
+    4. Contain Tab and Shift+Tab and return focus to the opening action.
+    5. Block Escape, close, and backdrop while a write is pending.
+    6. Replace the current stock-list Modal with `EstoqueDialog`.
+    7. Show minimum-field errors inline rather than opening another modal.
+    8. Add `stock list dialog keyboard` to check focus, Escape, scroll, and the inline error.
+  - Verify: `npm --prefix frontend run build` exits 0 before the Electron check.
+  - Source: W3C modal dialog pattern, https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/ (accessed 2026-11-04).
+  - check: `npx playwright test e2e/produtos-cadastro.spec.ts -g "stock list dialog keyboard"` exits 0.
+  - proof: frontend build exported 39 routes; isolated Electron keyboard E2E passed focus entry/return, Tab wrapping, scrolling, inline minimum validation, and Escape/close/backdrop blocking during a pending write; root lint passed with 4 pre-existing warnings, 2026-11-05, /root.
+
+- [x] **S34.9 Extract the controlled stock panel**
+  - tier: standard · high
+  - gate: notify
+  - after: S34.8
+  - files: `frontend/src/components/produtos/EstoqueListaView.tsx` (exists), `e2e/produtos-cadastro.spec.ts` (exists)
+  - Files: `frontend/src/components/produtos/EstoqueListaView.tsx` (exists), `e2e/produtos-cadastro.spec.ts` (exists)
+  - Anchor: `const CHIPS: { id: Status; label: string }[] = [`; `async function salvarMinimo(variacaoId: number, valor: string)`.
+  - Change: Extract a named controlled panel and keep the old modal as a temporary adapter.
+  - Do not touch: Stored stock quantities, active-product filtering, and existing page callers.
+  - do:
+    1. Export `EstoqueListaPanel` with rows, loading, error, reload, and surface props.
+    2. Keep the default modal adapter responsible for `useEstoqueVisaoGeral`.
+    3. Pass `surface="modal"` from the temporary modal adapter.
+    4. Search case- and accent-insensitively by name, SKU, barcode, and product ID.
+    5. Match numeric IDs against `produto_id` and show every colliding match.
+    6. Keep the four filters and put totals and row costs in `Resumo e valores`.
+    7. Reject blank, decimal, and negative minimum values; restore the saved value on failure.
+    8. Clear saved minimum overrides and preserve focused edits during refresh.
+    9. Use the supplied `ScrollArea` surface, both axes, and a sticky header.
+    10. Add `stock list panel filters`, including dark modal surface, and update search selectors.
+  - Verify: `npm --prefix frontend run build` exits 0 before the Electron check.
+  - Source: `frontend/src/components/produtos/EstoqueListaView.tsx:statusDe`; `db/produtos.js:buscarProdutosPorTermo`.
+  - check: `npx playwright test e2e/produtos-cadastro.spec.ts -g "stock list panel filters"` exits 0.
+  - proof: frontend build exported 39 routes; isolated Electron E2E passed accent-insensitive name, SKU/barcode collisions, exact product ID with sibling variations, all stock filters, minimum validation/failure/success, focused refresh, and dark modal surface; root lint passed with 4 pre-existing warnings, 2026-11-05, /root.
+
+- [x] **S34.10 Correct movement display and category filtering**
+  - tier: strong · high
+  - gate: notify
+  - after: S34.9
+  - files: `frontend/src/components/produtos/MovimentacoesList.tsx` (exists), `frontend/src/lib/estoque/categoriasMovimentacao.ts` (new), `e2e/produtos-cadastro.spec.ts` (exists)
+  - Files: `frontend/src/components/produtos/MovimentacoesList.tsx` (exists), `frontend/src/lib/estoque/categoriasMovimentacao.ts` (new), `e2e/produtos-cadastro.spec.ts` (exists)
+  - Anchor: `const categoriaPorProdutoNome = useMemo(() => {`; `export type CategoriaSelecionada = {`.
+  - Change: Use authorized product metadata for current categories and correct movement signs.
+  - Change: Put category mapping and permission-message selection in pure functions used by the component.
+  - Change: Check distinct permission and transient-error messages and the retry action.
+  - Change: Test a legacy null `categoria_id` whose `subcategoria_id` resolves to its parent.
+  - Change: Import the message function in the spec and check both permission states.
+  - Change: Simulate an authorized metadata failure through Electron and check retry.
+  - Do not touch: Stock IPC authorization, stored movements, history limits, and permanent-deletion behavior.
+  - do:
+    1. Render history in `EstoqueDialog` and keep its 30 ordered movements.
+    2. Reload `erpApi.produtos.detalhados(true)` and `useCategorias(true)` on open.
+    3. Map active and inactive products by `produto_id` in `categoriasMovimentacao.ts`.
+    4. Resolve linked subcategories to main IDs; otherwise resolve both legacy IDs.
+    5. Resolve a legacy subcategory parent even when `categoria_id` is null.
+    6. Clear missing filters; show all 30 movements when either metadata request fails.
+    7. When `useAuth().podeModulo('produtos')` is false, show `Filtro por categoria indisponível para este perfil`.
+    8. Otherwise show `Não foi possível carregar as categorias. Tente novamente.` on request failure.
+    9. Disable the failed filter, offer retry, and render entry `+abs`, exit `−abs`, and adjustment by stored sign.
+    10. Add `stock history categories and signs` for duplicate names, links, inactive products, and legacy parents.
+  - Verify: `npm --prefix frontend run build` exits 0 before the Electron check.
+  - Source: `db/produtos.js:listProdutosDetalhados`; `frontend/src/hooks/useCategorias.ts`; `frontend/src/context/AuthContext.tsx:podeModulo`.
+  - check: `npx playwright test e2e/produtos-cadastro.spec.ts -g "stock history categories and signs"` exits 0, including null legacy category ID, subcategory parent, and both error messages.
+  - proof: frontend build exported 39 routes; isolated Electron E2E passed ID-based categories, linked/legacy subcategories, inactive history, signs, 30 ordered movements, delayed metadata request without duplicate fetch, both metadata failures, retry, and filter restoration; root lint passed with 4 pre-existing warnings, 2026-11-05, /root.
+
+- [x] **S34.11 Assemble and check the stock workspace**
+  - tier: strong · high
+  - gate: notify
+  - after: S34.10
+  - files: `frontend/src/app/(admin)/produtos/estoque/page.tsx` (exists), `frontend/src/components/produtos/EstoqueListaView.tsx` (exists), `e2e/produtos-cadastro.spec.ts` (exists)
+  - Files: `frontend/src/app/(admin)/produtos/estoque/page.tsx` (exists), `frontend/src/components/produtos/EstoqueListaView.tsx` (exists), `e2e/produtos-cadastro.spec.ts` (exists)
+  - Anchor: `export default function EstoquePage()`; `function abrirLista(buscaInicial: string)`.
+  - Change: Connect row callbacks and selected-variation dialogs to the controlled panel.
+  - Do not touch: Other product tabs, routes, draft keys, permissions, and global dialog components.
+  - do:
+    1. Add `onAdicionar` and `onRetirar` callbacks to `EstoqueListaPanel`.
+    2. Own `useEstoqueVisaoGeral` in the page and pass `surface="card"` to the panel.
+    3. Render `EntradaUnica` and `SaidaUnica` in dialogs for the selected row.
+    4. Keep batch inline temporarily; make its list shortcut focus the inline search.
+    5. Keep changed single forms mounted during embedded discard confirmation.
+    6. Block close, Escape, backdrop, row changes, and duplicate submission while writing.
+    7. Refresh after writes, minimum changes, and return to the visible stock subtab.
+    8. Keep successful writes distinct from failed or superseded reloads.
+    9. Add `stock workspace actions` for row callbacks, selected variations, pending locks, and dark card surface.
+    10. Adapt existing Electron tests without removing assertions or renaming their tests.
+  - stop-if: A committed write is reported as failed or repeated. Report the path.
+  - Verify: `npm --prefix frontend run build` exits 0 before the Electron check.
+  - Source: `frontend/src/layout/ProdutosWorkspace.tsx:ProdutosWorkspace`; `frontend/src/context/AbaVisivelContext.tsx:useAbaVisivel`.
+  - check: `npx playwright test e2e/produtos-cadastro.spec.ts` exits 0 with all prior and new scenarios.
+  - proof: frontend build exported 39 routes; root lint passed with 0 errors and 4 pre-existing warnings; isolated Electron suite passed 20/20, including reload ordering, inline list/minimum edits, selected-variation entry/exit, pending-write locks and duplicate prevention, dark sticky card surface, 2026-11-05, /root.
+
+- [x] **S34.11a Integrate the batch draft dialog**
+  - tier: strong · high
+  - gate: notify
+  - after: S34.11
+  - files: `frontend/src/app/(admin)/produtos/estoque/page.tsx` (exists), `frontend/src/components/produtos/EstoqueReposicaoForm.tsx` (exists), `e2e/produtos-cadastro.spec.ts` (exists)
+  - Files: `frontend/src/app/(admin)/produtos/estoque/page.tsx` (exists), `frontend/src/components/produtos/EstoqueReposicaoForm.tsx` (exists), `e2e/produtos-cadastro.spec.ts` (exists)
+  - Anchor: `export default function EstoquePage()`; `export default function EstoqueReposicaoForm({`.
+  - Change: Move the batch draft to the page and open batch entry in `EstoqueDialog`.
+  - Do not touch: Existing localStorage keys, stock transactions, and named single-entry behavior.
+  - do:
+    1. Move `useEstoqueReposicao` ownership to the page and pass one draft instance.
+    2. Show `Entrada em lote`, `Ver movimentações`, and the pending-draft indicator.
+    3. Open batch entry in `EstoqueDialog`; preserve drafts on close, errors, and single actions.
+    4. Keep submission and discard confirmations inside the same dialog.
+    5. Remove the temporary single-entry toggle and obsolete list shortcut from the batch form.
+    6. Keep `EntradaUnica` available for row actions and retain batch `EstoqueProdutoSelector`.
+    7. Add `stock batch dialog preserves draft` for close, confirmation, discard, and retry.
+    8. Adapt prior Electron tests to the inline panel and dialogs.
+    9. Keep the exact title `Enter imediato do leitor seleciona o único código de barras correspondente`.
+    10. Keep every earlier behavioral assertion.
+  - Verify: `npm --prefix frontend run build` exits 0 before the Electron check.
+  - Source: `frontend/src/hooks/usePersistedState.ts:usePersistedState`; `frontend/src/components/produtos/EstoqueReposicaoForm.tsx:confirmarReposicao`.
+  - check: `npx playwright test e2e/produtos-cadastro.spec.ts` exits 0 with the batch-dialog test.
+  - proof: page owns the persisted batch draft; the batch dialog retains confirmation, discard, and retry errors; the redundant mode toggle and list shortcut were removed; frontend build exported 39 routes; root lint passed with 0 errors and 4 pre-existing warnings; isolated Electron Playwright suite passed 21/21; reviewer found no concrete issues, 2026-11-05, /root.
+
+- [x] **S34.12 Remove the transitional stock layout**
+  - tier: standard · high
+  - gate: auto
+  - after: S34.11a
+  - files: `frontend/src/components/produtos/EstoqueListaView.tsx` (exists), `frontend/src/components/produtos/EstoqueBaixaForm.tsx` (exists)
+  - Files: `frontend/src/components/produtos/EstoqueListaView.tsx` (exists), `frontend/src/components/produtos/EstoqueBaixaForm.tsx` (exists)
+  - Anchor: `onAbrirLista`; `isOpen`; `onClose`; `buscaInicial` in the current stock components.
+  - Change: Remove the temporary list-modal adapter and exit-form fallback.
+  - Do not touch: Batch selection, persisted drafts, mutation validation, and movement history.
+  - do:
+    1. Remove the default modal adapter and export the controlled stock panel.
+    2. Remove the obsolete exit-form selector and `onAbrirLista` fallback.
+    3. Keep selected-row exit behavior and all workspace callbacks unchanged.
+  - Verify: `npm --prefix frontend run build` exits 0 before the Electron check.
+  - Source: `frontend/src/app/(admin)/produtos/estoque/page.tsx:EstoquePage`.
+  - check: `npx playwright test e2e/produtos-cadastro.spec.ts` exits 0 with all existing scenarios.
+  - proof: removed the default stock-list modal adapter and inline exit selector; kept the controlled stock panel and per-variation `SaidaUnica`; adapted exit, reservation, and movement E2E coverage; frontend build exported 39 routes; root lint passed with 0 errors and 4 pre-existing warnings; isolated Electron suite passed 21/21; reviewer found no concrete issues, 2026-11-05, /root.
+
+### Tests
+
+- [x] **S34.14 Check stock IPC gates**
+  - tier: standard · high
+  - gate: auto
+  - after: S34.12
+  - files: `test/produtos-financeiro-melhorias.test.js` (exists)
+  - Files: `test/produtos-financeiro-melhorias.test.js` (exists)
+  - Anchor: `test("saída valida quantidade e produto e registra motivo e aviso de reserva"`.
+  - Change: Add isolated checks for allowed and denied stock IPC calls.
+  - Do not touch: IPC gate implementations, schema, and real databases.
+  - do:
+    1. Register `ipc/estoque.js` handlers with a fake `ipcMain`.
+    2. Inject allowed and denied `exigirPermissao` functions.
+    3. Check overview, movement, entry, and exit handlers require `estoque`.
+    4. Check denied calls do not mutate the temporary database.
+    5. Check movement results do not expose category IDs or names.
+  - Verify: `node --test test/produtos-financeiro-melhorias.test.js` exits 0 in the single `check:` run.
+  - Source: `ipc/estoque.js:registrar`; `test/financeiro-fluxo-consolidado.test.js`.
+  - check: `node --test test/produtos-financeiro-melhorias.test.js` exits 0 with the new permission assertions.
+  - proof: fake IPC fixture verified permission checks for overview, movements, entry, and exit; denied writes left temporary balance and movement count unchanged; movement payload omitted category data; `node --test test/produtos-financeiro-melhorias.test.js` passed 20/20; reviewer found no concrete issues, 2026-11-05, /root.
+
+- [x] **S34.15 Check workspace behavior in Electron**
+  - tier: strong · high
+  - gate: auto
+  - after: S34.14
+  - files: `e2e/estoque-workspace.spec.ts` (new)
+  - Files: `e2e/estoque-workspace.spec.ts` (new)
+  - Anchor: `test.beforeAll(async () => {` in `e2e/produtos-cadastro.spec.ts`.
+  - Change: Add isolated end-to-end checks for the finished workspace.
+  - Do not touch: Real user profiles and existing store data.
+  - do:
+    1. Copy the S34.3a main-process and post-login path checks before creating products.
+    2. Check row search, all filters, minimum edits, costs, totals, and empty state.
+    3. Add and remove fictional stock and inspect the committed movement history.
+    4. Check blank cost, zero cost, estimated balances, and reservation warnings.
+    5. Double-click actions and assert exactly one movement is recorded.
+    6. Fail a reload after commit and check success remains distinct without repeating the write.
+    7. Reverse reload responses and check superseded errors do not replace newer state.
+    8. Check refresh on return to the stock subtab and inactive-product restoration.
+  - Verify: `npm --prefix frontend run build` exits 0 before the Electron check.
+  - Source: `e2e/produtos-cadastro.spec.ts`; `frontend/src/hooks/useEstoqueVisaoGeral.ts`.
+  - check: `npx playwright test e2e/estoque-workspace.spec.ts` exits 0.
+  - proof: Frontend build exported 39 routes; Electron workspace suite passed 4/4 against a temporary userData/database profile; reviewer approved and `git diff --check` passed.
+
+- [x] **S34.16 Check stock dialog accessibility**
+  - tier: strong · high
+  - gate: auto
+  - after: S34.15
+  - files: `e2e/estoque-acessibilidade.spec.ts` (new), `frontend/src/components/ui/button/Button.tsx`, `frontend/src/components/produtos/EstoqueReposicaoForm.tsx`, `frontend/src/components/produtos/EstoqueBaixaForm.tsx`, `frontend/src/app/(admin)/produtos/estoque/page.tsx`
+  - Files: `e2e/estoque-acessibilidade.spec.ts` (new), `frontend/src/components/ui/button/Button.tsx`, `frontend/src/components/produtos/EstoqueReposicaoForm.tsx`, `frontend/src/components/produtos/EstoqueBaixaForm.tsx`, `frontend/src/app/(admin)/produtos/estoque/page.tsx`
+  - Anchor: `test.beforeAll(async () => {` in `e2e/produtos-cadastro.spec.ts`.
+  - Change: Check dialogs and layout using isolated Electron data; restore focus after canceling and associate batch labels with their fields.
+  - Do not touch: Global Modal behavior, real user profiles, and desktop screenshots.
+  - do:
+    1. Copy the S34.3a isolation checks before creating fictional products.
+    2. Check named dialogs, initial focus, Tab, Shift+Tab, and focus return.
+    3. Check Escape closes selector results before closing the dialog.
+    4. Check changed single forms show embedded discard confirmation.
+    5. Check `Voltar` preserves fields and focus; check confirmed discard closes the dialog.
+    6. Check batch confirmation remains inside the stock dialog and keeps background scroll locked.
+    7. Check both themes and row-action visibility at 1024×640 and maximized size.
+    8. Check sticky headers and card surface in the dark theme.
+  - Verify: `npm --prefix frontend run build` exits 0 before the Electron check.
+  - Source: W3C modal dialog pattern, https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/ (accessed 2026-11-04).
+  - check: `npx playwright test e2e/estoque-acessibilidade.spec.ts` exits 0.
+  - proof: Frontend build exported 39 routes; Electron accessibility suite passed 5/5 in a temporary profile; reviewer approved and `git diff --check` passed.
+
+- [x] **S34.17 Check batch drafts and selector behavior**
+  - tier: strong · high
+  - gate: auto
+  - after: S34.16
+  - files: `e2e/estoque-lote.spec.ts` (new)
+  - Files: `e2e/estoque-lote.spec.ts` (new)
+  - Anchor: `test("Enter imediato do leitor seleciona o único código de barras correspondente"` in `e2e/produtos-cadastro.spec.ts`.
+  - Change: Add isolated end-to-end coverage for batch safety and keyboard selection.
+  - Do not touch: Existing localStorage outside the temporary test profile.
+  - do:
+    1. Copy the S34.3a isolation checks before creating fictional products.
+    2. Seed both legacy draft keys and reopen the batch dialog and app.
+    3. Check single entries, exits, close, and errors preserve the old batch draft.
+    4. Check batch success and explicit discard each clear only that draft.
+    5. Check an inactive variation rolls back every batch item and remains identified.
+    6. Check blank cost, zero cost, weighted cost, duplicate items, and item removal.
+    7. Check unique and ambiguous scanner Enter before and after debounce.
+    8. Check arrow selection, delayed results, two Escape presses, and embedded confirmation focus.
+  - Verify: `npm --prefix frontend run build` exits 0 before the Electron check.
+  - Source: W3C combobox pattern, https://www.w3.org/WAI/ARIA/apg/patterns/combobox/ (accessed 2026-11-04).
+  - check: `npx playwright test e2e/estoque-lote.spec.ts` exits 0.
+  - proof: Frontend build exported 39 routes; isolated Electron suite passed 4/4; reviewer approved and `git diff --check` passed.
+
+- [x] **S34.18 Run the project checks**
+  - tier: standard · high
+  - gate: auto
+  - after: S34.17
+  - files: `package.json` (exists), `frontend/package.json` (exists)
+  - Files: `package.json` (exists), `frontend/package.json` (exists)
+  - Anchor: `"test:e2e": "playwright test"`; `"typecheck": "tsc --noEmit"`.
+  - Change: Run the complete project checks before preparing the demo.
+  - Do not touch: Existing demos, the store database, and customer credentials.
+  - do:
+    1. Run `npm run lint` and `npm test`.
+    2. Run `npm --prefix frontend run lint` and `npm --prefix frontend run typecheck`.
+    3. Run `npm --prefix frontend run build` and `npm run test:e2e`.
+    4. Stop and report any failing command.
+    5. Record pre-existing lint warnings.
+  - Verify: Run all six project commands once and retain their exit codes.
+  - Source: `package.json:scripts`; `frontend/package.json:scripts`.
+  - check: `npm run lint`, `npm test`, `npm --prefix frontend run lint`, `npm --prefix frontend run typecheck`, `npm --prefix frontend run build`, and `npm run test:e2e` each exit 0.
+  - proof: All six commands exited 0; unit tests passed 283/283 and Electron E2E passed 84/84; existing lint warnings remain (4 root and 3 frontend).
+
+### Registration
+
+- [x] **S34.13 Prepare one verified isolated demo**
+  - tier: strong · high
+  - gate: notify
+  - after: S34.18
+  - files: `scripts/preparar-demo-estoque.js` (new)
+  - Files: `scripts/preparar-demo-estoque.js` (new)
+  - Anchor: `test.beforeAll(async () => {` and `ERP_TEST_USERDATA_DIR: userDataDir` in `e2e/produtos-cadastro.spec.ts`.
+  - Change: Add and run one explicit demo check after all project tests.
+  - Change: Seed `Kimono demo` A1/A2 and `Faixa demo` with price 100, cost 50, and minimum 2.
+  - Change: Close every spawned Electron in a finally block on all outcomes.
+  - Change: Do not run the helper during `do:`; run it only in `check:`.
+  - Change: Include `ERP_DEBUG_DEVTOOLS=1` in the printed manual launch commands.
+  - Change: Do not add `--remote-debugging-port` to any launch.
+  - Do not touch: Existing demo folders, the store database, and user credentials.
+  - do:
+    1. Make `--check` create one unique new directory under gitignored `data`.
+    2. Set `ERP_TEST_USERDATA_DIR` to that directory and `ERP_MOCK_UPDATER=1`.
+    3. Set fictional support credentials to `demo34suporte` and `suporte-demo-34`.
+    4. Before login, compare main-process `app.getPath("userData")` and `database.getDBPath()` with the new paths.
+    5. Stop and close Electron if either main-process path differs.
+    6. Create fictional account `demo34` with password `estoque34demo` through the app.
+    7. Check `window.api.getDBPath()` before creating fictional products.
+    8. Create `DEMO-A1` and `DEMO-A2` with stock 5, and `DEMO-FAIXA` with stock 1.
+    9. Relaunch; recheck both main paths before login and the API path after reauthentication.
+    10. Inspect the products, close Electron, and print credentials and PowerShell commands with test variables.
+  - stop-if: A path differs, reauthentication fails, or the products are missing. Close Electron and report the failure.
+  - Verify: Use the single `check:` run as evidence. Do not run the helper twice.
+  - Source: `main.js:79`; `main.js:221`; `main.js:372`; `database.js:67`; `preload.js:132`.
+  - check: Run `npm run lint`; after it exits 0, run `node scripts/preparar-demo-estoque.js --check` exactly once. Both exit 0.
+  - proof: User-approved retries fixed sandbox startup, the 15-second bootstrap login, and stale-app cleanup; final lint and isolated `--check` exited 0. Paths and three SKU values passed; demo profile: `data/demo-estoque-PJkz91`. Earlier isolated attempts remain under `data` for diagnosis.
+
+- [x] **S34.19 Document the stock workspace contract**
+  - tier: light · low
+  - gate: auto
+  - after: S34.13
+  - files: `AGENTS.md` (exists)
+  - Files: `AGENTS.md` (exists)
+  - Anchor: `## Decisões Arquiteturais`.
+  - Change: Document the stock workspace and its preserved batch and reservation rules.
+  - Do not touch: Version numbers, release notes, permissions, and other module documentation.
+  - do:
+    1. Add `Estoque: a lista apresenta saldos e ações por variação; o lote preserva rascunhos.`
+    2. Add `O mínimo é alerta; baixas usam o IPC existente e avisam sobre reservas.`
+    3. Add `Demonstrações exigem pasta isolada e conferência dos caminhos do Electron e do banco.`
+    4. Add `Prepare uma demo com node scripts/preparar-demo-estoque.js --check.`
+    5. Keep the existing stock route and module registration.
+  - Verify: `git diff --check` exits 0.
+  - Source: `frontend/src/app/(admin)/produtos/estoque/page.tsx:EstoquePage`; `ipc/estoque.js`.
+  - check: `rg -F "Estoque: a lista apresenta saldos e ações por variação" AGENTS.md`, `rg -F "O mínimo é alerta; baixas usam o IPC existente e avisam sobre reservas" AGENTS.md`, `rg -F "Demonstrações exigem pasta isolada e conferência dos caminhos do Electron e do banco" AGENTS.md`, `rg -F "Prepare uma demo com node scripts/preparar-demo-estoque.js --check." AGENTS.md`, and `git diff --check` each exit 0.
+  - proof: All four required `rg -F` checks and `git diff --check` exited 0.
+
 ---
 
 ## P0 — Broken or half-wired right now

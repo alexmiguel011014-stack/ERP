@@ -133,6 +133,8 @@ contextBridge.exposeInMainWorld("api", {
 	getModulosCarregados: () => ipcRenderer.invoke("get-modulos-carregados"),
 	registrarEntradaEstoque: (dados) =>
 		ipcRenderer.invoke("registrar-entrada-estoque", dados),
+	registrarSaidaEstoque: (dados) =>
+		ipcRenderer.invoke("registrar-saida-estoque", dados),
 	getMovimentacoesEstoque: (limite) =>
 		ipcRenderer.invoke("get-movimentacoes-estoque", limite),
 	getEstoqueBaixo: () => ipcRenderer.invoke("get-estoque-baixo"),

@@ -1,6 +1,7 @@
 "use client";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useAbaVisivel } from "@/context/AbaVisivelContext";
 import { usePageHeader } from "@/context/PageHeaderContext";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
@@ -8,6 +9,7 @@ import Button from "@/components/ui/button/Button";
 import { usePrecificacao } from "@/hooks/usePrecificacao";
 import { useCategorias } from "@/hooks/useCategorias";
 import { erpApi } from "@/lib/erpApi";
+import { confirmar } from "@/lib/dialogo";
 import PrecificacaoTable, {
 	type AlteracaoPrecificacao,
 } from "@/components/produtos/PrecificacaoTable";
@@ -18,6 +20,8 @@ import {
 
 export default function PrecificacaoPage() {
 	usePageHeader("Precificação", "Gerencie margens e preços de venda");
+	const visivel = useAbaVisivel();
+	const visivelAnterior = useRef(visivel);
 	const {
 		dados,
 		setDados,
@@ -58,10 +62,39 @@ export default function PrecificacaoPage() {
 		Record<number, AlteracaoPrecificacao>
 	>({});
 	const [salvandoAlteracoes, setSalvandoAlteracoes] = useState(false);
+	const [atualizacaoPendente, setAtualizacaoPendente] = useState(false);
 	const [mensagem, setMensagem] = useState<{
 		texto: string;
 		sucesso: boolean;
 	} | null>(null);
+
+	useEffect(() => {
+		const retornou = visivel && !visivelAnterior.current;
+		visivelAnterior.current = visivel;
+		if (!retornou) return;
+		if (Object.keys(alteracoes).length > 0 || salvandoAlteracoes) {
+			setAtualizacaoPendente(true);
+		} else {
+			setSelecionados([]);
+			void recarregar();
+		}
+	}, [visivel, alteracoes, salvandoAlteracoes, recarregar]);
+
+	async function atualizarLista() {
+		if (Object.keys(alteracoes).length > 0) {
+			const confirmou = await confirmar({
+				titulo: "Descartar alterações?",
+				mensagem: "Atualizar a lista descartará as alterações de preço ainda não salvas.",
+				confirmarLabel: "Descartar e atualizar",
+				destrutivo: true,
+			});
+			if (!confirmou) return;
+		}
+		setAlteracoes({});
+		setSelecionados([]);
+		setAtualizacaoPendente(false);
+		await recarregar();
+	}
 
 	function mostrarMensagem(texto: string, sucesso: boolean) {
 		setMensagem({ texto, sucesso });
@@ -265,6 +298,7 @@ export default function PrecificacaoPage() {
 			}
 			setAlteracoes({});
 			await recarregar();
+			setAtualizacaoPendente(false);
 			mostrarMensagem(
 				`${pendentes.length} produto(s) salvo(s) e disponível(is) no PDV.`,
 				true,
@@ -559,6 +593,11 @@ export default function PrecificacaoPage() {
 					</select>
 				</div>
 				<div className="ml-auto flex items-center gap-3">
+					{(atualizacaoPendente || Object.keys(alteracoes).length > 0) && (
+						<Button size="sm" onClick={atualizarLista} disabled={salvandoAlteracoes}>
+							Atualizar lista
+						</Button>
+					)}
 					{Object.keys(alteracoes).length > 0 && (
 						<span className="text-sm text-warning-600 dark:text-warning-400">
 							{Object.keys(alteracoes).length} alteração(ões) pendente(s)
