@@ -353,4 +353,27 @@ test.describe("Estoque workspace isolado", () => {
 			});
 		}
 	});
+
+	test("Estoque: menu Ordenar lista as quatro opções e inverte a ordem por nome", async () => {
+		const sufixo = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
+		await criarProduto(`Alfa ordem ${sufixo}`, [{ sku: `WS-ORD-A-${sufixo}`, preco: 100, preco_custo: 10, quantidade_estoque: 3, estoque_minimo: 1, atributos: [{ chave: "Unidade", valor: "Único" }] }]);
+		await criarProduto(`Zeta ordem ${sufixo}`, [{ sku: `WS-ORD-Z-${sufixo}`, preco: 100, preco_custo: 10, quantidade_estoque: 3, estoque_minimo: 1, atributos: [{ chave: "Unidade", valor: "Único" }] }]);
+
+		const lista = await abrirEstoque();
+		await atualizarLista(lista);
+		await lista.getByRole("button", { name: "Ordenar", exact: true }).click();
+		await expect(window.getByRole("menuitemradio").and(visible())).toHaveCount(4);
+		await expect(window.getByRole("menuitemradio", { name: "Nome (A → Z)" }).and(visible())).toHaveAttribute("aria-checked", "true");
+		await window.getByRole("menuitemradio", { name: "Nome (Z → A)" }).and(visible()).click();
+
+		const celulasProduto = lista.locator("tbody tr td:nth-child(2)");
+		expect(await celulasProduto.count()).toBeGreaterThanOrEqual(2);
+		const nomes = (await celulasProduto.allTextContents()).map((t) => t.trim());
+		const collator = new Intl.Collator("pt-BR", { sensitivity: "base", numeric: true });
+		expect(nomes).toEqual([...nomes].sort((a, b) => collator.compare(b, a)));
+
+		await window.reload();
+		await window.waitForLoadState("domcontentloaded");
+		expect(await window.evaluate(() => JSON.parse(localStorage.getItem("erp.ordenacao.estoque") ?? "null"))).toBe("nome-desc");
+	});
 });

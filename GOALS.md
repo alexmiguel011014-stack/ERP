@@ -41,6 +41,21 @@ Owner items left open by archived plans. Mark them done here.
   Source: Customer audio and screenshot; `main.js:221`; `preload.js:132`; `ipc/sistema.js:210`.
   check: manual — The owner checks the demo path, both themes and sizes, entries, exits, batch, and history, then explicitly accepts.
 
+- [ ] **S35-6 Owner review of the stock sort menu** (GOALS 35)
+  tier: user · gate: ask · after: S35-5
+  files: none
+  Anchor: Owner screenshot of the product list with "Buscar por nome ou categoria" and "Ordenar".
+  Change: The owner checks the new menu in the running app.
+  Do not touch: The store database.
+  do:
+  1. Ask the owner to open Produtos, then Estoque, in a test copy or demo.
+  2. Ask the owner to open "Ordenar" and pick each of the four options.
+  3. Ask the owner to close and reopen the app and check the option is remembered.
+  4. Ask the owner to check both themes.
+  Verify: Record the owner's acceptance or requested changes.
+  Source: Owner screenshot in this conversation.
+  check: manual — The owner sees the "Ordenar" button beside the search box on the stock list, each option reorders the rows, and the choice survives a restart.
+
 The previous `data/demo-estoque-J3qt1D` demonstration failed authentication. Use the verified GOALS 34 demonstration.
 
 ---
@@ -8921,3 +8936,4 @@ check (32-11); tests after all usages; docs and manual verification last.
 *Faturamento por dia* card included — each scrolls inside itself with no visible scrollbar, keeps its
 header row, shows a "more below" fade, shrinks on a 1024×640 window, prints in full, and
 `cards-rolagem.spec.ts` plus the full lint/typecheck/build/e2e suite pass.
+

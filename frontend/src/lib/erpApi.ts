@@ -769,6 +769,7 @@ export type EstoqueVisaoGeralLinha = {
 	cor: string | null;
 	produto_nome: string;
 	produto_id: number;
+	produto_atualizado_em: string | null;
 };
 
 export type NovaEntradaEstoque = {

@@ -395,3 +395,15 @@ test("trancar e destrancar o banco (reboot de iniciarBanco) não recarimba nada"
 		nTriggers,
 	);
 });
+
+test("a visão geral de estoque devolve a data de modificação do produto", async () => {
+	const { produtoId, variacaoId } = await criarProduto();
+	const linhas = await db.getEstoqueVisaoGeral();
+	const linha = linhas.find((l) => l.variacao_id === variacaoId);
+	assert.ok(linha, "variação criada deve aparecer na visão geral");
+	assert.match(linha.produto_atualizado_em, FORMATO_ISO_UTC);
+	assert.strictEqual(
+		linha.produto_atualizado_em,
+		(await datasProduto(produtoId)).atualizado_em,
+	);
+});

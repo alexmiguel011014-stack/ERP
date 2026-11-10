@@ -161,7 +161,8 @@ async function getEstoqueVisaoGeral() {
 		    v.estoque_minimo, COALESCE(v.quantidade_reservada, 0) AS quantidade_reservada,
 		    v.quantidade_estoque - COALESCE(v.quantidade_reservada, 0) AS quantidade_disponivel,
 		    v.preco_custo, v.atributos, v.tamanho, v.cor,
-            p.nome AS produto_nome, p.id AS produto_id
+            p.nome AS produto_nome, p.id AS produto_id,
+            p.atualizado_em AS produto_atualizado_em
      FROM Variacoes v
      JOIN Produtos p ON p.id = v.produto_id
      WHERE p.ativo = 1

@@ -4,6 +4,15 @@ import { ScrollArea, type SuperficieScrollArea } from "@/components/ui/scroll-ar
 import { erpApi, type EstoqueVisaoGeralLinha } from "@/lib/erpApi";
 import { formatarMoeda } from "@/components/dashboard/formatos";
 import { formatarAtributos } from "@/lib/utils/formatos";
+import OrdenarMenu from "@/components/common/OrdenarMenu";
+import { usePersistedState } from "@/hooks/usePersistedState";
+import {
+	OPCOES_ORDENACAO_PRODUTOS,
+	ORDENACAO_PADRAO_PRODUTOS,
+	buscarOpcao,
+	lerOrdenacaoPersistida,
+	ordenar,
+} from "@/lib/utils/ordenacao";
 
 type Status = "todos" | "normal" | "baixo" | "negativo";
 
@@ -50,6 +59,16 @@ export function EstoqueListaPanel({
 	onRetirar,
 }: EstoqueListaPanelProps) {
 	const [busca, setBusca] = useState("");
+	const [ordenacaoSalva, setOrdenacaoSalva] = usePersistedState<string>(
+		"erp.ordenacao.estoque",
+		ORDENACAO_PADRAO_PRODUTOS,
+	);
+	const ordenacaoId = lerOrdenacaoPersistida(
+		ordenacaoSalva,
+		OPCOES_ORDENACAO_PRODUTOS,
+		ORDENACAO_PADRAO_PRODUTOS,
+	);
+	const opcaoOrdenacao = buscarOpcao(OPCOES_ORDENACAO_PRODUTOS, ordenacaoId)!;
 	const [statusAtivo, setStatusAtivo] = useState<Status>("todos");
 	const [minimos, setMinimos] = useState<Record<number, string>>({});
 	const [errosMinimos, setErrosMinimos] = useState<Record<number, string>>({});
@@ -82,6 +101,15 @@ export function EstoqueListaPanel({
 				normalizarBuscaEstoque(r.sku).includes(termo) ||
 				normalizarBuscaEstoque(r.codigo_barras || "").includes(termo) ||
 				(idExato !== null && r.produto_id === idExato)),
+	);
+	const exibidas = ordenar(
+		filtradas.map((r) => ({
+			...r,
+			id: r.variacao_id,
+			nome: r.produto_nome,
+			atualizado_em: r.produto_atualizado_em,
+		})),
+		opcaoOrdenacao,
 	);
 
 	const valorTotal = linhas.reduce((soma, r) => {
@@ -213,6 +241,7 @@ export function EstoqueListaPanel({
 						placeholder="Buscar por nome, SKU, código de barras ou ID..."
 						className="h-9 rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
 					/>
+					<OrdenarMenu opcoes={OPCOES_ORDENACAO_PRODUTOS} valor={ordenacaoId} onChange={setOrdenacaoSalva} />
 					<button
 						type="button"
 						onClick={() => void recarregarLista()}
@@ -268,7 +297,7 @@ export function EstoqueListaPanel({
 										Carregando...
 									</td>
 								</tr>
-							) : filtradas.length === 0 ? (
+							) : exibidas.length === 0 ? (
 								<tr>
 									<td
 										colSpan={temAcoes ? 9 : 8}
@@ -278,7 +307,7 @@ export function EstoqueListaPanel({
 									</td>
 								</tr>
 							) : (
-								filtradas.map((r) => {
+								exibidas.map((r) => {
 									const status = statusDe(r);
 									const valor =
 										(Number(r.quantidade_estoque) || 0) *
